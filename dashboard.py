@@ -106,16 +106,18 @@ TOOLTIPS = [
 ]
 
 
-def bar_chart(data: pd.DataFrame, value_col: str, other_col: str,
+def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
               title: str, other_title: str, fmt: str,
               sort_mode: str, top_n: int):
     """Horizontal bars of `value_col` with the value printed at each bar end
-    and a neutral tick overlaying the counterpart metric (`other_col`)."""
+    and, when `other_col` is given (same units only), a neutral tick
+    overlaying that counterpart metric."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
     top["label"] = top["spec"] + " " + top["class"] + " — " + top["hero_talent"]
     top["value_text"] = top[value_col].map(lambda v: format(v, fmt))
     # anchor the printed value past BOTH the bar and the tick so they never collide
-    top["label_x"] = top[[value_col, other_col]].max(axis=1)
+    cols = [value_col] + ([other_col] if other_col else [])
+    top["label_x"] = top[cols].max(axis=1)
 
     if sort_mode == "Name (A → Z)":
         top = top.sort_values("label")
@@ -126,7 +128,7 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str,
         y_sort = "-x"
     y = alt.Y("label:N", sort=y_sort, title=None, axis=alt.Axis(labelLimit=320))
     # headroom so end-of-bar labels never clip and out-lying ticks stay visible
-    xmax = float(max(top[value_col].max(), top[other_col].max())) * 1.18
+    xmax = float(top[cols].max().max()) * 1.18
     x_scale = alt.Scale(domain=[0, xmax if xmax > 0 else 1], nice=False)
 
     base = alt.Chart(top)
@@ -138,6 +140,8 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str,
     labels = base.mark_text(align="left", dx=7, color=TICK_COLOR).encode(
         x=alt.X("label_x:Q", scale=x_scale), y=y, text="value_text:N",
     )
+    if not other_col:
+        return (bars + labels).properties(height=max(28 * len(top), 120))
     ticks = base.mark_tick(color=TICK_COLOR, thickness=2.5, size=15).encode(
         x=alt.X(f"{other_col}:Q", scale=x_scale,
                 title=f"{title} (tick: {other_title})"),
@@ -336,7 +340,7 @@ def main() -> None:
         ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f"),
         ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f"),
         ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f"),
-        ("Median Deaths", "median_deaths", "avg_deaths", "Average Deaths", ".2f"),
+        ("Deathless Runs %", "deathless", None, "", ".1f"),
     ]
     for tab, (title, col, other, other_title, fmt) in zip(
             st.tabs([s[0] for s in specs_charts]), specs_charts):
@@ -345,8 +349,12 @@ def main() -> None:
                 bar_chart(agg, col, other, title, other_title, fmt,
                           sort_mode, top_n),
                 width="stretch")
-            st.caption(f"Numbers at bar ends are the **{title}**; the grey "
-                       f"tick on each bar marks the **{other_title}**.")
+            if other:
+                st.caption(f"Numbers at bar ends are the **{title}**; the "
+                           f"grey tick on each bar marks the **{other_title}**.")
+            else:
+                st.caption(f"Numbers at bar ends are the **{title}** — the "
+                           "share of runs where the player did not die once.")
 
     st.caption(
         f"{len(agg):,} groups pass the threshold (≥ {min_runs} runs each). DPS "
