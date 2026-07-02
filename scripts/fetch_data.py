@@ -31,8 +31,10 @@ import pathlib
 import random
 import signal
 import sys
+import threading
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wcl_client import WCLClient
@@ -62,8 +64,10 @@ BRACKETS = list(range(11, 25))  # keys 12 .. 25 (bracket 24 catches 25+)
 MAX_PAGE = 20  # the API 404s past page 20 (hasMorePages stays true)
 
 RANK_BATCH = 10       # aliased fightRankings sub-queries per HTTP request
-SUMMARY_BATCH = 12    # aliased Summary-table sub-queries per HTTP request
-EXPORT_EVERY = 100    # export CSV every N summary batches
+SUMMARY_BATCH = 8     # aliased Summary-table sub-queries per HTTP request
+SUMMARY_WORKERS = 8   # concurrent HTTP requests (server latency, not quota,
+                      # is the per-request bottleneck: ~2s per table sub-query)
+EXPORT_EVERY = 800    # export CSV every N summary batches
 
 STOP = False
 
@@ -268,8 +272,30 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
     return rows
 
 
-def fetch_summaries(client: WCLClient, regions: set[str] | None,
-                    limit: int | None = None) -> None:
+_tls = threading.local()
+
+
+def _worker_client() -> WCLClient:
+    if not hasattr(_tls, "client"):
+        _tls.client = WCLClient(verbose=True)
+    return _tls.client
+
+
+def _fetch_batch(batch: list[dict]) -> tuple[list[dict], dict, float]:
+    """Worker: fetch one aliased batch of Summary tables."""
+    client = _worker_client()
+    parts = []
+    for i, f in enumerate(batch):
+        parts.append(
+            f'a{i}: report(code: "{f["code"]}") '
+            f'{{ table(fightIDs: [{f["fid"]}], dataType: Summary) }}'
+        )
+    q = "{ reportData { " + " ".join(parts) + " } }"
+    data = client.query(q, est_cost=2.6 * len(batch))
+    return batch, data.get("reportData") or {}, client.spent
+
+
+def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
     fights = load_fights(regions)
     done = load_done()
     pending = [f for k, f in fights.items() if k not in done]
@@ -283,41 +309,48 @@ def fetch_summaries(client: WCLClient, regions: set[str] | None,
     PROCESSED.mkdir(parents=True, exist_ok=True)
     done_fh = SUMMARIES_DONE.open("a")
     rows_fh = PLAYERS_FILE.open("a")
-    batches = 0
-    t0 = time.time()
-    while pending and not STOP:
-        batch, pending = pending[:SUMMARY_BATCH], pending[SUMMARY_BATCH:]
-        parts = []
-        for i, f in enumerate(batch):
-            parts.append(
-                f'a{i}: report(code: "{f["code"]}") '
-                f'{{ table(fightIDs: [{f["fid"]}], dataType: Summary) }}'
-            )
-        q = "{ reportData { " + " ".join(parts) + " } }"
-        data = client.query(q, est_cost=1.2 * len(batch))
-        rep = data.get("reportData") or {}
-        for i, f in enumerate(batch):
-            key = f"{f['code']}:{f['fid']}"
-            node = rep.get(f"a{i}")
-            try:
-                if not node or not node.get("table"):
-                    raise ValueError("report unavailable")
-                rows = parse_summary(f, node["table"], fetch_summaries.hero)
-            except (ValueError, KeyError, TypeError, AttributeError) as e:
-                done_fh.write(f"{key}\tFAILED\t{e}\n")
-                continue
-            for row in rows:
-                rows_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-            done_fh.write(f"{key}\tOK\n")
-        done_fh.flush()
-        rows_fh.flush()
-        batches += 1
-        if batches % 10 == 0:
-            rate = batches * SUMMARY_BATCH / max(time.time() - t0, 1)
-            print(f"[summaries] {len(pending)} left | {rate:.1f} runs/s | "
-                  f"{client.spent:.0f}/{client.limit:.0f} pts", flush=True)
-        if batches % EXPORT_EVERY == 0:
-            export()
+    batches = [pending[i:i + SUMMARY_BATCH]
+               for i in range(0, len(pending), SUMMARY_BATCH)]
+    n_done, t0 = 0, time.time()
+
+    # Workers only do HTTP; all journal writes happen on this (main) thread.
+    with ThreadPoolExecutor(max_workers=SUMMARY_WORKERS) as pool:
+        it = iter(batches)
+        futures = {pool.submit(_fetch_batch, b) for b in
+                   (next(it, None) for _ in range(SUMMARY_WORKERS * 2)) if b}
+        while futures:
+            fut = next(as_completed(futures))
+            futures.remove(fut)
+            batch, rep, spent = fut.result()
+            for i, f in enumerate(batch):
+                key = f"{f['code']}:{f['fid']}"
+                node = rep.get(f"a{i}")
+                try:
+                    if not node or not node.get("table"):
+                        raise ValueError("report unavailable")
+                    rows = parse_summary(f, node["table"], fetch_summaries.hero)
+                except (ValueError, KeyError, TypeError, AttributeError) as e:
+                    done_fh.write(f"{key}\tFAILED\t{e}\n")
+                    continue
+                for row in rows:
+                    rows_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                done_fh.write(f"{key}\tOK\n")
+            done_fh.flush()
+            rows_fh.flush()
+            n_done += 1
+            if n_done % 20 == 0:
+                rate = n_done * SUMMARY_BATCH / max(time.time() - t0, 1)
+                left = (len(batches) - n_done) * SUMMARY_BATCH
+                print(f"[summaries] ~{left} left | {rate:.1f} runs/s | "
+                      f"{spent:.0f} pts this window", flush=True)
+            if n_done % EXPORT_EVERY == 0:
+                export()
+            if not STOP:
+                nxt = next(it, None)
+                if nxt:
+                    futures.add(pool.submit(_fetch_batch, nxt))
+            elif not futures:
+                break
     done_fh.close()
     rows_fh.close()
 
@@ -393,7 +426,7 @@ def main() -> None:
     if args.stage in ("all", "sweep"):
         sweep(client, brackets)
     if args.stage in ("all", "summaries") and not STOP:
-        fetch_summaries(client, regions, args.limit_fights)
+        fetch_summaries(regions, args.limit_fights)
     export()
     print(f"[done] {client.requests_made} HTTP requests, "
           f"{client.spent:.0f} points spent this window", flush=True)
