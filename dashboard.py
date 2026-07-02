@@ -11,6 +11,7 @@ import os
 import pathlib
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -23,6 +24,32 @@ CHART_MAX = 40              # bars per chart
 # a region is excluded from the default Region filter when more than this
 # share of its rows lack combatant info (i.e. hero talent was unresolvable)
 REGION_MISSING_CUTOFF = 0.25
+
+# weekly M+ reset boundaries as (weekday Mon=0, hour UTC) per region
+RESET_RULES = {"US": (1, 15), "EU": (2, 4)}   # US: Tue 15:00, EU: Wed 04:00
+RESET_DEFAULT = (2, 22)                       # KR/TW/CN/unknown: ~Wed 22:00
+
+
+def latest_reset(now: pd.Timestamp, weekday: int, hour: int) -> pd.Timestamp:
+    """Most recent weekly reset boundary at or before `now` (UTC, naive)."""
+    b = now.normalize() + pd.Timedelta(hours=hour)
+    b -= pd.Timedelta(days=(now.weekday() - weekday) % 7)
+    if b > now:
+        b -= pd.Timedelta(days=7)
+    return b
+
+
+def resets_ago(df: pd.DataFrame) -> pd.Series:
+    """0 = current reset period, 1 = previous, ...; -1 = undated row.
+    Each run is bucketed against ITS region's own reset boundary."""
+    now = pd.Timestamp.now()
+    bounds = {r: latest_reset(now, *RESET_RULES.get(r, RESET_DEFAULT))
+              for r in df["region"].unique()}
+    secs = (df["region"].map(bounds) - df["started_at"]).dt.total_seconds()
+    out = pd.Series(np.where(secs <= 0, 0, secs // (7 * 86400) + 1),
+                    index=df.index)
+    out[df["started_at"].isna()] = -1
+    return out.astype(int)
 
 st.set_page_config(
     page_title="Midnight S1 Mythic+ Dashboard",
@@ -249,25 +276,22 @@ def main() -> None:
             key_range = (klo, khi)
             st.caption(f"Key Level: all runs are +{klo}")
 
-        # ---- date range (week granularity, oldest week -> today) ----
-        dated = df["started_at"].dropna()
-        week_range = None
-        if not dated.empty:
-            first_week = (dated.min() - pd.Timedelta(days=int(dated.min().weekday()))).normalize()
-            today = pd.Timestamp.now().normalize()
-            week_starts = list(pd.date_range(first_week, today, freq="7D"))
-            if len(week_starts) >= 2:
-                labels = [w.strftime("%Y-%m-%d") for w in week_starts]
-                sel = st.select_slider(
-                    "Date Range (week starting)", options=labels,
-                    value=(labels[0], labels[-1]),
-                    help="Include only runs whose start falls inside the "
-                         "selected weeks (inclusive)")
-                if (sel[0], sel[1]) != (labels[0], labels[-1]):
-                    week_range = (pd.Timestamp(sel[0]),
-                                  pd.Timestamp(sel[1]) + pd.Timedelta(days=7))
-            else:
-                st.caption("Date Range: all data is from the current week")
+        # ---- reset period (runs bucketed by their region's weekly reset) ----
+        df["_resets_ago"] = resets_ago(df)
+        us_b0 = latest_reset(pd.Timestamp.now(), *RESET_RULES["US"])
+        period_options = {"All data": None}
+        for n, name in ((0, "This reset"), (1, "Last reset"), (2, "Two resets ago")):
+            if (df["_resets_ago"] == n).any():
+                lo = us_b0 - pd.Timedelta(days=7 * n)
+                span = (f"since {lo:%b %d}" if n == 0
+                        else f"{lo:%b %d} – {lo + pd.Timedelta(days=7):%b %d}")
+                period_options[f"{name} ({span})"] = n
+        reset_sel = st.radio(
+            "Reset period", list(period_options),
+            help="Buckets runs by the weekly M+ reset of the run's own region "
+                 "(US: Tue 15:00 UTC, EU: Wed 04:00 UTC, Asia: ~Wed 22:00 UTC); "
+                 "dates shown use the US boundary")
+        reset_period = period_options[reset_sel]
 
         min_runs = st.slider(
             "Minimum Runs Threshold", 1, 500, 3,
@@ -306,8 +330,8 @@ def main() -> None:
         mask &= df["role"].isin(roles)
     if regions_sel:
         mask &= df["region"].isin(regions_sel)
-    if week_range is not None:
-        mask &= df["started_at"].ge(week_range[0]) & df["started_at"].lt(week_range[1])
+    if reset_period is not None:
+        mask &= df["_resets_ago"] == reset_period
     view = df[mask]
 
     if view.empty:
