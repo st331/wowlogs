@@ -4,6 +4,7 @@
 Run with:  streamlit run dashboard.py
 Data:      data/mythic_runs.csv  (produced by scripts/fetch_data.py)
 """
+import os
 import pathlib
 
 import altair as alt
@@ -11,7 +12,8 @@ import pandas as pd
 import streamlit as st
 
 ROOT = pathlib.Path(__file__).resolve().parent
-CSV_FILE = ROOT / "data" / "mythic_runs.csv"
+CSV_FILE = pathlib.Path(os.environ.get("WOWLOGS_CSV", ROOT / "data" / "mythic_runs.csv"))
+DEMO_FILE = ROOT / "data" / "demo_supplement.csv"
 
 ACCENT = "#2a78d6"  # single-hue magnitude encoding for the bar chart
 
@@ -23,11 +25,13 @@ st.set_page_config(
 
 
 @st.cache_data(show_spinner="Loading run data…")
-def load_data() -> pd.DataFrame:
+def load_data(include_demo: bool = False) -> pd.DataFrame:
     try:
         df = pd.read_csv(CSV_FILE)
     except (FileNotFoundError, pd.errors.EmptyDataError, pd.errors.ParserError):
         return pd.DataFrame()
+    if include_demo and DEMO_FILE.exists():
+        df = pd.concat([df, pd.read_csv(DEMO_FILE)], ignore_index=True)
     if df.empty:
         return pd.DataFrame()
     df["key_level"] = df["key_level"].astype(int)
@@ -41,7 +45,13 @@ def load_data() -> pd.DataFrame:
 def main() -> None:
     st.title("⚔️ Mythic+ Performance — Midnight Season 1")
 
-    df = load_data()
+    include_demo = st.sidebar.checkbox(
+        "Include demo rows (fake)", value=False,
+        help="Adds a small synthetic supplement (key-25 runs, KR/TW regions) "
+             "for testing UI functionality; marked report_code=FAKEDEMO",
+    ) if DEMO_FILE.exists() else False
+
+    df = load_data(include_demo)
     if df.empty:
         st.error(
             "No data available yet. Run `python3 scripts/fetch_data.py` to build "
