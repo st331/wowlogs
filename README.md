@@ -70,8 +70,11 @@ around getting the maximum data per point:
   are Blizzard-leaderboard imports or anonymized logs with **no report
   attached** (`report.code == ""`, `deaths == 300000000` sentinel) — there is
   no per-player data to fetch for them, via API or website alike.
-* **Regions:** defaults to US + EU (`--regions ALL` to include KR/TW; the
-  Chinese client logs to a separate site that this API does not serve).
+* **Regions:** rankings entries *tagged* CN/KR/TW are skipped by default
+  (`--regions ALL` includes them). About two-thirds of public entries carry
+  no server tag at all — those are fetched and each player's true region
+  (from the report itself) lands in the CSV's `region` column; the dashboard
+  has a Region filter (defaulting to US + EU).
 * **DPS** = per-player total damage done ÷ fight duration (the report's own
   `totalTime`), matching WCL's "Overall DPS" for dungeon runs.
 * **Deaths** are counted per player from the report's raw death events

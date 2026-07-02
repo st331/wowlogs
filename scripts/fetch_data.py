@@ -26,9 +26,13 @@ include KR/TW.
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
+import os
 import pathlib
 import random
+import re
+import shutil
 import signal
 import sys
 import threading
@@ -42,11 +46,18 @@ from wcl_client import WCLClient
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 PROCESSED = ROOT / "data" / "processed"
+CHECKPOINTS = ROOT / "data" / "checkpoints"
 RANKINGS_FILE = RAW / "rankings.jsonl"
 SUMMARIES_DONE = PROCESSED / "summaries_done.txt"
 PLAYERS_FILE = PROCESSED / "players.jsonl"
 CSV_FILE = ROOT / "data" / "mythic_runs.csv"
 HERO_MAP_FILE = ROOT / "data" / "hero_talent_map.json"
+
+# GraphQL error messages that mean a report can never be fetched (vs. a
+# transient server problem, which must NOT poison the checkpoint journal)
+PERMANENT_ERROR = re.compile(
+    r"do(es)? not exist|not found|permission|private|deleted|invalid report",
+    re.IGNORECASE)
 
 ZONE_ID = 47  # Midnight -> Mythic+ Season 1
 ENCOUNTERS = {
@@ -83,6 +94,65 @@ def bracket_to_key(bracket: int) -> int:
     return bracket + 1
 
 
+def _iter_journal(path: pathlib.Path):
+    """Yield parsed JSON lines, tolerating a torn trailing line (kill -9/OOM
+    mid-write). Corrupt lines are skipped with a warning, never fatal."""
+    if not path.exists():
+        return
+    bad = 0
+    with path.open() as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                bad += 1
+    if bad:
+        print(f"[journal] skipped {bad} corrupt line(s) in {path.name}", flush=True)
+
+
+def _repair_tail(path: pathlib.Path) -> None:
+    """Ensure an append journal ends with a newline so a torn last line can't
+    merge with the next record."""
+    if not path.exists() or path.stat().st_size == 0:
+        return
+    with path.open("rb") as fh:
+        fh.seek(-1, os.SEEK_END)
+        if fh.read(1) != b"\n":
+            with path.open("ab") as afh:
+                afh.write(b"\n")
+            print(f"[journal] repaired torn tail in {path.name}", flush=True)
+
+
+def restore_checkpoints() -> None:
+    """Rehydrate journals from committed gzip snapshots (fresh clone case)."""
+    pairs = [
+        (CHECKPOINTS / "rankings.jsonl.gz", RANKINGS_FILE),
+        (CHECKPOINTS / "summaries_done.txt.gz", SUMMARIES_DONE),
+        (CHECKPOINTS / "players.jsonl.gz", PLAYERS_FILE),
+    ]
+    for gz, dst in pairs:
+        if gz.exists() and not dst.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            with gzip.open(gz, "rb") as src, dst.open("wb") as out:
+                shutil.copyfileobj(src, out)
+            print(f"[restore] {dst.name} restored from {gz}", flush=True)
+
+
+def alias_error_map(errors: list) -> dict:
+    """Map alias name ('a3') -> error message from a GraphQL errors array."""
+    out = {}
+    for e in errors or []:
+        path = e.get("path") or []
+        for part in path:
+            if isinstance(part, str) and re.fullmatch(r"a\d+", part):
+                out[part] = e.get("message", "")
+                break
+    return out
+
+
 # --------------------------------------------------------------------------
 # Stage 1: rankings sweep
 # --------------------------------------------------------------------------
@@ -90,15 +160,12 @@ def bracket_to_key(bracket: int) -> int:
 def load_sweep_state() -> dict:
     """Rebuild sweep cursors from the raw rankings journal."""
     state = {}  # (enc, bracket) -> {"last_page": int, "more": bool}
-    if RANKINGS_FILE.exists():
-        with RANKINGS_FILE.open() as fh:
-            for line in fh:
-                rec = json.loads(line)
-                k = (rec["enc"], rec["bracket"])
-                cur = state.setdefault(k, {"last_page": 0, "more": True})
-                if rec["page"] > cur["last_page"]:
-                    cur["last_page"] = rec["page"]
-                    cur["more"] = rec["more"]
+    for rec in _iter_journal(RANKINGS_FILE):
+        k = (rec["enc"], rec["bracket"])
+        cur = state.setdefault(k, {"last_page": 0, "more": True})
+        if rec["page"] > cur["last_page"]:
+            cur["last_page"] = rec["page"]
+            cur["more"] = rec["more"]
     return state
 
 
@@ -116,7 +183,9 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
     print(f"[sweep] {len(cursors)} open cursors (max {total} pages total)", flush=True)
 
     RAW.mkdir(parents=True, exist_ok=True)
+    _repair_tail(RANKINGS_FILE)
     out = RANKINGS_FILE.open("a")
+    alias_fails: dict = {}  # (enc, bracket) -> consecutive null-alias count
     while cursors and not STOP:
         batch = list(cursors.items())[:RANK_BATCH]
         parts = []
@@ -132,9 +201,13 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
             node = world.get(f"a{i}")
             fr = (node or {}).get("fightRankings")
             if not fr or fr.get("rankings") is None:
-                # page beyond what the API serves -> cursor exhausted
-                del cursors[(enc, br)]
+                # could be end-of-pages OR a transient per-alias error:
+                # retry a couple of times before declaring the cursor done
+                alias_fails[(enc, br)] = alias_fails.get((enc, br), 0) + 1
+                if alias_fails[(enc, br)] >= 3:
+                    del cursors[(enc, br)]
                 continue
+            alias_fails.pop((enc, br), None)
             more = bool(fr.get("hasMorePages"))
             out.write(json.dumps({
                 "enc": enc, "bracket": br, "page": page, "more": more,
@@ -155,36 +228,38 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
 # --------------------------------------------------------------------------
 
 def load_fights(regions: set[str] | None) -> dict:
-    """Unique public runs discovered by the sweep, keyed by report:fightID."""
+    """Unique public runs discovered by the sweep, keyed by report:fightID.
+
+    Entries with a *known* region outside `regions` are dropped.  Entries with
+    an empty region (very common: ~2/3 of public runs have no server tag on
+    the ranking) are KEPT — their true per-player regions are only knowable
+    from the report itself and end up in the CSV's `region` column.
+    """
     fights = {}
     anon = 0
-    if not RANKINGS_FILE.exists():
-        return fights
-    with RANKINGS_FILE.open() as fh:
-        for line in fh:
-            rec = json.loads(line)
-            for r in rec["rankings"]:
-                code = (r.get("report") or {}).get("code") or ""
-                fid = (r.get("report") or {}).get("fightID")
-                if not code or fid is None:
-                    anon += 1
-                    continue
-                region = ((r.get("server") or {}).get("region") or "").upper()
-                if regions and region not in regions:
-                    continue
-                key = f"{code}:{fid}"
-                if key in fights:
-                    continue
-                fights[key] = {
-                    "code": code, "fid": fid, "enc": rec["enc"],
-                    "dungeon": ENCOUNTERS.get(rec["enc"], str(rec["enc"])),
-                    "key_level": r.get("bracketData", bracket_to_key(rec["bracket"])),
-                    "rank_duration_ms": r.get("duration"),
-                    "score": r.get("score"), "medal": r.get("medal"),
-                    "affixes": r.get("affixes") or [],
-                    "region": region,
-                    "start_time": r.get("startTime"),
-                }
+    for rec in _iter_journal(RANKINGS_FILE):
+        for r in rec["rankings"]:
+            code = (r.get("report") or {}).get("code") or ""
+            fid = (r.get("report") or {}).get("fightID")
+            if not code or fid is None:
+                anon += 1
+                continue
+            region = ((r.get("server") or {}).get("region") or "").upper()
+            if regions and region and region not in regions:
+                continue
+            key = f"{code}:{fid}"
+            if key in fights:
+                continue
+            fights[key] = {
+                "code": code, "fid": fid, "enc": rec["enc"],
+                "dungeon": ENCOUNTERS.get(rec["enc"], str(rec["enc"])),
+                "key_level": r.get("bracketData", bracket_to_key(rec["bracket"])),
+                "rank_duration_ms": r.get("duration"),
+                "score": r.get("score"), "medal": r.get("medal"),
+                "affixes": r.get("affixes") or [],
+                "region": region,
+                "start_time": r.get("startTime"),
+            }
     load_fights.anon_skipped = anon
     return fights
 
@@ -194,7 +269,10 @@ def load_done() -> set[str]:
     if SUMMARIES_DONE.exists():
         with SUMMARIES_DONE.open() as fh:
             for line in fh:
-                done.add(line.strip().split("\t")[0])
+                parts = line.rstrip("\n").split("\t")
+                # a torn line has no status column: treat as not-done
+                if len(parts) >= 2 and ":" in parts[0]:
+                    done.add(parts[0])
     return done
 
 
@@ -281,8 +359,13 @@ def _worker_client() -> WCLClient:
     return _tls.client
 
 
-def _fetch_batch(batch: list[dict]) -> tuple[list[dict], dict, float]:
-    """Worker: fetch one aliased batch of Summary tables."""
+def _fetch_batch(batch: list[dict]):
+    """Worker: fetch one aliased batch of Summary tables.
+
+    Returns (batch, reportData|None, alias->error map, points).  reportData
+    None means the whole request failed after retries -> requeue, don't
+    journal anything.
+    """
     client = _worker_client()
     parts = []
     for i, f in enumerate(batch):
@@ -291,66 +374,107 @@ def _fetch_batch(batch: list[dict]) -> tuple[list[dict], dict, float]:
             f'{{ table(fightIDs: [{f["fid"]}], dataType: Summary) }}'
         )
     q = "{ reportData { " + " ".join(parts) + " } }"
-    data = client.query(q, est_cost=2.6 * len(batch))
-    return batch, data.get("reportData") or {}, client.spent
+    try:
+        data = client.query(q, est_cost=2.6 * len(batch))
+    except RuntimeError as e:
+        print(f"[summaries] batch failed, will requeue: {e}", flush=True)
+        return batch, None, {}, client.spent
+    return (batch, data.get("reportData") or {},
+            alias_error_map(data.get("_errors")), client.spent)
 
 
 def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
     fights = load_fights(regions)
     done = load_done()
     pending = [f for k, f in fights.items() if k not in done]
-    random.Random(42).shuffle(pending)  # balanced partial coverage
+    # US/EU-tagged runs first, unknown-region after; shuffled within each
+    # group so partial datasets stay balanced across dungeons/brackets.
+    rnd = random.Random(42)
+    known = [f for f in pending if f["region"]]
+    unknown = [f for f in pending if not f["region"]]
+    rnd.shuffle(known)
+    rnd.shuffle(unknown)
+    pending = known + unknown
     if limit:
         pending = pending[:limit]
     print(f"[summaries] {len(fights)} public runs discovered "
           f"({load_fights.anon_skipped} anonymous entries skipped), "
-          f"{len(done)} already fetched, {len(pending)} to go", flush=True)
+          f"{len(done)} already fetched, {len(pending)} to go "
+          f"({len(known)} region-tagged, {len(unknown)} untagged)", flush=True)
 
     PROCESSED.mkdir(parents=True, exist_ok=True)
+    _repair_tail(SUMMARIES_DONE)
+    _repair_tail(PLAYERS_FILE)
     done_fh = SUMMARIES_DONE.open("a")
     rows_fh = PLAYERS_FILE.open("a")
-    batches = [pending[i:i + SUMMARY_BATCH]
-               for i in range(0, len(pending), SUMMARY_BATCH)]
     n_done, t0 = 0, time.time()
+    retry_round = 0
+    while pending and not STOP and retry_round <= 2:
+        if retry_round:
+            print(f"[summaries] retry round {retry_round}: "
+                  f"{len(pending)} transient failures", flush=True)
+        batches = [pending[i:i + SUMMARY_BATCH]
+                   for i in range(0, len(pending), SUMMARY_BATCH)]
+        transient: list[dict] = []
 
-    # Workers only do HTTP; all journal writes happen on this (main) thread.
-    with ThreadPoolExecutor(max_workers=SUMMARY_WORKERS) as pool:
-        it = iter(batches)
-        futures = {pool.submit(_fetch_batch, b) for b in
-                   (next(it, None) for _ in range(SUMMARY_WORKERS * 2)) if b}
-        while futures:
-            fut = next(as_completed(futures))
-            futures.remove(fut)
-            batch, rep, spent = fut.result()
-            for i, f in enumerate(batch):
-                key = f"{f['code']}:{f['fid']}"
-                node = rep.get(f"a{i}")
-                try:
-                    if not node or not node.get("table"):
-                        raise ValueError("report unavailable")
-                    rows = parse_summary(f, node["table"], fetch_summaries.hero)
-                except (ValueError, KeyError, TypeError, AttributeError) as e:
-                    done_fh.write(f"{key}\tFAILED\t{e}\n")
-                    continue
-                for row in rows:
-                    rows_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-                done_fh.write(f"{key}\tOK\n")
-            done_fh.flush()
-            rows_fh.flush()
-            n_done += 1
-            if n_done % 20 == 0:
-                rate = n_done * SUMMARY_BATCH / max(time.time() - t0, 1)
-                left = (len(batches) - n_done) * SUMMARY_BATCH
-                print(f"[summaries] ~{left} left | {rate:.1f} runs/s | "
-                      f"{spent:.0f} pts this window", flush=True)
-            if n_done % EXPORT_EVERY == 0:
-                export()
-            if not STOP:
-                nxt = next(it, None)
-                if nxt:
-                    futures.add(pool.submit(_fetch_batch, nxt))
-            elif not futures:
-                break
+        # Workers only do HTTP; all journal writes happen on this thread.
+        with ThreadPoolExecutor(max_workers=SUMMARY_WORKERS) as pool:
+            it = iter(batches)
+            futures = {pool.submit(_fetch_batch, b) for b in
+                       (next(it, None) for _ in range(SUMMARY_WORKERS * 2)) if b}
+            while futures:
+                fut = next(as_completed(futures))
+                futures.remove(fut)
+                batch, rep, errmap, spent = fut.result()
+                if rep is None:
+                    transient.extend(batch)  # whole request failed
+                else:
+                    for i, f in enumerate(batch):
+                        key = f"{f['code']}:{f['fid']}"
+                        node = rep.get(f"a{i}")
+                        if not node or not node.get("table"):
+                            # only a *permanent* GraphQL error may poison the
+                            # journal; anything ambiguous is retried later
+                            msg = errmap.get(f"a{i}", "")
+                            if msg and PERMANENT_ERROR.search(msg):
+                                done_fh.write(f"{key}\tFAILED\t{msg[:100]}\n")
+                            else:
+                                transient.append(f)
+                            continue
+                        try:
+                            rows = parse_summary(f, node["table"],
+                                                 fetch_summaries.hero)
+                        except (ValueError, KeyError, TypeError,
+                                AttributeError) as e:
+                            done_fh.write(f"{key}\tFAILED\t{e}\n")
+                            continue
+                        for row in rows:
+                            rows_fh.write(
+                                json.dumps(row, ensure_ascii=False) + "\n")
+                        done_fh.write(f"{key}\tOK\n")
+                    # rows must hit disk before their OK markers: a kill
+                    # between the flushes then costs a refetch (deduped at
+                    # export), never silent row loss
+                    rows_fh.flush()
+                    done_fh.flush()
+                n_done += 1
+                if n_done % 20 == 0:
+                    rate = n_done * SUMMARY_BATCH / max(time.time() - t0, 1)
+                    left = (len(batches) - n_done) * SUMMARY_BATCH
+                    print(f"[summaries] ~{max(left, 0)} left | "
+                          f"{rate:.1f} runs/s | "
+                          f"{spent:.0f} pts this window", flush=True)
+                if n_done % EXPORT_EVERY == 0:
+                    export()
+                if not STOP:
+                    nxt = next(it, None)
+                    if nxt:
+                        futures.add(pool.submit(_fetch_batch, nxt))
+        pending = transient
+        retry_round += 1
+    if pending:
+        print(f"[summaries] {len(pending)} runs still unfetched "
+              f"(transient failures; re-run to retry)", flush=True)
     done_fh.close()
     rows_fh.close()
 
@@ -367,13 +491,16 @@ def export() -> None:
         print("[export] no player rows yet", flush=True)
         return
     import pandas as pd
-    df = pd.read_json(PLAYERS_FILE, lines=True)
-    if df.empty:
+    rows = list(_iter_journal(PLAYERS_FILE))  # tolerates a torn trailing line
+    if not rows:
         print("[export] no player rows yet", flush=True)
         return
+    df = pd.DataFrame(rows)
     before = len(df)
-    df = df.drop_duplicates(subset=["report_code", "fight_id", "character"])
-    df.to_csv(CSV_FILE, index=False)
+    df = df.drop_duplicates(subset=["report_code", "fight_id", "character", "server"])
+    tmp = CSV_FILE.with_suffix(".csv.tmp")
+    df.to_csv(tmp, index=False)
+    os.replace(tmp, CSV_FILE)  # atomic: the live dashboard never sees a torn file
     print(f"[export] {len(df)} player-rows ({before - len(df)} dupes dropped) "
           f"across {df[['report_code', 'fight_id']].drop_duplicates().shape[0]} runs "
           f"-> {CSV_FILE}", flush=True)
@@ -411,6 +538,7 @@ def main() -> None:
     lo, hi = (int(x) for x in args.brackets.split("-"))
     brackets = [b for b in BRACKETS if lo <= b <= hi]
 
+    restore_checkpoints()
     if args.stage == "status":
         status(regions)
         return

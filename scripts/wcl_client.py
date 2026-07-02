@@ -40,13 +40,7 @@ def _read_secret(name: str) -> str | None:
     return None
 
 
-def get_token(session: requests.Session) -> str:
-    token = os.environ.get("WCL_TOKEN") or _read_secret("wcl_token")
-    if token:
-        return token
-    cached = _read_secret("wcl_token_auto")
-    if cached:
-        return cached
+def _client_credentials_token(session: requests.Session) -> str:
     cid = os.environ.get("WCL_CLIENT_ID") or _read_secret("wcl_client_id")
     csec = os.environ.get("WCL_CLIENT_SECRET") or _read_secret("wcl_client_secret")
     if not (cid and csec):
@@ -60,6 +54,17 @@ def get_token(session: requests.Session) -> str:
     return token
 
 
+def get_token(session: requests.Session) -> tuple[str, str]:
+    """Returns (token, source) where source is 'static' or 'auto'."""
+    token = os.environ.get("WCL_TOKEN") or _read_secret("wcl_token")
+    if token:
+        return token, "static"
+    cached = _read_secret("wcl_token_auto")
+    if cached:
+        return cached, "auto"
+    return _client_credentials_token(session), "auto"
+
+
 class QuotaExceeded(Exception):
     """Raised internally when the hourly point budget is exhausted."""
 
@@ -67,7 +72,7 @@ class QuotaExceeded(Exception):
 class WCLClient:
     def __init__(self, budget_margin: float = 400.0, verbose: bool = True):
         self.session = requests.Session()
-        self.token = get_token(self.session)
+        self.token, self.token_source = get_token(self.session)
         self.session.headers["Authorization"] = f"Bearer {self.token}"
         self.budget_margin = budget_margin
         self.verbose = verbose
@@ -110,6 +115,8 @@ class WCLClient:
             gql = gql[:-1] + f" {RATE_FIELD} }}"
 
         backoff = 2
+        auth_retried = False
+        gql_failures = 0
         while True:
             # budget guard: leave headroom for this request's estimated cost
             if self.spent + est_cost + self.budget_margin >= self.limit:
@@ -129,7 +136,6 @@ class WCLClient:
                 wait = retry_after if retry_after > 0 else max(self.reset_in, 60) + 20
                 self._log(f"HTTP 429; sleeping {wait:.0f}s")
                 time.sleep(wait)
-                self.spent = 0.0
                 continue
             if r.status_code >= 500:
                 self._log(f"HTTP {r.status_code}; retrying in {backoff}s")
@@ -137,10 +143,24 @@ class WCLClient:
                 backoff = min(backoff * 2, 120)
                 continue
             if r.status_code in (401, 403):
+                # a cached client-credentials token may simply have expired
+                if self.token_source == "auto" and not auth_retried:
+                    auth_retried = True
+                    self._log("HTTP 401/403: refreshing client-credentials token")
+                    (SECRETS / "wcl_token_auto").unlink(missing_ok=True)
+                    self.token = _client_credentials_token(self.session)
+                    self.session.headers["Authorization"] = f"Bearer {self.token}"
+                    continue
                 sys.exit(f"auth failure (HTTP {r.status_code}): check WCL token")
             r.raise_for_status()
 
-            payload = r.json()
+            try:
+                payload = r.json()
+            except ValueError:
+                self._log(f"non-JSON 200 response; retrying in {backoff}s")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 120)
+                continue
             data = payload.get("data") or {}
             self._update_rate(data)
             self.requests_made += 1
@@ -153,7 +173,16 @@ class WCLClient:
                 self._log(f"GraphQL quota error: {quota_err[0]['message']}")
                 self._sleep_for_reset()
                 continue
-            if errors and not data:
+            if errors and not (data.get("reportData") or data.get("worldData")):
+                # whole-query GraphQL failure with no usable payload: transient
+                # server hiccups land here too, so retry before giving up
+                gql_failures += 1
+                if gql_failures <= 3:
+                    self._log(f"GraphQL error ({gql_failures}/3): "
+                              f"{errors[0].get('message', '?')[:120]}; retrying")
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 120)
+                    continue
                 raise RuntimeError(f"GraphQL error: {errors[:3]}")
             # partial errors (individual aliases) are the caller's business
             data["_errors"] = errors

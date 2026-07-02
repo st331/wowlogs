@@ -24,10 +24,16 @@ st.set_page_config(
 
 @st.cache_data(show_spinner="Loading run data…")
 def load_data() -> pd.DataFrame:
-    df = pd.read_csv(CSV_FILE)
+    try:
+        df = pd.read_csv(CSV_FILE)
+    except (FileNotFoundError, pd.errors.EmptyDataError, pd.errors.ParserError):
+        return pd.DataFrame()
+    if df.empty:
+        return pd.DataFrame()
     df["key_level"] = df["key_level"].astype(int)
     df["deaths"] = df["deaths"].astype(int)
-    df["hero_talent"] = df["hero_talent"].fillna("Unknown")
+    for col in ("class", "spec", "hero_talent", "role", "region"):
+        df[col] = df[col].fillna("Unknown").replace("", "Unknown")
     df["started_at"] = pd.to_datetime(df["started_at"], errors="coerce")
     return df
 
@@ -35,14 +41,16 @@ def load_data() -> pd.DataFrame:
 def main() -> None:
     st.title("⚔️ Mythic+ Performance — Midnight Season 1")
 
-    if not CSV_FILE.exists():
-        st.error(
-            "No data found. Run `python3 scripts/fetch_data.py` first to build "
-            "`data/mythic_runs.csv`."
-        )
-        st.stop()
-
     df = load_data()
+    if df.empty:
+        st.error(
+            "No data available yet. Run `python3 scripts/fetch_data.py` to build "
+            "`data/mythic_runs.csv`, then hit **Refresh Data**."
+        )
+        if st.button("🔄 Refresh Data"):
+            load_data.clear()
+            st.rerun()
+        st.stop()
 
     # ------------------------------------------------------------------ sidebar
     with st.sidebar:
@@ -65,9 +73,13 @@ def main() -> None:
             "Hero Talent", sorted(pool["hero_talent"].dropna().unique()), default=[])
 
         klo, khi = int(df["key_level"].min()), int(df["key_level"].max())
-        key_range = st.slider(
-            "Key Level", klo, khi, (klo, khi),
-            help="Runs outside this keystone range are excluded")
+        if klo < khi:
+            key_range = st.slider(
+                "Key Level", klo, khi, (klo, khi),
+                help="Runs outside this keystone range are excluded")
+        else:
+            key_range = (klo, khi)
+            st.caption(f"Key Level: all runs are +{klo}")
 
         min_runs = st.slider(
             "Minimum Runs Threshold", 1, 50, 3,
@@ -76,6 +88,13 @@ def main() -> None:
         roles = st.multiselect(
             "Role", ["DPS", "Healer", "Tank"], default=[],
             help="Optional: limit to a role (empty = all)")
+
+        region_opts = sorted(df["region"].unique())
+        region_default = [r for r in ("US", "EU") if r in region_opts]
+        regions_sel = st.multiselect(
+            "Region", region_opts,
+            default=region_default if region_default else [],
+            help="Player region from the report itself (empty = all)")
 
         st.caption(
             "Empty multiselects mean *no filter*. Data: Warcraft Logs "
@@ -92,6 +111,8 @@ def main() -> None:
         mask &= df["hero_talent"].isin(heroes)
     if roles:
         mask &= df["role"].isin(roles)
+    if regions_sel:
+        mask &= df["region"].isin(regions_sel)
     view = df[mask]
 
     if view.empty:

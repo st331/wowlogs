@@ -1,7 +1,8 @@
 # credentials — never commit
 .secrets/
 
-# bulky pipeline checkpoints (re-created by scripts/fetch_data.py)
+# bulky pipeline checkpoints (re-created by scripts/fetch_data.py; compressed
+# snapshots live in data/checkpoints/ which IS committed for resumability)
 data/raw/
 data/processed/
 logs/

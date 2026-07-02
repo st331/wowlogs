@@ -51,8 +51,12 @@ def fetch_inc() -> str:
     if CACHE.exists():
         return CACHE.read_text()
     text = urllib.request.urlopen(SIMC_URL, timeout=60).read().decode()
+    if "__trait_sub_tree_data" not in text:
+        sys.exit("downloaded trait_data.inc looks truncated; not caching")
     CACHE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE.write_text(text)
+    tmp = CACHE.with_suffix(".inc.tmp")
+    tmp.write_text(text)
+    tmp.replace(CACHE)
     return text
 
 
@@ -82,12 +86,14 @@ def main() -> None:
         sys.exit(f"parse failure: {len(rows)} rows, {len(node_to_subtree)} hero nodes")
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps({
+    tmp = OUT.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps({
         "build": build,
         "subtree_names": {str(k): v for k, v in sorted(subtree_names.items())},
         "node_to_subtree": {str(k): v for k, v in sorted(node_to_subtree.items())},
         "entry_to_subtree": {str(k): v for k, v in sorted(entry_to_subtree.items())},
     }, indent=1))
+    tmp.replace(OUT)
     print(f"wow build {build}: {len(rows)} traits parsed, "
           f"{len(node_to_subtree)} hero-tree nodes, {len(subtree_names)} sub-trees -> {OUT}")
 
