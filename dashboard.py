@@ -109,26 +109,33 @@ TOOLTIPS = [
 
 def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
               title: str, other_title: str, fmt: str,
-              sort_mode: str, top_n: int, diverging: bool = False):
+              sort_mode: str, top_n: int, diverging: bool = False,
+              deaths_inlay: bool = False):
     """Horizontal bars of `value_col` with the value printed at each bar end
     and, when `other_col` is given (same units only), a neutral tick
     overlaying that counterpart metric. `diverging` colors negative bars
-    with the opposite pole for signed metrics."""
+    with the opposite pole for signed metrics. `deaths_inlay` prints the
+    survivability stats inside the bar so DPS charts carry both stories."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
     top["label"] = top["class"] + " " + top["spec"] + " — " + top["hero_talent"]
     top["value_text"] = top[value_col].map(lambda v: format(v, fmt))
+    top["deaths_text"] = (top["avg_deaths"].map("{:.2f} avg deaths".format)
+                          + "  ·  "
+                          + top["deathless"].map("{:.0f}% deathless".format))
     # anchor the printed value past BOTH the bar and the tick so they never
     # collide; never left of zero so negative bars keep their label readable
     cols = [value_col] + ([other_col] if other_col else [])
     top["label_x"] = top[cols].max(axis=1).clip(lower=0)
 
+    # sort must reference the metric FIELD, not the layer's x channel: layers
+    # whose x is a pixel value (the deaths inlay) can't resolve '-x' and the
+    # whole layered spec silently collapses to zero height
     if sort_mode == "Name (A → Z)":
-        top = top.sort_values("label")
-        y_sort = None
+        y_sort = alt.EncodingSortField(field="label", op="min", order="ascending")
     elif sort_mode == "Value (low → high)":
-        y_sort = "x"
+        y_sort = alt.EncodingSortField(field=value_col, op="max", order="ascending")
     else:
-        y_sort = "-x"
+        y_sort = alt.EncodingSortField(field=value_col, op="max", order="descending")
     y = alt.Y("label:N", sort=y_sort, title=None, axis=alt.Axis(labelLimit=320))
     # headroom so end-of-bar labels never clip and out-lying ticks stay visible
     xmax = float(top[cols].max().max()) * 1.18
@@ -144,17 +151,41 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     if diverging:
         bars = bars.encode(color=alt.condition(
             alt.datum[value_col] < 0, alt.value("#e34948"), alt.value(ACCENT)))
-    labels = base.mark_text(align="left", dx=7, color=TICK_COLOR).encode(
+    ink_flip = None
+    if deaths_inlay:
+        # survivability painted onto the DPS bars: one hue, light -> dark
+        # (sequential blue, palette steps 200 -> 700), darker = fewer deaths
+        dmin, dmax = float(top["deathless"].min()), float(top["deathless"].max())
+        if dmax <= dmin:
+            dmin, dmax = dmin - 1, dmax + 1
+        bars = bars.encode(color=alt.Color(
+            "deathless:Q",
+            scale=alt.Scale(domain=[dmin, dmax], range=["#9ec5f4", "#0d366b"]),
+            legend=alt.Legend(title="Deathless runs %", orient="top",
+                              gradientLength=220, format=".0f"),
+        ))
+        # inlay ink flips to dark on the light end of the gradient
+        ink_flip = (dmin + dmax) / 2
+    labels = base.mark_text(align="left", dx=7, color="#1f1e1d",
+                            fontSize=12.5, fontWeight="bold").encode(
         x=alt.X("label_x:Q", scale=x_scale), y=y, text="value_text:N",
     )
-    if not other_col:
-        return (bars + labels).properties(height=max(28 * len(top), 120))
-    ticks = base.mark_tick(color=TICK_COLOR, thickness=2.5, size=15).encode(
-        x=alt.X(f"{other_col}:Q", scale=x_scale,
-                title=f"{title} (tick: {other_title})"),
-        y=y, tooltip=TOOLTIPS,
-    )
-    return (bars + labels + ticks).properties(height=max(28 * len(top), 120))
+    layers = bars + labels
+    if deaths_inlay:
+        layers += base.mark_text(align="left", fontSize=10.5,
+                                 fontWeight=500).encode(
+            x=alt.value(8),  # pinned just inside the bar's left edge
+            y=y, text="deaths_text:N", tooltip=TOOLTIPS,
+            color=alt.condition(alt.datum.deathless < ink_flip,
+                                alt.value("#1f1e1d"), alt.value("white")),
+        )
+    if other_col:
+        layers += base.mark_tick(color=TICK_COLOR, thickness=2.5, size=15).encode(
+            x=alt.X(f"{other_col}:Q", scale=x_scale,
+                    title=f"{title} (tick: {other_title})"),
+            y=y, tooltip=TOOLTIPS,
+        )
+    return layers.properties(height=max(30 * len(top), 120))
 
 
 def main() -> None:
@@ -347,20 +378,26 @@ def main() -> None:
         help="How many of the top groups (by the tab's metric) to draw")
 
     specs_charts = [
-        ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f", False),
-        ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f", False),
-        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", True),
-        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f", False),
-        ("Deathless Runs %", "deathless", None, "", ".1f", False),
+        ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f", False, True),
+        ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f", False, True),
+        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", True, False),
+        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f", False, False),
+        ("Deathless Runs %", "deathless", None, "", ".1f", False, False),
     ]
-    for tab, (title, col, other, other_title, fmt, div) in zip(
+    for tab, (title, col, other, other_title, fmt, div, inlay) in zip(
             st.tabs([s[0] for s in specs_charts]), specs_charts):
         with tab:
             st.altair_chart(
                 bar_chart(agg, col, other, title, other_title, fmt,
-                          sort_mode, top_n, diverging=div),
+                          sort_mode, top_n, diverging=div, deaths_inlay=inlay),
                 width="stretch")
-            if other:
+            if inlay:
+                st.caption(f"Bold number at each bar end: **{title}**; grey "
+                           f"tick: **{other_title}**. Survivability is painted "
+                           "onto each bar: darker blue = higher share of "
+                           "deathless runs (see legend), with the exact deaths "
+                           "stats printed inside the bar.")
+            elif other:
                 st.caption(f"Numbers at bar ends are the **{title}**; the "
                            f"grey tick on each bar marks the **{other_title}**.")
             elif col == "dps_diff":
