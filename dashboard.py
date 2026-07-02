@@ -115,7 +115,7 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     overlaying that counterpart metric. `diverging` colors negative bars
     with the opposite pole for signed metrics."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
-    top["label"] = top["spec"] + " " + top["class"] + " — " + top["hero_talent"]
+    top["label"] = top["class"] + " " + top["spec"] + " — " + top["hero_talent"]
     top["value_text"] = top[value_col].map(lambda v: format(v, fmt))
     # anchor the printed value past BOTH the bar and the tick so they never
     # collide; never left of zero so negative bars keep their label readable
