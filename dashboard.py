@@ -117,7 +117,9 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     with the opposite pole for signed metrics. `deaths_inlay` prints the
     survivability stats inside the bar so DPS charts carry both stories."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
-    top["label"] = top["class"] + " " + top["spec"] + " — " + top["hero_talent"]
+    top["label"] = (top["class"] + " " + top["spec"]
+                    + top["hero_talent"].map(
+                        lambda h: "" if h in ("", "(all)") else f" — {h}"))
     top["value_text"] = top[value_col].map(lambda v: format(v, fmt))
     top["deaths_text"] = (top["avg_deaths"].map("{:.2f} avg deaths".format)
                           + "  ·  "
@@ -225,7 +227,11 @@ def main() -> None:
             "Spec", sorted(pool["spec"].dropna().unique()), default=[])
         pool = pool if not specs else pool[pool["spec"].isin(specs)]
 
-        heroes = st.multiselect(
+        merge_heroes = st.checkbox(
+            "Merge hero talents into spec", value=False,
+            help="Group results by Class/Spec only, ignoring hero talents "
+                 "entirely (disables the Hero Talent filter)")
+        heroes = [] if merge_heroes else st.multiselect(
             "Hero Talent", sorted(pool["hero_talent"].dropna().unique()), default=[])
 
         dungeons = st.multiselect(
@@ -318,8 +324,9 @@ def main() -> None:
         c4.metric("Run dates", "—")
 
     # ------------------------------------------------------------------ aggregate
+    group_cols = ["class", "spec"] if merge_heroes else ["class", "spec", "hero_talent"]
     agg = (
-        view.groupby(["class", "spec", "hero_talent"])
+        view.groupby(group_cols)
         .agg(
             total_runs=("dps", "size"),
             avg_dps=("dps", "mean"),
@@ -330,6 +337,8 @@ def main() -> None:
         )
         .reset_index()
     )
+    if merge_heroes:
+        agg["hero_talent"] = "(all)"
     agg = agg[agg["total_runs"] >= min_runs]
     agg["avg_dps"] = agg["avg_dps"].round(0).astype(int)
     agg["median_dps"] = agg["median_dps"].round(0).astype(int)
@@ -343,9 +352,10 @@ def main() -> None:
         )
         st.stop()
 
-    st.subheader("Performance by Class / Spec / Hero Talent")
+    st.subheader("Performance by Class / Spec" +
+                 ("" if merge_heroes else " / Hero Talent"))
     st.dataframe(
-        agg.rename(columns={
+        (agg.drop(columns=["hero_talent"]) if merge_heroes else agg).rename(columns={
             "class": "Class", "spec": "Spec", "hero_talent": "Hero Talent",
             "total_runs": "Total Runs", "avg_dps": "Average DPS",
             "median_dps": "Median DPS", "dps_diff": "Mean − Median DPS",
