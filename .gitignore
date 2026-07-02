@@ -1,0 +1,11 @@
+# credentials — never commit
+.secrets/
+
+# bulky pipeline checkpoints (re-created by scripts/fetch_data.py)
+data/raw/
+data/processed/
+logs/
+
+__pycache__/
+*.pyc
+.venv/
