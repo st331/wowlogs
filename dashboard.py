@@ -91,29 +91,59 @@ def load_data(include_demo: bool = False):
     return df, region_missing
 
 
-def bar_chart(data: pd.DataFrame, value_col: str, title: str, fmt: str):
-    top = data.sort_values(value_col, ascending=False).head(CHART_MAX).copy()
+TICK_COLOR = "#52514e"  # neutral ink for the counterpart-metric marker
+
+TOOLTIPS = [
+    alt.Tooltip("class:N", title="Class"),
+    alt.Tooltip("spec:N", title="Spec"),
+    alt.Tooltip("hero_talent:N", title="Hero Talent"),
+    alt.Tooltip("total_runs:Q", title="Total Runs", format=","),
+    alt.Tooltip("avg_dps:Q", title="Average DPS", format=","),
+    alt.Tooltip("median_dps:Q", title="Median DPS", format=","),
+    alt.Tooltip("avg_deaths:Q", title="Average Deaths", format=".2f"),
+    alt.Tooltip("median_deaths:Q", title="Median Deaths", format=".1f"),
+    alt.Tooltip("deathless:Q", title="Deathless runs %", format=".1f"),
+]
+
+
+def bar_chart(data: pd.DataFrame, value_col: str, other_col: str,
+              title: str, other_title: str, fmt: str,
+              sort_mode: str, top_n: int):
+    """Horizontal bars of `value_col` with the value printed at each bar end
+    and a neutral tick overlaying the counterpart metric (`other_col`)."""
+    top = data.sort_values(value_col, ascending=False).head(top_n).copy()
     top["label"] = top["spec"] + " " + top["class"] + " — " + top["hero_talent"]
-    return (
-        alt.Chart(top)
-        .mark_bar(size=16, cornerRadiusEnd=4, color=ACCENT)
-        .encode(
-            x=alt.X(f"{value_col}:Q", title=title, axis=alt.Axis(format=fmt)),
-            y=alt.Y("label:N", sort="-x", title=None,
-                    axis=alt.Axis(labelLimit=320)),
-            tooltip=[
-                alt.Tooltip("class:N", title="Class"),
-                alt.Tooltip("spec:N", title="Spec"),
-                alt.Tooltip("hero_talent:N", title="Hero Talent"),
-                alt.Tooltip("total_runs:Q", title="Total Runs", format=","),
-                alt.Tooltip("avg_dps:Q", title="Average DPS", format=","),
-                alt.Tooltip("median_dps:Q", title="Median DPS", format=","),
-                alt.Tooltip("avg_deaths:Q", title="Average Deaths", format=".2f"),
-                alt.Tooltip("median_deaths:Q", title="Median Deaths", format=".1f"),
-            ],
-        )
-        .properties(height=max(28 * len(top), 120))
+    top["value_text"] = top[value_col].map(lambda v: format(v, fmt))
+    # anchor the printed value past BOTH the bar and the tick so they never collide
+    top["label_x"] = top[[value_col, other_col]].max(axis=1)
+
+    if sort_mode == "Name (A → Z)":
+        top = top.sort_values("label")
+        y_sort = None
+    elif sort_mode == "Value (low → high)":
+        y_sort = "x"
+    else:
+        y_sort = "-x"
+    y = alt.Y("label:N", sort=y_sort, title=None, axis=alt.Axis(labelLimit=320))
+    # headroom so end-of-bar labels never clip and out-lying ticks stay visible
+    xmax = float(max(top[value_col].max(), top[other_col].max())) * 1.18
+    x_scale = alt.Scale(domain=[0, xmax if xmax > 0 else 1], nice=False)
+
+    base = alt.Chart(top)
+    bars = base.mark_bar(size=16, cornerRadiusEnd=4, color=ACCENT).encode(
+        x=alt.X(f"{value_col}:Q", title=title, scale=x_scale,
+                axis=alt.Axis(format=fmt)),
+        y=y, tooltip=TOOLTIPS,
     )
+    labels = base.mark_text(align="left", dx=7, color=TICK_COLOR).encode(
+        x=alt.X("label_x:Q", scale=x_scale), y=y, text="value_text:N",
+    )
+    ticks = base.mark_tick(color=TICK_COLOR, thickness=2.5, size=15).encode(
+        x=alt.X(f"{other_col}:Q", scale=x_scale,
+                title=f"{title} (tick: {other_title})"),
+        y=y, tooltip=TOOLTIPS,
+    )
+    return (bars + labels + ticks).properties(height=max(28 * len(top), 120))
 
 
 def main() -> None:
@@ -254,6 +284,7 @@ def main() -> None:
             median_dps=("dps", "median"),
             avg_deaths=("deaths", "mean"),
             median_deaths=("deaths", "median"),
+            deathless=("deaths", lambda s: (s == 0).mean() * 100),
         )
         .reset_index()
     )
@@ -275,7 +306,7 @@ def main() -> None:
             "class": "Class", "spec": "Spec", "hero_talent": "Hero Talent",
             "total_runs": "Total Runs", "avg_dps": "Average DPS",
             "median_dps": "Median DPS", "avg_deaths": "Average Deaths",
-            "median_deaths": "Median Deaths",
+            "median_deaths": "Median Deaths", "deathless": "Deathless %",
         }),
         width="stretch",
         hide_index=True,
@@ -285,32 +316,46 @@ def main() -> None:
             "Median DPS": st.column_config.NumberColumn(format="localized"),
             "Average Deaths": st.column_config.NumberColumn(format="%.2f"),
             "Median Deaths": st.column_config.NumberColumn(format="%.1f"),
+            "Deathless %": st.column_config.NumberColumn(format="%.1f%%"),
         },
     )
 
     # ------------------------------------------------------------------ charts
-    st.subheader("Group comparisons" +
-                 (f" — top {CHART_MAX} groups per metric" if len(agg) > CHART_MAX else ""))
-    tab_avg, tab_med, tab_adeaths, tab_mdeaths = st.tabs(
-        ["Average DPS", "Median DPS", "Average Deaths", "Median Deaths"])
-    with tab_avg:
-        st.altair_chart(bar_chart(agg, "avg_dps", "Average DPS", ",.0f"),
-                        width="stretch")
-    with tab_med:
-        st.altair_chart(bar_chart(agg, "median_dps", "Median DPS", ",.0f"),
-                        width="stretch")
-    with tab_adeaths:
-        st.altair_chart(bar_chart(agg, "avg_deaths", "Average Deaths per Run", ".2f"),
-                        width="stretch")
-    with tab_mdeaths:
-        st.altair_chart(bar_chart(agg, "median_deaths", "Median Deaths per Run", ".1f"),
-                        width="stretch")
+    st.subheader("Group comparisons")
+    ctl1, ctl2 = st.columns([1, 1])
+    sort_mode = ctl1.selectbox(
+        "Sort bars by",
+        ["Value (high → low)", "Value (low → high)", "Name (A → Z)"],
+        help="Bars are always the top groups by the tab's metric; this "
+             "controls their display order")
+    top_n = ctl2.slider(
+        "Groups shown", 5, max(min(len(agg), 100), 6), min(CHART_MAX, len(agg)),
+        help="How many of the top groups (by the tab's metric) to draw")
+
+    specs_charts = [
+        ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f"),
+        ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f"),
+        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f"),
+        ("Median Deaths", "median_deaths", "avg_deaths", "Average Deaths", ".2f"),
+    ]
+    for tab, (title, col, other, other_title, fmt) in zip(
+            st.tabs([s[0] for s in specs_charts]), specs_charts):
+        with tab:
+            st.altair_chart(
+                bar_chart(agg, col, other, title, other_title, fmt,
+                          sort_mode, top_n),
+                width="stretch")
+            st.caption(f"Numbers at bar ends are the **{title}**; the grey "
+                       f"tick on each bar marks the **{other_title}**.")
 
     st.caption(
-        f"{len(agg):,} groups shown (≥ {min_runs} runs each). DPS is per-player "
-        "overall damage ÷ run duration; deaths are per player per run, parsed "
-        "from each report's death events. Rows whose log lacked combatant info "
-        "are counted under the most-used hero talent of their spec."
+        f"{len(agg):,} groups pass the threshold (≥ {min_runs} runs each). DPS "
+        "is per-player overall damage ÷ run duration; deaths are per player "
+        "per run, parsed from each report's death events. Median deaths are "
+        "0 for most groups because ~75% of all parses have zero deaths — "
+        "hover any bar for the share of deathless runs. Rows whose log lacked "
+        "combatant info are counted under the most-used hero talent of their "
+        "spec."
     )
 
 
