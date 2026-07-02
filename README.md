@@ -5,6 +5,13 @@ aggregates and visualizes Mythic+ performance for **Midnight Season 1**
 (high keys, +12 → +25 and above), built on the
 [Warcraft Logs v2 GraphQL API](https://www.warcraftlogs.com/api/docs).
 
+**Current dataset:** 53,252 dungeon runs / 266,270 player parses across all 8
+dungeons and keys 12–25+ (runs dated 2026-03-28 → 2026-07-02). Regions:
+EU 110.8k, CN 94.2k, US 57.6k, KR 3.7k player rows. 14 classes, 36 specs,
+42 hero talents. Of 94,613 ranked leaderboard entries, 34,325 were
+unlogged/anonymous (no report exists) and 6,987 were explicitly CN/KR/TW
+tagged and skipped; the remaining ~53.3k public runs were all fetched.
+
 ```
 scripts/wcl_client.py      quota-aware WCL GraphQL client
 scripts/build_hero_map.py  trait-node → hero-talent mapping from SimC data
@@ -66,6 +73,13 @@ around getting the maximum data per point:
   (Midnight M+ Season 1), keystone brackets 11–24 = key levels 12–25+
   (bracket = key − 1; the top bracket includes 25+). WCL caps each
   dungeon × bracket leaderboard at 20 pages × 50 runs.
+* **This is a top-of-leaderboard sample, not a census.** Because the API only
+  serves the top ~1,000 runs *by score* per dungeon × key, the dataset skews
+  toward high-scoring (faster, higher-DPS) runs. Aggregate DPS here therefore
+  runs a bit **higher** than sites that average the full logged population
+  (e.g. mythicstats / WCL's own statistics), by roughly 8–12 % — the ranking
+  order matches, the absolute numbers sit above a full-population mean. Read
+  it as "what strong runs pull," not "the average run."
 * **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries
   are Blizzard-leaderboard imports or anonymized logs with **no report
   attached** (`report.code == ""`, `deaths == 300000000` sentinel) — there is
