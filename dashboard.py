@@ -100,6 +100,7 @@ TOOLTIPS = [
     alt.Tooltip("total_runs:Q", title="Total Runs", format=","),
     alt.Tooltip("avg_dps:Q", title="Average DPS", format=","),
     alt.Tooltip("median_dps:Q", title="Median DPS", format=","),
+    alt.Tooltip("dps_diff:Q", title="Mean − Median DPS", format="+,"),
     alt.Tooltip("avg_deaths:Q", title="Average Deaths", format=".2f"),
     alt.Tooltip("median_deaths:Q", title="Median Deaths", format=".1f"),
     alt.Tooltip("deathless:Q", title="Deathless runs %", format=".1f"),
@@ -108,16 +109,18 @@ TOOLTIPS = [
 
 def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
               title: str, other_title: str, fmt: str,
-              sort_mode: str, top_n: int):
+              sort_mode: str, top_n: int, diverging: bool = False):
     """Horizontal bars of `value_col` with the value printed at each bar end
     and, when `other_col` is given (same units only), a neutral tick
-    overlaying that counterpart metric."""
+    overlaying that counterpart metric. `diverging` colors negative bars
+    with the opposite pole for signed metrics."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
     top["label"] = top["spec"] + " " + top["class"] + " — " + top["hero_talent"]
     top["value_text"] = top[value_col].map(lambda v: format(v, fmt))
-    # anchor the printed value past BOTH the bar and the tick so they never collide
+    # anchor the printed value past BOTH the bar and the tick so they never
+    # collide; never left of zero so negative bars keep their label readable
     cols = [value_col] + ([other_col] if other_col else [])
-    top["label_x"] = top[cols].max(axis=1)
+    top["label_x"] = top[cols].max(axis=1).clip(lower=0)
 
     if sort_mode == "Name (A → Z)":
         top = top.sort_values("label")
@@ -129,7 +132,8 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     y = alt.Y("label:N", sort=y_sort, title=None, axis=alt.Axis(labelLimit=320))
     # headroom so end-of-bar labels never clip and out-lying ticks stay visible
     xmax = float(top[cols].max().max()) * 1.18
-    x_scale = alt.Scale(domain=[0, xmax if xmax > 0 else 1], nice=False)
+    xmin = min(0.0, float(top[cols].min().min()) * 1.18)
+    x_scale = alt.Scale(domain=[xmin, xmax if xmax > 0 else 1], nice=False)
 
     base = alt.Chart(top)
     bars = base.mark_bar(size=16, cornerRadiusEnd=4, color=ACCENT).encode(
@@ -137,6 +141,9 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
                 axis=alt.Axis(format=fmt)),
         y=y, tooltip=TOOLTIPS,
     )
+    if diverging:
+        bars = bars.encode(color=alt.condition(
+            alt.datum[value_col] < 0, alt.value("#e34948"), alt.value(ACCENT)))
     labels = base.mark_text(align="left", dx=7, color=TICK_COLOR).encode(
         x=alt.X("label_x:Q", scale=x_scale), y=y, text="value_text:N",
     )
@@ -295,6 +302,7 @@ def main() -> None:
     agg = agg[agg["total_runs"] >= min_runs]
     agg["avg_dps"] = agg["avg_dps"].round(0).astype(int)
     agg["median_dps"] = agg["median_dps"].round(0).astype(int)
+    agg["dps_diff"] = agg["avg_dps"] - agg["median_dps"]
     agg = agg.sort_values("avg_dps", ascending=False).reset_index(drop=True)
 
     if agg.empty:
@@ -309,7 +317,8 @@ def main() -> None:
         agg.rename(columns={
             "class": "Class", "spec": "Spec", "hero_talent": "Hero Talent",
             "total_runs": "Total Runs", "avg_dps": "Average DPS",
-            "median_dps": "Median DPS", "avg_deaths": "Average Deaths",
+            "median_dps": "Median DPS", "dps_diff": "Mean − Median DPS",
+            "avg_deaths": "Average Deaths",
             "median_deaths": "Median Deaths", "deathless": "Deathless %",
         }),
         width="stretch",
@@ -318,6 +327,7 @@ def main() -> None:
             "Total Runs": st.column_config.NumberColumn(format="localized"),
             "Average DPS": st.column_config.NumberColumn(format="localized"),
             "Median DPS": st.column_config.NumberColumn(format="localized"),
+            "Mean − Median DPS": st.column_config.NumberColumn(format="localized"),
             "Average Deaths": st.column_config.NumberColumn(format="%.2f"),
             "Median Deaths": st.column_config.NumberColumn(format="%.1f"),
             "Deathless %": st.column_config.NumberColumn(format="%.1f%%"),
@@ -337,21 +347,27 @@ def main() -> None:
         help="How many of the top groups (by the tab's metric) to draw")
 
     specs_charts = [
-        ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f"),
-        ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f"),
-        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f"),
-        ("Deathless Runs %", "deathless", None, "", ".1f"),
+        ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f", False),
+        ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f", False),
+        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", True),
+        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f", False),
+        ("Deathless Runs %", "deathless", None, "", ".1f", False),
     ]
-    for tab, (title, col, other, other_title, fmt) in zip(
+    for tab, (title, col, other, other_title, fmt, div) in zip(
             st.tabs([s[0] for s in specs_charts]), specs_charts):
         with tab:
             st.altair_chart(
                 bar_chart(agg, col, other, title, other_title, fmt,
-                          sort_mode, top_n),
+                          sort_mode, top_n, diverging=div),
                 width="stretch")
             if other:
                 st.caption(f"Numbers at bar ends are the **{title}**; the "
                            f"grey tick on each bar marks the **{other_title}**.")
+            elif col == "dps_diff":
+                st.caption("Positive (blue): a minority of very high parses "
+                           "pulls the average above the typical run. Negative "
+                           "(red): a low tail drags the average below it. "
+                           "Larger magnitude = less consistent performance.")
             else:
                 st.caption(f"Numbers at bar ends are the **{title}** — the "
                            "share of runs where the player did not die once.")
