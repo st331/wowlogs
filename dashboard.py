@@ -117,7 +117,10 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     with the opposite pole for signed metrics. `deaths_inlay` prints the
     survivability stats inside the bar so DPS charts carry both stories."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
-    top["label"] = (top["class"] + " " + top["spec"]
+    top["name_key"] = top["class"] + " " + top["spec"] + " " + top["hero_talent"]
+    top["rank"] = range(1, len(top) + 1)  # rank by this graph's metric, best first
+    top["label"] = (top["rank"].astype(str) + ". "
+                    + top["class"] + " " + top["spec"]
                     + top["hero_talent"].map(
                         lambda h: "" if h in ("", "(all)") else f" — {h}"))
     top["value_text"] = top[value_col].map(lambda v: format(v, fmt))
@@ -133,7 +136,7 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     # whose x is a pixel value (the deaths inlay) can't resolve '-x' and the
     # whole layered spec silently collapses to zero height
     if sort_mode == "Name (A → Z)":
-        y_sort = alt.EncodingSortField(field="label", op="min", order="ascending")
+        y_sort = alt.EncodingSortField(field="name_key", op="min", order="ascending")
     elif sort_mode == "Value (low → high)":
         y_sort = alt.EncodingSortField(field=value_col, op="max", order="ascending")
     else:
