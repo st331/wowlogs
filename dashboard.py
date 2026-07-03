@@ -155,6 +155,11 @@ DARK = _theme_is_dark()
 SURFACE = "#15171C" if DARK else "#fcfcfb"
 TEXT_INK = "#E8E6E3" if DARK else "#1f1e1d"
 TICK_COLOR = "#c9c7c2" if DARK else "#52514e"
+GOLD = "#F8B700"
+MUTED = "#8f8d88" if DARK else "#6b6963"
+CARD_BG = "#1F232B" if DARK else "#f4f2ee"
+GRID_COLOR = "rgba(255,255,255,.07)" if DARK else "rgba(0,0,0,.08)"
+CARD_BORDER = "rgba(248,183,0,.16)" if DARK else "rgba(140,110,0,.25)"
 
 # Blizzard's canonical class colors (designed for dark surfaces); Priest's
 # white is dimmed just enough per theme to stay visible as a bar
@@ -286,11 +291,63 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
                     title=f"{title} (tick: {other_title})"),
             y=y, tooltip=TOOLTIPS,
         )
-    return layers.properties(height=max(30 * len(top), 120))
+    return (layers.properties(height=max(30 * len(top), 120))
+            .configure_view(strokeWidth=0)
+            .configure_axis(domainOpacity=0, tickOpacity=0,
+                            gridColor=GRID_COLOR,
+                            labelColor=MUTED, titleColor=MUTED))
+
+
+def _inject_css() -> None:
+    st.markdown(f"""<style>
+    .block-container {{padding-top: 2.4rem; padding-bottom: 4rem; max-width: 1280px;}}
+    .hero-title {{font-family: 'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+                  font-size: 2.5rem; font-weight: 650; letter-spacing: .02em;
+                  margin: 0; line-height: 1.15;}}
+    .hero-title .gold {{color: {GOLD};}}
+    .hero-sub {{color: {MUTED}; font-size: .95rem; letter-spacing: .05em;
+                margin: .4rem 0 0 2px;}}
+    .hero-rule {{height: 2px; border: 0; margin: 16px 0 6px;
+                 background: linear-gradient(90deg, {GOLD}88, transparent 65%);}}
+    [data-testid="stMetric"] {{background: {CARD_BG};
+        border: 1px solid {CARD_BORDER}; border-radius: 12px;
+        padding: .85rem 1.1rem;}}
+    [data-testid="stMetricLabel"] p {{text-transform: uppercase;
+        letter-spacing: .14em; font-size: .7rem; color: {MUTED};}}
+    [data-testid="stMetricValue"] {{font-weight: 650; font-size: 1.7rem;}}
+    .sec {{display: flex; align-items: baseline; gap: .8rem;
+           margin: 2.2rem 0 .3rem; padding-bottom: .45rem;
+           border-bottom: 1px solid {GRID_COLOR};}}
+    .sec-label {{text-transform: uppercase; letter-spacing: .18em;
+                 font-size: .82rem; font-weight: 700; color: {GOLD};}}
+    .sec-sub {{color: {MUTED}; font-size: .8rem;}}
+    .side-label {{text-transform: uppercase; letter-spacing: .16em;
+                  font-size: .7rem; font-weight: 700; color: {GOLD};
+                  margin: 1.05rem 0 .15rem;}}
+    [data-testid="stSidebar"] {{border-right: 1px solid {GRID_COLOR};}}
+    </style>""", unsafe_allow_html=True)
+
+
+def section(label: str, sub: str = "") -> None:
+    st.markdown(
+        f'<div class="sec"><span class="sec-label">{label}</span>'
+        + (f'<span class="sec-sub">{sub}</span>' if sub else "")
+        + "</div>",
+        unsafe_allow_html=True)
+
+
+def side_label(label: str) -> None:
+    st.markdown(f'<p class="side-label">{label}</p>', unsafe_allow_html=True)
 
 
 def main() -> None:
-    st.title("⚔️ Mythic+ Performance — Midnight Season 1")
+    _inject_css()
+    st.markdown(
+        '<div class="hero-title">⚔️ Mythic+ <span class="gold">Performance</span></div>'
+        '<div class="hero-sub">Midnight Season 1 &nbsp;·&nbsp; Keystones +12 – 25 '
+        '&nbsp;·&nbsp; built from Warcraft Logs fight rankings</div>'
+        '<div class="hero-rule"></div>',
+        unsafe_allow_html=True)
 
     df, region_missing = load_data()
     if df.empty:
@@ -305,14 +362,12 @@ def main() -> None:
 
     # ------------------------------------------------------------------ sidebar
     with st.sidebar:
-        st.header("Filters")
-
         if st.button("🔄 Refresh Data", width="stretch",
                      help="Clear the cache and reload the CSV from disk"):
             load_data.clear()
             st.rerun()
 
-        st.caption("⚔️ **Who** — class, spec & talents")
+        side_label("Who — class, spec & talents")
         classes = st.multiselect(
             "Class", sorted(df["class"].dropna().unique()), default=[])
         pool = df if not classes else df[df["class"].isin(classes)]
@@ -338,8 +393,7 @@ def main() -> None:
             help="Attack style — both or neither checked = no filter")
         ranged_cb = atk2.checkbox("Ranged", value=False)
 
-        st.divider()
-        st.caption("🗺️ **Where & when** — content and timeframe")
+        side_label("Where & when — content, timeframe")
         dungeons = st.multiselect(
             "Dungeon", sorted(df["dungeon"].dropna().unique()), default=[])
 
@@ -369,8 +423,7 @@ def main() -> None:
                  "dates shown use the US boundary")
         reset_period = period_options[reset_sel]
 
-        st.divider()
-        st.caption("📊 **Quality** — sample size and regions")
+        side_label("Quality — sample size, regions")
         min_runs = st.slider(
             "Minimum Runs Threshold", 1, 500, 3,
             help="Hide Class/Spec/Hero Talent rows with fewer than this many runs")
@@ -414,18 +467,6 @@ def main() -> None:
         st.warning("No runs match the current filters.")
         st.stop()
 
-    # ------------------------------------------------------------------ headline
-    n_runs = view[["report_code", "fight_id"]].drop_duplicates().shape[0]
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Dungeon runs", f"{n_runs:,}")
-    c2.metric("Player parses", f"{len(view):,}")
-    c3.metric("Dungeons", f"{view['dungeon'].nunique()}")
-    oldest, newest = view["started_at"].min(), view["started_at"].max()
-    if pd.notna(oldest) and pd.notna(newest):
-        c4.metric("Run dates", f"{oldest:%b %d} – {newest:%b %d}")
-    else:
-        c4.metric("Run dates", "—")
-
     # ------------------------------------------------------------------ aggregate
     group_cols = ["class", "spec"] if merge_heroes else ["class", "spec", "hero_talent"]
     agg = (
@@ -455,32 +496,22 @@ def main() -> None:
         )
         st.stop()
 
-    st.subheader("Performance by Class / Spec" +
-                 ("" if merge_heroes else " / Hero Talent"))
-    st.dataframe(
-        (agg.drop(columns=["hero_talent"]) if merge_heroes else agg).rename(columns={
-            "class": "Class", "spec": "Spec", "hero_talent": "Hero Talent",
-            "total_runs": "Total Runs", "avg_dps": "Average DPS",
-            "median_dps": "Median DPS", "dps_diff": "Mean − Median DPS",
-            "avg_deaths": "Average Deaths",
-            "median_deaths": "Median Deaths", "deathless": "Deathless %",
-        }),
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Total Runs": st.column_config.NumberColumn(format="localized"),
-            "Average DPS": st.column_config.NumberColumn(format="localized"),
-            "Median DPS": st.column_config.NumberColumn(format="localized"),
-            "Mean − Median DPS": st.column_config.NumberColumn(format="localized"),
-            "Average Deaths": st.column_config.NumberColumn(format="%.2f"),
-            "Median Deaths": st.column_config.NumberColumn(format="%.1f"),
-            "Deathless %": st.column_config.NumberColumn(format="%.1f%%"),
-        },
-    )
+    # ------------------------------------------------------------------ KPI band
+    n_runs = view[["report_code", "fight_id"]].drop_duplicates().shape[0]
+    oldest, newest = view["started_at"].min(), view["started_at"].max()
+    dates = (f"{oldest:%b %d} – {newest:%b %d}"
+             if pd.notna(oldest) and pd.notna(newest) else "—")
+    for col, (label, value) in zip(st.columns(4), [
+        ("Dungeon runs", f"{n_runs:,}"),
+        ("Player parses", f"{len(view):,}"),
+        ("Groups compared", f"{len(agg):,}"),
+        ("Run dates", dates),
+    ]):
+        col.metric(label, value)
 
     # ------------------------------------------------------------------ charts
-    st.subheader("Group comparisons")
-    ctl1, ctl2 = st.columns([1, 1])
+    section("Overview", "top groups per metric — hover any bar for the full story")
+    ctl1, _, ctl2 = st.columns([5, 1, 6])
     sort_mode = ctl1.selectbox(
         "Sort bars by",
         ["Value (high → low)", "Value (low → high)", "Name (A → Z)"],
@@ -528,14 +559,41 @@ def main() -> None:
                            "average below it. Larger magnitude = less "
                            "consistent performance.")
 
+    # ------------------------------------------------------------------ table
+    section("Breakdown",
+            "every Class / Spec" + ("" if merge_heroes else " / Hero Talent")
+            + f" group with ≥ {min_runs} runs — click a column header to sort")
+    st.dataframe(
+        (agg.drop(columns=["hero_talent"]) if merge_heroes else agg)
+        .drop(columns=["dps_text", "deaths_text"], errors="ignore")
+        .rename(columns={
+            "class": "Class", "spec": "Spec", "hero_talent": "Hero Talent",
+            "total_runs": "Total Runs", "avg_dps": "Average DPS",
+            "median_dps": "Median DPS", "dps_diff": "Mean − Median DPS",
+            "avg_deaths": "Average Deaths",
+            "median_deaths": "Median Deaths", "deathless": "Deathless %",
+        }),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Total Runs": st.column_config.NumberColumn(format="localized"),
+            "Average DPS": st.column_config.NumberColumn(format="localized"),
+            "Median DPS": st.column_config.NumberColumn(format="localized"),
+            "Mean − Median DPS": st.column_config.NumberColumn(format="localized"),
+            "Average Deaths": st.column_config.NumberColumn(format="%.2f"),
+            "Median Deaths": st.column_config.NumberColumn(format="%.1f"),
+            "Deathless %": st.column_config.NumberColumn(format="%.1f%%"),
+        },
+    )
+
     st.caption(
-        f"{len(agg):,} groups pass the threshold (≥ {min_runs} runs each). DPS "
-        "is per-player overall damage ÷ run duration; deaths are per player "
-        "per run, parsed from each report's death events. Median deaths are "
-        "0 for most groups because ~75% of all parses have zero deaths — "
-        "hover any bar for the share of deathless runs. Rows whose log lacked "
-        "combatant info are counted under the most-used hero talent of their "
-        "spec."
+        "DPS is per-player overall damage ÷ run duration; deaths are per "
+        "player per run, parsed from each report's death events. Median "
+        "deaths are 0 for most groups because ~75% of all parses have zero "
+        "deaths. Rows whose log lacked combatant info are counted under the "
+        "most-used hero talent of their spec. Data: Warcraft Logs fight "
+        "rankings (top ~1,000 runs per dungeon × key level), Midnight "
+        "Season 1, keys 12–25+."
     )
 
 
