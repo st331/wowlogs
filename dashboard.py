@@ -137,12 +137,15 @@ TOOLTIPS = [
 def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
               title: str, other_title: str, fmt: str,
               sort_mode: str, top_n: int, diverging: bool = False,
-              deaths_inlay: bool = False):
+              gradient: tuple | None = None, inlay_col: str | None = None):
     """Horizontal bars of `value_col` with the value printed at each bar end
     and, when `other_col` is given (same units only), a neutral tick
     overlaying that counterpart metric. `diverging` colors negative bars
-    with the opposite pole for signed metrics. `deaths_inlay` prints the
-    survivability stats inside the bar so DPS charts carry both stories."""
+    with the opposite pole for signed metrics. `gradient` = (column,
+    legend title, legend format) paints a second measure onto the bars as a
+    light->dark sequential ramp; `inlay_col` prints that measure's exact
+    numbers inside each bar — so DPS charts carry the death story and death
+    charts carry the DPS story."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
     top["name_key"] = top["class"] + " " + top["spec"] + " " + top["hero_talent"]
     top["rank"] = range(1, len(top) + 1)  # rank by this graph's metric, best first
@@ -154,6 +157,9 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     top["deaths_text"] = (top["avg_deaths"].map("{:.2f} avg deaths".format)
                           + "  ·  "
                           + top["deathless"].map("{:.0f}% deathless".format))
+    top["dps_text"] = (top["avg_dps"].map("{:,.0f} avg".format)
+                       + "  ·  "
+                       + top["median_dps"].map("{:,.0f} median DPS".format))
     # anchor the printed value past BOTH the bar and the tick so they never
     # collide; never left of zero so negative bars keep their label readable
     cols = [value_col] + ([other_col] if other_col else [])
@@ -184,17 +190,19 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
         bars = bars.encode(color=alt.condition(
             alt.datum[value_col] < 0, alt.value("#e34948"), alt.value(ACCENT)))
     ink_flip = None
-    if deaths_inlay:
-        # survivability painted onto the DPS bars: one hue, light -> dark
-        # (sequential blue, palette steps 200 -> 700), darker = fewer deaths
-        dmin, dmax = float(top["deathless"].min()), float(top["deathless"].max())
+    grad_col = None
+    if gradient:
+        # a second measure painted onto the bars: one hue, light -> dark
+        # (sequential blue, palette steps 200 -> 700), darker = more of it
+        grad_col, grad_title, grad_fmt = gradient
+        dmin, dmax = float(top[grad_col].min()), float(top[grad_col].max())
         if dmax <= dmin:
             dmin, dmax = dmin - 1, dmax + 1
         bars = bars.encode(color=alt.Color(
-            "deathless:Q",
+            f"{grad_col}:Q",
             scale=alt.Scale(domain=[dmin, dmax], range=["#9ec5f4", "#0d366b"]),
-            legend=alt.Legend(title="Deathless runs %", orient="top",
-                              gradientLength=220, format=".0f"),
+            legend=alt.Legend(title=grad_title, orient="top",
+                              gradientLength=220, format=grad_fmt),
         ))
         # inlay ink flips to dark on the light end of the gradient
         ink_flip = (dmin + dmax) / 2
@@ -203,12 +211,12 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
         x=alt.X("label_x:Q", scale=x_scale), y=y, text="value_text:N",
     )
     layers = bars + labels
-    if deaths_inlay:
+    if inlay_col and grad_col:
         layers += base.mark_text(align="left", fontSize=10.5,
                                  fontWeight=500).encode(
             x=alt.value(8),  # pinned just inside the bar's left edge
-            y=y, text="deaths_text:N", tooltip=TOOLTIPS,
-            color=alt.condition(alt.datum.deathless < ink_flip,
+            y=y, text=f"{inlay_col}:N", tooltip=TOOLTIPS,
+            color=alt.condition(alt.datum[grad_col] < ink_flip,
                                 alt.value("#1f1e1d"), alt.value("white")),
         )
     if other_col:
@@ -414,37 +422,46 @@ def main() -> None:
         "Groups shown", 5, max(min(len(agg), 100), 6), min(CHART_MAX, len(agg)),
         help="How many of the top groups (by the tab's metric) to draw")
 
+    DEATH_GRAD = ("deathless", "Deathless runs %", ".0f")
+    DPS_GRAD = ("avg_dps", "Average DPS", "~s")
     specs_charts = [
-        ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f", False, True),
-        ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f", False, True),
-        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", True, False),
-        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f", False, False),
-        ("Deathless Runs %", "deathless", None, "", ".1f", False, False),
+        # title, value, tick, tick title, fmt, diverging, gradient, inlay
+        ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f",
+         False, DEATH_GRAD, "deaths_text"),
+        ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f",
+         False, DEATH_GRAD, "deaths_text"),
+        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f",
+         True, None, None),
+        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f",
+         False, DPS_GRAD, "dps_text"),
+        ("Deathless Runs %", "deathless", None, "", ".1f",
+         False, DPS_GRAD, "dps_text"),
     ]
-    for tab, (title, col, other, other_title, fmt, div, inlay) in zip(
+    for tab, (title, col, other, other_title, fmt, div, grad, inlay) in zip(
             st.tabs([s[0] for s in specs_charts]), specs_charts):
         with tab:
             st.altair_chart(
                 bar_chart(agg, col, other, title, other_title, fmt,
-                          sort_mode, top_n, diverging=div, deaths_inlay=inlay),
+                          sort_mode, top_n, diverging=div,
+                          gradient=grad, inlay_col=inlay),
                 width="stretch")
-            if inlay:
-                st.caption(f"Bold number at each bar end: **{title}**; grey "
-                           f"tick: **{other_title}**. Survivability is painted "
-                           "onto each bar: darker blue = higher share of "
-                           "deathless runs (see legend), with the exact deaths "
-                           "stats printed inside the bar.")
-            elif other:
-                st.caption(f"Numbers at bar ends are the **{title}**; the "
-                           f"grey tick on each bar marks the **{other_title}**.")
+            tick_part = (f"; grey tick: **{other_title}**" if other else "")
+            if grad is DEATH_GRAD:
+                st.caption(f"Bold number at each bar end: **{title}**"
+                           f"{tick_part}. Survivability is painted onto each "
+                           "bar: darker blue = higher share of deathless runs "
+                           "(see legend), with the exact deaths stats printed "
+                           "inside the bar.")
+            elif grad is DPS_GRAD:
+                st.caption(f"Bold number at each bar end: **{title}**"
+                           f"{tick_part}. Damage is painted onto each bar: "
+                           "darker blue = higher average DPS (see legend), "
+                           "with the exact DPS numbers printed inside the bar.")
             elif col == "dps_diff":
                 st.caption("Positive (blue): a minority of very high parses "
                            "pulls the average above the typical run. Negative "
                            "(red): a low tail drags the average below it. "
                            "Larger magnitude = less consistent performance.")
-            else:
-                st.caption(f"Numbers at bar ends are the **{title}** — the "
-                           "share of runs where the player did not die once.")
 
     st.caption(
         f"{len(agg):,} groups pass the threshold (≥ {min_runs} runs each). DPS "
