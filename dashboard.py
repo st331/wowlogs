@@ -17,7 +17,6 @@ import streamlit as st
 
 ROOT = pathlib.Path(__file__).resolve().parent
 CSV_FILE = pathlib.Path(os.environ.get("WOWLOGS_CSV", ROOT / "data" / "mythic_runs.csv"))
-DEMO_FILE = ROOT / "data" / "demo_supplement.csv"
 
 ACCENT = "#2a78d6"          # single-hue magnitude encoding for bar charts
 CHART_MAX = 40              # bars per chart
@@ -119,14 +118,12 @@ def _merge_unknown_heroes(df: pd.DataFrame) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner="Loading run data…")
-def load_data(include_demo: bool = False):
+def load_data():
     """Returns (dataframe, per-region missing-combatant-info share)."""
     try:
         df = pd.read_csv(CSV_FILE)
     except (FileNotFoundError, pd.errors.EmptyDataError, pd.errors.ParserError):
         return pd.DataFrame(), {}
-    if include_demo and DEMO_FILE.exists():
-        df = pd.concat([df, pd.read_csv(DEMO_FILE)], ignore_index=True)
     if df.empty:
         return pd.DataFrame(), {}
     df["key_level"] = df["key_level"].astype(int)
@@ -258,13 +255,7 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
 def main() -> None:
     st.title("⚔️ Mythic+ Performance — Midnight Season 1")
 
-    include_demo = st.sidebar.checkbox(
-        "Include demo rows (fake)", value=False,
-        help="Adds a small synthetic supplement (key-25 runs, KR/TW regions) "
-             "for testing UI functionality; marked report_code=FAKEDEMO",
-    ) if DEMO_FILE.exists() else False
-
-    df, region_missing = load_data(include_demo)
+    df, region_missing = load_data()
     if df.empty:
         st.error(
             "No data available yet. Run `python3 scripts/fetch_data.py` to build "
