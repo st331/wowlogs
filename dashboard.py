@@ -142,26 +142,54 @@ def load_data():
     return df, region_missing
 
 
-TICK_COLOR = "#52514e"  # neutral ink for the counterpart-metric marker
+def _theme_is_dark() -> bool:
+    """Resolve the active theme from config (deterministic at import time,
+    unlike st.context which needs a live session)."""
+    try:
+        return (st.get_option("theme.base") or "dark") == "dark"
+    except Exception:
+        return True  # matches the shipped .streamlit/config.toml
 
-# Blizzard's canonical class colors; Priest's pure white is darkened to stay
-# visible on the light chart surface
+
+DARK = _theme_is_dark()
+SURFACE = "#15171C" if DARK else "#fcfcfb"
+TEXT_INK = "#E8E6E3" if DARK else "#1f1e1d"
+TICK_COLOR = "#c9c7c2" if DARK else "#52514e"
+
+# Blizzard's canonical class colors (designed for dark surfaces); Priest's
+# white is dimmed just enough per theme to stay visible as a bar
 CLASS_COLORS = {
     "DeathKnight": "#C41E3A", "DemonHunter": "#A330C9", "Druid": "#FF7C0A",
     "Evoker": "#33937F", "Hunter": "#AAD372", "Mage": "#3FC7EB",
-    "Monk": "#00FF98", "Paladin": "#F48CBA", "Priest": "#B6B6BE",
+    "Monk": "#00FF98", "Paladin": "#F48CBA",
+    "Priest": "#DCDCE2" if DARK else "#B6B6BE",
     "Rogue": "#FFF468", "Shaman": "#0070DD", "Warlock": "#8788EE",
     "Warrior": "#C69B6D", "Unknown": "#999999",
 }
+
+
+def _mix(c1: str, c2: str, t: float) -> str:
+    """Linear blend of two hex colors, t=0 -> c1, t=1 -> c2."""
+    a = [int(c1[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(c2[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(a, b))
+
+
+def shade_class_color(cls: str, t: float) -> str:
+    """Class hue kept, intensity carries a second measure: on the dark theme
+    dim -> bright as t goes 0 -> 1 (on light, pale -> deep)."""
+    base = CLASS_COLORS.get(cls, "#999999")
+    if DARK:
+        lo, hi = _mix(base, SURFACE, 0.60), _mix(base, "#ffffff", 0.20)
+    else:
+        lo, hi = _mix(base, "#ffffff", 0.60), _mix(base, "#000000", 0.30)
+    return _mix(lo, hi, t)
 
 
 def _ink_for(color: str) -> str:
     """Dark or white text ink depending on a bar color's brightness."""
     r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
     return "#1f1e1d" if (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.45 else "white"
-
-
-CLASS_INK = {cls: _ink_for(c) for cls, c in CLASS_COLORS.items()}
 
 TOOLTIPS = [
     alt.Tooltip("class:N", title="Class"),
@@ -180,12 +208,13 @@ TOOLTIPS = [
 def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
               title: str, other_title: str, fmt: str,
               sort_mode: str, top_n: int,
-              inlay_col: str | None = None):
-    """Horizontal bars of `value_col` in WoW class colors, with the value
-    printed at each bar end and, when `other_col` is given (same units
-    only), a neutral tick overlaying that counterpart metric. `inlay_col`
-    prints the complementary story's exact numbers inside each bar — DPS
-    charts carry the death stats and death charts carry the DPS stats."""
+              inlay_col: str | None = None, shade_col: str | None = None):
+    """Horizontal bars in WoW class colors, with the value printed at each
+    bar end and, when `other_col` is given (same units only), a neutral tick
+    overlaying that counterpart metric. `shade_col` modulates each bar's
+    intensity (dim -> bright) by a complementary measure and `inlay_col`
+    prints its exact numbers inside the bar — DPS charts carry the death
+    story and death charts carry the DPS story, without losing the class."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
     top["name_key"] = top["class"] + " " + top["spec"] + " " + top["hero_talent"]
     top["rank"] = range(1, len(top) + 1)  # rank by this graph's metric, best first
@@ -220,21 +249,26 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     xmin = min(0.0, float(top[cols].min().min()) * 1.18)
     x_scale = alt.Scale(domain=[xmin, xmax if xmax > 0 else 1], nice=False)
 
-    # identity encoding: bars wear their class color (the y-axis label names
-    # the class too, so color never carries meaning alone); text ink per bar
-    # follows the class color's brightness
-    top["ink"] = top["class"].map(lambda c: CLASS_INK.get(c, "white"))
-    class_scale = alt.Scale(domain=list(CLASS_COLORS),
-                            range=list(CLASS_COLORS.values()))
+    # identity + magnitude in one mark: class hue names the class (so does
+    # the axis label), intensity carries the complementary measure
+    if shade_col:
+        smin, smax = float(top[shade_col].min()), float(top[shade_col].max())
+        rng = (smax - smin) or 1.0
+        tvals = (top[shade_col] - smin) / rng
+    else:
+        tvals = pd.Series(0.72, index=top.index)
+    top["bar_color"] = [shade_class_color(c, float(t))
+                        for c, t in zip(top["class"], tvals)]
+    top["ink"] = top["bar_color"].map(_ink_for)
 
     base = alt.Chart(top)
     bars = base.mark_bar(size=16, cornerRadiusEnd=4).encode(
         x=alt.X(f"{value_col}:Q", title=title, scale=x_scale,
                 axis=alt.Axis(format=fmt)),
         y=y, tooltip=TOOLTIPS,
-        color=alt.Color("class:N", scale=class_scale, legend=None),
+        color=alt.Color("bar_color:N", scale=None, legend=None),
     )
-    labels = base.mark_text(align="left", dx=7, color="#1f1e1d",
+    labels = base.mark_text(align="left", dx=7, color=TEXT_INK,
                             fontSize=12.5, fontWeight="bold").encode(
         x=alt.X("label_x:Q", scale=x_scale), y=y, text="value_text:N",
     )
@@ -278,6 +312,7 @@ def main() -> None:
             load_data.clear()
             st.rerun()
 
+        st.caption("⚔️ **Who** — class, spec & talents")
         classes = st.multiselect(
             "Class", sorted(df["class"].dropna().unique()), default=[])
         pool = df if not classes else df[df["class"].isin(classes)]
@@ -293,6 +328,18 @@ def main() -> None:
         heroes = [] if merge_heroes else st.multiselect(
             "Hero Talent", sorted(pool["hero_talent"].dropna().unique()), default=[])
 
+        roles = st.multiselect(
+            "Role", ["DPS", "Healer", "Tank"], default=[],
+            help="Optional: limit to a role (empty = all)")
+
+        atk1, atk2 = st.columns(2)
+        melee_cb = atk1.checkbox(
+            "Melee", value=False,
+            help="Attack style — both or neither checked = no filter")
+        ranged_cb = atk2.checkbox("Ranged", value=False)
+
+        st.divider()
+        st.caption("🗺️ **Where & when** — content and timeframe")
         dungeons = st.multiselect(
             "Dungeon", sorted(df["dungeon"].dropna().unique()), default=[])
 
@@ -322,18 +369,11 @@ def main() -> None:
                  "dates shown use the US boundary")
         reset_period = period_options[reset_sel]
 
+        st.divider()
+        st.caption("📊 **Quality** — sample size and regions")
         min_runs = st.slider(
             "Minimum Runs Threshold", 1, 500, 3,
             help="Hide Class/Spec/Hero Talent rows with fewer than this many runs")
-
-        roles = st.multiselect(
-            "Role", ["DPS", "Healer", "Tank"], default=[],
-            help="Optional: limit to a role (empty = all)")
-
-        st.caption("Attack style — both or neither checked = no filter")
-        atk1, atk2 = st.columns(2)
-        melee_cb = atk1.checkbox("Melee", value=False)
-        ranged_cb = atk2.checkbox("Ranged", value=False)
 
         region_opts = sorted(df["region"].unique())
         good_regions = [r for r in region_opts
@@ -450,32 +490,36 @@ def main() -> None:
         "Groups shown", 5, max(min(len(agg), 100), 6), min(CHART_MAX, len(agg)),
         help="How many of the top groups (by the tab's metric) to draw")
 
+    glow = "brighter" if DARK else "deeper"
     specs_charts = [
-        # title, value, tick, tick title, fmt, inlay
+        # title, value, tick, tick title, fmt, inlay, shade
         ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f",
-         "deaths_text"),
+         "deaths_text", "deathless"),
         ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f",
-         "deaths_text"),
-        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", None),
+         "deaths_text", "deathless"),
+        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", None, None),
         ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f",
-         "dps_text"),
-        ("Deathless Runs %", "deathless", None, "", ".1f", "dps_text"),
+         "dps_text", "avg_dps"),
+        ("Deathless Runs %", "deathless", None, "", ".1f", "dps_text", "avg_dps"),
     ]
-    for tab, (title, col, other, other_title, fmt, inlay) in zip(
+    for tab, (title, col, other, other_title, fmt, inlay, shade) in zip(
             st.tabs([s[0] for s in specs_charts]), specs_charts):
         with tab:
             st.altair_chart(
                 bar_chart(agg, col, other, title, other_title, fmt,
-                          sort_mode, top_n, inlay_col=inlay),
+                          sort_mode, top_n, inlay_col=inlay, shade_col=shade),
                 width="stretch")
             tick_part = (f"; grey tick: **{other_title}**" if other else "")
             if inlay == "deaths_text":
                 st.caption(f"Bold number at each bar end: **{title}**"
-                           f"{tick_part}. Bars wear their class color; the "
-                           "exact deaths stats are printed inside each bar.")
+                           f"{tick_part}. Bars wear their class color — the "
+                           f"{glow} the bar, the higher its share of "
+                           "deathless runs; exact deaths stats are printed "
+                           "inside each bar.")
             elif inlay == "dps_text":
                 st.caption(f"Bold number at each bar end: **{title}**"
-                           f"{tick_part}. Bars wear their class color; the "
+                           f"{tick_part}. Bars wear their class color — the "
+                           f"{glow} the bar, the higher its average DPS; "
                            "exact DPS numbers are printed inside each bar.")
             else:
                 st.caption("Bars wear their class color. Positive: a minority "
