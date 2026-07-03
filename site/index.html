@@ -147,7 +147,8 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     <div class="track"></div><div class="fill" id="key-fill"></div>
     <input type="range" id="klo"><input type="range" id="khi">
   </div>
-  <div id="resets" style="margin-top:.5rem"></div>
+  <div style="margin-top:.7rem">Reset weeks <span class="hint">(pick any · empty = all · hover for details)</span></div>
+  <div class="chips" id="f-resets"></div>
 
   <div class="side-label">Quality</div>
   <div>Minimum runs: <b id="minruns-v" style="color:var(--gold)">200</b></div>
@@ -232,7 +233,7 @@ const CHART_MAX = 40;
 let D=null, R=null, N=0, runCount=0;   // data, rows, row count, distinct runs
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
-             klo:18, khi:22, reset:-1, minruns:200, sort:"desc", tab:"avg",
+             klo:18, khi:22, resets:new Set(), minruns:200, sort:"desc", tab:"avg",
              tsort:{col:"avg", dir:-1}};
 
 const $=id=>document.getElementById(id);
@@ -277,12 +278,12 @@ function computeResetBuckets(){
     const day0 = Math.floor((b-epoch)/864e5);
     bounds[ri]=[day0, day0-7, day0-14];
   });
-  R.rbucket = new Int8Array(N);
+  R.rbucket = new Int16Array(N);      // full weeks-ago per row (regional boundary)
   for(let i=0;i<N;i++){
     const d0=R.day[i];
-    if(d0<0){R.rbucket[i]=9; continue}
-    const [b0,b1,b2]=bounds[R.reg[i]];
-    R.rbucket[i] = d0>=b0?0 : d0>=b1?1 : d0>=b2?2 : 3;
+    if(d0<0){R.rbucket[i]=999; continue}
+    const b0=bounds[R.reg[i]][0];
+    R.rbucket[i] = d0>=b0 ? 0 : Math.ceil((b0-d0)/7);
   }
   window._us_b0 = bounds[D.regions.indexOf("US")] || Object.values(bounds)[0];
 }
@@ -363,22 +364,29 @@ function buildControls(){
   $("ranged").onchange=e=>{state.ranged=e.target.checked; render()};
   $("minruns").oninput=e=>{state.minruns=+e.target.value;
     $("minruns-v").textContent=state.minruns; render()};
-  // reset periods
+  // reset weeks: one chip per reset period present in the data, newest first;
+  // any combination selectable, none selected = all data
   const fmtDay=d=>{const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*864e5);
     return t.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"})};
   const [b0]=window._us_b0;
-  const opts=[["All data",-1],[`This reset (since ${fmtDay(b0)})`,0],
-    [`Last reset (${fmtDay(b0-7)} – ${fmtDay(b0)})`,1],
-    [`Two resets ago (${fmtDay(b0-14)} – ${fmtDay(b0-7)})`,2]];
-  $("resets").innerHTML="";
-  opts.forEach(([label,val])=>{
-    const l=document.createElement("label"); l.className="radio-line";
-    const r=document.createElement("input"); r.type="radio"; r.name="reset";
-    r.checked = val===state.reset;
-    r.onchange=()=>{state.reset=val; render()};
-    l.appendChild(r); l.appendChild(document.createTextNode(" "+label));
-    $("resets").appendChild(l);
-  });
+  const weekCounts=new Map();
+  for(let i=0;i<N;i++) if(R.rbucket[i]<999)
+    weekCounts.set(R.rbucket[i],(weekCounts.get(R.rbucket[i])||0)+1);
+  const weeks=[...weekCounts.keys()].sort((a,b)=>a-b);
+  const box=$("f-resets"); box.innerHTML="";
+  for(const w of weeks){
+    const start=b0-7*w;
+    const c=document.createElement("span");
+    c.className="chip"+(state.resets.has(w)?" on":"");
+    c.textContent = w===0 ? "This reset" : fmtDay(start);
+    c.title = (w===0 ? "since "+fmtDay(start)
+                     : fmtDay(start)+" – "+fmtDay(start+7))
+              +" · "+weekCounts.get(w).toLocaleString("en-US")+" parses"
+              +(w>0 ? " · "+w+" reset"+(w>1?"s":"")+" ago" : "");
+    c.onclick=()=>{state.resets.has(w)?state.resets.delete(w):state.resets.add(w);
+      c.classList.toggle("on"); render()};
+    box.appendChild(c);
+  }
   $("sortseg").querySelectorAll("button").forEach(b=>{
     b.onclick=()=>{state.sort=b.dataset.s;
       $("sortseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
@@ -413,7 +421,7 @@ function aggregate(){
     if(role&&!role.has(R.role[i])) continue;
     if(atkFilter&&R.atk[i]!==atkFilter) continue;
     if(reg&&!reg.has(R.reg[i])) continue;
-    if(state.reset>=0&&R.rbucket[i]!==state.reset) continue;
+    if(state.resets.size&&!state.resets.has(R.rbucket[i])) continue;
     parses++;
     if(!runSeen[R.run[i]]){runSeen[R.run[i]]=1; runs++}
     if(R.day[i]>=0){ if(R.day[i]<dmin)dmin=R.day[i]; if(R.day[i]>dmax)dmax=R.day[i]; }
