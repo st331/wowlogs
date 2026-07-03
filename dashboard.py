@@ -29,6 +29,29 @@ REGION_MISSING_CUTOFF = 0.25
 RESET_RULES = {"US": (1, 15), "EU": (2, 4)}   # US: Tue 15:00, EU: Wed 04:00
 RESET_DEFAULT = (2, 22)                       # KR/TW/CN/unknown: ~Wed 22:00
 
+# attack style by (class, spec); healers are bucketed by how they attack
+# (Holy Paladin / Mistweaver melee, the rest ranged)
+MELEE_SPECS = {
+    ("DeathKnight", "Blood"), ("DeathKnight", "Frost"), ("DeathKnight", "Unholy"),
+    ("DemonHunter", "Devourer"), ("DemonHunter", "Havoc"), ("DemonHunter", "Vengeance"),
+    ("Druid", "Feral"), ("Druid", "Guardian"),
+    ("Hunter", "Survival"),
+    ("Monk", "Brewmaster"), ("Monk", "Mistweaver"), ("Monk", "Windwalker"),
+    ("Paladin", "Holy"), ("Paladin", "Protection"), ("Paladin", "Retribution"),
+    ("Rogue", "Assassination"), ("Rogue", "Outlaw"), ("Rogue", "Subtlety"),
+    ("Shaman", "Enhancement"),
+    ("Warrior", "Arms"), ("Warrior", "Fury"), ("Warrior", "Protection"),
+}
+RANGED_SPECS = {
+    ("Druid", "Balance"), ("Druid", "Restoration"),
+    ("Evoker", "Augmentation"), ("Evoker", "Devastation"), ("Evoker", "Preservation"),
+    ("Hunter", "BeastMastery"), ("Hunter", "Marksmanship"),
+    ("Mage", "Arcane"), ("Mage", "Fire"), ("Mage", "Frost"),
+    ("Priest", "Discipline"), ("Priest", "Holy"), ("Priest", "Shadow"),
+    ("Shaman", "Elemental"), ("Shaman", "Restoration"),
+    ("Warlock", "Affliction"), ("Warlock", "Demonology"), ("Warlock", "Destruction"),
+}
+
 
 def latest_reset(now: pd.Timestamp, weekday: int, hour: int) -> pd.Timestamp:
     """Most recent weekly reset boundary at or before `now` (UTC, naive)."""
@@ -111,6 +134,10 @@ def load_data(include_demo: bool = False):
     for col in ("class", "spec", "hero_talent", "role", "region"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
     df["started_at"] = _parse_started_at(df["started_at"])
+    df["attack_type"] = [
+        "Melee" if k in MELEE_SPECS else "Ranged" if k in RANGED_SPECS else "Unknown"
+        for k in zip(df["class"], df["spec"])
+    ]
     # measured BEFORE merging, so the region-quality rule sees the truth
     region_missing = df.groupby("region")["hero_talent"] \
         .agg(lambda s: (s == "Unknown").mean()).to_dict()
@@ -309,6 +336,11 @@ def main() -> None:
             "Role", ["DPS", "Healer", "Tank"], default=[],
             help="Optional: limit to a role (empty = all)")
 
+        st.caption("Attack style — both or neither checked = no filter")
+        atk1, atk2 = st.columns(2)
+        melee_cb = atk1.checkbox("Melee", value=False)
+        ranged_cb = atk2.checkbox("Ranged", value=False)
+
         region_opts = sorted(df["region"].unique())
         good_regions = [r for r in region_opts
                         if region_missing.get(r, 0) <= REGION_MISSING_CUTOFF]
@@ -336,6 +368,8 @@ def main() -> None:
         mask &= df["dungeon"].isin(dungeons)
     if roles:
         mask &= df["role"].isin(roles)
+    if melee_cb != ranged_cb:
+        mask &= df["attack_type"] == ("Melee" if melee_cb else "Ranged")
     if regions_sel:
         mask &= df["region"].isin(regions_sel)
     if reset_period is not None:
