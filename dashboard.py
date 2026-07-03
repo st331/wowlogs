@@ -382,15 +382,15 @@ def main() -> None:
         pool = pool if not specs else pool[pool["spec"].isin(specs)]
 
         merge_heroes = st.checkbox(
-            "Merge hero talents into spec", value=False,
+            "Merge hero talents into spec", value=True,
             help="Group results by Class/Spec only, ignoring hero talents "
                  "entirely (disables the Hero Talent filter)")
         heroes = [] if merge_heroes else st.multiselect(
             "Hero Talent", sorted(pool["hero_talent"].dropna().unique()), default=[])
 
         roles = st.multiselect(
-            "Role", ["DPS", "Healer", "Tank"], default=[],
-            help="Optional: limit to a role (empty = all)")
+            "Role", ["DPS", "Healer", "Tank"], default=["DPS"],
+            help="Limit to a role (empty = all)")
 
         atk1, atk2 = st.columns(2)
         melee_cb = atk1.checkbox(
@@ -404,8 +404,11 @@ def main() -> None:
 
         klo, khi = int(df["key_level"].min()), int(df["key_level"].max())
         if klo < khi:
+            default_keys = (max(klo, 18), min(khi, 22))
+            if default_keys[0] > default_keys[1]:
+                default_keys = (klo, khi)
             key_range = st.slider(
-                "Key Level", klo, khi, (klo, khi),
+                "Key Level", klo, khi, default_keys,
                 help="Runs outside this keystone range are excluded")
         else:
             key_range = (klo, khi)
@@ -430,7 +433,7 @@ def main() -> None:
 
         side_label("Quality — sample size, regions")
         min_runs = st.slider(
-            "Minimum Runs Threshold", 1, 500, 3,
+            "Minimum Runs Threshold", 1, 500, 200,
             help="Hide Class/Spec/Hero Talent rows with fewer than this many runs")
 
         region_opts = sorted(df["region"].unique())
@@ -516,21 +519,16 @@ def main() -> None:
 
     # ------------------------------------------------------------------ charts
     section("Overview", "top groups per metric — hover any bar for the full story")
-    ctl1, _, ctl2 = st.columns([5, 1, 6])
-    sort_mode = ctl1.selectbox(
-        "Sort bars by",
-        ["Value (high → low)", "Value (low → high)", "Name (A → Z)"],
-        help="Bars are always the top groups by the tab's metric; this "
-             "controls their display order")
-    if len(agg) <= 5:
-        # a slider with default below its minimum raises; with this few
-        # groups there is nothing to trim anyway
-        top_n = len(agg)
-        ctl2.caption(f"Showing all {len(agg)} groups")
-    else:
-        top_n = ctl2.slider(
-            "Groups shown", 5, min(len(agg), 100), min(CHART_MAX, len(agg)),
-            help="How many of the top groups (by the tab's metric) to draw")
+    SORT_MODES = {
+        "Highest first": "Value (high → low)",
+        "Lowest first": "Value (low → high)",
+        "Name A → Z": "Name (A → Z)",
+    }
+    sort_pick = st.segmented_control(
+        "Sort bars", list(SORT_MODES), default="Highest first",
+        label_visibility="collapsed")
+    sort_mode = SORT_MODES[sort_pick or "Highest first"]
+    top_n = min(len(agg), CHART_MAX)
 
     glow = "brighter" if DARK else "deeper"
     specs_charts = [
