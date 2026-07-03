@@ -249,7 +249,11 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     elif sort_mode == "Value (low → high)":
         top = top.sort_values(value_col, ascending=True)
     # else: already sorted by value_col descending (rank order)
-    y = alt.Y("label:N", sort=None, title=None, axis=alt.Axis(labelLimit=320))
+    # labelOverlap must be pinned off: some Vega builds default to dropping
+    # every other band label, which reads as "ranks skip numbers"
+    y = alt.Y("label:N", sort=None, title=None,
+              axis=alt.Axis(labelLimit=320, labelOverlap=False,
+                            labelFontSize=11.5))
     # headroom so end-of-bar labels never clip and out-lying ticks stay visible
     xmax = float(top[cols].max().max()) * 1.18
     xmin = min(0.0, float(top[cols].min().min()) * 1.18)
@@ -292,7 +296,7 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
                     title=f"{title} (tick: {other_title})"),
             y=y, tooltip=TOOLTIPS,
         )
-    return (layers.properties(height=max(30 * len(top), 120))
+    return (layers.properties(height=max(32 * len(top), 120))
             .configure_view(strokeWidth=0)
             .configure_axis(domainOpacity=0, tickOpacity=0,
                             gridColor=GRID_COLOR,
@@ -518,9 +522,15 @@ def main() -> None:
         ["Value (high → low)", "Value (low → high)", "Name (A → Z)"],
         help="Bars are always the top groups by the tab's metric; this "
              "controls their display order")
-    top_n = ctl2.slider(
-        "Groups shown", 5, max(min(len(agg), 100), 6), min(CHART_MAX, len(agg)),
-        help="How many of the top groups (by the tab's metric) to draw")
+    if len(agg) <= 5:
+        # a slider with default below its minimum raises; with this few
+        # groups there is nothing to trim anyway
+        top_n = len(agg)
+        ctl2.caption(f"Showing all {len(agg)} groups")
+    else:
+        top_n = ctl2.slider(
+            "Groups shown", 5, min(len(agg), 100), min(CHART_MAX, len(agg)),
+            help="How many of the top groups (by the tab's metric) to draw")
 
     glow = "brighter" if DARK else "deeper"
     specs_charts = [
