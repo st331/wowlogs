@@ -5,12 +5,12 @@ aggregates and visualizes Mythic+ performance for **Midnight Season 1**
 (high keys, +12 → +25 and above), built on the
 [Warcraft Logs v2 GraphQL API](https://www.warcraftlogs.com/api/docs).
 
-**Current dataset:** 53,252 dungeon runs / 266,270 player parses across all 8
-dungeons and keys 12–25+ (runs dated 2026-03-28 → 2026-07-02). Regions:
-EU 110.8k, CN 94.2k, US 57.6k, KR 3.7k player rows. 14 classes, 36 specs,
-42 hero talents. Of 94,613 ranked leaderboard entries, 34,325 were
-unlogged/anonymous (no report exists) and 6,987 were explicitly CN/KR/TW
-tagged and skipped; the remaining ~53.3k public runs were all fetched.
+**Current dataset:** 60,235 dungeon runs / 301,185 player parses across all 8
+dungeons and keys 12–25+ (runs dated 2026-03-28 → 2026-07-02), all regions
+(CN 117.8k, EU 110.8k, US 57.6k, KR 14.9k player rows). 14 classes, 36
+specs, 42 hero talents. Of 94,613 ranked leaderboard entries, 34,325 were
+unlogged/anonymous (no report exists — nothing to fetch); every public run
+was collected. Total API cost: ~170k points across ~9 hourly quota windows.
 
 ```
 scripts/wcl_client.py      quota-aware WCL GraphQL client
@@ -84,11 +84,11 @@ around getting the maximum data per point:
   are Blizzard-leaderboard imports or anonymized logs with **no report
   attached** (`report.code == ""`, `deaths == 300000000` sentinel) — there is
   no per-player data to fetch for them, via API or website alike.
-* **Regions:** rankings entries *tagged* CN/KR/TW are skipped by default
-  (`--regions ALL` includes them). About two-thirds of public entries carry
-  no server tag at all — those are fetched and each player's true region
-  (from the report itself) lands in the CSV's `region` column; the dashboard
-  has a Region filter (defaulting to US + EU).
+* **Regions:** all regions are collected by default (`--regions US,EU`-style
+  allow-lists are available for restricted runs). About two-thirds of public
+  entries carry no server tag on the leaderboard — each player's true region
+  (from the report itself) lands in the CSV's `region` column, and the
+  dashboard's Region filter works off that.
 * **DPS** = per-player total damage done ÷ fight duration (the report's own
   `totalTime`), matching WCL's "Overall DPS" for dungeon runs.
 * **Deaths** are counted per player from the report's raw death events
