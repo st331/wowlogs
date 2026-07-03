@@ -532,6 +532,10 @@ def main() -> None:
                     help="bracket range lo-hi (bracket = key level - 1)")
     ap.add_argument("--limit-fights", type=int, default=None,
                     help="stop after N summary fetches (for testing)")
+    ap.add_argument("--resweep", action="store_true",
+                    help="discard the rankings journal (and its checkpoint "
+                         "snapshot) to re-scan the leaderboards; already-"
+                         "fetched summaries are kept and deduped")
     args = ap.parse_args()
 
     regions = None if args.regions.upper() == "ALL" else \
@@ -539,6 +543,11 @@ def main() -> None:
     lo, hi = (int(x) for x in args.brackets.split("-"))
     brackets = [b for b in BRACKETS if lo <= b <= hi]
 
+    if args.resweep:
+        RANKINGS_FILE.unlink(missing_ok=True)
+        (CHECKPOINTS / "rankings.jsonl.gz").unlink(missing_ok=True)
+        print("[resweep] rankings journal cleared; leaderboards will be re-scanned",
+              flush=True)
     restore_checkpoints()
     if args.stage == "status":
         status(regions)
