@@ -292,6 +292,8 @@ fetch("data.json").then(r=>r.json()).then(d=>{
     if(hn!=="Unknown") csHeroes.get(k).add(hn);
   }
   computeResetBuckets();
+  // default period: the last month (the full season stays one click away)
+  for(const w of [0,1,2,3]) if(weekCounts.has(w)) state.weeksA.add(w);
   buildControls();
   $("loading").style.display="none";
   $("app").style.display=""; $("side").style.display="";
@@ -382,6 +384,7 @@ const PRESETS=[
   ["Last reset", ()=>[1]],
   ["Last month", ()=>[0,1,2,3]],
   ["Prev month", ()=>[4,5,6,7]],
+  ["Last 2 months", ()=>[0,1,2,3,4,5,6,7]],
 ];
 function presetWeeks(make){return make().filter(w=>weekCounts.has(w))}
 function setsEqual(a,b){if(a.size!==b.size)return false; for(const x of a) if(!b.has(x))return false; return true}
