@@ -239,16 +239,17 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     cols = [value_col] + ([other_col] if other_col else [])
     top["label_x"] = top[cols].max(axis=1).clip(lower=0)
 
-    # sort must reference the metric FIELD, not the layer's x channel: layers
-    # whose x is a pixel value (the deaths inlay) can't resolve '-x' and the
-    # whole layered spec silently collapses to zero height
+    # Do NOT let Vega sort: channel- and field-based sorts on layered specs
+    # have version-dependent fallbacks (alphabetical label order — which,
+    # with rank prefixes, reads as 1, 10, 11, ... 2, 20). Pre-sorting the
+    # dataframe and passing sort=None (data order) renders identically on
+    # every Vega build.
     if sort_mode == "Name (A → Z)":
-        y_sort = alt.EncodingSortField(field="name_key", op="min", order="ascending")
+        top = top.sort_values("name_key")
     elif sort_mode == "Value (low → high)":
-        y_sort = alt.EncodingSortField(field=value_col, op="max", order="ascending")
-    else:
-        y_sort = alt.EncodingSortField(field=value_col, op="max", order="descending")
-    y = alt.Y("label:N", sort=y_sort, title=None, axis=alt.Axis(labelLimit=320))
+        top = top.sort_values(value_col, ascending=True)
+    # else: already sorted by value_col descending (rank order)
+    y = alt.Y("label:N", sort=None, title=None, axis=alt.Axis(labelLimit=320))
     # headroom so end-of-bar labels never clip and out-lying ticks stay visible
     xmax = float(top[cols].max().max()) * 1.18
     xmin = min(0.0, float(top[cols].min().min()) * 1.18)
