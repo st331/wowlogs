@@ -10,13 +10,13 @@
 :root{
   --bg:#15171C; --panel:#1F232B; --panel2:#242933; --ink:#E8E6E3;
   --muted:#8f8d88; --gold:#F8B700; --grid:rgba(255,255,255,.07);
-  --border:rgba(248,183,0,.16);
+  --border:rgba(248,183,0,.16); --up:#3ddc84; --down:#ff6b6b;
 }
 *{box-sizing:border-box; margin:0}
 body{background:var(--bg); color:var(--ink);
   font:15px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
 a{color:var(--gold)}
-.layout{display:grid; grid-template-columns:290px 1fr; min-height:100vh}
+.layout{display:grid; grid-template-columns:300px 1fr; min-height:100vh}
 @media(max-width:900px){.layout{grid-template-columns:1fr}}
 /* ---------------- sidebar ---------------- */
 aside{background:#101216; border-right:1px solid var(--grid); padding:18px 16px 40px}
@@ -34,10 +34,10 @@ summary .cnt{color:var(--gold); font-size:.8rem}
   border:1px solid var(--grid); background:var(--panel); cursor:pointer;
   color:var(--muted); user-select:none}
 .chip.on{border-color:var(--gold); color:var(--gold); background:rgba(248,183,0,.08)}
+.chip.ghosted.on{border-color:#b9b7b0; color:#d8d6cf; background:rgba(200,198,190,.10)}
 .rowflex{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:.3rem 0}
 label.small{font-size:.85rem; color:var(--ink); display:flex; gap:6px; align-items:center; cursor:pointer}
 input[type=checkbox]{accent-color:var(--gold)}
-input[type=radio]{accent-color:var(--gold)}
 select,input[type=number]{background:var(--panel); color:var(--ink);
   border:1px solid var(--grid); border-radius:8px; padding:.3rem .5rem; font-size:.9rem}
 input[type=range]{width:100%; accent-color:var(--gold)}
@@ -56,7 +56,7 @@ input[type=range]{width:100%; accent-color:var(--gold)}
 .dual input::-moz-range-thumb{pointer-events:auto; width:13px; height:13px;
   border-radius:50%; background:var(--gold); border:2.5px solid #101216; cursor:pointer}
 .hint{color:var(--muted); font-size:.75rem; margin-top:.15rem}
-.radio-line{display:block; font-size:.85rem; margin:.25rem 0; cursor:pointer}
+.bpanel{border:1px solid var(--grid); border-radius:10px; padding:6px 8px; margin-top:.4rem}
 /* ---------------- main ---------------- */
 main{padding:26px 30px 60px; max-width:1150px}
 .hero-title{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
@@ -70,11 +70,13 @@ main{padding:26px 30px 60px; max-width:1150px}
 .kpi{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:.8rem 1rem}
 .kpi .l{text-transform:uppercase; letter-spacing:.14em; font-size:.66rem; color:var(--muted)}
 .kpi .v{font-size:1.55rem; font-weight:650; margin-top:.15rem}
+.kpi-note{color:var(--muted); font-size:.78rem; margin-top:.5rem}
+.kpi-note b{color:var(--ink)}
 .sec{display:flex; align-items:baseline; gap:.8rem; margin:2.1rem 0 .7rem;
   padding-bottom:.45rem; border-bottom:1px solid var(--grid)}
 .sec .t{text-transform:uppercase; letter-spacing:.18em; font-size:.8rem; font-weight:700; color:var(--gold)}
 .sec .s{color:var(--muted); font-size:.78rem}
-.seg{display:inline-flex; border:1px solid var(--grid); border-radius:10px; overflow:hidden; margin:.3rem 0 .6rem}
+.seg{display:inline-flex; border:1px solid var(--grid); border-radius:10px; overflow:hidden; margin:.3rem 0 .6rem; flex-wrap:wrap}
 .seg button{background:var(--panel); color:var(--muted); border:0; padding:.42rem .9rem;
   font-size:.85rem; cursor:pointer}
 .seg button.on{background:rgba(248,183,0,.12); color:var(--gold); font-weight:600}
@@ -88,24 +90,30 @@ main{padding:26px 30px 60px; max-width:1150px}
 .blbl{text-align:right; font-size:.8rem; color:var(--muted);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .btrack{position:relative; height:20px}
-.bbar{position:absolute; inset:0 auto 0 0; border-radius:0 4px 4px 0; min-width:2px}
+.bbar{position:absolute; top:0; bottom:0; border-radius:0 4px 4px 0; min-width:2px}
+.cmp .bbar{bottom:auto; height:12px}
+.bghost{position:absolute; top:14px; height:5px; border-radius:0 3px 3px 0;
+  background:rgba(200,198,190,.5); min-width:2px}
 .binlay{position:absolute; left:8px; top:50%; transform:translateY(-50%);
   font-size:.68rem; font-weight:500; white-space:nowrap; pointer-events:none}
+.cmp .binlay{top:6px}
 .btick{position:absolute; top:-2px; bottom:-2px; width:2.5px; background:#c9c7c2; opacity:.9}
 .bval{position:absolute; top:50%; transform:translateY(-50%);
   font-size:.8rem; font-weight:700; color:var(--ink); white-space:nowrap; padding-left:7px}
+.delta{font-size:.72rem; font-weight:700; margin-left:6px}
+.delta.up{color:var(--up)} .delta.down{color:var(--down)} .delta.na{color:var(--muted); font-weight:500}
 .caption{color:var(--muted); font-size:.78rem; margin-top:.7rem}
 /* tooltip */
 #tip{position:fixed; z-index:10; background:var(--panel2); border:1px solid var(--grid);
   border-radius:10px; padding:.6rem .8rem; font-size:.78rem; pointer-events:none;
-  display:none; max-width:280px; box-shadow:0 6px 24px rgba(0,0,0,.5)}
+  display:none; max-width:320px; box-shadow:0 6px 24px rgba(0,0,0,.5)}
 #tip b{color:var(--gold)}
 #tip table{border-collapse:collapse}
-#tip td{padding:.06rem .4rem .06rem 0; color:var(--ink)}
-#tip td:first-child{color:var(--muted)}
+#tip td{padding:.06rem .45rem .06rem 0; color:var(--ink); text-align:right}
+#tip td:first-child{color:var(--muted); text-align:left}
 /* table */
 .tblwrap{overflow-x:auto; border:1px solid var(--grid); border-radius:12px}
-table.data{border-collapse:collapse; width:100%; font-size:.85rem; min-width:760px}
+table.data{border-collapse:collapse; width:100%; font-size:.85rem; min-width:700px}
 .data th{position:sticky; top:0; background:var(--panel); color:var(--muted);
   text-transform:uppercase; font-size:.66rem; letter-spacing:.1em; padding:.55rem .7rem;
   text-align:right; cursor:pointer; user-select:none; white-space:nowrap}
@@ -120,13 +128,15 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 .btn{background:var(--panel); border:1px solid var(--grid); color:var(--ink);
   border-radius:8px; padding:.4rem .8rem; cursor:pointer; font-size:.85rem}
 .btn:hover{border-color:var(--gold)}
+#trendbox svg{display:block; width:100%}
+#trendbox text{font:11px -apple-system,"Segoe UI",Roboto,sans-serif}
 </style>
 </head>
 <body>
 <div id="tip"></div>
 <div class="layout">
 <aside id="side" style="display:none">
-  <button class="btn" style="width:100%" onclick="resetFilters()">↺ Reset filters</button>
+  <button class="btn" style="width:100%" onclick="location.reload()">↺ Reset filters</button>
 
   <div class="side-label">Who — class, spec &amp; talents</div>
   <details><summary>Class <span class="cnt" id="cnt-cls"></span></summary><div class="chips" id="f-cls"></div></details>
@@ -140,26 +150,38 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     <span class="hint">both/neither = no filter</span>
   </div>
 
-  <div class="side-label">Where &amp; when</div>
+  <div class="side-label">Where</div>
   <details><summary>Dungeon <span class="cnt" id="cnt-dun"></span></summary><div class="chips" id="f-dun"></div></details>
   <div style="margin-top:.5rem">Key Level: <b id="keys-v" style="color:var(--gold)"></b></div>
   <div class="dual">
     <div class="track"></div><div class="fill" id="key-fill"></div>
     <input type="range" id="klo"><input type="range" id="khi">
   </div>
-  <div style="margin-top:.7rem">Reset weeks <span class="hint">(pick any · empty = all · hover for details)</span></div>
-  <div class="chips" id="f-resets"></div>
+
+  <div class="side-label">When — time period</div>
+  <div class="chips" id="presetA" style="padding-top:2px"></div>
+  <details><summary>Custom weeks <span class="cnt" id="cnt-weeksA"></span></summary>
+    <div class="chips" id="f-weeksA"></div></details>
+  <label class="small" style="margin-top:.5rem"><input type="checkbox" id="cmp">
+    Compare with a second period</label>
+  <div class="chips" id="quickcmp"></div>
+  <div id="blockB" class="bpanel" style="display:none">
+    <div class="hint" style="margin:0 0 .1rem">Period B — drawn as grey ghost bars</div>
+    <div class="chips" id="presetB" style="padding-top:2px"></div>
+    <details><summary>Custom weeks (B) <span class="cnt" id="cnt-weeksB"></span></summary>
+      <div class="chips" id="f-weeksB"></div></details>
+  </div>
 
   <div class="side-label">Quality</div>
   <div>Minimum runs: <b id="minruns-v" style="color:var(--gold)">200</b></div>
   <input type="range" id="minruns" min="1" max="500" value="200">
   <details><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
-  <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>.</p>
+  <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. Hover any week chip for its dates and volume.</p>
 </aside>
 
 <main>
   <div class="hero-title">⚔️ Mythic+ <span class="gold">Performance</span></div>
-  <div class="hero-sub" id="subtitle">Midnight Season 1 · Keystones +12 – 25 · built from Warcraft Logs fight rankings</div>
+  <div class="hero-sub">Midnight Season 1 · Keystones +12 – 25 · built from Warcraft Logs fight rankings</div>
   <div class="hero-rule"></div>
 
   <div id="loading">Loading data…</div>
@@ -170,15 +192,19 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       <div class="kpi"><div class="l">Groups compared</div><div class="v" id="k-groups">–</div></div>
       <div class="kpi"><div class="l">Run dates</div><div class="v" id="k-dates">–</div></div>
     </div>
+    <div class="kpi-note" id="period-note"></div>
 
     <div class="sec"><span class="t">Overview</span><span class="s">hover any bar for the full story</span></div>
     <div class="seg" id="sortseg">
       <button data-s="desc" class="on">Highest first</button>
       <button data-s="asc">Lowest first</button>
       <button data-s="name">Name A → Z</button>
+      <button data-s="gain" style="display:none">Gained most</button>
+      <button data-s="loss" style="display:none">Lost most</button>
     </div>
     <div class="tabs" id="tabs"></div>
     <div id="chart"></div>
+    <div id="trendbox" style="display:none"></div>
     <div class="caption" id="chart-caption"></div>
 
     <div class="sec"><span class="t">Breakdown</span><span class="s" id="tbl-sub"></span></div>
@@ -188,7 +214,7 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       DPS is per-player overall damage ÷ run duration; deaths are parsed from each report's
       death events. Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs
       fight rankings — read it as "what strong runs pull", not a population census.
-      Median deaths are 0 for most groups (~75% of parses are deathless).
+      Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC).
       <span id="built"></span>
     </footer>
   </div>
@@ -213,45 +239,53 @@ const RANGED = new Set(["Druid|Balance","Druid|Restoration","Evoker|Augmentation
   "Mage|Arcane","Mage|Fire","Mage|Frost","Priest|Discipline","Priest|Holy","Priest|Shadow",
   "Shaman|Elemental","Shaman|Restoration","Warlock|Affliction","Warlock|Demonology",
   "Warlock|Destruction"]);
-// weekly reset: [weekday (0=Mon), hour UTC]
-const RESET_RULES = {US:[1,15], EU:[2,4]}, RESET_DEFAULT=[2,22];
+const RESET_RULES = {US:[1,15], EU:[2,4]}, RESET_DEFAULT=[2,22]; // [weekday Mon=0, hour UTC]
 
 const TABS = [
-  {id:"avg",  label:"Average DPS",     fmt:fmtInt, inlay:"deaths", shade:"deathless", tick:"med",
-   cap:"Bold number: average DPS; grey tick: median DPS. Brighter bar = higher deathless share; exact deaths stats inside each bar."},
-  {id:"med",  label:"Median DPS",      fmt:fmtInt, inlay:"deaths", shade:"deathless", tick:"avg",
-   cap:"Bold number: median DPS; grey tick: average DPS. Brighter bar = higher deathless share; exact deaths stats inside each bar."},
-  {id:"diff", label:"Mean − Median",   fmt:fmtSigned, inlay:null, shade:null, tick:null,
-   cap:"Positive: a minority of very high parses lifts the average above the typical run. Negative: a low tail drags it under. Bigger magnitude = less consistent."},
-  {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), inlay:"dps", shade:"avg", tick:"mdeaths",
-   cap:"Bold number: average deaths per run; grey tick: median deaths. Brighter bar = higher average DPS; exact DPS inside each bar."},
-  {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", inlay:"dps", shade:"avg", tick:null,
-   cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS; exact DPS inside each bar."},
+  {id:"avg", label:"Average DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
+   shade:"deathless", tick:"med",
+   cap:"Bold number: average DPS; grey tick: median DPS. Brighter bar = higher deathless share."},
+  {id:"med", label:"Median DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
+   shade:"deathless", tick:"avg",
+   cap:"Bold number: median DPS; grey tick: average DPS. Brighter bar = higher deathless share."},
+  {id:"diff", label:"Mean − Median", fmt:fmtSigned, betterUp:true, inlay:null, shade:null, tick:null,
+   cap:"Positive: a minority of very high parses lifts the average above the typical run. Negative: a low tail drags it under."},
+  {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
+   shade:"avg", tick:"mdeaths",
+   cap:"Average deaths per run; grey tick: median deaths. Brighter bar = higher average DPS."},
+  {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
+   shade:"avg", tick:null,
+   cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
+  {id:"trend", label:"Trend", trend:true,
+   cap:"Weekly average DPS for the top groups under the current filters, whole season. "+
+       "Weeks with fewer than 25 parses for a group are skipped."},
 ];
 const CHART_MAX = 40;
 
-let D=null, R=null, N=0, runCount=0;   // data, rows, row count, distinct runs
+let D=null, R=null, N=0, runCount=0;
+let availWeeks=[], weekCounts=new Map(), usB0=0;
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
-             klo:18, khi:22, resets:new Set(), minruns:200, sort:"desc", tab:"avg",
-             tsort:{col:"avg", dir:-1}};
+             klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
+             minruns:200, sort:"desc", tab:"avg", tsort:{col:"a_v", dir:-1}};
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
 function fmtSigned(v){return (v>0?"+":"")+fmtInt(v)}
-function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function fmtDay(d){const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*864e5);
+  return t.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"})}
 
 fetch("data.json").then(r=>r.json()).then(d=>{
   D=d; R=d.rows; N=R.dps.length;
-  runCount = 0;
+  runCount=0;
   for(let i=0;i<N;i++) if(R.run[i]>=runCount) runCount=R.run[i]+1;
-  R.atk = new Int8Array(N);          // 0 unknown, 1 melee, 2 ranged
-  window.clsSpecs = new Map();       // class -> Set(spec names)
-  window.csHeroes = new Map();       // "class|spec" -> Set(hero names)
+  R.atk = new Int8Array(N);
+  window.clsSpecs=new Map(); window.csHeroes=new Map();
   for(let i=0;i<N;i++){
     const cn=d.classes[R.cls[i]], sn=d.specs[R.spec[i]], hn=d.heroes[R.hero[i]];
-    const k = cn+"|"+sn;
-    R.atk[i] = MELEE.has(k)?1:RANGED.has(k)?2:0;
+    const k=cn+"|"+sn;
+    R.atk[i]=MELEE.has(k)?1:RANGED.has(k)?2:0;
     if(!clsSpecs.has(cn)) clsSpecs.set(cn,new Set());
     clsSpecs.get(cn).add(sn);
     if(!csHeroes.has(k)) csHeroes.set(k,new Set());
@@ -261,39 +295,66 @@ fetch("data.json").then(r=>r.json()).then(d=>{
   buildControls();
   $("loading").style.display="none";
   $("app").style.display=""; $("side").style.display="";
-  $("built").textContent = " Data built "+d.built+".";
+  $("built").textContent=" Data built "+d.built+".";
   render();
 });
 
 function computeResetBuckets(){
-  const epoch = new Date(D.epoch+"T00:00:00Z");
-  const now = new Date();
-  const bounds = {};                 // region index -> [b0,b1,b2] day numbers
+  const epoch=new Date(D.epoch+"T00:00:00Z"), now=new Date();
+  const bounds={};
   D.regions.forEach((reg,ri)=>{
-    const [wd,hh] = RESET_RULES[reg]||RESET_DEFAULT;
-    const b = new Date(now); b.setUTCHours(hh,0,0,0);
-    const shift = ( ( (b.getUTCDay()+6)%7 ) - wd + 7 ) % 7;   // JS Sun=0 -> Mon=0
+    const [wd,hh]=RESET_RULES[reg]||RESET_DEFAULT;
+    const b=new Date(now); b.setUTCHours(hh,0,0,0);
+    const shift=(((b.getUTCDay()+6)%7)-wd+7)%7;
     b.setUTCDate(b.getUTCDate()-shift);
     if(b>now) b.setUTCDate(b.getUTCDate()-7);
-    const day0 = Math.floor((b-epoch)/864e5);
-    bounds[ri]=[day0, day0-7, day0-14];
+    bounds[ri]=Math.floor((b-epoch)/864e5);
   });
-  R.rbucket = new Int16Array(N);      // full weeks-ago per row (regional boundary)
+  R.rbucket=new Int16Array(N);
   for(let i=0;i<N;i++){
     const d0=R.day[i];
     if(d0<0){R.rbucket[i]=999; continue}
-    const b0=bounds[R.reg[i]][0];
-    R.rbucket[i] = d0>=b0 ? 0 : Math.ceil((b0-d0)/7);
+    const b0=bounds[R.reg[i]];
+    R.rbucket[i]=d0>=b0?0:Math.ceil((b0-d0)/7);
   }
-  window._us_b0 = bounds[D.regions.indexOf("US")] || Object.values(bounds)[0];
+  usB0=bounds[D.regions.indexOf("US")] ?? Object.values(bounds)[0];
+  weekCounts=new Map();
+  for(let i=0;i<N;i++) if(R.rbucket[i]<999)
+    weekCounts.set(R.rbucket[i],(weekCounts.get(R.rbucket[i])||0)+1);
+  availWeeks=[...weekCounts.keys()].sort((a,b)=>a-b);
 }
 
-/* ---------------- controls ---------------- */
-function chipGroup(el, items, sel, onchange){
+/* ---------------- filter option pools ---------------- */
+function specPool(){
+  if(!state.cls.size) return D.specs;
+  const s=new Set();
+  for(const c of state.cls) (clsSpecs.get(c)||new Set()).forEach(x=>s.add(x));
+  return D.specs.filter(x=>s.has(x));
+}
+function heroPool(){
+  const classes=state.cls.size?[...state.cls]:D.classes;
+  const s=new Set();
+  for(const c of classes)
+    for(const sp of (state.spec.size?[...state.spec]:(clsSpecs.get(c)||[])))
+      (csHeroes.get(c+"|"+sp)||new Set()).forEach(x=>s.add(x));
+  return D.heroes.filter(x=>s.has(x));
+}
+function rebuildCascade(){
+  const sp=new Set(specPool());
+  for(const x of [...state.spec]) if(!sp.has(x)) state.spec.delete(x);
+  chipGroup($("f-spec"),[...sp],state.spec,rebuildCascade);
+  const hp=new Set(heroPool());
+  for(const x of [...state.hero]) if(!hp.has(x)) state.hero.delete(x);
+  chipGroup($("f-hero"),[...hp],state.hero);
+}
+
+/* ---------------- generic controls ---------------- */
+function chipGroup(el, items, sel, onchange, ghosted){
   el.innerHTML="";
   items.forEach(name=>{
     const c=document.createElement("span");
-    c.className="chip"+(sel.has(name)?" on":""); c.textContent=name;
+    c.className="chip"+(ghosted?" ghosted":"")+(sel.has(name)?" on":"");
+    c.textContent=name;
     c.onclick=()=>{sel.has(name)?sel.delete(name):sel.add(name);
       c.classList.toggle("on"); if(onchange)onchange(); syncCounts(); render();};
     el.appendChild(c);
@@ -302,40 +363,75 @@ function chipGroup(el, items, sel, onchange){
 }
 function syncCounts(){
   const pairs=[["cnt-cls",state.cls],["cnt-spec",state.spec],["cnt-hero",state.hero],
-    ["cnt-dun",state.dun],["cnt-role",state.role],["cnt-reg",state.reg]];
-  for(const [id,s] of pairs) $(id).textContent = s.size? s.size+" ✓":"";
+    ["cnt-dun",state.dun],["cnt-role",state.role],["cnt-reg",state.reg],
+    ["cnt-weeksA",state.weeksA],["cnt-weeksB",state.weeksB]];
+  for(const [id,s] of pairs){const e=$(id); if(e) e.textContent=s.size?s.size+" ✓":"";}
 }
-function specPool(){
-  if(!state.cls.size) return D.specs;
-  const s=new Set();
-  for(const c of state.cls) (clsSpecs.get(c)||new Set()).forEach(x=>s.add(x));
-  return D.specs.filter(x=>s.has(x));
+
+/* ---------------- period controls ---------------- */
+function weekLabel(w){return w===0?"This reset":fmtDay(usB0-7*w)}
+function weekTitle(w){
+  const start=usB0-7*w;
+  return (w===0?"since "+fmtDay(start):fmtDay(start)+" – "+fmtDay(start+7))
+    +" · "+(weekCounts.get(w)||0).toLocaleString("en-US")+" parses"
+    +(w>0?" · "+w+" reset"+(w>1?"s":"")+" ago":"");
 }
-function heroPool(){
-  const classes = state.cls.size? [...state.cls] : D.classes;
-  const s=new Set();
-  for(const c of classes)
-    for(const sp of (state.spec.size? [...state.spec] : (clsSpecs.get(c)||[])))
-      (csHeroes.get(c+"|"+sp)||new Set()).forEach(x=>s.add(x));
-  return D.heroes.filter(x=>s.has(x));
+const PRESETS=[
+  ["All season", ()=>[]],
+  ["This reset", ()=>[0]],
+  ["Last reset", ()=>[1]],
+  ["Last month", ()=>[0,1,2,3]],
+  ["Prev month", ()=>[4,5,6,7]],
+];
+function presetWeeks(make){return make().filter(w=>weekCounts.has(w))}
+function setsEqual(a,b){if(a.size!==b.size)return false; for(const x of a) if(!b.has(x))return false; return true}
+
+function buildPeriodUI(prefix, sel, ghosted){
+  const pbox=$("preset"+prefix), wbox=$("f-weeks"+prefix);
+  const paint=()=>{
+    pbox.innerHTML="";
+    for(const [name,make] of PRESETS){
+      const target=new Set(presetWeeks(make));
+      if(name!=="All season" && !target.size) continue;   // no data for that span
+      const c=document.createElement("span");
+      c.className="chip"+(ghosted?" ghosted":"")+(setsEqual(sel,target)?" on":"");
+      c.textContent=name;
+      if(name!=="All season"){
+        const ws=[...target].sort((a,b)=>a-b);
+        c.title=fmtDay(usB0-7*Math.max(...ws))+" → "+(ws.includes(0)?"now":fmtDay(usB0-7*Math.min(...ws)+7));
+      } else c.title="no time filter";
+      c.onclick=()=>{sel.clear(); target.forEach(w=>sel.add(w)); refreshPeriodUIs(); render();};
+      pbox.appendChild(c);
+    }
+    wbox.innerHTML="";
+    for(const w of availWeeks){
+      const c=document.createElement("span");
+      c.className="chip"+(ghosted?" ghosted":"")+(sel.has(w)?" on":"");
+      c.textContent=weekLabel(w); c.title=weekTitle(w);
+      c.onclick=()=>{sel.has(w)?sel.delete(w):sel.add(w); refreshPeriodUIs(); render();};
+      wbox.appendChild(c);
+    }
+  };
+  return paint;
 }
-function rebuildCascade(){
-  // options narrow to the current class/spec picks; stale picks are pruned
-  const sp=new Set(specPool());
-  for(const x of [...state.spec]) if(!sp.has(x)) state.spec.delete(x);
-  chipGroup($("f-spec"), [...sp], state.spec);
-  const hp=new Set(heroPool());
-  for(const x of [...state.hero]) if(!hp.has(x)) state.hero.delete(x);
-  chipGroup($("f-hero"), [...hp], state.hero);
+let paintA=null, paintB=null;
+function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); syncCounts();}
+function describePeriod(sel){
+  for(const [name,make] of PRESETS)
+    if(setsEqual(sel,new Set(presetWeeks(make)))) return name.toLowerCase();
+  return sel.size+" week"+(sel.size>1?"s":"");
 }
+
+/* ---------------- build all controls ---------------- */
 function buildControls(){
-  chipGroup($("f-cls"), D.classes.filter(c=>c!=="Unknown"), state.cls, rebuildCascade);
-  chipGroup($("f-spec"), specPool(), state.spec, rebuildCascade);
-  chipGroup($("f-hero"), heroPool(), state.hero);
-  chipGroup($("f-dun"), D.dungeons, state.dun);
-  chipGroup($("f-role"), ["DPS","Healer","Tank"], state.role);
-  chipGroup($("f-reg"), D.regions, state.reg);
-  // dual-thumb key slider: thumbs clamp against each other, inversion impossible
+  chipGroup($("f-cls"),D.classes.filter(c=>c!=="Unknown"),state.cls,rebuildCascade);
+  chipGroup($("f-spec"),specPool(),state.spec,rebuildCascade);
+  chipGroup($("f-hero"),heroPool(),state.hero);
+  chipGroup($("f-dun"),D.dungeons,state.dun);
+  chipGroup($("f-role"),["DPS","Healer","Tank"],state.role);
+  chipGroup($("f-reg"),D.regions,state.reg);
+
+  // key range (dual slider, clamped)
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
   const kmin=keys[0], kmax=keys[keys.length-1];
   state.klo=Math.max(kmin,state.klo); state.khi=Math.min(kmax,state.khi);
@@ -349,44 +445,44 @@ function buildControls(){
     f.style.width=((state.khi-state.klo)/span*100)+"%";
   };
   paintKeys();
-  $("klo").oninput=e=>{
-    state.klo=Math.min(+e.target.value, state.khi);
-    e.target.value=state.klo; paintKeys(); render();
-  };
-  $("khi").oninput=e=>{
-    state.khi=Math.max(+e.target.value, state.klo);
-    e.target.value=state.khi; paintKeys(); render();
-  };
+  $("klo").oninput=e=>{state.klo=Math.min(+e.target.value,state.khi);
+    e.target.value=state.klo; paintKeys(); render();};
+  $("khi").oninput=e=>{state.khi=Math.max(+e.target.value,state.klo);
+    e.target.value=state.khi; paintKeys(); render();};
+
+  // periods
+  paintA=buildPeriodUI("A",state.weeksA,false);
+  paintB=buildPeriodUI("B",state.weeksB,true);
+  refreshPeriodUIs();
+  $("cmp").onchange=e=>{setCompare(e.target.checked)};
+  const QUICK=[
+    ["This vs last reset",[0],[1]],
+    ["Last vs prev month",[0,1,2,3],[4,5,6,7]],
+  ];
+  const qbox=$("quickcmp");
+  for(const [name,a,b] of QUICK){
+    const av=a.filter(w=>weekCounts.has(w)), bv=b.filter(w=>weekCounts.has(w));
+    if(!av.length||!bv.length) continue;
+    const c=document.createElement("span");
+    c.className="chip"; c.textContent="⚡ "+name;
+    c.title="one click: sets both periods and turns compare on";
+    c.onclick=()=>{
+      state.weeksA=new Set(av); state.weeksB=new Set(bv);
+      paintA=buildPeriodUI("A",state.weeksA,false);
+      paintB=buildPeriodUI("B",state.weeksB,true);
+      $("cmp").checked=true; setCompare(true);
+    };
+    qbox.appendChild(c);
+  }
+
   $("merge").onchange=e=>{state.merge=e.target.checked;
     $("hero-box").style.display=state.merge?"none":""; render()};
-  $("hero-box").style.display = state.merge?"none":"";
+  $("hero-box").style.display=state.merge?"none":"";
   $("melee").onchange=e=>{state.melee=e.target.checked; render()};
   $("ranged").onchange=e=>{state.ranged=e.target.checked; render()};
   $("minruns").oninput=e=>{state.minruns=+e.target.value;
     $("minruns-v").textContent=state.minruns; render()};
-  // reset weeks: one chip per reset period present in the data, newest first;
-  // any combination selectable, none selected = all data
-  const fmtDay=d=>{const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*864e5);
-    return t.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"})};
-  const [b0]=window._us_b0;
-  const weekCounts=new Map();
-  for(let i=0;i<N;i++) if(R.rbucket[i]<999)
-    weekCounts.set(R.rbucket[i],(weekCounts.get(R.rbucket[i])||0)+1);
-  const weeks=[...weekCounts.keys()].sort((a,b)=>a-b);
-  const box=$("f-resets"); box.innerHTML="";
-  for(const w of weeks){
-    const start=b0-7*w;
-    const c=document.createElement("span");
-    c.className="chip"+(state.resets.has(w)?" on":"");
-    c.textContent = w===0 ? "This reset" : fmtDay(start);
-    c.title = (w===0 ? "since "+fmtDay(start)
-                     : fmtDay(start)+" – "+fmtDay(start+7))
-              +" · "+weekCounts.get(w).toLocaleString("en-US")+" parses"
-              +(w>0 ? " · "+w+" reset"+(w>1?"s":"")+" ago" : "");
-    c.onclick=()=>{state.resets.has(w)?state.resets.delete(w):state.resets.add(w);
-      c.classList.toggle("on"); render()};
-    box.appendChild(c);
-  }
+
   $("sortseg").querySelectorAll("button").forEach(b=>{
     b.onclick=()=>{state.sort=b.dataset.s;
       $("sortseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
@@ -395,68 +491,90 @@ function buildControls(){
   const tabs=$("tabs");
   TABS.forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
-    b.className = t.id===state.tab?"on":"";
+    b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
       tabs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
       render()};
     tabs.appendChild(b);
   });
+  window.addEventListener("resize",()=>{ if(state.tab==="trend") render(); });
 }
-function resetFilters(){location.reload()}
+function setCompare(on){
+  state.compare=on;
+  $("blockB").style.display=on?"":"none";
+  refreshPeriodUIs();
+  $("sortseg").querySelectorAll("button").forEach(b=>{
+    if(b.dataset.s==="gain"||b.dataset.s==="loss") b.style.display=on?"":"none";
+  });
+  if(!on&&(state.sort==="gain"||state.sort==="loss")){
+    state.sort="desc";
+    $("sortseg").querySelectorAll("button").forEach(x=>
+      x.classList.toggle("on",x.dataset.s==="desc"));
+  }
+  render();
+}
 
 /* ---------------- aggregation ---------------- */
-function aggregate(){
-  const cls=idxSet(state.cls,D.classes), spec=idxSet(state.spec,D.specs),
-        hero=idxSet(state.hero,D.heroes), dun=idxSet(state.dun,D.dungeons),
-        role=idxSet(state.role,D.roles), reg=idxSet(state.reg,D.regions);
-  const atkFilter = state.melee!==state.ranged ? (state.melee?1:2) : 0;
-  const groups=new Map(); let parses=0; let dmin=1e9,dmax=-1;
-  const runSeen=new Uint8Array(runCount); let runs=0;
-  for(let i=0;i<N;i++){
-    if(R.key[i]<state.klo||R.key[i]>state.khi) continue;
-    if(cls&&!cls.has(R.cls[i])) continue;
-    if(spec&&!spec.has(R.spec[i])) continue;
-    if(!state.merge&&hero&&!hero.has(R.hero[i])) continue;
-    if(dun&&!dun.has(R.dun[i])) continue;
-    if(role&&!role.has(R.role[i])) continue;
-    if(atkFilter&&R.atk[i]!==atkFilter) continue;
-    if(reg&&!reg.has(R.reg[i])) continue;
-    if(state.resets.size&&!state.resets.has(R.rbucket[i])) continue;
-    parses++;
-    if(!runSeen[R.run[i]]){runSeen[R.run[i]]=1; runs++}
-    if(R.day[i]>=0){ if(R.day[i]<dmin)dmin=R.day[i]; if(R.day[i]>dmax)dmax=R.day[i]; }
-    const key = state.merge ? R.cls[i]*100+R.spec[i]
-                            : (R.cls[i]*100+R.spec[i])*200+R.hero[i];
-    let g=groups.get(key);
-    if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,dps:[],deaths:[]}; groups.set(key,g)}
-    g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
-    if(R.deaths[i]===0)g.dzero++;
-    g.dps.push(R.dps[i]); g.deaths.push(R.deaths[i]);
-  }
-  const out=[];
-  for(const g of groups.values()){
-    if(g.n<state.minruns) continue;
-    g.dps.sort((a,b)=>a-b);
-    g.deaths.sort((a,b)=>a-b);
-    const med=q50(g.dps);
-    out.push({cls:D.classes[g.cls], spec:D.specs[g.spec],
-      hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
-      avg:g.sum/g.n, med, diff:g.sum/g.n-med,
-      adeaths:g.dsum/g.n, mdeaths:q50(g.deaths),
-      deathless:100*g.dzero/g.n});
-  }
-  return {rows:out, parses, runs, dmin, dmax};
-}
 function idxSet(sel,names){
   if(!sel.size) return null;
   return new Set([...sel].map(s=>names.indexOf(s)));
 }
 function q50(sorted){const n=sorted.length;
-  return n%2 ? sorted[(n-1)/2] : (sorted[n/2-1]+sorted[n/2])/2}
+  return n%2?sorted[(n-1)/2]:(sorted[n/2-1]+sorted[n/2])/2}
+
+function baseMasks(){
+  return {cls:idxSet(state.cls,D.classes), spec:idxSet(state.spec,D.specs),
+    hero:idxSet(state.hero,D.heroes), dun:idxSet(state.dun,D.dungeons),
+    role:idxSet(state.role,D.roles), reg:idxSet(state.reg,D.regions),
+    atk:state.melee!==state.ranged?(state.melee?1:2):0};
+}
+function rowPass(i,m){
+  if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
+  if(m.cls&&!m.cls.has(R.cls[i])) return false;
+  if(m.spec&&!m.spec.has(R.spec[i])) return false;
+  if(!state.merge&&m.hero&&!m.hero.has(R.hero[i])) return false;
+  if(m.dun&&!m.dun.has(R.dun[i])) return false;
+  if(m.role&&!m.role.has(R.role[i])) return false;
+  if(m.atk&&R.atk[i]!==m.atk) return false;
+  if(m.reg&&!m.reg.has(R.reg[i])) return false;
+  return true;
+}
+function groupKey(i){
+  return state.merge ? R.cls[i]*100+R.spec[i] : (R.cls[i]*100+R.spec[i])*200+R.hero[i];
+}
+function aggregate(weeks){
+  const m=baseMasks();
+  const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
+  const runSeen=new Uint8Array(runCount);
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)) continue;
+    if(weeks.size&&!weeks.has(R.rbucket[i])) continue;
+    parses++;
+    if(!runSeen[R.run[i]]){runSeen[R.run[i]]=1; runs++}
+    if(R.day[i]>=0){if(R.day[i]<dmin)dmin=R.day[i]; if(R.day[i]>dmax)dmax=R.day[i];}
+    const key=groupKey(i);
+    let g=groups.get(key);
+    if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
+             n:0,sum:0,dsum:0,dzero:0,dps:[],deaths:[]}; groups.set(key,g)}
+    g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
+    if(R.deaths[i]===0) g.dzero++;
+    g.dps.push(R.dps[i]); g.deaths.push(R.deaths[i]);
+  }
+  const out=new Map();
+  for(const [key,g] of groups){
+    g.dps.sort((a,b)=>a-b); g.deaths.sort((a,b)=>a-b);
+    const med=q50(g.dps);
+    out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
+      hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
+      avg:g.sum/g.n, med, diff:g.sum/g.n-med,
+      adeaths:g.dsum/g.n, mdeaths:q50(g.deaths),
+      deathless:100*g.dzero/g.n});
+  }
+  return {groups:out, parses, runs, dmin, dmax};
+}
 
 /* ---------------- rendering ---------------- */
-function shade(base,t){                 // dim -> bright with class hue kept
+function shade(base,t){
   const mix=(c1,c2,k)=>c1.map((v,i)=>Math.round(v+(c2[i]-v)*k));
   const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
   const lo=mix(rgb(base),rgb("#15171C"),.60), hi=mix(rgb(base),[255,255,255],.20);
@@ -464,45 +582,107 @@ function shade(base,t){                 // dim -> bright with class hue kept
 }
 function ink(rgbStr){
   const [r,g,b]=rgbStr.match(/\d+/g).map(Number);
-  return (0.2126*r+0.7152*g+0.0722*b)/255>0.45 ? "#1f1e1d" : "#fff";
+  return (0.2126*r+0.7152*g+0.0722*b)/255>0.45?"#1f1e1d":"#fff";
 }
-function render(){
-  const {rows,parses,runs,dmin,dmax}=aggregate();
-  const tab=TABS.find(t=>t.id===state.tab);
-  $("k-runs").textContent=fmtInt(runs);
-  $("k-parses").textContent=fmtInt(parses);
-  $("k-groups").textContent=fmtInt(rows.length);
-  $("k-dates").textContent = dmax<0?"—":fmtDayRange(dmin,dmax);
+function deltaHTML(a,b,tab){
+  if(b==null||!isFinite(b)) return '<span class="delta na">new</span>';
+  if(Math.abs(b)<1e-9) return '<span class="delta na">–</span>';
+  const d=(a-b)/Math.abs(b);
+  const cls=(d>=0)===tab.betterUp?"up":"down";
+  const s=(d>=0?"+":"")+(d*100).toFixed(1)+"%";
+  return `<span class="delta ${cls}">${s}</span>`;
+}
+function tipHTML(r,compare){
+  const row=(k,va,vb)=>"<tr><td>"+k+"</td><td>"+va+"</td>"+(compare?"<td>"+vb+"</td>":"")+"</tr>";
+  const f=(o,k,fmt)=>o?fmt(o[k]):"–";
+  let h="<b>"+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+"</b><table>";
+  if(compare) h+=row("", "<b>A</b>", "<b>B</b>");
+  h+=row("Total runs", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
+  h+=row("Average DPS", f(r.a,"avg",fmtInt), f(r.b,"avg",fmtInt));
+  h+=row("Median DPS", f(r.a,"med",fmtInt), f(r.b,"med",fmtInt));
+  h+=row("Mean − median", f(r.a,"diff",fmtSigned), f(r.b,"diff",fmtSigned));
+  h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
+  h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
+  return h+"</table>";
+}
+function attachTip(el,html){
+  el.onmousemove=e=>{
+    const tip=$("tip");
+    tip.innerHTML=html; tip.style.display="block";
+    tip.style.left=Math.min(e.clientX+14,innerWidth-330)+"px";
+    tip.style.top=Math.min(e.clientY+14,innerHeight-220)+"px";
+  };
+  el.onmouseleave=()=>{$("tip").style.display="none"};
+}
 
-  // ---- chart
-  rows.sort((a,b)=>b[state.tab]-a[state.tab]);
+function render(){
+  const tab=TABS.find(t=>t.id===state.tab);
+  const A=aggregate(state.weeksA);
+  const B=state.compare?aggregate(state.weeksB):null;
+
+  // join
+  const rows=[];
+  for(const [key,a] of A.groups){
+    const b=B?B.groups.get(key)||null:null;
+    if(a.n<state.minruns&&!(b&&b.n>=state.minruns)) continue;
+    rows.push({key, cls:a.cls, spec:a.spec, hero:a.hero, a, b});
+  }
+
+  // KPIs (period A)
+  $("k-runs").textContent=fmtInt(A.runs);
+  $("k-parses").textContent=fmtInt(A.parses);
+  $("k-groups").textContent=fmtInt(rows.length);
+  $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
+  $("period-note").innerHTML = state.compare
+    ? "Period <b>A</b>: "+describePeriod(state.weeksA)+" (solid, class colors) &nbsp;·&nbsp; "
+      +"Period <b>B</b>: "+describePeriod(state.weeksB)+" (grey ghost bars) — KPIs show period A. "
+      +(B?fmtInt(B.parses)+" parses in B.":"")
+    : "Period: "+describePeriod(state.weeksA);
+
+  if(tab.trend){ renderTrend(); renderTable(rows,tab); return; }
+  $("trendbox").style.display="none"; $("chart").style.display="";
+
+  // order + rank (rank always by A value of this tab, best first)
+  const val=r=>r.a[tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id]; // tab.id matches keys
+  const col=tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id;
+  rows.sort((x,y)=>y.a[col]-x.a[col]);
   rows.forEach((r,i)=>r.rank=i+1);
   let view=rows.slice(0,CHART_MAX);
-  if(state.sort==="asc") view=[...view].sort((a,b)=>a[state.tab]-b[state.tab]);
-  if(state.sort==="name") view=[...view].sort((a,b)=>
-    (a.cls+a.spec+a.hero).localeCompare(b.cls+b.spec+b.hero));
-  // shared x-scale across bar + tick, with a zero line for signed metrics
+  const pct=r=>r.b&&Math.abs(r.b[col])>1e-9?(r.a[col]-r.b[col])/Math.abs(r.b[col]):null;
+  if(state.sort==="asc") view=[...view].sort((x,y)=>x.a[col]-y.a[col]);
+  else if(state.sort==="name") view=[...view].sort((x,y)=>
+    (x.cls+x.spec+x.hero).localeCompare(y.cls+y.spec+y.hero));
+  else if(state.sort==="gain") view=[...view].sort((x,y)=>(pct(y)??-1e9)-(pct(x)??-1e9));
+  else if(state.sort==="loss") view=[...view].sort((x,y)=>(pct(x)??1e9)-(pct(y)??1e9));
+
+  // shared x-scale
   let lo=0, hi=1;
   for(const r of view){
-    const c=[r[state.tab]]; if(tab.tick)c.push(r[tab.tick]||0);
-    for(const v of c){ if(v<lo)lo=v; if(v>hi)hi=v; }
+    const c=[r.a[col]];
+    if(tab.tick&&!state.compare) c.push(r.a[tab.tick]||0);
+    if(r.b) c.push(r.b[col]);
+    for(const v of c){if(v<lo)lo=v; if(v>hi)hi=v;}
   }
   hi*=1.16; if(lo<0)lo*=1.16;
   const X=v=>(v-lo)/(hi-lo)*100, zero=X(0);
+
   let smin=1e18,smax=-1e18;
-  if(tab.shade){for(const r of view){smin=Math.min(smin,r[tab.shade]);smax=Math.max(smax,r[tab.shade])}
+  if(tab.shade){for(const r of view){smin=Math.min(smin,r.a[tab.shade]);smax=Math.max(smax,r.a[tab.shade])}
     if(smax<=smin){smin-=1;smax+=1}}
-  const chart=$("chart"); chart.innerHTML="";
+
+  const chart=$("chart");
+  chart.className=state.compare?"cmp":"";
+  chart.innerHTML="";
   if(!view.length){
     chart.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups match '
       +'the current filters — widen the filters or lower the minimum-runs threshold '
       +'(currently ≥ '+state.minruns+').</div>';
   }
   for(const r of view){
-    const v=r[state.tab];
-    const label = r.rank+". "+r.cls+" "+r.spec+(r.hero?" — "+r.hero:"");
-    const t = tab.shade ? (r[tab.shade]-smin)/(smax-smin) : .72;
-    const color = shade(CLASS_COLORS[r.cls]||"#999999", t);
+    const v=r.a[col];
+    const label=r.rank+". "+r.cls+" "+r.spec+(r.hero?" — "+r.hero:"");
+    const t=tab.shade?(r.a[tab.shade]-smin)/(smax-smin):.72;
+    const color=shade(CLASS_COLORS[r.cls]||"#999999",t);
     const row=document.createElement("div"); row.className="brow";
     const lbl=document.createElement("div"); lbl.className="blbl"; lbl.textContent=label;
     const track=document.createElement("div"); track.className="btrack";
@@ -510,92 +690,217 @@ function render(){
     const bl=Math.min(zero,X(v)), br=Math.max(zero,X(v));
     bar.style.left=bl+"%"; bar.style.width=Math.max(br-bl,.2)+"%";
     bar.style.background=color;
-    if(v<0){bar.style.borderRadius="4px 0 0 4px"}
-    if(tab.inlay){
+    if(v<0) bar.style.borderRadius="4px 0 0 4px";
+    if(tab.inlay&&!state.compare){
       const inl=document.createElement("span"); inl.className="binlay";
       inl.style.color=ink(color);
-      inl.textContent = tab.inlay==="deaths"
-        ? r.adeaths.toFixed(2)+" avg deaths · "+r.deathless.toFixed(0)+"% deathless"
-        : fmtInt(r.avg)+" avg · "+fmtInt(r.med)+" median DPS";
+      inl.textContent=tab.inlay==="deaths"
+        ? r.a.adeaths.toFixed(2)+" avg deaths · "+r.a.deathless.toFixed(0)+"% deathless"
+        : fmtInt(r.a.avg)+" avg · "+fmtInt(r.a.med)+" median DPS";
       bar.appendChild(inl);
     }
     track.appendChild(bar);
-    if(tab.tick){
+    let ghostEnd=0;
+    if(state.compare&&r.b){
+      const gv=r.b[col];
+      const gl=Math.min(zero,X(gv)), gr=Math.max(zero,X(gv));
+      const gh=document.createElement("div"); gh.className="bghost";
+      gh.style.left=gl+"%"; gh.style.width=Math.max(gr-gl,.2)+"%";
+      track.appendChild(gh);
+      ghostEnd=gr;
+    }
+    if(tab.tick&&!state.compare){
       const tk=document.createElement("div"); tk.className="btick";
-      tk.style.left=X(r[tab.tick]||0)+"%";
+      tk.style.left=X(r.a[tab.tick]||0)+"%";
       track.appendChild(tk);
     }
-    const val=document.createElement("span"); val.className="bval";
-    val.style.left=Math.max(br, tab.tick?X(r[tab.tick]||0):0)+"%";
-    val.textContent=tab.fmt(v);
-    track.appendChild(val);
+    const valEl=document.createElement("span"); valEl.className="bval";
+    const anchor=Math.max(br, ghostEnd,
+      tab.tick&&!state.compare?X(r.a[tab.tick]||0):0);
+    valEl.style.left=anchor+"%";
+    valEl.innerHTML=esc(tab.fmt(v))
+      +(state.compare?deltaHTML(r.a[col], r.b?r.b[col]:null, tab):"");
+    track.appendChild(valEl);
     row.appendChild(lbl); row.appendChild(track);
-    attachTip(row,r);
+    attachTip(row,tipHTML(r,state.compare));
     chart.appendChild(row);
   }
-  $("chart-caption").textContent=tab.cap+(rows.length>CHART_MAX?
-    " Showing top "+CHART_MAX+" of "+rows.length+" groups.":"");
-  renderTable(rows);
-  $("tbl-sub").textContent="every "+(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
-    +" group with ≥ "+state.minruns+" runs — click a column to sort";
+  let cap=tab.cap;
+  if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
+  if(rows.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+rows.length+" groups.";
+  $("chart-caption").textContent=cap;
+  renderTable(rows,tab);
 }
-function fmtDayRange(d0,d1){
-  const e=new Date(D.epoch+"T00:00:00Z").getTime();
-  const f=d=>new Date(e+d*864e5).toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"});
-  return f(d0)+" – "+f(d1);
+
+/* ---------------- trend ---------------- */
+function renderTrend(){
+  $("chart").style.display="none";
+  const box=$("trendbox"); box.style.display="";
+  const m=baseMasks();
+  // per (group, week) sums, ignoring the period selection
+  const tot=new Map(), byWeek=new Map();
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)) continue;
+    const w=R.rbucket[i]; if(w>=999) continue;
+    const key=groupKey(i);
+    let t=tot.get(key);
+    if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],n:0,sum:0};
+      tot.set(key,t)}
+    t.n++; t.sum+=R.dps[i];
+    const wk=key*1000+w;
+    let g=byWeek.get(wk);
+    if(!g){g={n:0,sum:0}; byWeek.set(wk,g)}
+    g.n++; g.sum+=R.dps[i];
+  }
+  const top=[...tot.entries()].filter(([,t])=>t.n>=state.minruns)
+    .sort((a,b)=>b[1].sum/b[1].n - a[1].sum/a[1].n).slice(0,8);
+  if(!top.length){
+    box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
+      +'minimum-runs threshold under the current filters.</div>';
+    $("chart-caption").textContent=TABS.find(t=>t.id==="trend").cap; return;
+  }
+  const weeks=[...availWeeks].sort((a,b)=>b-a);       // oldest -> newest
+  const W=Math.max(box.clientWidth||900,480), H=380;
+  const ML=70, MR=190, MT=18, MB=34;
+  const series=top.map(([key,t])=>{
+    const pts=[];
+    weeks.forEach((w,xi)=>{
+      const g=byWeek.get(key*1000+w);
+      if(g&&g.n>=25) pts.push({xi,w,v:g.sum/g.n,n:g.n});
+    });
+    return {key, cls:D.classes[t.cls],
+      name:D.specs[t.spec]+" "+D.classes[t.cls]+(t.hero>=0&&!state.merge?" — "+D.heroes[t.hero]:""),
+      pts};
+  }).filter(s=>s.pts.length);
+  let ymin=1e18,ymax=-1e18;
+  series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
+  const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
+  const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
+  const ys=v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  for(let gi=0;gi<=4;gi++){
+    const v=ymin+(ymax-ymin)*gi/4, y=ys(v);
+    svg+=`<line x1="${ML}" y1="${y}" x2="${W-MR}" y2="${y}" stroke="rgba(255,255,255,.07)"/>`;
+    svg+=`<text x="${ML-8}" y="${y+4}" text-anchor="end" fill="#8f8d88">${Math.round(v/1000)}k</text>`;
+  }
+  weeks.forEach((w,xi)=>{
+    if(xi%Math.ceil(weeks.length/8)&&xi!==weeks.length-1) return;
+    svg+=`<text x="${xs(xi)}" y="${H-10}" text-anchor="middle" fill="#8f8d88">${
+      w===0?"now":fmtDay(usB0-7*w)}</text>`;
+  });
+  const seen={};
+  const ends=[];
+  for(const s of series){
+    const color=CLASS_COLORS[s.cls]||"#999";
+    const dash=seen[s.cls]?"5,4":"";
+    seen[s.cls]=(seen[s.cls]||0)+1;
+    const d=s.pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
+    svg+=`<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2"${
+      dash?` stroke-dasharray="${dash}"`:""}/>`;
+    for(const p of s.pts)
+      svg+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="3.2" fill="${color}"
+        data-tip="${esc(s.name)}|${p.w===0?"this reset":fmtDay(usB0-7*p.w)+" wk"}|${Math.round(p.v)}|${p.n}"/>`;
+    const last=s.pts[s.pts.length-1];
+    ends.push({y:ys(last.v), name:s.name, color, dash:!!dash});
+  }
+  ends.sort((a,b)=>a.y-b.y);
+  for(let i=1;i<ends.length;i++) if(ends[i].y-ends[i-1].y<14) ends[i].y=ends[i-1].y+14;
+  for(const e of ends)
+    svg+=`<text x="${W-MR+10}" y="${e.y+4}" fill="${e.color}">${e.dash?"┄ ":""}${esc(e.name)}</text>`;
+  svg+="</svg>";
+  box.innerHTML=svg;
+  box.querySelectorAll("circle").forEach(c=>{
+    c.addEventListener("mousemove",e=>{
+      const [name,wk,v,n]=c.dataset.tip.split("|");
+      const tip=$("tip");
+      tip.innerHTML="<b>"+name+"</b><table><tr><td>week</td><td>"+wk+"</td></tr>"
+        +"<tr><td>avg DPS</td><td>"+fmtInt(+v)+"</td></tr>"
+        +"<tr><td>parses</td><td>"+fmtInt(+n)+"</td></tr></table>";
+      tip.style.display="block";
+      tip.style.left=Math.min(e.clientX+14,innerWidth-330)+"px";
+      tip.style.top=Math.min(e.clientY+14,innerHeight-180)+"px";
+    });
+    c.addEventListener("mouseleave",()=>{$("tip").style.display="none"});
+  });
+  $("chart-caption").textContent=TABS.find(t=>t.id==="trend").cap
+    +" Dashed lines distinguish a class's second spec.";
 }
-function attachTip(el,r){
-  el.onmousemove=e=>{
-    const tip=$("tip");
-    tip.innerHTML="<b>"+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+"</b><table>"+
-      row("Total runs",fmtInt(r.n))+row("Average DPS",fmtInt(r.avg))+
-      row("Median DPS",fmtInt(r.med))+row("Mean − median",fmtSigned(r.diff))+
-      row("Average deaths",r.adeaths.toFixed(2))+row("Median deaths",r.mdeaths.toFixed(1))+
-      row("Deathless runs",r.deathless.toFixed(1)+"%")+"</table>";
-    tip.style.display="block";
-    const x=Math.min(e.clientX+14,innerWidth-300), y=Math.min(e.clientY+14,innerHeight-190);
-    tip.style.left=x+"px"; tip.style.top=y+"px";
-    function row(k,v){return "<tr><td>"+k+"</td><td>"+v+"</td></tr>"}
+
+/* ---------------- table ---------------- */
+function renderTable(rows,tab){
+  const compare=state.compare&&!tab.trend;
+  const metricCol=tab.trend?"avg":(tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id);
+  const metricLabel=tab.trend?"Average DPS":tab.label;
+  const fmt=tab.trend?fmtInt:tab.fmt;
+  let cols;
+  if(compare){
+    cols=[["cls","Class","txt"],["spec","Spec","txt"]];
+    if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
+    cols.push(["a_n","Runs A"],["b_n","Runs B"],
+      ["a_v",metricLabel+" A"],["b_v",metricLabel+" B"],["d","Δ %"]);
+  } else {
+    cols=[["cls","Class","txt"],["spec","Spec","txt"]];
+    if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
+    cols.push(["a_n","Total Runs"],["avg","Average DPS"],["med","Median DPS"],
+      ["diff","Mean − Median"],["adeaths","Avg Deaths"],
+      ["mdeaths","Med Deaths"],["deathless","Deathless %"]);
+  }
+  const get=(r,k)=>{
+    switch(k){
+      case "cls": return r.cls; case "spec": return r.spec; case "hero": return r.hero;
+      case "a_n": return r.a.n; case "b_n": return r.b?r.b.n:-1;
+      case "a_v": return r.a[metricCol];
+      case "b_v": return r.b?r.b[metricCol]:-Infinity;
+      case "d": return r.b&&Math.abs(r.b[metricCol])>1e-9
+        ?(r.a[metricCol]-r.b[metricCol])/Math.abs(r.b[metricCol]):-Infinity;
+      default: return r.a[k];
+    }
   };
-  el.onmouseleave=()=>{$("tip").style.display="none"};
-}
-const COLS=[["cls","Class","txt"],["spec","Spec","txt"],["hero","Hero Talent","txt"],
-  ["n","Total Runs"],["avg","Average DPS"],["med","Median DPS"],["diff","Mean − Median"],
-  ["adeaths","Avg Deaths"],["mdeaths","Med Deaths"],["deathless","Deathless %"]];
-function renderTable(rows){
-  const cols=COLS.filter(c=>!(state.merge&&c[0]==="hero"));
+  if(!cols.some(c=>c[0]===state.tsort.col))
+    state.tsort={col:compare?"a_v":"avg", dir:-1};
   const {col,dir}=state.tsort;
   const sorted=[...rows].sort((a,b)=>{
-    const x=a[col],y=b[col];
-    return (typeof x==="string" ? x.localeCompare(y) : x-y)*dir;
+    const x=get(a,col), y=get(b,col);
+    return (typeof x==="string"?x.localeCompare(y):x-y)*dir;
   });
   let h="<thead><tr>";
   for(const [k,label,txt] of cols)
-    h+=`<th class="${txt||""} ${k===col?"sorted":""}" data-c="${k}">${label}${k===col?(dir<0?" ↓":" ↑"):""}</th>`;
+    h+=`<th class="${txt||""} ${k===col?"sorted":""}" data-c="${k}">${label}${
+      k===col?(dir<0?" ↓":" ↑"):""}</th>`;
   h+="</tr></thead><tbody>";
+  const fmtCell=(k,r)=>{
+    const v=get(r,k);
+    if(k==="cls") return `<span class="classdot" style="background:${CLASS_COLORS[r.cls]||"#999"}"></span>`+esc(r.cls);
+    if(k==="spec"||k==="hero") return esc(v);
+    if(k==="a_n") return fmtInt(v);
+    if(k==="b_n") return v<0?"–":fmtInt(v);
+    if(k==="a_v") return fmt(v);
+    if(k==="b_v") return isFinite(v)?fmt(v):"–";
+    if(k==="d") return isFinite(v)
+      ?`<span class="delta ${ (v>=0)===tab.betterUp?"up":"down" }">${(v>=0?"+":"")+(v*100).toFixed(1)}%</span>`:"–";
+    if(k==="avg"||k==="med") return fmtInt(v);
+    if(k==="diff") return fmtSigned(v);
+    if(k==="adeaths") return v.toFixed(2);
+    if(k==="mdeaths") return v.toFixed(1);
+    if(k==="deathless") return v.toFixed(1)+"%";
+    return esc(v);
+  };
   for(const r of sorted){
     h+="<tr>";
-    for(const [k,,txt] of cols){
-      let v=r[k];
-      if(k==="cls") v=`<span class="classdot" style="background:${CLASS_COLORS[r.cls]||"#999"}"></span>`+esc(r.cls);
-      else if(txt) v=esc(String(v));
-      else if(k==="n"||k==="avg"||k==="med") v=fmtInt(v);
-      else if(k==="diff") v=fmtSigned(v);
-      else if(k==="adeaths") v=v.toFixed(2);
-      else if(k==="mdeaths") v=v.toFixed(1);
-      else if(k==="deathless") v=v.toFixed(1)+"%";
-      h+=`<td class="${txt||""}">${v}</td>`;
-    }
+    for(const [k,,txt] of cols) h+=`<td class="${txt||""}">${fmtCell(k,r)}</td>`;
     h+="</tr>";
   }
   $("tbl").innerHTML=h+"</tbody>";
   $("tbl").querySelectorAll("th").forEach(th=>{
     th.onclick=()=>{
       const c=th.dataset.c;
-      state.tsort = {col:c, dir: state.tsort.col===c ? -state.tsort.dir : -1};
-      renderTable(rows);
+      state.tsort={col:c, dir:state.tsort.col===c?-state.tsort.dir:-1};
+      renderTable(rows,tab);
     };
   });
+  $("tbl-sub").textContent="every "+(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
+    +" group with ≥ "+state.minruns+" runs"
+    +(compare?" — "+metricLabel+" for periods A and B; click a column to sort":" — click a column to sort");
 }
 </script>
 </body>
