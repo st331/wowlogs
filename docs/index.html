@@ -41,6 +41,20 @@ input[type=radio]{accent-color:var(--gold)}
 select,input[type=number]{background:var(--panel); color:var(--ink);
   border:1px solid var(--grid); border-radius:8px; padding:.3rem .5rem; font-size:.9rem}
 input[type=range]{width:100%; accent-color:var(--gold)}
+.dual{position:relative; height:28px; margin:.3rem 0 .1rem}
+.dual .track{position:absolute; top:12px; left:0; right:0; height:4px;
+  border-radius:2px; background:var(--grid)}
+.dual .fill{position:absolute; top:12px; height:4px; background:var(--gold);
+  border-radius:2px}
+.dual input{position:absolute; left:0; top:0; width:100%; height:28px; margin:0;
+  -webkit-appearance:none; appearance:none; background:none; pointer-events:none}
+.dual input::-webkit-slider-runnable-track{background:transparent; height:28px}
+.dual input::-webkit-slider-thumb{-webkit-appearance:none; pointer-events:auto;
+  width:17px; height:17px; border-radius:50%; background:var(--gold);
+  border:2.5px solid #101216; cursor:pointer; margin-top:5px}
+.dual input::-moz-range-track{background:transparent}
+.dual input::-moz-range-thumb{pointer-events:auto; width:13px; height:13px;
+  border-radius:50%; background:var(--gold); border:2.5px solid #101216; cursor:pointer}
 .hint{color:var(--muted); font-size:.75rem; margin-top:.15rem}
 .radio-line{display:block; font-size:.85rem; margin:.25rem 0; cursor:pointer}
 /* ---------------- main ---------------- */
@@ -128,8 +142,10 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 
   <div class="side-label">Where &amp; when</div>
   <details><summary>Dungeon <span class="cnt" id="cnt-dun"></span></summary><div class="chips" id="f-dun"></div></details>
-  <div class="rowflex" style="margin-top:.5rem">
-    Key <select id="klo"></select> to <select id="khi"></select>
+  <div style="margin-top:.5rem">Key Level: <b id="keys-v" style="color:var(--gold)"></b></div>
+  <div class="dual">
+    <div class="track"></div><div class="fill" id="key-fill"></div>
+    <input type="range" id="klo"><input type="range" id="khi">
   </div>
   <div id="resets" style="margin-top:.5rem"></div>
 
@@ -229,9 +245,16 @@ fetch("data.json").then(r=>r.json()).then(d=>{
   runCount = 0;
   for(let i=0;i<N;i++) if(R.run[i]>=runCount) runCount=R.run[i]+1;
   R.atk = new Int8Array(N);          // 0 unknown, 1 melee, 2 ranged
+  window.clsSpecs = new Map();       // class -> Set(spec names)
+  window.csHeroes = new Map();       // "class|spec" -> Set(hero names)
   for(let i=0;i<N;i++){
-    const k = d.classes[R.cls[i]]+"|"+d.specs[R.spec[i]];
+    const cn=d.classes[R.cls[i]], sn=d.specs[R.spec[i]], hn=d.heroes[R.hero[i]];
+    const k = cn+"|"+sn;
     R.atk[i] = MELEE.has(k)?1:RANGED.has(k)?2:0;
+    if(!clsSpecs.has(cn)) clsSpecs.set(cn,new Set());
+    clsSpecs.get(cn).add(sn);
+    if(!csHeroes.has(k)) csHeroes.set(k,new Set());
+    if(hn!=="Unknown") csHeroes.get(k).add(hn);
   }
   computeResetBuckets();
   buildControls();
@@ -265,12 +288,13 @@ function computeResetBuckets(){
 }
 
 /* ---------------- controls ---------------- */
-function chipGroup(el, items, sel, cntEl){
+function chipGroup(el, items, sel, onchange){
   el.innerHTML="";
   items.forEach(name=>{
     const c=document.createElement("span");
     c.className="chip"+(sel.has(name)?" on":""); c.textContent=name;
-    c.onclick=()=>{sel.has(name)?sel.delete(name):sel.add(name); c.classList.toggle("on"); syncCounts(); render();};
+    c.onclick=()=>{sel.has(name)?sel.delete(name):sel.add(name);
+      c.classList.toggle("on"); if(onchange)onchange(); syncCounts(); render();};
     el.appendChild(c);
   });
   syncCounts();
@@ -280,21 +304,58 @@ function syncCounts(){
     ["cnt-dun",state.dun],["cnt-role",state.role],["cnt-reg",state.reg]];
   for(const [id,s] of pairs) $(id).textContent = s.size? s.size+" ✓":"";
 }
+function specPool(){
+  if(!state.cls.size) return D.specs;
+  const s=new Set();
+  for(const c of state.cls) (clsSpecs.get(c)||new Set()).forEach(x=>s.add(x));
+  return D.specs.filter(x=>s.has(x));
+}
+function heroPool(){
+  const classes = state.cls.size? [...state.cls] : D.classes;
+  const s=new Set();
+  for(const c of classes)
+    for(const sp of (state.spec.size? [...state.spec] : (clsSpecs.get(c)||[])))
+      (csHeroes.get(c+"|"+sp)||new Set()).forEach(x=>s.add(x));
+  return D.heroes.filter(x=>s.has(x));
+}
+function rebuildCascade(){
+  // options narrow to the current class/spec picks; stale picks are pruned
+  const sp=new Set(specPool());
+  for(const x of [...state.spec]) if(!sp.has(x)) state.spec.delete(x);
+  chipGroup($("f-spec"), [...sp], state.spec);
+  const hp=new Set(heroPool());
+  for(const x of [...state.hero]) if(!hp.has(x)) state.hero.delete(x);
+  chipGroup($("f-hero"), [...hp], state.hero);
+}
 function buildControls(){
-  chipGroup($("f-cls"), D.classes.filter(c=>c!=="Unknown"), state.cls);
-  chipGroup($("f-spec"), D.specs, state.spec);
-  chipGroup($("f-hero"), D.heroes.filter(h=>h!=="Unknown"), state.hero);
+  chipGroup($("f-cls"), D.classes.filter(c=>c!=="Unknown"), state.cls, rebuildCascade);
+  chipGroup($("f-spec"), specPool(), state.spec, rebuildCascade);
+  chipGroup($("f-hero"), heroPool(), state.hero);
   chipGroup($("f-dun"), D.dungeons, state.dun);
   chipGroup($("f-role"), ["DPS","Healer","Tank"], state.role);
   chipGroup($("f-reg"), D.regions, state.reg);
+  // dual-thumb key slider: thumbs clamp against each other, inversion impossible
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
-  for(const s of ["klo","khi"]) keys.forEach(k=>{
-    const o=document.createElement("option"); o.value=k; o.textContent="+"+k; $(s).appendChild(o);
-  });
-  $("klo").value=Math.max(Math.min(...keys),state.klo);
-  $("khi").value=Math.min(Math.max(...keys),state.khi);
-  $("klo").onchange=e=>{state.klo=+e.target.value; render()};
-  $("khi").onchange=e=>{state.khi=+e.target.value; render()};
+  const kmin=keys[0], kmax=keys[keys.length-1];
+  state.klo=Math.max(kmin,state.klo); state.khi=Math.min(kmax,state.khi);
+  if(state.klo>state.khi){state.klo=kmin; state.khi=kmax}
+  for(const s of ["klo","khi"]){$(s).min=kmin; $(s).max=kmax; $(s).step=1}
+  $("klo").value=state.klo; $("khi").value=state.khi;
+  const paintKeys=()=>{
+    $("keys-v").textContent="+"+state.klo+" – +"+state.khi;
+    const f=$("key-fill"), span=kmax-kmin||1;
+    f.style.left=((state.klo-kmin)/span*100)+"%";
+    f.style.width=((state.khi-state.klo)/span*100)+"%";
+  };
+  paintKeys();
+  $("klo").oninput=e=>{
+    state.klo=Math.min(+e.target.value, state.khi);
+    e.target.value=state.klo; paintKeys(); render();
+  };
+  $("khi").oninput=e=>{
+    state.khi=Math.max(+e.target.value, state.klo);
+    e.target.value=state.khi; paintKeys(); render();
+  };
   $("merge").onchange=e=>{state.merge=e.target.checked;
     $("hero-box").style.display=state.merge?"none":""; render()};
   $("hero-box").style.display = state.merge?"none":"";
@@ -424,6 +485,11 @@ function render(){
   if(tab.shade){for(const r of view){smin=Math.min(smin,r[tab.shade]);smax=Math.max(smax,r[tab.shade])}
     if(smax<=smin){smin-=1;smax+=1}}
   const chart=$("chart"); chart.innerHTML="";
+  if(!view.length){
+    chart.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups match '
+      +'the current filters — widen the filters or lower the minimum-runs threshold '
+      +'(currently ≥ '+state.minruns+').</div>';
+  }
   for(const r of view){
     const v=r[state.tab];
     const label = r.rank+". "+r.cls+" "+r.spec+(r.hero?" — "+r.hero:"");
