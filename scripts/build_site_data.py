@@ -13,7 +13,9 @@ import pandas as pd
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CSV = ROOT / "data" / "mythic_runs.csv"
-OUT = ROOT / "site" / "data.json"
+# site/ is canonical; docs/ mirrors it because GitHub Pages can only serve
+# from the repo root or /docs on branch-based deploys
+OUTS = [ROOT / "site" / "data.json", ROOT / "docs" / "data.json"]
 
 EPOCH = pd.Timestamp("2026-01-01")
 
@@ -57,10 +59,15 @@ def main() -> None:
             "run": run_arr,
         },
     }
-    OUT.parent.mkdir(exist_ok=True)
-    OUT.write_text(json.dumps(payload, separators=(",", ":")))
-    n = len(df)
-    print(f"{n:,} rows -> {OUT} ({OUT.stat().st_size / 1e6:.1f} MB raw)")
+    blob = json.dumps(payload, separators=(",", ":"))
+    for out in OUTS:
+        out.parent.mkdir(exist_ok=True)
+        out.write_text(blob)
+        print(f"{len(df):,} rows -> {out} ({out.stat().st_size / 1e6:.1f} MB raw)")
+    index = ROOT / "site" / "index.html"
+    docs_index = ROOT / "docs" / "index.html"
+    docs_index.write_text(index.read_text())
+    print(f"mirrored {index} -> {docs_index}")
 
 
 if __name__ == "__main__":
