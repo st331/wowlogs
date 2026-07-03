@@ -20,8 +20,8 @@ HTTP request), the live point spend is tracked on every response, and the
 process sleeps until the hourly window resets when the budget is nearly gone.
 
 Anonymous rankings entries (report code hidden by the logger) cannot be
-inspected and are skipped.  Region defaults to US+EU; use --regions ALL to
-include KR/TW.
+inspected and are skipped.  All regions are collected by default; pass e.g.
+--regions US,EU to restrict.
 """
 from __future__ import annotations
 
@@ -525,8 +525,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--stage", choices=["all", "sweep", "summaries", "export", "status"],
                     default="all")
-    ap.add_argument("--regions", default="US,EU",
-                    help='comma-separated regions, or ALL (default: US,EU)')
+    ap.add_argument("--regions", default="ALL",
+                    help='ALL (default) or a comma-separated allow-list, '
+                         'e.g. US,EU')
     ap.add_argument("--brackets", default="11-24",
                     help="bracket range lo-hi (bracket = key level - 1)")
     ap.add_argument("--limit-fights", type=int, default=None,
