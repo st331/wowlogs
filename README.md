@@ -13,11 +13,29 @@ unlogged/anonymous (no report exists — nothing to fetch); every public run
 was collected. Total API cost: ~170k points across ~9 hourly quota windows.
 
 ```
-scripts/wcl_client.py      quota-aware WCL GraphQL client
-scripts/build_hero_map.py  trait-node → hero-talent mapping from SimC data
-scripts/fetch_data.py      checkpointed collection pipeline → data/mythic_runs.csv
-dashboard.py               Streamlit dashboard
+scripts/wcl_client.py       quota-aware WCL GraphQL client
+scripts/build_hero_map.py   trait-node → hero-talent mapping from SimC data
+scripts/fetch_data.py       checkpointed collection pipeline → data/mythic_runs.csv
+scripts/build_site_data.py  packs the CSV into site/data.json for the static site
+site/                       static dashboard (recommended) — index.html + data.json
+dashboard.py                Streamlit dashboard (same features, server-based)
 ```
+
+## Static dashboard (recommended)
+
+`site/` is a dependency-free, single-page dashboard: all filtering and
+aggregation runs client-side over a compact columnar `data.json` (~1.8 MB
+gzipped), so it loads in under a second and never needs a server reboot.
+Rebuild the data file after collecting new data:
+
+```bash
+python3 scripts/build_site_data.py
+```
+
+Host it anywhere that serves static files. **Cloudflare Pages** deploys free
+from a private GitHub repo (build command: none, output directory: `site`),
+auto-redeploys on every push, and can be gated with Cloudflare Access if the
+URL should not be public. Netlify and Vercel work identically.
 
 ## Quick start
 
