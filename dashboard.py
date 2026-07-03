@@ -144,6 +144,25 @@ def load_data():
 
 TICK_COLOR = "#52514e"  # neutral ink for the counterpart-metric marker
 
+# Blizzard's canonical class colors; Priest's pure white is darkened to stay
+# visible on the light chart surface
+CLASS_COLORS = {
+    "DeathKnight": "#C41E3A", "DemonHunter": "#A330C9", "Druid": "#FF7C0A",
+    "Evoker": "#33937F", "Hunter": "#AAD372", "Mage": "#3FC7EB",
+    "Monk": "#00FF98", "Paladin": "#F48CBA", "Priest": "#B6B6BE",
+    "Rogue": "#FFF468", "Shaman": "#0070DD", "Warlock": "#8788EE",
+    "Warrior": "#C69B6D", "Unknown": "#999999",
+}
+
+
+def _ink_for(color: str) -> str:
+    """Dark or white text ink depending on a bar color's brightness."""
+    r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    return "#1f1e1d" if (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.45 else "white"
+
+
+CLASS_INK = {cls: _ink_for(c) for cls, c in CLASS_COLORS.items()}
+
 TOOLTIPS = [
     alt.Tooltip("class:N", title="Class"),
     alt.Tooltip("spec:N", title="Spec"),
@@ -160,16 +179,13 @@ TOOLTIPS = [
 
 def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
               title: str, other_title: str, fmt: str,
-              sort_mode: str, top_n: int, diverging: bool = False,
-              gradient: tuple | None = None, inlay_col: str | None = None):
-    """Horizontal bars of `value_col` with the value printed at each bar end
-    and, when `other_col` is given (same units only), a neutral tick
-    overlaying that counterpart metric. `diverging` colors negative bars
-    with the opposite pole for signed metrics. `gradient` = (column,
-    legend title, legend format) paints a second measure onto the bars as a
-    light->dark sequential ramp; `inlay_col` prints that measure's exact
-    numbers inside each bar — so DPS charts carry the death story and death
-    charts carry the DPS story."""
+              sort_mode: str, top_n: int,
+              inlay_col: str | None = None):
+    """Horizontal bars of `value_col` in WoW class colors, with the value
+    printed at each bar end and, when `other_col` is given (same units
+    only), a neutral tick overlaying that counterpart metric. `inlay_col`
+    prints the complementary story's exact numbers inside each bar — DPS
+    charts carry the death stats and death charts carry the DPS stats."""
     top = data.sort_values(value_col, ascending=False).head(top_n).copy()
     top["name_key"] = top["class"] + " " + top["spec"] + " " + top["hero_talent"]
     top["rank"] = range(1, len(top) + 1)  # rank by this graph's metric, best first
@@ -204,44 +220,31 @@ def bar_chart(data: pd.DataFrame, value_col: str, other_col: str | None,
     xmin = min(0.0, float(top[cols].min().min()) * 1.18)
     x_scale = alt.Scale(domain=[xmin, xmax if xmax > 0 else 1], nice=False)
 
+    # identity encoding: bars wear their class color (the y-axis label names
+    # the class too, so color never carries meaning alone); text ink per bar
+    # follows the class color's brightness
+    top["ink"] = top["class"].map(lambda c: CLASS_INK.get(c, "white"))
+    class_scale = alt.Scale(domain=list(CLASS_COLORS),
+                            range=list(CLASS_COLORS.values()))
+
     base = alt.Chart(top)
-    bars = base.mark_bar(size=16, cornerRadiusEnd=4, color=ACCENT).encode(
+    bars = base.mark_bar(size=16, cornerRadiusEnd=4).encode(
         x=alt.X(f"{value_col}:Q", title=title, scale=x_scale,
                 axis=alt.Axis(format=fmt)),
         y=y, tooltip=TOOLTIPS,
+        color=alt.Color("class:N", scale=class_scale, legend=None),
     )
-    if diverging:
-        bars = bars.encode(color=alt.condition(
-            alt.datum[value_col] < 0, alt.value("#e34948"), alt.value(ACCENT)))
-    ink_flip = None
-    grad_col = None
-    if gradient:
-        # a second measure painted onto the bars: one hue, light -> dark
-        # (sequential blue, palette steps 200 -> 700), darker = more of it
-        grad_col, grad_title, grad_fmt = gradient
-        dmin, dmax = float(top[grad_col].min()), float(top[grad_col].max())
-        if dmax <= dmin:
-            dmin, dmax = dmin - 1, dmax + 1
-        bars = bars.encode(color=alt.Color(
-            f"{grad_col}:Q",
-            scale=alt.Scale(domain=[dmin, dmax], range=["#9ec5f4", "#0d366b"]),
-            legend=alt.Legend(title=grad_title, orient="top",
-                              gradientLength=220, format=grad_fmt),
-        ))
-        # inlay ink flips to dark on the light end of the gradient
-        ink_flip = (dmin + dmax) / 2
     labels = base.mark_text(align="left", dx=7, color="#1f1e1d",
                             fontSize=12.5, fontWeight="bold").encode(
         x=alt.X("label_x:Q", scale=x_scale), y=y, text="value_text:N",
     )
     layers = bars + labels
-    if inlay_col and grad_col:
+    if inlay_col:
         layers += base.mark_text(align="left", fontSize=10.5,
                                  fontWeight=500).encode(
             x=alt.value(8),  # pinned just inside the bar's left edge
             y=y, text=f"{inlay_col}:N", tooltip=TOOLTIPS,
-            color=alt.condition(alt.datum[grad_col] < ink_flip,
-                                alt.value("#1f1e1d"), alt.value("white")),
+            color=alt.Color("ink:N", scale=None),
         )
     if other_col:
         layers += base.mark_tick(color=TICK_COLOR, thickness=2.5, size=15).encode(
@@ -447,46 +450,39 @@ def main() -> None:
         "Groups shown", 5, max(min(len(agg), 100), 6), min(CHART_MAX, len(agg)),
         help="How many of the top groups (by the tab's metric) to draw")
 
-    DEATH_GRAD = ("deathless", "Deathless runs %", ".0f")
-    DPS_GRAD = ("avg_dps", "Average DPS", "~s")
     specs_charts = [
-        # title, value, tick, tick title, fmt, diverging, gradient, inlay
+        # title, value, tick, tick title, fmt, inlay
         ("Average DPS", "avg_dps", "median_dps", "Median DPS", ",.0f",
-         False, DEATH_GRAD, "deaths_text"),
+         "deaths_text"),
         ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f",
-         False, DEATH_GRAD, "deaths_text"),
-        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f",
-         True, None, None),
+         "deaths_text"),
+        ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", None),
         ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f",
-         False, DPS_GRAD, "dps_text"),
-        ("Deathless Runs %", "deathless", None, "", ".1f",
-         False, DPS_GRAD, "dps_text"),
+         "dps_text"),
+        ("Deathless Runs %", "deathless", None, "", ".1f", "dps_text"),
     ]
-    for tab, (title, col, other, other_title, fmt, div, grad, inlay) in zip(
+    for tab, (title, col, other, other_title, fmt, inlay) in zip(
             st.tabs([s[0] for s in specs_charts]), specs_charts):
         with tab:
             st.altair_chart(
                 bar_chart(agg, col, other, title, other_title, fmt,
-                          sort_mode, top_n, diverging=div,
-                          gradient=grad, inlay_col=inlay),
+                          sort_mode, top_n, inlay_col=inlay),
                 width="stretch")
             tick_part = (f"; grey tick: **{other_title}**" if other else "")
-            if grad is DEATH_GRAD:
+            if inlay == "deaths_text":
                 st.caption(f"Bold number at each bar end: **{title}**"
-                           f"{tick_part}. Survivability is painted onto each "
-                           "bar: darker blue = higher share of deathless runs "
-                           "(see legend), with the exact deaths stats printed "
-                           "inside the bar.")
-            elif grad is DPS_GRAD:
+                           f"{tick_part}. Bars wear their class color; the "
+                           "exact deaths stats are printed inside each bar.")
+            elif inlay == "dps_text":
                 st.caption(f"Bold number at each bar end: **{title}**"
-                           f"{tick_part}. Damage is painted onto each bar: "
-                           "darker blue = higher average DPS (see legend), "
-                           "with the exact DPS numbers printed inside the bar.")
-            elif col == "dps_diff":
-                st.caption("Positive (blue): a minority of very high parses "
-                           "pulls the average above the typical run. Negative "
-                           "(red): a low tail drags the average below it. "
-                           "Larger magnitude = less consistent performance.")
+                           f"{tick_part}. Bars wear their class color; the "
+                           "exact DPS numbers are printed inside each bar.")
+            else:
+                st.caption("Bars wear their class color. Positive: a minority "
+                           "of very high parses pulls the average above the "
+                           "typical run. Negative: a low tail drags the "
+                           "average below it. Larger magnitude = less "
+                           "consistent performance.")
 
     st.caption(
         f"{len(agg):,} groups pass the threshold (≥ {min_runs} runs each). DPS "
