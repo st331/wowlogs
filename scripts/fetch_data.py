@@ -75,8 +75,9 @@ BRACKETS = list(range(11, 25))  # keys 12 .. 25 (bracket 24 catches 25+)
 MAX_PAGE = 20  # the API 404s past page 20 (hasMorePages stays true)
 
 RANK_BATCH = 10       # aliased fightRankings sub-queries per HTTP request
+RANK_WORKERS = 8      # concurrent sweep workers, each walking its own cursors
 SUMMARY_BATCH = 8     # aliased Summary-table sub-queries per HTTP request
-SUMMARY_WORKERS = 8   # concurrent HTTP requests (server latency, not quota,
+SUMMARY_WORKERS = 14  # concurrent HTTP requests (server latency, not quota,
                       # is the per-request bottleneck: ~2s per table sub-query)
 EXPORT_EVERY = 800    # export CSV every N summary batches
 
@@ -169,23 +170,11 @@ def load_sweep_state() -> dict:
     return state
 
 
-def sweep(client: WCLClient, brackets: list[int]) -> None:
-    state = load_sweep_state()
-    cursors = {}  # (enc, bracket) -> next page to fetch
-    for enc in ENCOUNTERS:
-        for br in brackets:
-            cur = state.get((enc, br))
-            if cur is None:
-                cursors[(enc, br)] = 1
-            elif cur["more"] and cur["last_page"] < MAX_PAGE:
-                cursors[(enc, br)] = cur["last_page"] + 1
-    total = len(ENCOUNTERS) * len(brackets) * MAX_PAGE
-    print(f"[sweep] {len(cursors)} open cursors (max {total} pages total)", flush=True)
-
-    RAW.mkdir(parents=True, exist_ok=True)
-    _repair_tail(RANKINGS_FILE)
-    out = RANKINGS_FILE.open("a")
-    alias_fails: dict = {}  # (enc, bracket) -> consecutive null-alias count
+def _sweep_shard(cursors: dict, out, out_lock, label: str) -> None:
+    """Worker: run the wave loop over ONE shard of cursors, alias-batching
+    within the shard. Journal writes are serialized via out_lock."""
+    client = _worker_client()
+    alias_fails: dict = {}
     while cursors and not STOP:
         batch = list(cursors.items())[:RANK_BATCH]
         parts = []
@@ -197,29 +186,62 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
         q = "{ worldData { " + " ".join(parts) + " } }"
         data = client.query(q, est_cost=1.5 * len(batch))
         world = (data.get("worldData") or {})
+        lines = []
         for i, ((enc, br), page) in enumerate(batch):
             node = world.get(f"a{i}")
             fr = (node or {}).get("fightRankings")
             if not fr or fr.get("rankings") is None:
-                # could be end-of-pages OR a transient per-alias error:
-                # retry a couple of times before declaring the cursor done
                 alias_fails[(enc, br)] = alias_fails.get((enc, br), 0) + 1
                 if alias_fails[(enc, br)] >= 3:
                     del cursors[(enc, br)]
                 continue
             alias_fails.pop((enc, br), None)
             more = bool(fr.get("hasMorePages"))
-            out.write(json.dumps({
+            lines.append(json.dumps({
                 "enc": enc, "bracket": br, "page": page, "more": more,
                 "rankings": fr["rankings"],
-            }) + "\n")
+            }))
             if more and page < MAX_PAGE:
                 cursors[(enc, br)] = page + 1
             else:
                 del cursors[(enc, br)]
-        out.flush()
-        print(f"[sweep] {len(cursors)} cursors left | "
-              f"{client.spent:.0f}/{client.limit:.0f} pts", flush=True)
+        with out_lock:
+            for ln in lines:
+                out.write(ln + "\n")
+            out.flush()
+        print(f"[sweep {label}] {len(cursors)} cursors left | "
+              f"{client.spent:.0f} pts this window", flush=True)
+
+
+def sweep(client: WCLClient, brackets: list[int]) -> None:
+    state = load_sweep_state()
+    cursors = {}  # (enc, bracket) -> next page to fetch
+    for enc in ENCOUNTERS:
+        for br in brackets:
+            cur = state.get((enc, br))
+            if cur is None:
+                cursors[(enc, br)] = 1
+            elif cur["more"] and cur["last_page"] < MAX_PAGE:
+                cursors[(enc, br)] = cur["last_page"] + 1
+    total = len(ENCOUNTERS) * len(brackets) * MAX_PAGE
+    print(f"[sweep] {len(cursors)} open cursors (max {total} pages total), "
+          f"{RANK_WORKERS} parallel shards", flush=True)
+    if not cursors:
+        return
+
+    RAW.mkdir(parents=True, exist_ok=True)
+    _repair_tail(RANKINGS_FILE)
+    out = RANKINGS_FILE.open("a")
+    out_lock = threading.Lock()
+    # interleave cursors across shards so deep brackets spread out
+    items = list(cursors.items())
+    shards = [dict(items[w::RANK_WORKERS]) for w in range(RANK_WORKERS)]
+    shards = [s for s in shards if s]
+    with ThreadPoolExecutor(max_workers=len(shards)) as pool:
+        futs = [pool.submit(_sweep_shard, s, out, out_lock, f"w{wi}")
+                for wi, s in enumerate(shards)]
+        for f in futs:
+            f.result()
     out.close()
 
 
