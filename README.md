@@ -105,7 +105,9 @@ around getting the maximum data per point:
   (`reportData.reports`), pulls each report's fight list, and keeps every
   *completed* keystone fight (`kill == true`). That makes the PTR dataset a
   census of what testers actually logged — a small, self-selected population
-  with no score floor — rather than a top-of-leaderboard sample. It lands in
+  with no score floor — rather than a top-of-leaderboard sample. PTR run
+  scores come from the fight's `rating` field (the in-game M+ rating captured
+  in the combat log) rather than WCL's ranking score. It lands in
   per-source files (`mythic_runs_ptr.csv`, `data_ptr.json`) and the dashboard's
   Live / PTR toggle switches between the two.
 * **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries

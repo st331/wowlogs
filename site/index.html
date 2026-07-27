@@ -271,10 +271,10 @@ const TABS = [
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
   {id:"ascore", label:"Average Score", fmt:v=>v.toFixed(1), betterUp:true, inlay:"dps",
    shade:"avg", tick:"mscore", score:true,
-   cap:"Average WCL M+ score of the runs this group appears in; grey tick: median score. Brighter bar = higher average DPS."},
+   cap:"Average M+ score of the runs this group appears in (WCL ranking score on Live, in-game rating on PTR); grey tick: median score. Brighter bar = higher average DPS."},
   {id:"mscore", label:"Median Score", fmt:v=>v.toFixed(1), betterUp:true, inlay:"dps",
    shade:"avg", tick:"ascore", score:true,
-   cap:"Median WCL M+ score of the runs this group appears in; grey tick: average score. Brighter bar = higher average DPS."},
+   cap:"Median M+ score of the runs this group appears in (WCL ranking score on Live, in-game rating on PTR); grey tick: average score. Brighter bar = higher average DPS."},
   {id:"trend", label:"Trend", trend:true,
    cap:"Weekly {metric} for the top groups under the current filters, whole season. "+
        "Weeks with fewer than 25 parses for a group are skipped."},
