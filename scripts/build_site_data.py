@@ -56,6 +56,8 @@ def build(name: str, cfg: dict) -> None:
     roles, role_arr = enc("role")
     run_ids = (df["report_code"].astype(str) + ":" + df["fight_id"].astype(str))
     run_arr = pd.factorize(run_ids)[0].tolist()
+    # WCL M+ score (per run; -1 where the source has no rankings, e.g. PTR)
+    score = pd.to_numeric(df["score"], errors="coerce").fillna(-1).round(1)
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
@@ -69,6 +71,7 @@ def build(name: str, cfg: dict) -> None:
             "key": df["key_level"].astype(int).tolist(),
             "deaths": df["deaths"].astype(int).tolist(),
             "dps": df["dps"].round(0).astype(int).tolist(),
+            "score": score.tolist(),
             "day": day.tolist(),
             "run": run_arr,
         },

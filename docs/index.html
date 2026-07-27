@@ -211,6 +211,7 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       <button data-s="loss" style="display:none">Lost most</button>
     </div>
     <div class="tabs" id="tabs"></div>
+    <div class="seg" id="trendseg" style="display:none"></div>
     <div id="chart"></div>
     <div id="trendbox" style="display:none"></div>
     <div class="caption" id="chart-caption"></div>
@@ -262,11 +263,20 @@ const TABS = [
   {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
    shade:"avg", tick:"mdeaths",
    cap:"Average deaths per run; grey tick: median deaths. Brighter bar = higher average DPS."},
+  {id:"mdeaths", label:"Median Deaths", fmt:v=>v.toFixed(1), betterUp:false, inlay:"dps",
+   shade:"avg", tick:"adeaths",
+   cap:"Median deaths per run (the typical run); grey tick: average deaths. Brighter bar = higher average DPS."},
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
+  {id:"ascore", label:"Average Score", fmt:v=>v.toFixed(1), betterUp:true, inlay:"dps",
+   shade:"avg", tick:"mscore", score:true,
+   cap:"Average WCL M+ score of the runs this group appears in; grey tick: median score. Brighter bar = higher average DPS."},
+  {id:"mscore", label:"Median Score", fmt:v=>v.toFixed(1), betterUp:true, inlay:"dps",
+   shade:"avg", tick:"ascore", score:true,
+   cap:"Median WCL M+ score of the runs this group appears in; grey tick: average score. Brighter bar = higher average DPS."},
   {id:"trend", label:"Trend", trend:true,
-   cap:"Weekly average DPS for the top groups under the current filters, whole season. "+
+   cap:"Weekly {metric} for the top groups under the current filters, whole season. "+
        "Weeks with fewer than 25 parses for a group are skipped."},
 ];
 const CHART_MAX = 40;
@@ -277,7 +287,9 @@ const EMPTY=new Set(); let lastEffMin=0;
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
-             minruns:200, sort:"desc", tab:"avg", tsort:{col:"a_v", dir:-1}};
+             minruns:200, sort:"desc", tab:"avg", trendMetric:"avg",
+             tsort:{col:"a_v", dir:-1}};
+let hasScore=false;
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
@@ -333,6 +345,13 @@ function initData(d,cfg){
     if(hn!=="Unknown") csHeroes.get(k).add(hn);
   }
   computeResetBuckets();
+  // score tabs only make sense where the source has rankings (never on PTR)
+  hasScore=false;
+  if(R.score) for(let i=0;i<N;i++) if(R.score[i]>=0){hasScore=true; break}
+  if(!hasScore){
+    if(TABS.find(t=>t.id===state.tab)?.score) state.tab="avg";
+    if(TABS.find(t=>t.id===state.trendMetric)?.score) state.trendMetric="avg";
+  }
   // selections carry over between sources only where the names still exist
   const prune=(sel,names)=>{const ok=new Set(names);
     for(const x of [...sel]) if(!ok.has(x)) sel.delete(x);};
@@ -567,13 +586,24 @@ function buildControls(){
   });
   const tabs=$("tabs");
   tabs.innerHTML="";
-  TABS.forEach(t=>{
+  TABS.filter(t=>!t.score||hasScore).forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
       tabs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
       render()};
     tabs.appendChild(b);
+  });
+  // trend-metric picker: one entry per metric tab, shown only on the Trend tab
+  const tseg=$("trendseg");
+  tseg.innerHTML="";
+  TABS.filter(t=>!t.trend&&(!t.score||hasScore)).forEach(t=>{
+    const b=document.createElement("button"); b.textContent=t.label;
+    b.className=t.id===state.trendMetric?"on":"";
+    b.onclick=()=>{state.trendMetric=t.id;
+      tseg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+    tseg.appendChild(b);
   });
 }
 function setCompare(on){
@@ -641,20 +671,24 @@ function aggregate(weeks){
     const key=groupKey(i);
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,dps:[],deaths:[]}; groups.set(key,g)}
+             n:0,sum:0,dsum:0,dzero:0,sn:0,ssum:0,dps:[],deaths:[],scores:[]};
+           groups.set(key,g)}
     g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
     g.dps.push(R.dps[i]); g.deaths.push(R.deaths[i]);
+    const sc=R.score?R.score[i]:-1;
+    if(sc>=0){g.sn++; g.ssum+=sc; g.scores.push(sc)}
   }
   const out=new Map();
   for(const [key,g] of groups){
-    g.dps.sort((a,b)=>a-b); g.deaths.sort((a,b)=>a-b);
+    g.dps.sort((a,b)=>a-b); g.deaths.sort((a,b)=>a-b); g.scores.sort((a,b)=>a-b);
     const med=q50(g.dps);
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
       avg:g.sum/g.n, med, diff:g.sum/g.n-med,
       adeaths:g.dsum/g.n, mdeaths:q50(g.deaths),
-      deathless:100*g.dzero/g.n});
+      deathless:100*g.dzero/g.n,
+      ascore:g.sn?g.ssum/g.sn:NaN, mscore:g.sn?q50(g.scores):NaN});
   }
   return {groups:out, parses, runs, dmin, dmax};
 }
@@ -688,7 +722,13 @@ function tipHTML(r,compare){
   h+=row("Median DPS", f(r.a,"med",fmtInt), f(r.b,"med",fmtInt));
   h+=row("Mean − median", f(r.a,"diff",fmtSigned), f(r.b,"diff",fmtSigned));
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
+  h+=row("Median deaths", f(r.a,"mdeaths",v=>v.toFixed(1)), f(r.b,"mdeaths",v=>v.toFixed(1)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
+  if(hasScore){
+    const sf=v=>isFinite(v)?v.toFixed(1):"–";
+    h+=row("Average score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
+    h+=row("Median score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
+  }
   return h+"</table>";
 }
 function attachTip(el,html){
@@ -737,15 +777,18 @@ function render(){
       +(B?fmtInt(B.parses)+" parses in B.":"")
     : "Period: "+describePeriod(state.weeksA);
 
+  $("trendseg").style.display=tab.trend?"":"none";
+  $("sortseg").style.display=tab.trend?"none":"";
   if(tab.trend){ renderTrend(); renderTable(rows,tab); return; }
   $("trendbox").style.display="none"; $("chart").style.display="";
 
   // order + rank (rank always by A value of this tab, best first)
-  const val=r=>r.a[tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id]; // tab.id matches keys
   const col=tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id;
-  rows.sort((x,y)=>y.a[col]-x.a[col]);
-  rows.forEach((r,i)=>r.rank=i+1);
-  let view=rows.slice(0,CHART_MAX);
+  let ranked=rows;
+  if(tab.score) ranked=rows.filter(r=>isFinite(r.a[col]));  // partial score data
+  ranked.sort((x,y)=>y.a[col]-x.a[col]);
+  ranked.forEach((r,i)=>r.rank=i+1);
+  let view=ranked.slice(0,CHART_MAX);
   const pct=r=>r.b&&Math.abs(r.b[col])>1e-9?(r.a[col]-r.b[col])/Math.abs(r.b[col]):null;
   if(state.sort==="asc") view=[...view].sort((x,y)=>x.a[col]-y.a[col]);
   else if(state.sort==="name") view=[...view].sort((x,y)=>
@@ -799,7 +842,7 @@ function render(){
     }
     track.appendChild(bar);
     let ghostEnd=0;
-    if(state.compare&&r.b){
+    if(state.compare&&r.b&&isFinite(r.b[col])){
       const gv=r.b[col];
       const gl=Math.min(zero,X(gv)), gr=Math.max(zero,X(gv));
       const gh=document.createElement("div"); gh.className="bghost";
@@ -825,7 +868,7 @@ function render(){
   }
   let cap=tab.cap;
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
-  if(rows.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+rows.length+" groups.";
+  if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
   $("chart-caption").textContent=cap;
   renderTable(rows,tab);
 }
@@ -834,28 +877,47 @@ function render(){
 function renderTrend(){
   $("chart").style.display="none";
   const box=$("trendbox"); box.style.display="";
+  const mt=TABS.find(t=>t.id===state.trendMetric)||TABS[0];
+  const useScore=!!mt.score;
+  const useDeaths=mt.id==="adeaths"||mt.id==="mdeaths"||mt.id==="deathless";
+  const calc=vals=>{           // metric over one bag of per-parse source values
+    const n=vals.length; if(!n) return NaN;
+    let s=0,z=0; for(const v of vals){s+=v; if(v===0)z++}
+    switch(mt.id){
+      case "avg": case "adeaths": case "ascore": return s/n;
+      case "med": case "mdeaths": case "mscore":
+        return q50([...vals].sort((a,b)=>a-b));
+      case "diff": return s/n-q50([...vals].sort((a,b)=>a-b));
+      case "deathless": return 100*z/n;
+    }
+  };
   const m=baseMasks();
-  // per (group, week) sums, ignoring the period selection
+  // per (group, week) source values, ignoring the period selection
   const tot=new Map(), byWeek=new Map();
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     const w=R.rbucket[i]; if(w>=999) continue;
+    const v=useScore?(R.score?R.score[i]:-1):useDeaths?R.deaths[i]:R.dps[i];
+    if(useScore&&v<0) continue;
     const key=groupKey(i);
     let t=tot.get(key);
-    if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],n:0,sum:0};
+    if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],n:0,vals:[]};
       tot.set(key,t)}
-    t.n++; t.sum+=R.dps[i];
+    t.n++; t.vals.push(v);
     const wk=key*1000+w;
     let g=byWeek.get(wk);
-    if(!g){g={n:0,sum:0}; byWeek.set(wk,g)}
-    g.n++; g.sum+=R.dps[i];
+    if(!g){g=[]; byWeek.set(wk,g)}
+    g.push(v);
   }
+  // top groups by the selected metric itself ("best" respects its direction)
+  const dir=mt.betterUp?-1:1;
   const top=[...tot.entries()].filter(([,t])=>t.n>=state.minruns)
-    .sort((a,b)=>b[1].sum/b[1].n - a[1].sum/a[1].n).slice(0,8);
+    .map(([key,t])=>[key,t,calc(t.vals)])
+    .sort((a,b)=>(a[2]-b[2])*dir).slice(0,8);
   if(!top.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
       +'minimum-runs threshold under the current filters.</div>';
-    $("chart-caption").textContent=TABS.find(t=>t.id==="trend").cap; return;
+    $("chart-caption").textContent=trendCap(mt); return;
   }
   const weeks=[...availWeeks].sort((a,b)=>b-a);       // oldest -> newest
   const W=Math.max(box.clientWidth||900,480), H=380;
@@ -864,7 +926,7 @@ function renderTrend(){
     const pts=[];
     weeks.forEach((w,xi)=>{
       const g=byWeek.get(key*1000+w);
-      if(g&&g.n>=25) pts.push({xi,w,v:g.sum/g.n,n:g.n});
+      if(g&&g.length>=25) pts.push({xi,w,v:calc(g),n:g.length});
     });
     return {key, cls:D.classes[t.cls],
       name:D.specs[t.spec]+" "+D.classes[t.cls]+(t.hero>=0&&!state.merge?" — "+D.heroes[t.hero]:""),
@@ -873,13 +935,17 @@ function renderTrend(){
   let ymin=1e18,ymax=-1e18;
   series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
   const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
+  if((useDeaths||useScore)&&ymin<0) ymin=0;        // these metrics can't go negative
+  if(mt.id==="deathless"&&ymax>100) ymax=100;
   const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
   const ys=v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
+  const axf=v=>useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
+    :useScore?String(Math.round(v)):Math.round(v/1000)+"k";
   let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
   for(let gi=0;gi<=4;gi++){
     const v=ymin+(ymax-ymin)*gi/4, y=ys(v);
     svg+=`<line x1="${ML}" y1="${y}" x2="${W-MR}" y2="${y}" stroke="rgba(255,255,255,.07)"/>`;
-    svg+=`<text x="${ML-8}" y="${y+4}" text-anchor="end" fill="#8f8d88">${Math.round(v/1000)}k</text>`;
+    svg+=`<text x="${ML-8}" y="${y+4}" text-anchor="end" fill="#8f8d88">${axf(v)}</text>`;
   }
   weeks.forEach((w,xi)=>{
     if(xi%Math.ceil(weeks.length/8)&&xi!==weeks.length-1) return;
@@ -897,7 +963,7 @@ function renderTrend(){
       dash?` stroke-dasharray="${dash}"`:""}/>`;
     for(const p of s.pts)
       svg+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="3.2" fill="${color}"
-        data-tip="${esc(s.name)}|${p.w===0?"this reset":fmtDay(usB0-7*p.w)+" wk"}|${Math.round(p.v)}|${p.n}"/>`;
+        data-tip="${esc(s.name)}|${p.w===0?"this reset":fmtDay(usB0-7*p.w)+" wk"}|${esc(mt.fmt(p.v))}|${p.n}"/>`;
     const last=s.pts[s.pts.length-1];
     ends.push({y:ys(last.v), name:s.name, color, dash:!!dash});
   }
@@ -912,7 +978,7 @@ function renderTrend(){
       const [name,wk,v,n]=c.dataset.tip.split("|");
       const tip=$("tip");
       tip.innerHTML="<b>"+name+"</b><table><tr><td>week</td><td>"+wk+"</td></tr>"
-        +"<tr><td>avg DPS</td><td>"+fmtInt(+v)+"</td></tr>"
+        +"<tr><td>"+esc(mt.label.toLowerCase())+"</td><td>"+v+"</td></tr>"
         +"<tr><td>parses</td><td>"+fmtInt(+n)+"</td></tr></table>";
       tip.style.display="block";
       tip.style.left=Math.min(e.clientX+14,innerWidth-330)+"px";
@@ -920,8 +986,12 @@ function renderTrend(){
     });
     c.addEventListener("mouseleave",()=>{$("tip").style.display="none"});
   });
-  $("chart-caption").textContent=TABS.find(t=>t.id==="trend").cap
+  $("chart-caption").textContent=trendCap(mt)
     +" Dashed lines distinguish a class's second spec.";
+}
+function trendCap(mt){
+  return TABS.find(t=>t.id==="trend").cap.replace("{metric}",mt.label.toLowerCase())
+    +(mt.betterUp?"":" The best (lowest) groups are shown.");
 }
 
 /* ---------------- table ---------------- */
@@ -942,6 +1012,7 @@ function renderTable(rows,tab){
     cols.push(["a_n","Total Runs"],["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
       ["mdeaths","Med Deaths"],["deathless","Deathless %"]);
+    if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"]);
   }
   const get=(r,k)=>{
     switch(k){
@@ -957,9 +1028,12 @@ function renderTable(rows,tab){
   if(!cols.some(c=>c[0]===state.tsort.col))
     state.tsort={col:compare?"a_v":"avg", dir:-1};
   const {col,dir}=state.tsort;
+  const nz=v=>typeof v==="number"&&isNaN(v)?-Infinity:v;   // missing scores sort last
   const sorted=[...rows].sort((a,b)=>{
     const x=get(a,col), y=get(b,col);
-    return (typeof x==="string"?x.localeCompare(y):x-y)*dir;
+    if(typeof x==="string") return x.localeCompare(y)*dir;
+    const d=nz(x)-nz(y);
+    return (isNaN(d)?0:d)*dir;
   });
   let h="<thead><tr>";
   for(const [k,label,txt] of cols)
@@ -972,7 +1046,7 @@ function renderTable(rows,tab){
     if(k==="spec"||k==="hero") return esc(v);
     if(k==="a_n") return fmtInt(v);
     if(k==="b_n") return v<0?"–":fmtInt(v);
-    if(k==="a_v") return fmt(v);
+    if(k==="a_v") return isFinite(v)?fmt(v):"–";
     if(k==="b_v") return isFinite(v)?fmt(v):"–";
     if(k==="d") return isFinite(v)
       ?`<span class="delta ${ (v>=0)===tab.betterUp?"up":"down" }">${(v>=0?"+":"")+(v*100).toFixed(1)}%</span>`:"–";
@@ -981,6 +1055,7 @@ function renderTable(rows,tab){
     if(k==="adeaths") return v.toFixed(2);
     if(k==="mdeaths") return v.toFixed(1);
     if(k==="deathless") return v.toFixed(1)+"%";
+    if(k==="ascore"||k==="mscore") return isFinite(v)?v.toFixed(1):"–";
     return esc(v);
   };
   for(const r of sorted){
