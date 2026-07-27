@@ -53,6 +53,8 @@ python3 scripts/build_hero_map.py
 # 3. collect data (checkpointed — kill/re-run any time, it resumes)
 python3 scripts/fetch_data.py                # sweep → summaries → export
 python3 scripts/fetch_data.py --stage status # progress at a glance
+python3 scripts/fetch_data.py --source ptr   # next season's PTR zone
+                                             #   → data/mythic_runs_ptr.csv
 
 # 4. dashboard
 streamlit run dashboard.py
@@ -98,6 +100,14 @@ around getting the maximum data per point:
   (e.g. mythicstats / WCL's own statistics), by roughly 8–12 % — the ranking
   order matches, the absolute numbers sit above a full-population mean. Read
   it as "what strong runs pull," not "the average run."
+* **PTR data uses a different sweep.** WCL computes no rankings for PTR
+  zones, so `--source ptr` enumerates the zone's reports directly
+  (`reportData.reports`), pulls each report's fight list, and keeps every
+  *completed* keystone fight (`kill == true`). That makes the PTR dataset a
+  census of what testers actually logged — a small, self-selected population
+  with no score floor — rather than a top-of-leaderboard sample. It lands in
+  per-source files (`mythic_runs_ptr.csv`, `data_ptr.json`) and the dashboard's
+  Live / PTR toggle switches between the two.
 * **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries
   are Blizzard-leaderboard imports or anonymized logs with **no report
   attached** (`report.code == ""`, `deaths == 300000000` sentinel) — there is

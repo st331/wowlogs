@@ -22,6 +22,11 @@ process sleeps until the hourly window resets when the budget is nearly gone.
 Anonymous rankings entries (report code hidden by the logger) cannot be
 inspected and are skipped.  All regions are collected by default; pass e.g.
 --regions US,EU to restrict.
+
+--source ptr switches to the PTR zone (next season's dungeons).  WCL computes
+no rankings for PTR zones, so stage 1 becomes a report-enumeration sweep
+(reportData.reports) instead; everything downstream is identical and lands in
+per-source files (mythic_runs_ptr.csv etc.).
 """
 from __future__ import annotations
 
@@ -59,19 +64,45 @@ PERMANENT_ERROR = re.compile(
     r"do(es)? not exist|not found|permission|private|deleted|invalid report",
     re.IGNORECASE)
 
-ZONE_ID = 47  # Midnight -> Mythic+ Season 1
-ENCOUNTERS = {
-    112526: "Algeth'ar Academy",
-    12811: "Magisters' Terrace",
-    12874: "Maisara Caverns",
-    12915: "Nexus-Point Xenas",
-    10658: "Pit of Saron",
-    361753: "Seat of the Triumvirate",
-    61209: "Skyreach",
-    12805: "Windrunner Spire",
+# Selectable data sources. "live" is the current season; "ptr" is the next
+# season's PTR zone, which only has runs once Blizzard opens PTR log uploads.
+ZONES = {
+    "live": {
+        "zone_id": 47, "label": "Midnight — Mythic+ Season 1",
+        "brackets": list(range(11, 25)),   # keys 12 .. 25 (24 catches 25+)
+        "encounters": {
+            112526: "Algeth'ar Academy",
+            12811: "Magisters' Terrace",
+            12874: "Maisara Caverns",
+            12915: "Nexus-Point Xenas",
+            10658: "Pit of Saron",
+            361753: "Seat of the Triumvirate",
+            61209: "Skyreach",
+            12805: "Windrunner Spire",
+        },
+    },
+    "ptr": {
+        "zone_id": 56, "label": "Midnight — Mythic+ Season 2 (PTR)",
+        # WCL computes no rankings for PTR zones, so the sweep enumerates
+        # reports directly (see sweep_reports) and brackets are irrelevant
+        "brackets": [],
+        "encounters": {
+            62993: "Altar of Fangs",
+            62825: "Den of Nalorakk",
+            111762: "Kings' Rest",
+            62813: "Murder Row",
+            162521: "Ruby Life Pools",
+            111877: "Temple of Sethraliss",
+            62859: "The Blinding Vale",
+            62923: "Voidscar Arena",
+        },
+    },
 }
+SOURCE = "live"          # set by --source; rebinds the globals below
+ZONE_ID = ZONES["live"]["zone_id"]
+ENCOUNTERS = ZONES["live"]["encounters"]
 # WCL bracket N == keystone level N+1 for this zone (bracket 11 -> +12).
-BRACKETS = list(range(11, 25))  # keys 12 .. 25 (bracket 24 catches 25+)
+BRACKETS = ZONES["live"]["brackets"]
 MAX_PAGE = 20  # the API 404s past page 20 (hasMorePages stays true)
 
 RANK_BATCH = 10       # aliased fightRankings sub-queries per HTTP request
@@ -89,6 +120,22 @@ def _handle_stop(signum, frame):
     STOP = True
     print(f"\n[fetch] signal {signum} received; finishing current batch then exiting",
           flush=True)
+
+
+def use_source(name: str) -> None:
+    """Point the module's zone constants and file paths at one data source.
+    'live' keeps the historical unsuffixed paths; other sources get their own
+    journals, checkpoints and CSV so datasets never mix."""
+    global SOURCE, ZONE_ID, ENCOUNTERS, BRACKETS
+    global RANKINGS_FILE, SUMMARIES_DONE, PLAYERS_FILE, CSV_FILE
+    cfg = ZONES[name]
+    SOURCE, ZONE_ID = name, cfg["zone_id"]
+    ENCOUNTERS, BRACKETS = cfg["encounters"], cfg["brackets"]
+    sfx = "" if name == "live" else f"_{name}"
+    RANKINGS_FILE = RAW / f"rankings{sfx}.jsonl"
+    SUMMARIES_DONE = PROCESSED / f"summaries_done{sfx}.txt"
+    PLAYERS_FILE = PROCESSED / f"players{sfx}.jsonl"
+    CSV_FILE = ROOT / "data" / f"mythic_runs{sfx}.csv"
 
 
 def bracket_to_key(bracket: int) -> int:
@@ -129,10 +176,11 @@ def _repair_tail(path: pathlib.Path) -> None:
 
 def restore_checkpoints() -> None:
     """Rehydrate journals from committed gzip snapshots (fresh clone case)."""
+    sfx = "" if SOURCE == "live" else f"_{SOURCE}"
     pairs = [
-        (CHECKPOINTS / "rankings.jsonl.gz", RANKINGS_FILE),
-        (CHECKPOINTS / "summaries_done.txt.gz", SUMMARIES_DONE),
-        (CHECKPOINTS / "players.jsonl.gz", PLAYERS_FILE),
+        (CHECKPOINTS / f"rankings{sfx}.jsonl.gz", RANKINGS_FILE),
+        (CHECKPOINTS / f"summaries_done{sfx}.txt.gz", SUMMARIES_DONE),
+        (CHECKPOINTS / f"players{sfx}.jsonl.gz", PLAYERS_FILE),
     ]
     for gz, dst in pairs:
         if gz.exists() and not dst.exists():
@@ -243,6 +291,149 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
         for f in futs:
             f.result()
     out.close()
+
+
+# --------------------------------------------------------------------------
+# Stage 1b: report-enumeration sweep (PTR)
+# --------------------------------------------------------------------------
+# WCL never computes rankings for PTR zones, so fightRankings comes back empty
+# even though thousands of PTR reports exist and are browsable on the website.
+# Instead: paginate the zone's report list, pull each report's fight list, and
+# journal the completed keystone fights in the same record shape the rankings
+# sweep produces — the summaries and export stages then run unchanged.
+
+REPORT_PAGE_BATCH = 8    # aliased reports() pages per HTTP request
+REPORT_FIGHT_BATCH = 15  # aliased report fight-list sub-queries per request
+
+
+def _swept_codes() -> set[str]:
+    return {rec["code"] for rec in _iter_journal(RANKINGS_FILE) if "code" in rec}
+
+
+def _list_zone_reports(client: WCLClient) -> list[str]:
+    """Every report code uploaded to ZONE_ID, newest first."""
+    codes, page, more = [], 1, True
+    while more and not STOP:
+        parts = []
+        for i in range(REPORT_PAGE_BATCH):
+            parts.append(
+                f'a{i}: reports(zoneID: {ZONE_ID}, limit: 100, page: {page + i}) '
+                f'{{ has_more_pages data {{ code }} }}')
+        q = "{ reportData { " + " ".join(parts) + " } }"
+        data = client.query(q, est_cost=float(REPORT_PAGE_BATCH))
+        rd = data.get("reportData") or {}
+        for i in range(REPORT_PAGE_BATCH):
+            node = rd.get(f"a{i}")
+            if not node:
+                more = False
+                break
+            codes.extend(r["code"] for r in node["data"])
+            if not node["has_more_pages"]:
+                more = False
+                break
+        page += REPORT_PAGE_BATCH
+    seen: set[str] = set()
+    return [c for c in codes if not (c in seen or seen.add(c))]
+
+
+def _report_fights_shard(codes: list[str], total: int, out, out_lock,
+                         counters: Counter, label: str) -> None:
+    """Worker: fetch fight lists for ONE shard of report codes and journal
+    their completed keystone fights as synthesized rankings entries."""
+    client = _worker_client()
+    for i in range(0, len(codes), REPORT_FIGHT_BATCH):
+        if STOP:
+            break
+        batch = codes[i:i + REPORT_FIGHT_BATCH]
+        parts = []
+        for j, code in enumerate(batch):
+            parts.append(
+                f'a{j}: report(code: "{code}") {{ code startTime '
+                f'region {{ compactName }} '
+                f'fights(killType: All) {{ id encounterID keystoneLevel '
+                f'keystoneAffixes keystoneTime kill startTime endTime }} }}')
+        q = "{ reportData { " + " ".join(parts) + " } }"
+        try:
+            data = client.query(q, est_cost=float(len(batch)))
+        except RuntimeError as e:
+            print(f"[reports {label}] batch failed (re-run to retry): {e}",
+                  flush=True)
+            continue
+        rd = data.get("reportData") or {}
+        lines = []
+        for j, code in enumerate(batch):
+            rep = rd.get(f"a{j}")
+            if not rep:  # no journal record -> retried on the next run
+                continue
+            region = ((rep.get("region") or {}).get("compactName") or "").upper()
+            base = rep.get("startTime") or 0
+            by_enc: dict[int, list] = {}
+            for f in rep.get("fights") or []:
+                kl = f.get("keystoneLevel")
+                if not kl or not f.get("kill"):
+                    continue  # wipe / abandoned key
+                if f["encounterID"] not in ENCOUNTERS:
+                    with out_lock:
+                        counters[f"enc:{f['encounterID']}"] += 1
+                    continue
+                dur = f.get("keystoneTime") or \
+                    ((f.get("endTime") or 0) - (f.get("startTime") or 0))
+                by_enc.setdefault(f["encounterID"], []).append({
+                    "report": {"code": code, "fightID": f["id"]},
+                    "server": {"region": region},
+                    "bracketData": kl,
+                    "duration": dur,
+                    "score": None, "medal": None,
+                    "affixes": f.get("keystoneAffixes") or [],
+                    "startTime": base + (f.get("startTime") or 0),
+                })
+            recs = [{"code": code, "enc": enc, "bracket": 0, "page": 0,
+                     "more": False, "rankings": entries}
+                    for enc, entries in by_enc.items()]
+            if not recs:  # marker so a fight-less report isn't re-fetched
+                recs = [{"code": code, "enc": -1, "bracket": -1, "page": 0,
+                         "more": False, "rankings": []}]
+            lines.extend(json.dumps(r) for r in recs)
+            with out_lock:
+                counters["reports"] += 1
+                counters["runs"] += sum(len(e) for e in by_enc.values())
+        with out_lock:
+            for ln in lines:
+                out.write(ln + "\n")
+            out.flush()
+            done, runs = counters["reports"], counters["runs"]
+        print(f"[reports {label}] {done}/{total} reports | {runs} completed "
+              f"keys | {client.spent:.0f} pts this window", flush=True)
+
+
+def sweep_reports(client: WCLClient) -> None:
+    done = _swept_codes()
+    print(f"[reports] listing zone {ZONE_ID} reports "
+          f"({len(done)} already swept)...", flush=True)
+    all_codes = _list_zone_reports(client)
+    todo = [c for c in all_codes if c not in done]
+    print(f"[reports] {len(all_codes)} reports in zone, {len(todo)} new to "
+          f"scan, {RANK_WORKERS} parallel shards", flush=True)
+    if not todo:
+        return
+    RAW.mkdir(parents=True, exist_ok=True)
+    _repair_tail(RANKINGS_FILE)
+    out = RANKINGS_FILE.open("a")
+    out_lock = threading.Lock()
+    counters: Counter = Counter()
+    shards = [todo[w::RANK_WORKERS] for w in range(RANK_WORKERS)]
+    shards = [s for s in shards if s]
+    with ThreadPoolExecutor(max_workers=len(shards)) as pool:
+        futs = [pool.submit(_report_fights_shard, s, len(todo), out, out_lock,
+                            counters, f"w{wi}")
+                for wi, s in enumerate(shards)]
+        for f in futs:
+            f.result()
+    out.close()
+    other = {k: v for k, v in counters.items() if k.startswith("enc:")}
+    if other:
+        print(f"[reports] skipped fights on encounters outside the "
+              f"{len(ENCOUNTERS)}-dungeon pool: {other}", flush=True)
 
 
 # --------------------------------------------------------------------------
@@ -529,12 +720,17 @@ def export() -> None:
 
 
 def status(regions: set[str] | None) -> None:
-    state = load_sweep_state()
-    open_cursors = sum(1 for v in state.values() if v["more"] and v["last_page"] < MAX_PAGE)
     fights = load_fights(regions)
     done = load_done()
-    print(f"sweep:     {len(state)} cursors touched, "
-          f"{len(ENCOUNTERS) * len(BRACKETS) - len(state)} untouched, {open_cursors} open")
+    if SOURCE == "live":
+        state = load_sweep_state()
+        open_cursors = sum(1 for v in state.values()
+                           if v["more"] and v["last_page"] < MAX_PAGE)
+        print(f"sweep:     {len(state)} cursors touched, "
+              f"{len(ENCOUNTERS) * len(BRACKETS) - len(state)} untouched, "
+              f"{open_cursors} open")
+    else:
+        print(f"sweep:     {len(_swept_codes())} reports scanned")
     print(f"fights:    {len(fights)} unique public runs "
           f"({getattr(load_fights, 'anon_skipped', '?')} anonymous skipped)")
     print(f"summaries: {len(done)} fetched ({len(fights) - len(done & set(fights))} remaining)")
@@ -547,6 +743,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--stage", choices=["all", "sweep", "summaries", "export", "status"],
                     default="all")
+    ap.add_argument("--source", choices=sorted(ZONES), default="live",
+                    help="which zone to collect: live season rankings or the "
+                         "PTR zone (report enumeration; separate journals/CSV)")
     ap.add_argument("--regions", default="ALL",
                     help='ALL (default) or a comma-separated allow-list, '
                          'e.g. US,EU')
@@ -559,6 +758,7 @@ def main() -> None:
                          "snapshot) to re-scan the leaderboards; already-"
                          "fetched summaries are kept and deduped")
     args = ap.parse_args()
+    use_source(args.source)
 
     regions = None if args.regions.upper() == "ALL" else \
         {r.strip().upper() for r in args.regions.split(",")}
@@ -567,7 +767,7 @@ def main() -> None:
 
     if args.resweep:
         RANKINGS_FILE.unlink(missing_ok=True)
-        (CHECKPOINTS / "rankings.jsonl.gz").unlink(missing_ok=True)
+        (CHECKPOINTS / f"{RANKINGS_FILE.name}.gz").unlink(missing_ok=True)
         print("[resweep] rankings journal cleared; leaderboards will be re-scanned",
               flush=True)
     restore_checkpoints()
@@ -584,7 +784,10 @@ def main() -> None:
     client = WCLClient()
 
     if args.stage in ("all", "sweep"):
-        sweep(client, brackets)
+        if SOURCE == "live":
+            sweep(client, brackets)
+        else:
+            sweep_reports(client)
     if args.stage in ("all", "summaries") and not STOP:
         fetch_summaries(regions, args.limit_fights)
     export()

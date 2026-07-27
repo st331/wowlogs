@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Pack data/mythic_runs.csv into a compact columnar JSON for the static site.
+"""Pack data/mythic_runs*.csv into compact columnar JSON for the static site.
 
 The static dashboard (site/index.html) filters and aggregates client-side, so
 it needs per-parse rows, not pre-aggregates (medians can't be merged). Columns
 are dictionary-encoded ints; the whole file compresses to a few MB over the
 wire and parses in ~100 ms.
+
+One JSON per data source: data.json (live season) and data_ptr.json (PTR),
+each self-describing via its "season" label. Sources whose CSV is missing are
+skipped, so the live build never blocks on PTR data existing.
 """
 import json
 import pathlib
@@ -12,16 +16,26 @@ import pathlib
 import pandas as pd
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CSV = ROOT / "data" / "mythic_runs.csv"
 # site/ is canonical; docs/ mirrors it because GitHub Pages can only serve
 # from the repo root or /docs on branch-based deploys
-OUTS = [ROOT / "site" / "data.json", ROOT / "docs" / "data.json"]
+SITE_DIRS = [ROOT / "site", ROOT / "docs"]
+
+SOURCES = {
+    "live": {"csv": "mythic_runs.csv", "out": "data.json",
+             "season": "Midnight Season 1"},
+    "ptr": {"csv": "mythic_runs_ptr.csv", "out": "data_ptr.json",
+            "season": "Midnight Season 2 (PTR)"},
+}
 
 EPOCH = pd.Timestamp("2026-01-01")
 
 
-def main() -> None:
-    df = pd.read_csv(CSV)
+def build(name: str, cfg: dict) -> None:
+    csv = ROOT / "data" / cfg["csv"]
+    if not csv.exists():
+        print(f"[{name}] {csv.name} missing — skipped")
+        return
+    df = pd.read_csv(csv)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
 
@@ -45,7 +59,7 @@ def main() -> None:
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
-        "season": "Midnight Season 1",
+        "season": cfg["season"],
         "epoch": str(EPOCH.date()),
         "classes": classes, "specs": specs, "heroes": heroes,
         "dungeons": dungeons, "regions": regions, "roles": roles,
@@ -60,10 +74,17 @@ def main() -> None:
         },
     }
     blob = json.dumps(payload, separators=(",", ":"))
-    for out in OUTS:
-        out.parent.mkdir(exist_ok=True)
+    for d in SITE_DIRS:
+        d.mkdir(exist_ok=True)
+        out = d / cfg["out"]
         out.write_text(blob)
-        print(f"{len(df):,} rows -> {out} ({out.stat().st_size / 1e6:.1f} MB raw)")
+        print(f"[{name}] {len(df):,} rows -> {out} "
+              f"({out.stat().st_size / 1e6:.1f} MB raw)")
+
+
+def main() -> None:
+    for name, cfg in SOURCES.items():
+        build(name, cfg)
     index = ROOT / "site" / "index.html"
     docs_index = ROOT / "docs" / "index.html"
     docs_index.write_text(index.read_text())
