@@ -130,6 +130,15 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 .btn:hover{border-color:var(--gold)}
 #trendbox svg{display:block; width:100%}
 #trendbox text{font:11px -apple-system,"Segoe UI",Roboto,sans-serif}
+#trendbox [data-si]{cursor:pointer}
+#trendbox path,#trendbox text,#trendbox circle{transition:opacity .12s}
+.tgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px}
+.tcard{border:1px solid var(--grid); border-radius:10px; padding:8px 10px 4px;
+  background:var(--panel)}
+.tcard .tname{font-size:.75rem; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; margin-bottom:2px}
+.tcard .tval{color:var(--muted); font-size:.72rem; font-weight:400}
+.tcard svg{display:block; width:100%}
 </style>
 </head>
 <body>
@@ -212,6 +221,7 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     </div>
     <div class="tabs" id="tabs"></div>
     <div class="seg" id="trendseg" style="display:none"></div>
+    <div class="seg" id="trendview" style="display:none;margin-left:8px"></div>
     <div id="chart"></div>
     <div id="trendbox" style="display:none"></div>
     <div class="caption" id="chart-caption"></div>
@@ -280,6 +290,7 @@ const TABS = [
        "Weeks with fewer than 25 parses for a group are skipped."},
 ];
 const CHART_MAX = 40;
+const TREND_MAX = 16;
 
 let D=null, R=null, N=0, runCount=0;
 let availWeeks=[], weekCounts=new Map(), usB0=0;
@@ -288,6 +299,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              minruns:200, sort:"desc", tab:"avg", trendMetric:"avg",
+             trendView:"lines", trendPin:new Set(),
              tsort:{col:"a_v", dir:-1}};
 let hasScore=false;
 
@@ -605,6 +617,17 @@ function buildControls(){
       render()};
     tseg.appendChild(b);
   });
+  // overlay (one chart) vs grid (a mini-chart per group)
+  const tview=$("trendview");
+  tview.innerHTML="";
+  for(const [id,label] of [["lines","☰ Overlay"],["grid","▦ Grid"]]){
+    const b=document.createElement("button"); b.textContent=label;
+    b.className=id===state.trendView?"on":"";
+    b.onclick=()=>{state.trendView=id;
+      tview.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+    tview.appendChild(b);
+  }
 }
 function setCompare(on){
   state.compare=on;
@@ -778,6 +801,7 @@ function render(){
     : "Period: "+describePeriod(state.weeksA);
 
   $("trendseg").style.display=tab.trend?"":"none";
+  $("trendview").style.display=tab.trend?"":"none";
   $("sortseg").style.display=tab.trend?"none":"";
   if(tab.trend){ renderTrend(); renderTable(rows,tab); return; }
   $("trendbox").style.display="none"; $("chart").style.display="";
@@ -913,7 +937,7 @@ function renderTrend(){
   const dir=mt.betterUp?-1:1;
   const top=[...tot.entries()].filter(([,t])=>t.n>=state.minruns)
     .map(([key,t])=>[key,t,calc(t.vals)])
-    .sort((a,b)=>(a[2]-b[2])*dir).slice(0,8);
+    .sort((a,b)=>(a[2]-b[2])*dir).slice(0,TREND_MAX);
   if(!top.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
       +'minimum-runs threshold under the current filters.</div>';
@@ -922,6 +946,8 @@ function renderTrend(){
   const weeks=[...availWeeks].sort((a,b)=>b-a);       // oldest -> newest
   const W=Math.max(box.clientWidth||900,480), H=380;
   const ML=70, MR=190, MT=18, MB=34;
+  const DASHES=["","5,4","2,3","9,3,2,3"];   // 1st..4th spec of the same class
+  const seen={};
   const series=top.map(([key,t])=>{
     const pts=[];
     weeks.forEach((w,xi)=>{
@@ -931,7 +957,12 @@ function renderTrend(){
     return {key, cls:D.classes[t.cls],
       name:D.specs[t.spec]+" "+D.classes[t.cls]+(t.hero>=0&&!state.merge?" — "+D.heroes[t.hero]:""),
       pts};
-  }).filter(s=>s.pts.length);
+  }).filter(s=>s.pts.length)
+    .map(s=>{
+      const nth=seen[s.cls]||0; seen[s.cls]=nth+1;
+      return {...s, color:CLASS_COLORS[s.cls]||"#999",
+              dash:DASHES[nth%DASHES.length]};
+    });
   let ymin=1e18,ymax=-1e18;
   series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
   const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
@@ -941,6 +972,14 @@ function renderTrend(){
   const ys=v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
   const axf=v=>useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
     :useScore?String(Math.round(v)):Math.round(v/1000)+"k";
+  if(state.trendView==="grid"){
+    renderTrendGrid(box,series,weeks,ymin,ymax,mt);
+    wireTrendTips(box,mt);
+    $("chart-caption").textContent=trendCap(mt)
+      +" Each card is one group, ranked best-first; all cards share one y-scale, "
+      +"season running left → right. Hover points for exact values.";
+    return;
+  }
   let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
   for(let gi=0;gi<=4;gi++){
     const v=ymin+(ymax-ymin)*gi/4, y=ys(v);
@@ -952,28 +991,65 @@ function renderTrend(){
     svg+=`<text x="${xs(xi)}" y="${H-10}" text-anchor="middle" fill="#8f8d88">${
       w===0?"now":fmtDay(usB0-7*w)}</text>`;
   });
-  const seen={};
   const ends=[];
-  for(const s of series){
-    const color=CLASS_COLORS[s.cls]||"#999";
-    const dash=seen[s.cls]?"5,4":"";
-    seen[s.cls]=(seen[s.cls]||0)+1;
+  series.forEach((s,si)=>{
     const d=s.pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
-    svg+=`<path d="${d}" fill="none" stroke="${color}" stroke-width="2.2"${
-      dash?` stroke-dasharray="${dash}"`:""}/>`;
+    svg+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.2" data-si="${si}"${
+      s.dash?` stroke-dasharray="${s.dash}"`:""}/>`;
+    // invisible fat twin: a forgiving hover/click target along the line
+    svg+=`<path d="${d}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="11"
+      pointer-events="stroke" class="fat" data-si="${si}"/>`;
     for(const p of s.pts)
-      svg+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="3.2" fill="${color}"
-        data-tip="${esc(s.name)}|${p.w===0?"this reset":fmtDay(usB0-7*p.w)+" wk"}|${esc(mt.fmt(p.v))}|${p.n}"/>`;
+      svg+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="3.2" fill="${s.color}"
+        data-si="${si}" data-tip="${esc(s.name)}|${p.w===0?"this reset":fmtDay(usB0-7*p.w)+" wk"}|${esc(mt.fmt(p.v))}|${p.n}"/>`;
     const last=s.pts[s.pts.length-1];
-    ends.push({y:ys(last.v), name:s.name, color, dash:!!dash});
-  }
+    ends.push({y:ys(last.v), name:s.name, color:s.color, dash:!!s.dash, si});
+  });
   ends.sort((a,b)=>a.y-b.y);
   for(let i=1;i<ends.length;i++) if(ends[i].y-ends[i-1].y<14) ends[i].y=ends[i-1].y+14;
   for(const e of ends)
-    svg+=`<text x="${W-MR+10}" y="${e.y+4}" fill="${e.color}">${e.dash?"┄ ":""}${esc(e.name)}</text>`;
+    svg+=`<text x="${W-MR+10}" y="${e.y+4}" fill="${e.color}" data-si="${e.si}">${
+      e.dash?"┄ ":""}${esc(e.name)}</text>`;
   svg+="</svg>";
   box.innerHTML=svg;
-  box.querySelectorAll("circle").forEach(c=>{
+
+  // spotlight: hover lights one series, click pins it, double-click clears
+  let hover=null;
+  const marked=[...box.querySelectorAll("[data-si]")];
+  const apply=()=>{
+    const pins=state.trendPin;
+    const active=hover!=null||pins.size>0;
+    for(const el of marked){
+      const si=+el.dataset.si;
+      const lit=hover!=null?si===hover:(!pins.size||pins.has(series[si].key));
+      el.style.opacity=lit?1:.13;
+      if(el.tagName==="path"&&!el.classList.contains("fat"))
+        el.setAttribute("stroke-width",lit&&active?3.4:2.2);
+      if(el.tagName==="text") el.style.fontWeight=lit&&active?"700":"400";
+    }
+  };
+  for(const el of marked){
+    el.addEventListener("mouseenter",()=>{hover=+el.dataset.si; apply();});
+    el.addEventListener("mouseleave",()=>{hover=null; apply();});
+    el.addEventListener("click",()=>{
+      const k=series[+el.dataset.si].key;
+      state.trendPin.has(k)?state.trendPin.delete(k):state.trendPin.add(k);
+      apply();
+    });
+  }
+  box.ondblclick=()=>{state.trendPin.clear(); hover=null; apply();};
+  apply();
+  wireTrendTips(box,mt);
+  $("chart-caption").textContent=trendCap(mt)
+    +" Dash patterns distinguish specs of the same class. Hover a line or its "
+    +"label to spotlight it; click to pin, double-click the chart to clear pins.";
+}
+function trendCap(mt){
+  return TABS.find(t=>t.id==="trend").cap.replace("{metric}",mt.label.toLowerCase())
+    +(mt.betterUp?"":" The best (lowest) groups are shown.");
+}
+function wireTrendTips(box,mt){
+  box.querySelectorAll("circle[data-tip]").forEach(c=>{
     c.addEventListener("mousemove",e=>{
       const [name,wk,v,n]=c.dataset.tip.split("|");
       const tip=$("tip");
@@ -986,12 +1062,30 @@ function renderTrend(){
     });
     c.addEventListener("mouseleave",()=>{$("tip").style.display="none"});
   });
-  $("chart-caption").textContent=trendCap(mt)
-    +" Dashed lines distinguish a class's second spec.";
 }
-function trendCap(mt){
-  return TABS.find(t=>t.id==="trend").cap.replace("{metric}",mt.label.toLowerCase())
-    +(mt.betterUp?"":" The best (lowest) groups are shown.");
+function renderTrendGrid(box,series,weeks,ymin,ymax,mt){
+  const w=230,h=84,padX=6,padY=7;
+  const xs=xi=>padX+(w-2*padX)*(weeks.length<2?0.5:xi/(weeks.length-1));
+  const ys=v=>padY+(h-2*padY)*(1-(v-ymin)/(ymax-ymin));
+  let html='<div class="tgrid">';
+  series.forEach((s,si)=>{
+    const d=s.pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
+    const last=s.pts[s.pts.length-1];
+    let mini=`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px">`;
+    for(let gi=1;gi<=2;gi++){
+      const y=padY+(h-2*padY)*gi/3;
+      mini+=`<line x1="0" y1="${y.toFixed(1)}" x2="${w}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,.06)"/>`;
+    }
+    mini+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" `
+      +`vector-effect="non-scaling-stroke"${s.dash?` stroke-dasharray="${s.dash}"`:""}/>`;
+    for(const p of s.pts)
+      mini+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="2.6" fill="${s.color}"
+        data-tip="${esc(s.name)}|${p.w===0?"this reset":fmtDay(usB0-7*p.w)+" wk"}|${esc(mt.fmt(p.v))}|${p.n}"/>`;
+    mini+="</svg>";
+    html+=`<div class="tcard"><div class="tname" style="color:${s.color}">${si+1}. ${esc(s.name)}`
+      +` <span class="tval">· ${esc(mt.fmt(last.v))} latest</span></div>${mini}</div>`;
+  });
+  box.innerHTML=html+"</div>";
 }
 
 /* ---------------- table ---------------- */
