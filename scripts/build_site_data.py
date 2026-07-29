@@ -10,6 +10,7 @@ One JSON per data source: data.json (live season) and data_ptr.json (PTR),
 each self-describing via its "season" label. Sources whose CSV is missing are
 skipped, so the live build never blocks on PTR data existing.
 """
+import argparse
 import json
 import pathlib
 
@@ -86,8 +87,14 @@ def build(name: str, cfg: dict) -> None:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--source", choices=[*SOURCES, "all"], default="all",
+                    help="rebuild one source's JSON only (default: all); the "
+                         "other file keeps its committed build untouched")
+    args = ap.parse_args()
     for name, cfg in SOURCES.items():
-        build(name, cfg)
+        if args.source in ("all", name):
+            build(name, cfg)
     index = ROOT / "site" / "index.html"
     docs_index = ROOT / "docs" / "index.html"
     docs_index.write_text(index.read_text())
