@@ -195,9 +195,15 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 <main>
   <div class="hero-title">⚔️ Mythic+ <span class="gold">Performance</span></div>
   <div class="hero-sub" id="hero-sub">Midnight Season 1 · Keystones +12 – 25 · built from Warcraft Logs fight rankings</div>
-  <div class="seg" id="srcseg" style="margin-top:12px">
-    <button data-src="live" class="on">Live · Season 1</button>
-    <button data-src="ptr">PTR · Season 2</button>
+  <div style="margin-top:12px">
+    <div class="seg" id="srcseg" style="margin:0">
+      <button data-src="live" class="on">Live · Season 1</button>
+      <button data-src="ptr">PTR · Season 2</button>
+    </div>
+    <div class="seg" id="timedseg" style="margin:0 0 0 8px">
+      <button data-t="0" class="on">All completed</button>
+      <button data-t="1">⏱ Timed only</button>
+    </div>
   </div>
   <div class="hero-rule"></div>
 
@@ -299,9 +305,9 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              minruns:200, sort:"desc", tab:"avg", trendMetric:"avg",
-             trendView:"lines", trendPin:new Set(),
+             trendView:"lines", trendPin:new Set(), timedOnly:false,
              tsort:{col:"a_v", dir:-1}};
-let hasScore=false;
+let hasScore=false, hasTimed=false;
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
@@ -320,7 +326,9 @@ const SOURCES={
   ptr:{file:"data_ptr.json",
     sub:"Midnight Season 2 (PTR) · every logged completed key · built from Warcraft Logs PTR reports",
     foot:"Data is every completed keystone run logged to the PTR zone on Warcraft Logs — "
-        +"a small, self-selected tester population, so expect noisy numbers.",
+        +"a small, self-selected tester population, so expect noisy numbers. Timed status "
+        +"is inferred from the in-game rating (depleted keys cap at 320 rating); keys "
+        +"below +10 can't be told apart and are excluded from the timed-only view.",
     minruns:25, keydef:null},   // keydef null = default to the full key range
 };
 let SRC="live"; const DATA_CACHE={};
@@ -360,6 +368,10 @@ function initData(d,cfg){
   // score tabs only make sense where the source has rankings (never on PTR)
   hasScore=false;
   if(R.score) for(let i=0;i<N;i++) if(R.score[i]>=0){hasScore=true; break}
+  hasTimed=false;
+  if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
+  $("timedseg").style.display=hasTimed?"":"none";
+  if(!hasTimed) state.timedOnly=false;
   if(!hasScore){
     if(TABS.find(t=>t.id===state.tab)?.score) state.tab="avg";
     if(TABS.find(t=>t.id===state.trendMetric)?.score) state.trendMetric="avg";
@@ -397,6 +409,15 @@ $("srcseg").querySelectorAll("button").forEach(b=>{
     $("srcseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
     history.replaceState(null,"","#"+b.dataset.src);  // survives ↺ Reset filters
     loadSource(b.dataset.src);
+  };
+});
+$("timedseg").querySelectorAll("button").forEach(b=>{
+  b.onclick=()=>{
+    const want=b.dataset.t==="1";
+    if(state.timedOnly===want) return;
+    state.timedOnly=want;
+    $("timedseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    render();
   };
 });
 window.addEventListener("resize",()=>{ if(state.tab==="trend"&&D) render(); });
@@ -659,6 +680,7 @@ function baseMasks(){
     atk:state.melee!==state.ranged?(state.melee?1:2):0};
 }
 function rowPass(i,m){
+  if(state.timedOnly&&R.timed[i]!==1) return false;
   if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
   if(m.cls&&!m.cls.has(R.cls[i])) return false;
   if(m.spec&&!m.spec.has(R.spec[i])) return false;
@@ -794,11 +816,12 @@ function render(){
   $("k-parses").textContent=fmtInt(A.parses);
   $("k-groups").textContent=fmtInt(rows.length);
   $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
-  $("period-note").innerHTML = state.compare
+  $("period-note").innerHTML = (state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
+    +(state.compare
     ? "Period <b>A</b>: "+describePeriod(state.weeksA)+" (solid, class colors) &nbsp;·&nbsp; "
       +"Period <b>B</b>: "+describePeriod(state.weeksB)+" (grey ghost bars) — KPIs show period A. "
       +(B?fmtInt(B.parses)+" parses in B.":"")
-    : "Period: "+describePeriod(state.weeksA);
+    : "Period: "+describePeriod(state.weeksA));
 
   $("trendseg").style.display=tab.trend?"":"none";
   $("trendview").style.display=tab.trend?"":"none";

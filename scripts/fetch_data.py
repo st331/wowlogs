@@ -351,7 +351,8 @@ def _report_fights_shard(codes: list[str], total: int, out, out_lock,
                 f'a{j}: report(code: "{code}") {{ code startTime '
                 f'region {{ compactName }} '
                 f'fights(killType: All) {{ id encounterID keystoneLevel '
-                f'keystoneAffixes keystoneTime kill rating startTime endTime }} }}')
+                f'keystoneAffixes keystoneTime keystoneBonus kill rating '
+                f'startTime endTime }} }}')
         q = "{ reportData { " + " ".join(parts) + " } }"
         try:
             data = client.query(q, est_cost=float(len(batch)))
@@ -379,12 +380,14 @@ def _report_fights_shard(codes: list[str], total: int, out, out_lock,
                 dur = f.get("keystoneTime") or \
                     ((f.get("endTime") or 0) - (f.get("startTime") or 0))
                 rating = f.get("rating")  # in-game M+ rating from the log
+                bonus = f.get("keystoneBonus")  # chests: 0 = over timer, 1-3 = timed
+                medal = {3: "gold", 2: "silver", 1: "bronze", 0: "none"}.get(bonus)
                 by_enc.setdefault(f["encounterID"], []).append({
                     "report": {"code": code, "fightID": f["id"]},
                     "server": {"region": region},
                     "bracketData": kl,
                     "duration": dur,
-                    "score": round(rating, 2) if rating else None, "medal": None,
+                    "score": round(rating, 2) if rating else None, "medal": medal,
                     "affixes": f.get("keystoneAffixes") or [],
                     "startTime": base + (f.get("startTime") or 0),
                 })
@@ -712,14 +715,32 @@ def export() -> None:
     df = pd.DataFrame(rows)
     before = len(df)
     df = df.drop_duplicates(subset=["report_code", "fight_id", "character", "server"])
-    # scores live in the rankings journal, which can be re-swept much more
-    # cheaply than the summaries; overlay so late-arriving scores (e.g. PTR
-    # fight ratings) reach rows fetched before the score existed
-    smap = {(f["code"], f["fid"]): f["score"]
-            for f in load_fights(None).values() if f.get("score") is not None}
-    if smap:
-        df["score"] = [smap.get((c, f), s) for c, f, s in
-                       zip(df["report_code"], df["fight_id"], df["score"])]
+    # scores and medals live in the rankings journal, which can be re-swept
+    # much more cheaply than the summaries; overlay so late-arriving values
+    # (e.g. PTR fight ratings / timer medals) reach rows fetched before the
+    # journal carried them
+    jmap = {(f["code"], f["fid"]): f for f in load_fights(None).values()}
+    if jmap:
+        for col in ("score", "medal"):
+            df[col] = [
+                (jmap.get((c, f), {}).get(col) if jmap.get((c, f), {}).get(col)
+                 is not None else v)
+                for c, f, v in zip(df["report_code"], df["fight_id"], df[col])]
+    if SOURCE == "ptr":
+        # WCL has no par-time table for PTR zones, so keystoneBonus (and any
+        # medal derived from it) is always 0 there.  Blizzard's in-game rating
+        # separates timed from depleted cleanly instead: depleted keys are
+        # rating-capped at exactly 320 regardless of level, while the worst
+        # timed +10 lands just above the cap and +11-and-up well above it
+        # (verified per key level against the rating-gap structure).  Keys
+        # below +10 score under the cap either way and stay unknown.
+        def timed_medal(sc, lvl):
+            if pd.isna(sc) or lvl < 10:
+                return None
+            return "timed" if sc > (312.0 if lvl == 10 else 320.25) else "none"
+        df["medal"] = [timed_medal(sc, lvl) for sc, lvl in
+                       zip(pd.to_numeric(df["score"], errors="coerce"),
+                           df["key_level"])]
     tmp = CSV_FILE.with_suffix(".csv.tmp")
     df.to_csv(tmp, index=False)
     os.replace(tmp, CSV_FILE)  # atomic: the live dashboard never sees a torn file

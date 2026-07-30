@@ -107,7 +107,12 @@ around getting the maximum data per point:
   census of what testers actually logged — a small, self-selected population
   with no score floor — rather than a top-of-leaderboard sample. PTR run
   scores come from the fight's `rating` field (the in-game M+ rating captured
-  in the combat log) rather than WCL's ranking score. It lands in
+  in the combat log) rather than WCL's ranking score. WCL also lacks PTR
+  par-time data (`keystoneBonus` is always 0 there), so PTR timed/depleted
+  status is inferred from that rating: depleted keys are rating-capped at 320
+  regardless of key level, timed keys +10 and up land above the cap, and keys
+  below +10 stay unknown. The dashboard's "⏱ Timed only" toggle uses this
+  flag (on live it uses the ranking medal). It lands in
   per-source files (`mythic_runs_ptr.csv`, `data_ptr.json`) and the dashboard's
   Live / PTR toggle switches between the two.
 * **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries
