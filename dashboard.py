@@ -205,7 +205,6 @@ TOOLTIPS = [
     alt.Tooltip("median_dps:Q", title="Median DPS", format=","),
     alt.Tooltip("dps_diff:Q", title="Mean − Median DPS", format="+,"),
     alt.Tooltip("avg_deaths:Q", title="Average Deaths", format=".2f"),
-    alt.Tooltip("median_deaths:Q", title="Median Deaths", format=".1f"),
     alt.Tooltip("deathless:Q", title="Deathless runs %", format=".1f"),
 ]
 
@@ -484,7 +483,6 @@ def main() -> None:
             avg_dps=("dps", "mean"),
             median_dps=("dps", "median"),
             avg_deaths=("deaths", "mean"),
-            median_deaths=("deaths", "median"),
             deathless=("deaths", lambda s: (s == 0).mean() * 100),
         )
         .reset_index()
@@ -538,7 +536,7 @@ def main() -> None:
         ("Median DPS", "median_dps", "avg_dps", "Average DPS", ",.0f",
          "deaths_text", "deathless"),
         ("Mean − Median DPS", "dps_diff", None, "", "+,.0f", None, None),
-        ("Average Deaths", "avg_deaths", "median_deaths", "Median Deaths", ".2f",
+        ("Average Deaths", "avg_deaths", None, "", ".2f",
          "dps_text", "avg_dps"),
         ("Deathless Runs %", "deathless", None, "", ".1f", "dps_text", "avg_dps"),
     ]
@@ -579,8 +577,7 @@ def main() -> None:
             "class": "Class", "spec": "Spec", "hero_talent": "Hero Talent",
             "total_runs": "Total Runs", "avg_dps": "Average DPS",
             "median_dps": "Median DPS", "dps_diff": "Mean − Median DPS",
-            "avg_deaths": "Average Deaths",
-            "median_deaths": "Median Deaths", "deathless": "Deathless %",
+            "avg_deaths": "Average Deaths", "deathless": "Deathless %",
         }),
         width="stretch",
         hide_index=True,
@@ -590,7 +587,6 @@ def main() -> None:
             "Median DPS": st.column_config.NumberColumn(format="localized"),
             "Mean − Median DPS": st.column_config.NumberColumn(format="localized"),
             "Average Deaths": st.column_config.NumberColumn(format="%.2f"),
-            "Median Deaths": st.column_config.NumberColumn(format="%.1f"),
             "Deathless %": st.column_config.NumberColumn(format="%.1f%%"),
         },
     )

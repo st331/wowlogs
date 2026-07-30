@@ -277,11 +277,8 @@ const TABS = [
   {id:"diff", label:"Mean − Median", fmt:fmtSigned, betterUp:true, inlay:null, shade:null, tick:null,
    cap:"Positive: a minority of very high parses lifts the average above the typical run. Negative: a low tail drags it under."},
   {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
-   shade:"avg", tick:"mdeaths",
-   cap:"Average deaths per run; grey tick: median deaths. Brighter bar = higher average DPS."},
-  {id:"mdeaths", label:"Median Deaths", fmt:v=>v.toFixed(1), betterUp:false, inlay:"dps",
-   shade:"avg", tick:"adeaths",
-   cap:"Median deaths per run (the typical run); grey tick: average deaths. Brighter bar = higher average DPS."},
+   shade:"avg", tick:null,
+   cap:"Average deaths per run. Brighter bar = higher average DPS."},
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
@@ -716,22 +713,22 @@ function aggregate(weeks){
     const key=groupKey(i);
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,sn:0,ssum:0,dps:[],deaths:[],scores:[]};
+             n:0,sum:0,dsum:0,dzero:0,sn:0,ssum:0,dps:[],scores:[]};
            groups.set(key,g)}
     g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
-    g.dps.push(R.dps[i]); g.deaths.push(R.deaths[i]);
+    g.dps.push(R.dps[i]);
     const sc=R.score?R.score[i]:-1;
     if(sc>=0){g.sn++; g.ssum+=sc; g.scores.push(sc)}
   }
   const out=new Map();
   for(const [key,g] of groups){
-    g.dps.sort((a,b)=>a-b); g.deaths.sort((a,b)=>a-b); g.scores.sort((a,b)=>a-b);
+    g.dps.sort((a,b)=>a-b); g.scores.sort((a,b)=>a-b);
     const med=q50(g.dps);
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
       avg:g.sum/g.n, med, diff:g.sum/g.n-med,
-      adeaths:g.dsum/g.n, mdeaths:q50(g.deaths),
+      adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
       ascore:g.sn?g.ssum/g.sn:NaN, mscore:g.sn?q50(g.scores):NaN});
   }
@@ -767,7 +764,6 @@ function tipHTML(r,compare){
   h+=row("Median DPS", f(r.a,"med",fmtInt), f(r.b,"med",fmtInt));
   h+=row("Mean − median", f(r.a,"diff",fmtSigned), f(r.b,"diff",fmtSigned));
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
-  h+=row("Median deaths", f(r.a,"mdeaths",v=>v.toFixed(1)), f(r.b,"mdeaths",v=>v.toFixed(1)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
   if(hasScore){
     const sf=v=>isFinite(v)?v.toFixed(1):"–";
@@ -926,13 +922,13 @@ function renderTrend(){
   const box=$("trendbox"); box.style.display="";
   const mt=TABS.find(t=>t.id===state.trendMetric)||TABS[0];
   const useScore=!!mt.score;
-  const useDeaths=mt.id==="adeaths"||mt.id==="mdeaths"||mt.id==="deathless";
+  const useDeaths=mt.id==="adeaths"||mt.id==="deathless";
   const calc=vals=>{           // metric over one bag of per-parse source values
     const n=vals.length; if(!n) return NaN;
     let s=0,z=0; for(const v of vals){s+=v; if(v===0)z++}
     switch(mt.id){
       case "avg": case "adeaths": case "ascore": return s/n;
-      case "med": case "mdeaths": case "mscore":
+      case "med": case "mscore":
         return q50([...vals].sort((a,b)=>a-b));
       case "diff": return s/n-q50([...vals].sort((a,b)=>a-b));
       case "deathless": return 100*z/n;
@@ -1128,7 +1124,7 @@ function renderTable(rows,tab){
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
     cols.push(["a_n","Total Runs"],["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
-      ["mdeaths","Med Deaths"],["deathless","Deathless %"]);
+      ["deathless","Deathless %"]);
     if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"]);
   }
   const get=(r,k)=>{
@@ -1170,7 +1166,6 @@ function renderTable(rows,tab){
     if(k==="avg"||k==="med") return fmtInt(v);
     if(k==="diff") return fmtSigned(v);
     if(k==="adeaths") return v.toFixed(2);
-    if(k==="mdeaths") return v.toFixed(1);
     if(k==="deathless") return v.toFixed(1)+"%";
     if(k==="ascore"||k==="mscore") return isFinite(v)?v.toFixed(1):"–";
     return esc(v);
