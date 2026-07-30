@@ -910,6 +910,9 @@ function render(){
     chart.appendChild(row);
   }
   let cap=tab.cap;
+  if(tab.score&&SRC==="ptr"&&!state.timedOnly)
+    cap+=" Note: depleted keys are rating-capped at ~320 in-game and pull these "
+        +"averages down — switch to ⏱ Timed only for uncapped numbers.";
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
   if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
   $("chart-caption").textContent=cap;
