@@ -24,8 +24,11 @@ SITE_DIRS = [ROOT / "site", ROOT / "docs"]
 SOURCES = {
     "live": {"csv": "mythic_runs.csv", "out": "data.json",
              "season": "Midnight Season 1"},
+    # score suppressed on PTR: the tiny tester population makes per-character
+    # totals meaningless there, so the dashboard hides all score UI (the run
+    # ratings still live in the CSV — the timed flag is derived from them)
     "ptr": {"csv": "mythic_runs_ptr.csv", "out": "data_ptr.json",
-            "season": "Midnight Season 2 (PTR)"},
+            "season": "Midnight Season 2 (PTR)", "score": False},
 }
 
 EPOCH = pd.Timestamp("2026-01-01")
@@ -61,8 +64,10 @@ def build(name: str, cfg: dict) -> None:
     char_ids = (df["character"].fillna("?").astype(str) + "@"
                 + df["server"].fillna("?").astype(str) + "@" + df["region"])
     char_arr = pd.factorize(char_ids)[0].tolist()
-    # WCL M+ score (per run; -1 where the source has no rankings, e.g. PTR)
+    # WCL M+ score (per run; -1 = absent, which hides all score UI client-side)
     score = pd.to_numeric(df["score"], errors="coerce").fillna(-1).round(1)
+    if not cfg.get("score", True):
+        score = pd.Series(-1.0, index=df.index)
     # beat-the-timer flag from the run's medal: 1 = timed (any chest count;
     # "timed" is the PTR rating-derived value), 0 = over timer, -1 = unknown
     timed = df["medal"].map({"gold": 1, "silver": 1, "bronze": 1, "timed": 1,
