@@ -112,7 +112,10 @@ around getting the maximum data per point:
   status is inferred from that rating: depleted keys are rating-capped at 320
   regardless of key level, timed keys +10 and up land above the cap, and keys
   below +10 stay unknown. The dashboard's "⏱ Timed only" toggle uses this
-  flag (on live it uses the ranking medal). It lands in
+  flag (on live it uses the ranking medal). The dashboard's score tabs
+  aggregate per-character season-style totals — each character's best run per
+  dungeon (on that spec, under the active filters) summed across dungeons —
+  not single-run scores. It lands in
   per-source files (`mythic_runs_ptr.csv`, `data_ptr.json`) and the dashboard's
   Live / PTR toggle switches between the two.
 * **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries

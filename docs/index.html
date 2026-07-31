@@ -282,12 +282,15 @@ const TABS = [
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
-  {id:"ascore", label:"Average Score", fmt:v=>v.toFixed(1), betterUp:true, inlay:"dps",
+  {id:"ascore", label:"Average Score", fmt:fmtInt, betterUp:true, inlay:"dps",
    shade:"avg", tick:"mscore", score:true,
-   cap:"Average M+ score of the runs this group appears in (WCL ranking score on Live, in-game rating on PTR); grey tick: median score. Brighter bar = higher average DPS."},
-  {id:"mscore", label:"Median Score", fmt:v=>v.toFixed(1), betterUp:true, inlay:"dps",
+   cap:"Average total score per character: each character's best run per dungeon on this spec (within the current filters) summed across dungeons — characters who skipped dungeons simply sum fewer. Grey tick: median."},
+  {id:"mscore", label:"Median Score", fmt:fmtInt, betterUp:true, inlay:"dps",
    shade:"avg", tick:"ascore", score:true,
-   cap:"Median M+ score of the runs this group appears in (WCL ranking score on Live, in-game rating on PTR); grey tick: average score. Brighter bar = higher average DPS."},
+   cap:"Median total score per character (sum of each character's best run per dungeon on this spec, within the current filters). Grey tick: average."},
+  {id:"tscore", label:"Top Score", fmt:fmtInt, betterUp:true, inlay:"dps",
+   shade:"avg", tick:"ascore", score:true,
+   cap:"What this spec can hit: the 95th-percentile character total score (sum of best run per dungeon, within the current filters). Grey tick: average."},
   {id:"trend", label:"Trend", trend:true,
    cap:"Weekly {metric} for the top groups under the current filters, whole season. "+
        "Weeks with fewer than 25 parses for a group are skipped."},
@@ -624,10 +627,11 @@ function buildControls(){
       render()};
     tabs.appendChild(b);
   });
-  // trend-metric picker: one entry per metric tab, shown only on the Trend tab
+  // trend-metric picker: one entry per metric tab, shown only on the Trend
+  // tab (score tabs are excluded: character totals don't slice into weeks)
   const tseg=$("trendseg");
   tseg.innerHTML="";
-  TABS.filter(t=>!t.trend&&(!t.score||hasScore)).forEach(t=>{
+  TABS.filter(t=>!t.trend&&!t.score).forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.trendMetric?"on":"";
     b.onclick=()=>{state.trendMetric=t.id;
@@ -700,10 +704,16 @@ function countParses(weeks){
   }
   return c;
 }
+// composite-key strides for per-character score totals; groupKey() tops out
+// below GS (non-merged: (13*100+36)*200+199) and dungeon index below 16
+const GS=300000;
 function aggregate(weeks){
   const m=baseMasks();
   const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
   const runSeen=new Uint8Array(runCount);
+  // (char, group, dungeon) -> that character's best run score in the dungeon;
+  // summing the bests across dungeons gives the season-style total score
+  const charBest=(hasScore&&R.char)?new Map():null;
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     if(weeks.size&&!weeks.has(R.rbucket[i])) continue;
@@ -713,24 +723,48 @@ function aggregate(weeks){
     const key=groupKey(i);
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,sn:0,ssum:0,dps:[],scores:[]};
+             n:0,sum:0,dsum:0,dzero:0,dps:[]};
            groups.set(key,g)}
     g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
     g.dps.push(R.dps[i]);
-    const sc=R.score?R.score[i]:-1;
-    if(sc>=0){g.sn++; g.ssum+=sc; g.scores.push(sc)}
+    if(charBest&&R.score[i]>=0){
+      const ck=(R.char[i]*GS+key)*16+R.dun[i];
+      const prev=charBest.get(ck);
+      if(prev===undefined||R.score[i]>prev) charBest.set(ck,R.score[i]);
+    }
+  }
+  // roll per-dungeon bests into per-character totals, bucketed by group
+  const gtotals=charBest&&charBest.size?new Map():null;
+  if(gtotals){
+    const totals=new Map();               // char*GS+group -> summed best scores
+    for(const [ck,sc] of charBest)
+      totals.set(Math.floor(ck/16),(totals.get(Math.floor(ck/16))||0)+sc);
+    for(const [tk,sum] of totals){
+      const gk=tk%GS;
+      let arr=gtotals.get(gk);
+      if(!arr){arr=[]; gtotals.set(gk,arr)}
+      arr.push(sum);
+    }
   }
   const out=new Map();
   for(const [key,g] of groups){
-    g.dps.sort((a,b)=>a-b); g.scores.sort((a,b)=>a-b);
+    g.dps.sort((a,b)=>a-b);
     const med=q50(g.dps);
+    let ascore=NaN, mscore=NaN, tscore=NaN, cn=0;
+    const tl=gtotals&&gtotals.get(key);
+    if(tl&&tl.length){
+      tl.sort((a,b)=>a-b); cn=tl.length;
+      ascore=tl.reduce((a,b)=>a+b,0)/cn;
+      mscore=q50(tl);
+      tscore=tl[Math.min(cn-1,Math.round(0.95*(cn-1)))];
+    }
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
       avg:g.sum/g.n, med, diff:g.sum/g.n-med,
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
-      ascore:g.sn?g.ssum/g.sn:NaN, mscore:g.sn?q50(g.scores):NaN});
+      ascore, mscore, tscore, cn});
   }
   return {groups:out, parses, runs, dmin, dmax};
 }
@@ -766,9 +800,11 @@ function tipHTML(r,compare){
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
   if(hasScore){
-    const sf=v=>isFinite(v)?v.toFixed(1):"–";
-    h+=row("Average score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
-    h+=row("Median score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
+    const sf=v=>isFinite(v)?fmtInt(v):"–";
+    h+=row("Avg total score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
+    h+=row("Median total score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
+    h+=row("Top score (p95)", f(r.a,"tscore",sf), f(r.b,"tscore",sf));
+    h+=row("Scored characters", f(r.a,"cn",fmtInt), f(r.b,"cn",fmtInt));
   }
   return h+"</table>";
 }
@@ -910,9 +946,6 @@ function render(){
     chart.appendChild(row);
   }
   let cap=tab.cap;
-  if(tab.score&&SRC==="ptr"&&!state.timedOnly)
-    cap+=" Note: depleted keys are rating-capped at ~320 in-game and pull these "
-        +"averages down — switch to ⏱ Timed only for uncapped numbers.";
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
   if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
   $("chart-caption").textContent=cap;
@@ -923,16 +956,15 @@ function render(){
 function renderTrend(){
   $("chart").style.display="none";
   const box=$("trendbox"); box.style.display="";
-  const mt=TABS.find(t=>t.id===state.trendMetric)||TABS[0];
-  const useScore=!!mt.score;
+  let mt=TABS.find(t=>t.id===state.trendMetric)||TABS[0];
+  if(mt.score){state.trendMetric="avg"; mt=TABS[0];}
   const useDeaths=mt.id==="adeaths"||mt.id==="deathless";
   const calc=vals=>{           // metric over one bag of per-parse source values
     const n=vals.length; if(!n) return NaN;
     let s=0,z=0; for(const v of vals){s+=v; if(v===0)z++}
     switch(mt.id){
-      case "avg": case "adeaths": case "ascore": return s/n;
-      case "med": case "mscore":
-        return q50([...vals].sort((a,b)=>a-b));
+      case "avg": case "adeaths": return s/n;
+      case "med": return q50([...vals].sort((a,b)=>a-b));
       case "diff": return s/n-q50([...vals].sort((a,b)=>a-b));
       case "deathless": return 100*z/n;
     }
@@ -943,8 +975,7 @@ function renderTrend(){
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     const w=R.rbucket[i]; if(w>=999) continue;
-    const v=useScore?(R.score?R.score[i]:-1):useDeaths?R.deaths[i]:R.dps[i];
-    if(useScore&&v<0) continue;
+    const v=useDeaths?R.deaths[i]:R.dps[i];
     const key=groupKey(i);
     let t=tot.get(key);
     if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],n:0,vals:[]};
@@ -988,12 +1019,12 @@ function renderTrend(){
   let ymin=1e18,ymax=-1e18;
   series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
   const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
-  if((useDeaths||useScore)&&ymin<0) ymin=0;        // these metrics can't go negative
+  if(useDeaths&&ymin<0) ymin=0;                    // these metrics can't go negative
   if(mt.id==="deathless"&&ymax>100) ymax=100;
   const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
   const ys=v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
   const axf=v=>useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
-    :useScore?String(Math.round(v)):Math.round(v/1000)+"k";
+    :Math.round(v/1000)+"k";
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,weeks,ymin,ymax,mt);
     wireTrendTips(box,mt);
@@ -1128,7 +1159,8 @@ function renderTable(rows,tab){
     cols.push(["a_n","Total Runs"],["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
-    if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"]);
+    if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"],
+      ["tscore","Top Score"]);
   }
   const get=(r,k)=>{
     switch(k){
@@ -1170,7 +1202,7 @@ function renderTable(rows,tab){
     if(k==="diff") return fmtSigned(v);
     if(k==="adeaths") return v.toFixed(2);
     if(k==="deathless") return v.toFixed(1)+"%";
-    if(k==="ascore"||k==="mscore") return isFinite(v)?v.toFixed(1):"–";
+    if(k==="ascore"||k==="mscore"||k==="tscore") return isFinite(v)?fmtInt(v):"–";
     return esc(v);
   };
   for(const r of sorted){

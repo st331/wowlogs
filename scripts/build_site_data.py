@@ -57,6 +57,10 @@ def build(name: str, cfg: dict) -> None:
     roles, role_arr = enc("role")
     run_ids = (df["report_code"].astype(str) + ":" + df["fight_id"].astype(str))
     run_arr = pd.factorize(run_ids)[0].tolist()
+    # character identity (name@server@region) for per-character score totals
+    char_ids = (df["character"].fillna("?").astype(str) + "@"
+                + df["server"].fillna("?").astype(str) + "@" + df["region"])
+    char_arr = pd.factorize(char_ids)[0].tolist()
     # WCL M+ score (per run; -1 where the source has no rankings, e.g. PTR)
     score = pd.to_numeric(df["score"], errors="coerce").fillna(-1).round(1)
     # beat-the-timer flag from the run's medal: 1 = timed (any chest count;
@@ -80,6 +84,7 @@ def build(name: str, cfg: dict) -> None:
             "timed": timed.tolist(),
             "day": day.tolist(),
             "run": run_arr,
+            "char": char_arr,
         },
     }
     blob = json.dumps(payload, separators=(",", ":"))
