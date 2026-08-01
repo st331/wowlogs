@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 4,697 runs / 23,474 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-01. Generated 2026-08-01 05:33 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 4,825 runs / 24,114 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-01. Generated 2026-08-01 18:22 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -14,12 +14,13 @@ The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-
 
 The `subset` column is "all" (every completed run) or "timed" (runs that beat the timer only). Medians and p90s are exact within each row — never average them across rows; recompute from the raw chunks instead.
 
-## Raw per-parse data (23,474 rows, complete)
+## Raw per-parse data (24,114 rows, complete)
 
 - https://st331.github.io/wowlogs/llms/parses_1.csv — rows 1-6,000
 - https://st331.github.io/wowlogs/llms/parses_2.csv — rows 6,001-12,000
 - https://st331.github.io/wowlogs/llms/parses_3.csv — rows 12,001-18,000
-- https://st331.github.io/wowlogs/llms/parses_4.csv — rows 18,001-23,474
+- https://st331.github.io/wowlogs/llms/parses_4.csv — rows 18,001-24,000
+- https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-24,114
 
 One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date.
 
