@@ -1,0 +1,42 @@
+# Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
+
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 4,697 runs / 23,474 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-01. Generated 2026-08-01 05:33 UTC.
+
+The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
+
+## Start here (pre-aggregated)
+
+- https://st331.github.io/wowlogs/llms/spec_summary.csv — one row per class/spec/hero-talent/role (plus hero_talent="(all merged)" rollups) × subset. Columns: subset, class, spec, hero_talent, role, parses, runs, avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level.
+- https://st331.github.io/wowlogs/llms/spec_by_key.csv — same metrics split by keystone level.
+- https://st331.github.io/wowlogs/llms/spec_by_dungeon.csv — same metrics split by dungeon.
+- https://st331.github.io/wowlogs/llms/spec_by_week.csv — same metrics split by week (week_start = Monday, UTC).
+- https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon run counts, timed %, average duration/key/deaths.
+
+The `subset` column is "all" (every completed run) or "timed" (runs that beat the timer only). Medians and p90s are exact within each row — never average them across rows; recompute from the raw chunks instead.
+
+## Raw per-parse data (23,474 rows, complete)
+
+- https://st331.github.io/wowlogs/llms/parses_1.csv — rows 1-6,000
+- https://st331.github.io/wowlogs/llms/parses_2.csv — rows 6,001-12,000
+- https://st331.github.io/wowlogs/llms/parses_3.csv — rows 12,001-18,000
+- https://st331.github.io/wowlogs/llms/parses_4.csv — rows 18,001-23,474
+
+One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date.
+
+## Column dictionary
+
+- run_id / char_id: stable anonymous integer ids within this dataset version.
+- class / spec / hero_talent: e.g. Warlock / Demonology / Diabolist; hero_talent may be "Unknown" where the talent tree could not be resolved (~5% of rows).
+- role: DPS, Healer or Tank.
+- key_level: keystone level (+N).
+- timed: 1 = beat the timer, 0 = completed over timer, -1 = unknown (keys below +10, where the in-game rating cannot distinguish the two).
+- duration_s: fight duration in seconds; dps = total damage done ÷ duration (WCL "Overall DPS"); deaths: that player's deaths in the run, parsed from the report's death events.
+- item_level: player max item level during the run (may be blank).
+
+## Provenance and caveats
+
+- Source: Warcraft Logs API v2 report data for the PTR Mythic+ zone; every *completed* keystone fight (kill == true) is included — wipes and abandoned keys are not. This is a census of what testers logged, not a leaderboard sample.
+- The PTR population is small and self-selected; expect noisy numbers, especially for rare specs — check the `parses` column before trusting a row.
+- Timed status is inferred from Blizzard's in-game rating (depleted keys are rating-capped at 320 regardless of level).
+- Hero talents come from an offline SimulationCraft trait-tree mapping.
+- Dataset regenerates on each data refresh; row counts and ids change between versions.
