@@ -171,6 +171,10 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
   <div class="chips" id="presetA" style="padding-top:2px"></div>
   <details><summary>Custom weeks <span class="cnt" id="cnt-weeksA"></span></summary>
     <div class="chips" id="f-weeksA"></div></details>
+  <div id="daybox" style="display:none">
+    <div class="hint" style="margin:.5rem 0 0">Zoom into this reset — most recent:</div>
+    <div class="chips" id="f-days" style="padding-top:6px"></div>
+  </div>
   <label class="small" style="margin-top:.5rem"><input type="checkbox" id="cmp">
     Compare with a second period</label>
   <div class="chips" id="quickcmp"></div>
@@ -300,10 +304,12 @@ const TREND_MAX = 16;
 
 let D=null, R=null, N=0, runCount=0;
 let availWeeks=[], weekCounts=new Map(), usB0=0;
+let curMinDay=0, curMaxDay=-1;   // day span covered by the current reset
 const EMPTY=new Set(); let lastEffMin=0;
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
+             dayCut:0,   // 0 = whole reset; N = most recent N days of it
              minruns:200, sort:"desc", tab:"avg", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:false,
              tsort:{col:"a_v", dir:-1}};
@@ -383,6 +389,7 @@ function initData(d,cfg){
   prune(state.dun,D.dungeons); prune(state.reg,D.regions);
   // per-source defaults: period = the last month, keys, min-runs baseline
   state.weeksA.clear();
+  state.dayCut=0;   // day spans differ per source
   for(const w of [0,1,2,3]) if(weekCounts.has(w)) state.weeksA.add(w);
   state.weeksB.clear();
   const wb=availWeeks.find(w=>w>0) ?? availWeeks[0];
@@ -449,7 +456,27 @@ function computeResetBuckets(){
   for(let i=0;i<N;i++) if(R.rbucket[i]<999)
     weekCounts.set(R.rbucket[i],(weekCounts.get(R.rbucket[i])||0)+1);
   availWeeks=[...weekCounts.keys()].sort((a,b)=>a-b);
+  // day span of the current reset, anchored on the latest day that HAS data
+  // (so "last 1 day" is never empty just because today's logs aren't in yet)
+  curMinDay=1e9; curMaxDay=-1;
+  for(let i=0;i<N;i++) if(R.rbucket[i]===0&&R.day[i]>=0){
+    if(R.day[i]<curMinDay) curMinDay=R.day[i];
+    if(R.day[i]>curMaxDay) curMaxDay=R.day[i];
+  }
+  if(curMaxDay<0) curMinDay=0;
 }
+// how many days back the current-reset zoom covers, 0 when it doesn't apply:
+// only a selection of exactly "this reset" can be narrowed to days
+function periodCut(weeks){
+  return (state.dayCut>0&&weeks.size===1&&weeks.has(0)&&curMaxDay>=0)
+    ? state.dayCut : 0;
+}
+function periodPass(i,weeks,cut){
+  if(weeks.size&&!weeks.has(R.rbucket[i])) return false;
+  if(cut&&R.day[i]<curMaxDay-cut+1) return false;
+  return true;
+}
+function resetDays(){return curMaxDay<0?0:curMaxDay-curMinDay+1}
 
 /* ---------------- filter option pools ---------------- */
 function specPool(){
@@ -543,11 +570,37 @@ function buildPeriodUI(prefix, sel, ghosted){
   return paint;
 }
 let paintA=null, paintB=null;
-function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); syncCounts();}
+function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); paintDays(); syncCounts();}
 function describePeriod(sel){
+  let base=null;
   for(const [name,make] of PRESETS)
-    if(setsEqual(sel,new Set(presetWeeks(make)))) return name.toLowerCase();
-  return sel.size+" week"+(sel.size>1?"s":"");
+    if(setsEqual(sel,new Set(presetWeeks(make)))) {base=name.toLowerCase(); break}
+  if(base===null) base=sel.size+" week"+(sel.size>1?"s":"");
+  const cut=periodCut(sel);
+  return cut ? base+" · last "+cut+" day"+(cut>1?"s":"") : base;
+}
+
+// Day zoom: only meaningful when the selection is exactly the current reset,
+// so the control appears with that selection and hides again otherwise.
+function paintDays(){
+  const box=$("daybox"), days=resetDays();
+  const applies=state.weeksA.size===1&&state.weeksA.has(0)&&days>1;
+  box.style.display=applies?"":"none";
+  if(!applies) return;
+  if(state.dayCut>days) state.dayCut=0;   // reset shrank under us
+  const wrap=$("f-days");
+  wrap.innerHTML="";
+  const mk=(label,val,title)=>{
+    const c=document.createElement("span");
+    c.className="chip"+(state.dayCut===val?" on":"");
+    c.textContent=label; c.title=title;
+    c.onclick=()=>{state.dayCut=val; paintDays(); render();};
+    wrap.appendChild(c);
+  };
+  for(let d=1;d<=days;d++)
+    mk(d+"d", d, d===1 ? "just "+fmtDay(curMaxDay)
+       : fmtDay(curMaxDay-d+1)+" – "+fmtDay(curMaxDay));
+  mk("All "+days+"d", 0, "the whole reset so far");
 }
 
 /* ---------------- build all controls ---------------- */
@@ -696,10 +749,10 @@ function groupKey(i){
   return state.merge ? R.cls[i]*100+R.spec[i] : (R.cls[i]*100+R.spec[i])*200+R.hero[i];
 }
 function countParses(weeks){
-  const m=baseMasks(); let c=0;
+  const m=baseMasks(), cut=periodCut(weeks); let c=0;
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
-    if(weeks.size&&!weeks.has(R.rbucket[i])) continue;
+    if(!periodPass(i,weeks,cut)) continue;
     c++;
   }
   return c;
@@ -708,7 +761,7 @@ function countParses(weeks){
 // below GS (non-merged: (13*100+36)*200+199) and dungeon index below 16
 const GS=300000;
 function aggregate(weeks){
-  const m=baseMasks();
+  const m=baseMasks(), cut=periodCut(weeks);
   const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
   const runSeen=new Uint8Array(runCount);
   // (char, group, dungeon) -> that character's best run score in the dungeon;
@@ -716,18 +769,19 @@ function aggregate(weeks){
   const charBest=(hasScore&&R.char)?new Map():null;
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
-    if(weeks.size&&!weeks.has(R.rbucket[i])) continue;
+    if(!periodPass(i,weeks,cut)) continue;
     parses++;
     if(!runSeen[R.run[i]]){runSeen[R.run[i]]=1; runs++}
     if(R.day[i]>=0){if(R.day[i]<dmin)dmin=R.day[i]; if(R.day[i]>dmax)dmax=R.day[i];}
     const key=groupKey(i);
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,dps:[]};
+             n:0,sum:0,dsum:0,dzero:0,dps:[],chars:new Set()};
            groups.set(key,g)}
     g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
     g.dps.push(R.dps[i]);
+    if(R.char) g.chars.add(R.char[i]);
     if(charBest&&R.score[i]>=0){
       const ck=(R.char[i]*GS+key)*16+R.dun[i];
       const prev=charBest.get(ck);
@@ -764,6 +818,7 @@ function aggregate(weeks){
       avg:g.sum/g.n, med, diff:g.sum/g.n-med,
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
+      chars:g.chars.size,
       ascore, mscore, tscore, cn});
   }
   return {groups:out, parses, runs, dmin, dmax};
@@ -794,6 +849,7 @@ function tipHTML(r,compare){
   let h="<b>"+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+"</b><table>";
   if(compare) h+=row("", "<b>A</b>", "<b>B</b>");
   h+=row("Total runs", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
+  h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
   h+=row("Average DPS", f(r.a,"avg",fmtInt), f(r.b,"avg",fmtInt));
   h+=row("Median DPS", f(r.a,"med",fmtInt), f(r.b,"med",fmtInt));
   h+=row("Mean − median", f(r.a,"diff",fmtSigned), f(r.b,"diff",fmtSigned));
