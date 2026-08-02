@@ -109,11 +109,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1222,845,Warlock,Destruction,Diabolist,DPS,EU,Altar of Fangs,14,0,1832.3,259802,3,321,2026-07-26
 1222,340,Shaman,Enhancement,Stormbringer,DPS,EU,Altar of Fangs,14,0,1832.3,282415,2,321,2026-07-26
 1222,341,Evoker,Augmentation,Scalecommander,DPS,EU,Altar of Fangs,14,0,1832.3,224103,1,321,2026-07-26
-1223,5,Warrior,Protection,Mountain Thane,Tank,US,Voidscar Arena,16,1,1620.3,117078,2,328,2026-07-03
-1223,879,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Voidscar Arena,16,1,1620.3,48901,2,328,2026-07-03
-1223,2983,Shaman,Elemental,Stormbringer,DPS,US,Voidscar Arena,16,1,1620.3,169169,4,328,2026-07-03
-1223,1613,DeathKnight,Frost,Deathbringer,DPS,US,Voidscar Arena,16,1,1620.3,252848,2,328,2026-07-03
-1223,95,Mage,Arcane,Spellslinger,DPS,US,Voidscar Arena,16,1,1620.3,238408,2,328,2026-07-03
+1223,5,Warrior,Protection,Mountain Thane,Tank,US,Voidscar Arena,16,-1,1620.3,117078,2,328,2026-07-03
+1223,879,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Voidscar Arena,16,-1,1620.3,48901,2,328,2026-07-03
+1223,2983,Shaman,Elemental,Stormbringer,DPS,US,Voidscar Arena,16,-1,1620.3,169169,4,328,2026-07-03
+1223,1613,DeathKnight,Frost,Deathbringer,DPS,US,Voidscar Arena,16,-1,1620.3,252848,2,328,2026-07-03
+1223,95,Mage,Arcane,Spellslinger,DPS,US,Voidscar Arena,16,-1,1620.3,238408,2,328,2026-07-03
 1224,1672,Paladin,Protection,Unknown,Tank,US,Kings' Rest,19,-1,1982.9,169459,0,334,2026-07-12
 1224,371,Monk,Mistweaver,Unknown,Healer,US,Kings' Rest,19,-1,1982.9,47415,1,334,2026-07-12
 1224,2984,Priest,Shadow,Unknown,DPS,US,Kings' Rest,19,-1,1982.9,213580,5,334,2026-07-12
@@ -144,11 +144,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1229,76,DeathKnight,Unholy,San'layn,DPS,US,The Blinding Vale,15,1,1718.1,283291,1,334,2026-07-26
 1229,589,Paladin,Retribution,Herald of the Sun,DPS,US,The Blinding Vale,15,1,1718.1,268676,3,334,2026-07-26
 1229,2993,Mage,Arcane,Spellslinger,DPS,US,The Blinding Vale,15,1,1718.1,244304,6,334,2026-07-26
-1230,454,Paladin,Protection,Lightsmith,Tank,US,Den of Nalorakk,15,0,1792.4,131919,2,328,2026-07-03
-1230,455,Paladin,Holy,Herald of the Sun,Healer,US,Den of Nalorakk,15,0,1792.4,18540,2,328,2026-07-03
-1230,111,Hunter,Survival,Pack Leader,DPS,US,Den of Nalorakk,15,0,1792.4,211212,3,328,2026-07-03
-1230,2833,Hunter,BeastMastery,Pack Leader,DPS,US,Den of Nalorakk,15,0,1792.4,179832,1,328,2026-07-03
-1230,457,Druid,Feral,Druid of the Claw,DPS,US,Den of Nalorakk,15,0,1792.4,171443,2,328,2026-07-03
+1230,454,Paladin,Protection,Lightsmith,Tank,US,Den of Nalorakk,15,-1,1792.4,131919,2,328,2026-07-03
+1230,455,Paladin,Holy,Herald of the Sun,Healer,US,Den of Nalorakk,15,-1,1792.4,18540,2,328,2026-07-03
+1230,111,Hunter,Survival,Pack Leader,DPS,US,Den of Nalorakk,15,-1,1792.4,211212,3,328,2026-07-03
+1230,2833,Hunter,BeastMastery,Pack Leader,DPS,US,Den of Nalorakk,15,-1,1792.4,179832,1,328,2026-07-03
+1230,457,Druid,Feral,Druid of the Claw,DPS,US,Den of Nalorakk,15,-1,1792.4,171443,2,328,2026-07-03
 1231,4,DemonHunter,Vengeance,Annihilator,Tank,US,Altar of Fangs,10,-1,1565.5,73361,0,315,2026-06-27
 1231,2994,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,10,-1,1565.5,23480,1,315,2026-06-27
 1231,1221,DemonHunter,Havoc,Fel-Scarred,DPS,US,Altar of Fangs,10,-1,1565.5,164666,0,315,2026-06-27
@@ -164,11 +164,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1233,3001,DemonHunter,Havoc,Fel-Scarred,DPS,CN,Altar of Fangs,12,-1,2600.8,95125,7,321,2026-07-15
 1233,197,Mage,Arcane,Spellslinger,DPS,CN,Altar of Fangs,12,-1,2600.8,185632,8,321,2026-07-15
 1233,2945,Mage,Arcane,Spellslinger,DPS,CN,Altar of Fangs,12,-1,2600.8,172577,10,321,2026-07-15
-1234,3002,Paladin,Protection,Unknown,Tank,TW,The Blinding Vale,15,1,1287.7,158457,0,328,2026-07-03
-1234,3003,Monk,Mistweaver,Unknown,Healer,TW,The Blinding Vale,15,1,1287.7,58612,0,328,2026-07-03
-1234,3004,Warrior,Arms,Unknown,DPS,TW,The Blinding Vale,15,1,1287.7,245346,2,328,2026-07-03
-1234,3005,Shaman,Elemental,Unknown,DPS,TW,The Blinding Vale,15,1,1287.7,312245,0,328,2026-07-03
-1234,3006,DeathKnight,Frost,Unknown,DPS,TW,The Blinding Vale,15,1,1287.7,378026,0,328,2026-07-03
+1234,3002,Paladin,Protection,Unknown,Tank,TW,The Blinding Vale,15,-1,1287.7,158457,0,328,2026-07-03
+1234,3003,Monk,Mistweaver,Unknown,Healer,TW,The Blinding Vale,15,-1,1287.7,58612,0,328,2026-07-03
+1234,3004,Warrior,Arms,Unknown,DPS,TW,The Blinding Vale,15,-1,1287.7,245346,2,328,2026-07-03
+1234,3005,Shaman,Elemental,Unknown,DPS,TW,The Blinding Vale,15,-1,1287.7,312245,0,328,2026-07-03
+1234,3006,DeathKnight,Frost,Unknown,DPS,TW,The Blinding Vale,15,-1,1287.7,378026,0,328,2026-07-03
 1235,98,Paladin,Protection,Lightsmith,Tank,CN,Kings' Rest,17,1,1601.0,155641,0,334,2026-07-10
 1235,3007,Evoker,Preservation,Flameshaper,Healer,CN,Kings' Rest,17,1,1601.0,85702,0,334,2026-07-10
 1235,102,Warlock,Affliction,Soul Harvester,DPS,CN,Kings' Rest,17,1,1601.0,213348,2,334,2026-07-10
@@ -399,11 +399,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1280,3078,DemonHunter,Devourer,Annihilator,DPS,CN,Ruby Life Pools,15,1,1285.2,228914,2,334,2026-07-23
 1280,3079,Hunter,Marksmanship,Sentinel,DPS,CN,Ruby Life Pools,15,1,1285.2,334634,0,334,2026-07-23
 1280,3080,Warrior,Arms,Slayer,DPS,CN,Ruby Life Pools,15,1,1285.2,270274,1,334,2026-07-23
-1281,3081,DemonHunter,Vengeance,Annihilator,Tank,EU,Voidscar Arena,15,1,1551.9,125453,1,328,2026-07-03
-1281,273,Druid,Restoration,Wildstalker,Healer,EU,Voidscar Arena,15,1,1551.9,24798,1,328,2026-07-03
-1281,3082,Monk,Windwalker,Shado-Pan,DPS,EU,Voidscar Arena,15,1,1551.9,187632,1,328,2026-07-03
-1281,3083,DeathKnight,Frost,Deathbringer,DPS,EU,Voidscar Arena,15,1,1551.9,230269,1,328,2026-07-03
-1281,394,Mage,Arcane,Spellslinger,DPS,EU,Voidscar Arena,15,1,1551.9,178738,3,328,2026-07-03
+1281,3081,DemonHunter,Vengeance,Annihilator,Tank,EU,Voidscar Arena,15,-1,1551.9,125453,1,328,2026-07-03
+1281,273,Druid,Restoration,Wildstalker,Healer,EU,Voidscar Arena,15,-1,1551.9,24798,1,328,2026-07-03
+1281,3082,Monk,Windwalker,Shado-Pan,DPS,EU,Voidscar Arena,15,-1,1551.9,187632,1,328,2026-07-03
+1281,3083,DeathKnight,Frost,Deathbringer,DPS,EU,Voidscar Arena,15,-1,1551.9,230269,1,328,2026-07-03
+1281,394,Mage,Arcane,Spellslinger,DPS,EU,Voidscar Arena,15,-1,1551.9,178738,3,328,2026-07-03
 1282,1170,Monk,Brewmaster,Shado-Pan,Tank,US,Temple of Sethraliss,12,1,1598.1,83914,0,321,2026-07-11
 1282,1171,Shaman,Restoration,Totemic,Healer,US,Temple of Sethraliss,12,1,1598.1,36650,0,321,2026-07-11
 1282,1173,Hunter,Marksmanship,Dark Ranger,DPS,US,Temple of Sethraliss,12,1,1598.1,208845,0,321,2026-07-11
@@ -429,11 +429,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1286,694,DeathKnight,Frost,Unknown,DPS,US,The Blinding Vale,16,1,1668.1,252094,6,328,2026-07-06
 1286,864,Shaman,Enhancement,Unknown,DPS,US,The Blinding Vale,16,1,1668.1,246940,2,328,2026-07-06
 1286,140,Mage,Arcane,Unknown,DPS,US,The Blinding Vale,16,1,1668.1,310922,0,328,2026-07-06
-1287,3092,Warrior,Protection,Mountain Thane,Tank,CN,The Blinding Vale,16,1,1424.0,136600,0,328,2026-07-03
-1287,2865,Priest,Discipline,Oracle,Healer,CN,The Blinding Vale,16,1,1424.0,59330,1,328,2026-07-03
-1287,2866,DeathKnight,Frost,Deathbringer,DPS,CN,The Blinding Vale,16,1,1424.0,328815,0,328,2026-07-03
-1287,633,Shaman,Enhancement,Stormbringer,DPS,CN,The Blinding Vale,16,1,1424.0,249331,0,328,2026-07-03
-1287,2867,Warlock,Affliction,Soul Harvester,DPS,CN,The Blinding Vale,16,1,1424.0,280867,1,328,2026-07-03
+1287,3092,Warrior,Protection,Mountain Thane,Tank,CN,The Blinding Vale,16,-1,1424.0,136600,0,328,2026-07-03
+1287,2865,Priest,Discipline,Oracle,Healer,CN,The Blinding Vale,16,-1,1424.0,59330,1,328,2026-07-03
+1287,2866,DeathKnight,Frost,Deathbringer,DPS,CN,The Blinding Vale,16,-1,1424.0,328815,0,328,2026-07-03
+1287,633,Shaman,Enhancement,Stormbringer,DPS,CN,The Blinding Vale,16,-1,1424.0,249331,0,328,2026-07-03
+1287,2867,Warlock,Affliction,Soul Harvester,DPS,CN,The Blinding Vale,16,-1,1424.0,280867,1,328,2026-07-03
 1288,3093,Monk,Brewmaster,Master of Harmony,Tank,CN,Altar of Fangs,12,-1,1513.8,124413,0,315,2026-06-28
 1288,3094,Priest,Holy,Oracle,Healer,CN,Altar of Fangs,12,-1,1513.8,10285,1,315,2026-06-28
 1288,3095,Warlock,Affliction,Soul Harvester,DPS,CN,Altar of Fangs,12,-1,1513.8,251803,1,315,2026-06-28
@@ -513,11 +513,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1303,777,Shaman,Restoration,Totemic,Healer,EU,Temple of Sethraliss,10,-1,2773.3,18074,6,321,2026-07-26
 1303,3110,Shaman,Enhancement,Stormbringer,DPS,EU,Temple of Sethraliss,10,-1,2773.3,131658,9,321,2026-07-26
 1303,778,DeathKnight,Unholy,San'layn,DPS,EU,Temple of Sethraliss,10,-1,2773.3,165881,5,321,2026-07-26
-1304,3111,Warrior,Protection,Mountain Thane,Tank,US,Murder Row,15,1,1745.1,98283,0,328,2026-07-03
-1304,3112,Priest,Discipline,Oracle,Healer,US,Murder Row,15,1,1745.1,31710,2,328,2026-07-03
-1304,923,Shaman,Enhancement,Totemic,DPS,US,Murder Row,15,1,1745.1,217310,2,328,2026-07-03
-1304,3113,DeathKnight,Frost,Deathbringer,DPS,US,Murder Row,15,1,1745.1,282803,0,328,2026-07-03
-1304,3114,Hunter,BeastMastery,Pack Leader,DPS,US,Murder Row,15,1,1745.1,190253,1,328,2026-07-03
+1304,3111,Warrior,Protection,Mountain Thane,Tank,US,Murder Row,15,-1,1745.1,98283,0,328,2026-07-03
+1304,3112,Priest,Discipline,Oracle,Healer,US,Murder Row,15,-1,1745.1,31710,2,328,2026-07-03
+1304,923,Shaman,Enhancement,Totemic,DPS,US,Murder Row,15,-1,1745.1,217310,2,328,2026-07-03
+1304,3113,DeathKnight,Frost,Deathbringer,DPS,US,Murder Row,15,-1,1745.1,282803,0,328,2026-07-03
+1304,3114,Hunter,BeastMastery,Pack Leader,DPS,US,Murder Row,15,-1,1745.1,190253,1,328,2026-07-03
 1305,423,DemonHunter,Vengeance,Annihilator,Tank,EU,Ruby Life Pools,18,0,1817.5,149082,2,334,2026-07-11
 1305,424,Paladin,Holy,Lightsmith,Healer,EU,Ruby Life Pools,18,0,1817.5,44167,2,334,2026-07-11
 1305,427,Hunter,Marksmanship,Sentinel,DPS,EU,Ruby Life Pools,18,0,1817.5,244622,2,334,2026-07-11
@@ -548,11 +548,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1310,1454,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,18,1,1666.6,337542,1,334,2026-07-25
 1310,3121,Mage,Arcane,Spellslinger,DPS,US,Voidscar Arena,18,1,1666.6,298446,0,334,2026-07-25
 1310,3122,Druid,Balance,Elune's Chosen,DPS,US,Voidscar Arena,18,1,1666.6,302348,5,334,2026-07-25
-1311,146,Paladin,Protection,Lightsmith,Tank,CN,Voidscar Arena,18,1,1422.4,138864,0,328,2026-07-03
-1311,1107,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Voidscar Arena,18,1,1422.4,54216,1,328,2026-07-03
-1311,187,Warrior,Arms,Colossus,DPS,CN,Voidscar Arena,18,1,1422.4,255568,0,328,2026-07-03
-1311,290,Mage,Arcane,Spellslinger,DPS,CN,Voidscar Arena,18,1,1422.4,296423,0,328,2026-07-03
-1311,1244,Hunter,Marksmanship,Sentinel,DPS,CN,Voidscar Arena,18,1,1422.4,191962,1,328,2026-07-03
+1311,146,Paladin,Protection,Lightsmith,Tank,CN,Voidscar Arena,18,-1,1422.4,138864,0,328,2026-07-03
+1311,1107,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Voidscar Arena,18,-1,1422.4,54216,1,328,2026-07-03
+1311,187,Warrior,Arms,Colossus,DPS,CN,Voidscar Arena,18,-1,1422.4,255568,0,328,2026-07-03
+1311,290,Mage,Arcane,Spellslinger,DPS,CN,Voidscar Arena,18,-1,1422.4,296423,0,328,2026-07-03
+1311,1244,Hunter,Marksmanship,Sentinel,DPS,CN,Voidscar Arena,18,-1,1422.4,191962,1,328,2026-07-03
 1312,0,Warrior,Protection,Colossus,Tank,US,Kings' Rest,12,1,1538.2,103298,0,321,2026-07-19
 1312,1,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Kings' Rest,12,1,1538.2,60981,2,321,2026-07-19
 1312,3,Shaman,Enhancement,Stormbringer,DPS,US,Kings' Rest,12,1,1538.2,140060,2,321,2026-07-19
@@ -728,11 +728,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1346,482,DeathKnight,Unholy,Unknown,DPS,US,The Blinding Vale,17,0,1874.7,269574,2,328,2026-07-05
 1346,253,Evoker,Augmentation,Unknown,DPS,US,The Blinding Vale,17,0,1874.7,278074,3,328,2026-07-05
 1346,481,Mage,Arcane,Unknown,DPS,US,The Blinding Vale,17,0,1874.7,255310,3,328,2026-07-05
-1347,45,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,16,0,2154.3,119271,1,328,2026-07-03
-1347,2246,Shaman,Restoration,Totemic,Healer,EU,Murder Row,16,0,2154.3,4704,1,328,2026-07-03
-1347,3191,Hunter,Survival,Pack Leader,DPS,EU,Murder Row,16,0,2154.3,197527,4,328,2026-07-03
-1347,726,Paladin,Retribution,Herald of the Sun,DPS,EU,Murder Row,16,0,2154.3,259224,2,328,2026-07-03
-1347,392,Warrior,Arms,Slayer,DPS,EU,Murder Row,16,0,2154.3,211757,3,328,2026-07-03
+1347,45,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,16,-1,2154.3,119271,1,328,2026-07-03
+1347,2246,Shaman,Restoration,Totemic,Healer,EU,Murder Row,16,-1,2154.3,4704,1,328,2026-07-03
+1347,3191,Hunter,Survival,Pack Leader,DPS,EU,Murder Row,16,-1,2154.3,197527,4,328,2026-07-03
+1347,726,Paladin,Retribution,Herald of the Sun,DPS,EU,Murder Row,16,-1,2154.3,259224,2,328,2026-07-03
+1347,392,Warrior,Arms,Slayer,DPS,EU,Murder Row,16,-1,2154.3,211757,3,328,2026-07-03
 1348,3192,Paladin,Protection,Lightsmith,Tank,US,Temple of Sethraliss,15,1,1726.7,135758,0,334,2026-07-19
 1348,920,Shaman,Restoration,Totemic,Healer,US,Temple of Sethraliss,15,1,1726.7,58431,0,334,2026-07-19
 1348,491,Mage,Arcane,Spellslinger,DPS,US,Temple of Sethraliss,15,1,1726.7,210276,5,334,2026-07-19
@@ -1028,11 +1028,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1406,3284,Priest,Shadow,Archon,DPS,EU,Voidscar Arena,10,1,1182.7,208587,2,315,2026-07-07
 1406,2331,Mage,Arcane,Spellslinger,DPS,EU,Voidscar Arena,10,1,1182.7,121934,3,315,2026-07-07
 1406,3285,Paladin,Retribution,Herald of the Sun,DPS,EU,Voidscar Arena,10,1,1182.7,168556,2,315,2026-07-07
-1407,1165,DemonHunter,Vengeance,Unknown,Tank,CN,Voidscar Arena,15,0,1707.1,69109,2,328,2026-07-03
-1407,1166,Monk,Mistweaver,Unknown,Healer,CN,Voidscar Arena,15,0,1707.1,52797,2,328,2026-07-03
-1407,1169,Hunter,BeastMastery,Unknown,DPS,CN,Voidscar Arena,15,0,1707.1,163395,7,328,2026-07-03
-1407,1167,DeathKnight,Frost,Unknown,DPS,CN,Voidscar Arena,15,0,1707.1,183644,3,328,2026-07-03
-1407,1168,DeathKnight,Frost,Unknown,DPS,CN,Voidscar Arena,15,0,1707.1,164198,3,328,2026-07-03
+1407,1165,DemonHunter,Vengeance,Unknown,Tank,CN,Voidscar Arena,15,-1,1707.1,69109,2,328,2026-07-03
+1407,1166,Monk,Mistweaver,Unknown,Healer,CN,Voidscar Arena,15,-1,1707.1,52797,2,328,2026-07-03
+1407,1169,Hunter,BeastMastery,Unknown,DPS,CN,Voidscar Arena,15,-1,1707.1,163395,7,328,2026-07-03
+1407,1167,DeathKnight,Frost,Unknown,DPS,CN,Voidscar Arena,15,-1,1707.1,183644,3,328,2026-07-03
+1407,1168,DeathKnight,Frost,Unknown,DPS,CN,Voidscar Arena,15,-1,1707.1,164198,3,328,2026-07-03
 1408,356,Paladin,Protection,Lightsmith,Tank,EU,Ruby Life Pools,12,1,1162.7,139206,0,321,2026-07-10
 1408,357,Druid,Restoration,Wildstalker,Healer,EU,Ruby Life Pools,12,1,1162.7,4174,0,321,2026-07-10
 1408,359,Mage,Arcane,Spellslinger,DPS,EU,Ruby Life Pools,12,1,1162.7,198598,0,321,2026-07-10
@@ -1493,11 +1493,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1499,900,Mage,Fire,Sunfury,DPS,US,Kings' Rest,18,1,1885.5,238666,0,334,2026-07-09
 1499,2512,Warlock,Destruction,Hellcaller,DPS,US,Kings' Rest,18,1,1885.5,209844,1,334,2026-07-09
 1499,169,Hunter,Marksmanship,Sentinel,DPS,US,Kings' Rest,18,1,1885.5,199690,2,334,2026-07-09
-1500,3445,Warrior,Protection,Mountain Thane,Tank,EU,The Blinding Vale,16,1,1820.2,98841,0,328,2026-07-03
-1500,273,Druid,Restoration,Wildstalker,Healer,EU,The Blinding Vale,16,1,1820.2,24753,4,328,2026-07-03
-1500,1081,Warlock,Affliction,Soul Harvester,DPS,EU,The Blinding Vale,16,1,1820.2,297674,2,328,2026-07-03
-1500,3446,Paladin,Retribution,Herald of the Sun,DPS,EU,The Blinding Vale,16,1,1820.2,224915,0,328,2026-07-03
-1500,2955,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,16,1,1820.2,188695,2,328,2026-07-03
+1500,3445,Warrior,Protection,Mountain Thane,Tank,EU,The Blinding Vale,16,-1,1820.2,98841,0,328,2026-07-03
+1500,273,Druid,Restoration,Wildstalker,Healer,EU,The Blinding Vale,16,-1,1820.2,24753,4,328,2026-07-03
+1500,1081,Warlock,Affliction,Soul Harvester,DPS,EU,The Blinding Vale,16,-1,1820.2,297674,2,328,2026-07-03
+1500,3446,Paladin,Retribution,Herald of the Sun,DPS,EU,The Blinding Vale,16,-1,1820.2,224915,0,328,2026-07-03
+1500,2955,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,16,-1,1820.2,188695,2,328,2026-07-03
 1501,3447,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,18,1,1738.5,175553,0,334,2026-07-23
 1501,3448,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Altar of Fangs,18,1,1738.5,84695,0,334,2026-07-23
 1501,3449,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,18,1,1738.5,363457,1,334,2026-07-23
@@ -1533,11 +1533,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1507,1220,Mage,Arcane,Spellslinger,DPS,US,Altar of Fangs,15,-1,2198.2,198961,2,328,2026-06-28
 1507,3454,DeathKnight,Frost,Deathbringer,DPS,US,Altar of Fangs,15,-1,2198.2,218439,1,328,2026-06-28
 1507,549,Evoker,Augmentation,Scalecommander,DPS,US,Altar of Fangs,15,-1,2198.2,229912,2,328,2026-06-28
-1508,1391,DemonHunter,Vengeance,Annihilator,Tank,EU,Murder Row,16,1,1760.3,159481,0,328,2026-07-03
-1508,1392,Paladin,Holy,Herald of the Sun,Healer,EU,Murder Row,16,1,1760.3,18993,1,328,2026-07-03
-1508,1081,Warlock,Affliction,Soul Harvester,DPS,EU,Murder Row,16,1,1760.3,373364,1,328,2026-07-03
-1508,403,Evoker,Augmentation,Scalecommander,DPS,EU,Murder Row,16,1,1760.3,262086,1,328,2026-07-03
-1508,974,Rogue,Outlaw,Trickster,DPS,EU,Murder Row,16,1,1760.3,204439,1,328,2026-07-03
+1508,1391,DemonHunter,Vengeance,Annihilator,Tank,EU,Murder Row,16,-1,1760.3,159481,0,328,2026-07-03
+1508,1392,Paladin,Holy,Herald of the Sun,Healer,EU,Murder Row,16,-1,1760.3,18993,1,328,2026-07-03
+1508,1081,Warlock,Affliction,Soul Harvester,DPS,EU,Murder Row,16,-1,1760.3,373364,1,328,2026-07-03
+1508,403,Evoker,Augmentation,Scalecommander,DPS,EU,Murder Row,16,-1,1760.3,262086,1,328,2026-07-03
+1508,974,Rogue,Outlaw,Trickster,DPS,EU,Murder Row,16,-1,1760.3,204439,1,328,2026-07-03
 1509,1017,DeathKnight,Blood,San'layn,Tank,EU,Ruby Life Pools,18,1,1533.1,234624,0,334,2026-07-23
 1509,211,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,18,1,1533.1,64820,2,334,2026-07-23
 1509,2260,DemonHunter,Devourer,Annihilator,DPS,EU,Ruby Life Pools,18,1,1533.1,392645,1,334,2026-07-23
@@ -1753,11 +1753,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1551,438,DemonHunter,Devourer,Void-Scarred,DPS,US,Altar of Fangs,19,0,1711.9,339718,4,334,2026-07-18
 1551,115,DemonHunter,Devourer,Annihilator,DPS,US,Altar of Fangs,19,0,1711.9,433872,0,334,2026-07-18
 1551,437,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,19,0,1711.9,395192,2,334,2026-07-18
-1552,5,Warrior,Protection,Mountain Thane,Tank,US,Murder Row,16,1,1485.6,136204,0,328,2026-07-03
-1552,879,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Murder Row,16,1,1485.6,53221,0,328,2026-07-03
-1552,1613,DeathKnight,Frost,Deathbringer,DPS,US,Murder Row,16,1,1485.6,307370,1,328,2026-07-03
-1552,1614,Shaman,Elemental,Farseer,DPS,US,Murder Row,16,1,1485.6,319891,2,328,2026-07-03
-1552,309,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,16,1,1485.6,284630,1,328,2026-07-03
+1552,5,Warrior,Protection,Mountain Thane,Tank,US,Murder Row,16,-1,1485.6,136204,0,328,2026-07-03
+1552,879,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Murder Row,16,-1,1485.6,53221,0,328,2026-07-03
+1552,1613,DeathKnight,Frost,Deathbringer,DPS,US,Murder Row,16,-1,1485.6,307370,1,328,2026-07-03
+1552,1614,Shaman,Elemental,Farseer,DPS,US,Murder Row,16,-1,1485.6,319891,2,328,2026-07-03
+1552,309,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,16,-1,1485.6,284630,1,328,2026-07-03
 1553,1204,DeathKnight,Blood,San'layn,Tank,US,Voidscar Arena,19,0,2040.7,192322,4,334,2026-07-25
 1553,563,Paladin,Holy,Herald of the Sun,Healer,US,Voidscar Arena,19,0,2040.7,31059,4,334,2026-07-25
 1553,815,Hunter,Marksmanship,Sentinel,DPS,US,Voidscar Arena,19,0,2040.7,319283,5,334,2026-07-25
@@ -1798,11 +1798,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1560,3527,Druid,Balance,Elune's Chosen,DPS,EU,Ruby Life Pools,20,1,1591.1,342822,2,334,2026-07-13
 1560,212,Mage,Arcane,Spellslinger,DPS,EU,Ruby Life Pools,20,1,1591.1,362839,0,334,2026-07-13
 1560,336,Warlock,Demonology,Diabolist,DPS,EU,Ruby Life Pools,20,1,1591.1,354601,0,334,2026-07-13
-1561,919,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,15,1,1377.7,116976,0,328,2026-07-03
-1561,920,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,15,1,1377.7,31151,0,328,2026-07-03
-1561,921,Rogue,Assassination,Deathstalker,DPS,US,Voidscar Arena,15,1,1377.7,187578,4,328,2026-07-03
-1561,923,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,15,1,1377.7,226256,0,328,2026-07-03
-1561,922,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,15,1,1377.7,190671,0,328,2026-07-03
+1561,919,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,15,-1,1377.7,116976,0,328,2026-07-03
+1561,920,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,15,-1,1377.7,31151,0,328,2026-07-03
+1561,921,Rogue,Assassination,Deathstalker,DPS,US,Voidscar Arena,15,-1,1377.7,187578,4,328,2026-07-03
+1561,923,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,15,-1,1377.7,226256,0,328,2026-07-03
+1561,922,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,15,-1,1377.7,190671,0,328,2026-07-03
 1562,1086,DeathKnight,Blood,Deathbringer,Tank,EU,Temple of Sethraliss,16,1,1729.1,155620,0,334,2026-07-12
 1562,1550,Paladin,Holy,Lightsmith,Healer,EU,Temple of Sethraliss,16,1,1729.1,81086,4,334,2026-07-12
 1562,852,Mage,Arcane,Spellslinger,DPS,EU,Temple of Sethraliss,16,1,1729.1,277538,1,334,2026-07-12
@@ -2022,11 +2022,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1605,2078,Rogue,Subtlety,Deathstalker,DPS,EU,Voidscar Arena,18,1,1592.2,168556,5,328,2026-07-05
 1605,2079,Mage,Arcane,Sunfury,DPS,EU,Voidscar Arena,18,1,1592.2,268088,2,328,2026-07-05
 1605,650,Warlock,Affliction,Soul Harvester,DPS,EU,Voidscar Arena,18,1,1592.2,265489,2,328,2026-07-05
-1606,365,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,12,1,1415.0,180443,0,315,2026-07-03
-1606,3605,Monk,Mistweaver,Conduit of the Celestials,Healer,US,The Blinding Vale,12,1,1415.0,56592,1,315,2026-07-03
-1606,3606,Warrior,Fury,Slayer,DPS,US,The Blinding Vale,12,1,1415.0,214855,2,315,2026-07-03
-1606,3607,Rogue,Outlaw,Trickster,DPS,US,The Blinding Vale,12,1,1415.0,184751,6,315,2026-07-03
-1606,3525,Shaman,Elemental,Farseer,DPS,US,The Blinding Vale,12,1,1415.0,239807,1,315,2026-07-03
+1606,365,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,12,-1,1415.0,180443,0,315,2026-07-03
+1606,3605,Monk,Mistweaver,Conduit of the Celestials,Healer,US,The Blinding Vale,12,-1,1415.0,56592,1,315,2026-07-03
+1606,3606,Warrior,Fury,Slayer,DPS,US,The Blinding Vale,12,-1,1415.0,214855,2,315,2026-07-03
+1606,3607,Rogue,Outlaw,Trickster,DPS,US,The Blinding Vale,12,-1,1415.0,184751,6,315,2026-07-03
+1606,3525,Shaman,Elemental,Farseer,DPS,US,The Blinding Vale,12,-1,1415.0,239807,1,315,2026-07-03
 1607,3608,DeathKnight,Blood,Deathbringer,Tank,EU,Voidscar Arena,12,-1,2514.6,76044,2,321,2026-07-26
 1607,3609,Evoker,Preservation,Flameshaper,Healer,EU,Voidscar Arena,12,-1,2514.6,9695,7,321,2026-07-26
 1607,3610,Hunter,Marksmanship,Sentinel,DPS,EU,Voidscar Arena,12,-1,2514.6,100663,6,321,2026-07-26
@@ -2197,11 +2197,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1640,2548,Warlock,Affliction,Soul Harvester,DPS,US,The Blinding Vale,15,-1,2546.7,216897,7,328,2026-07-03
 1640,2546,Paladin,Retribution,Templar,DPS,US,The Blinding Vale,15,-1,2546.7,139624,4,328,2026-07-03
 1640,2547,Mage,Frost,Spellslinger,DPS,US,The Blinding Vale,15,-1,2546.7,172944,4,328,2026-07-03
-1641,1045,Paladin,Protection,Lightsmith,Tank,CN,Voidscar Arena,15,1,1371.6,157976,1,328,2026-07-03
-1641,1522,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Voidscar Arena,15,1,1371.6,60610,2,328,2026-07-03
-1641,720,Druid,Feral,Druid of the Claw,DPS,CN,Voidscar Arena,15,1,1371.6,246356,2,328,2026-07-03
-1641,1047,Mage,Arcane,Spellslinger,DPS,CN,Voidscar Arena,15,1,1371.6,200134,3,328,2026-07-03
-1641,1048,Mage,Arcane,Spellslinger,DPS,CN,Voidscar Arena,15,1,1371.6,219674,2,328,2026-07-03
+1641,1045,Paladin,Protection,Lightsmith,Tank,CN,Voidscar Arena,15,-1,1371.6,157976,1,328,2026-07-03
+1641,1522,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Voidscar Arena,15,-1,1371.6,60610,2,328,2026-07-03
+1641,720,Druid,Feral,Druid of the Claw,DPS,CN,Voidscar Arena,15,-1,1371.6,246356,2,328,2026-07-03
+1641,1047,Mage,Arcane,Spellslinger,DPS,CN,Voidscar Arena,15,-1,1371.6,200134,3,328,2026-07-03
+1641,1048,Mage,Arcane,Spellslinger,DPS,CN,Voidscar Arena,15,-1,1371.6,219674,2,328,2026-07-03
 1642,268,Paladin,Protection,Lightsmith,Tank,US,Ruby Life Pools,20,1,1501.0,274529,0,334,2026-07-16
 1642,269,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Ruby Life Pools,20,1,1501.0,67812,0,334,2026-07-16
 1642,270,Warrior,Arms,Colossus,DPS,US,Ruby Life Pools,20,1,1501.0,428646,0,334,2026-07-16
@@ -2657,11 +2657,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1732,3780,Druid,Balance,Elune's Chosen,DPS,EU,Ruby Life Pools,15,1,1521.9,176607,3,334,2026-07-13
 1732,3781,Priest,Shadow,Archon,DPS,EU,Ruby Life Pools,15,1,1521.9,267826,2,334,2026-07-13
 1732,447,Mage,Arcane,Spellslinger,DPS,EU,Ruby Life Pools,15,1,1521.9,295696,2,334,2026-07-13
-1733,2643,DemonHunter,Vengeance,Annihilator,Tank,US,Voidscar Arena,15,1,1444.2,80383,1,328,2026-07-03
-1733,2644,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Voidscar Arena,15,1,1444.2,50912,0,328,2026-07-03
-1733,2645,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Voidscar Arena,15,1,1444.2,200323,1,328,2026-07-03
-1733,229,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Voidscar Arena,15,1,1444.2,169544,3,328,2026-07-03
-1733,1299,Hunter,BeastMastery,Pack Leader,DPS,US,Voidscar Arena,15,1,1444.2,187859,4,328,2026-07-03
+1733,2643,DemonHunter,Vengeance,Annihilator,Tank,US,Voidscar Arena,15,-1,1444.2,80383,1,328,2026-07-03
+1733,2644,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Voidscar Arena,15,-1,1444.2,50912,0,328,2026-07-03
+1733,2645,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Voidscar Arena,15,-1,1444.2,200323,1,328,2026-07-03
+1733,229,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Voidscar Arena,15,-1,1444.2,169544,3,328,2026-07-03
+1733,1299,Hunter,BeastMastery,Pack Leader,DPS,US,Voidscar Arena,15,-1,1444.2,187859,4,328,2026-07-03
 1734,1038,Paladin,Protection,Lightsmith,Tank,EU,Voidscar Arena,12,1,1314.6,122476,0,321,2026-07-25
 1734,2344,Priest,Holy,Oracle,Healer,EU,Voidscar Arena,12,1,1314.6,19363,0,321,2026-07-25
 1734,2346,DeathKnight,Frost,Deathbringer,DPS,EU,Voidscar Arena,12,1,1314.6,215383,0,321,2026-07-25
@@ -2672,11 +2672,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1735,212,Mage,Fire,Sunfury,DPS,EU,Kings' Rest,16,1,1634.7,234496,0,334,2026-07-09
 1735,336,Warlock,Destruction,Diabolist,DPS,EU,Kings' Rest,16,1,1634.7,212735,0,334,2026-07-09
 1735,1788,DemonHunter,Devourer,Annihilator,DPS,EU,Kings' Rest,16,1,1634.7,191891,1,334,2026-07-09
-1736,117,Paladin,Protection,Lightsmith,Tank,CN,Voidscar Arena,16,1,1435.2,142724,0,328,2026-07-03
-1736,118,Priest,Discipline,Voidweaver,Healer,CN,Voidscar Arena,16,1,1435.2,58509,2,328,2026-07-03
-1736,119,DeathKnight,Frost,Deathbringer,DPS,CN,Voidscar Arena,16,1,1435.2,250670,2,328,2026-07-03
-1736,120,Shaman,Enhancement,Stormbringer,DPS,CN,Voidscar Arena,16,1,1435.2,224246,3,328,2026-07-03
-1736,121,Evoker,Augmentation,Scalecommander,DPS,CN,Voidscar Arena,16,1,1435.2,232869,4,328,2026-07-03
+1736,117,Paladin,Protection,Lightsmith,Tank,CN,Voidscar Arena,16,-1,1435.2,142724,0,328,2026-07-03
+1736,118,Priest,Discipline,Voidweaver,Healer,CN,Voidscar Arena,16,-1,1435.2,58509,2,328,2026-07-03
+1736,119,DeathKnight,Frost,Deathbringer,DPS,CN,Voidscar Arena,16,-1,1435.2,250670,2,328,2026-07-03
+1736,120,Shaman,Enhancement,Stormbringer,DPS,CN,Voidscar Arena,16,-1,1435.2,224246,3,328,2026-07-03
+1736,121,Evoker,Augmentation,Scalecommander,DPS,CN,Voidscar Arena,16,-1,1435.2,232869,4,328,2026-07-03
 1737,1450,Warrior,Protection,Colossus,Tank,US,The Blinding Vale,16,1,1584.2,189118,0,334,2026-07-22
 1737,1451,Priest,Discipline,Oracle,Healer,US,The Blinding Vale,16,1,1584.2,29177,0,334,2026-07-22
 1737,1453,Paladin,Retribution,Herald of the Sun,DPS,US,The Blinding Vale,16,1,1584.2,225098,6,334,2026-07-22
@@ -2707,11 +2707,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1742,3784,Druid,Balance,Elune's Chosen,DPS,EU,Kings' Rest,12,1,1356.4,198370,0,321,2026-07-20
 1742,3785,Warlock,Demonology,Diabolist,DPS,EU,Kings' Rest,12,1,1356.4,168100,0,321,2026-07-20
 1742,3786,Mage,Arcane,Spellslinger,DPS,EU,Kings' Rest,12,1,1356.4,177264,1,321,2026-07-20
-1743,3197,Monk,Brewmaster,Master of Harmony,Tank,US,The Blinding Vale,15,1,1520.9,148703,0,328,2026-07-03
-1743,113,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,15,1,1520.9,37629,0,328,2026-07-03
-1743,3198,Paladin,Retribution,Herald of the Sun,DPS,US,The Blinding Vale,15,1,1520.9,267324,3,328,2026-07-03
-1743,2651,Warrior,Arms,Colossus,DPS,US,The Blinding Vale,15,1,1520.9,274274,2,328,2026-07-03
-1743,183,Rogue,Subtlety,Trickster,DPS,US,The Blinding Vale,15,1,1520.9,245755,2,328,2026-07-03
+1743,3197,Monk,Brewmaster,Master of Harmony,Tank,US,The Blinding Vale,15,-1,1520.9,148703,0,328,2026-07-03
+1743,113,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,15,-1,1520.9,37629,0,328,2026-07-03
+1743,3198,Paladin,Retribution,Herald of the Sun,DPS,US,The Blinding Vale,15,-1,1520.9,267324,3,328,2026-07-03
+1743,2651,Warrior,Arms,Colossus,DPS,US,The Blinding Vale,15,-1,1520.9,274274,2,328,2026-07-03
+1743,183,Rogue,Subtlety,Trickster,DPS,US,The Blinding Vale,15,-1,1520.9,245755,2,328,2026-07-03
 1744,287,Paladin,Protection,Lightsmith,Tank,CN,Kings' Rest,20,1,1906.1,203696,0,334,2026-07-11
 1744,288,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Kings' Rest,20,1,1906.1,72491,0,334,2026-07-11
 1744,1049,Mage,Arcane,Spellslinger,DPS,CN,Kings' Rest,20,1,1906.1,258044,0,334,2026-07-11
@@ -2767,11 +2767,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1754,9,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,12,-1,1662.3,211075,3,315,2026-06-27
 1754,3794,DemonHunter,Devourer,Annihilator,DPS,US,Altar of Fangs,12,-1,1662.3,165356,2,309,2026-06-27
 1754,379,Paladin,Retribution,Templar,DPS,US,Altar of Fangs,12,-1,1662.3,229159,0,315,2026-06-27
-1755,1175,Druid,Guardian,Elune's Chosen,Tank,EU,Voidscar Arena,12,1,1579.5,74593,1,315,2026-07-03
-1755,3795,Evoker,Preservation,Chronowarden,Healer,EU,Voidscar Arena,12,1,1579.5,17717,2,315,2026-07-03
-1755,131,Hunter,BeastMastery,Pack Leader,DPS,EU,Voidscar Arena,12,1,1579.5,157763,3,315,2026-07-03
-1755,3796,DeathKnight,Frost,Deathbringer,DPS,EU,Voidscar Arena,12,1,1579.5,173735,3,315,2026-07-03
-1755,3797,Warrior,Fury,Slayer,DPS,EU,Voidscar Arena,12,1,1579.5,108928,6,315,2026-07-03
+1755,1175,Druid,Guardian,Elune's Chosen,Tank,EU,Voidscar Arena,12,-1,1579.5,74593,1,315,2026-07-03
+1755,3795,Evoker,Preservation,Chronowarden,Healer,EU,Voidscar Arena,12,-1,1579.5,17717,2,315,2026-07-03
+1755,131,Hunter,BeastMastery,Pack Leader,DPS,EU,Voidscar Arena,12,-1,1579.5,157763,3,315,2026-07-03
+1755,3796,DeathKnight,Frost,Deathbringer,DPS,EU,Voidscar Arena,12,-1,1579.5,173735,3,315,2026-07-03
+1755,3797,Warrior,Fury,Slayer,DPS,EU,Voidscar Arena,12,-1,1579.5,108928,6,315,2026-07-03
 1756,287,Paladin,Protection,Lightsmith,Tank,CN,The Blinding Vale,18,-1,1747.3,179325,2,328,2026-07-02
 1756,288,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,The Blinding Vale,18,-1,1747.3,70606,2,328,2026-07-02
 1756,148,Warlock,Affliction,Soul Harvester,DPS,CN,The Blinding Vale,18,-1,1747.3,341585,2,328,2026-07-02
@@ -2842,11 +2842,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1769,64,Paladin,Retribution,Herald of the Sun,DPS,US,Voidscar Arena,15,-1,1498.8,199186,4,328,2026-07-02
 1769,258,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,15,-1,1498.8,196434,1,328,2026-07-02
 1769,3808,Priest,Shadow,Voidweaver,DPS,US,Voidscar Arena,15,-1,1498.8,253512,4,328,2026-07-02
-1770,2643,DemonHunter,Vengeance,Annihilator,Tank,US,The Blinding Vale,15,1,1616.6,112636,0,328,2026-07-03
-1770,2644,Monk,Mistweaver,Conduit of the Celestials,Healer,US,The Blinding Vale,15,1,1616.6,69268,0,328,2026-07-03
-1770,2645,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,The Blinding Vale,15,1,1616.6,236754,2,328,2026-07-03
-1770,229,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,The Blinding Vale,15,1,1616.6,212392,2,328,2026-07-03
-1770,1299,Hunter,BeastMastery,Pack Leader,DPS,US,The Blinding Vale,15,1,1616.6,231447,3,328,2026-07-03
+1770,2643,DemonHunter,Vengeance,Annihilator,Tank,US,The Blinding Vale,15,-1,1616.6,112636,0,328,2026-07-03
+1770,2644,Monk,Mistweaver,Conduit of the Celestials,Healer,US,The Blinding Vale,15,-1,1616.6,69268,0,328,2026-07-03
+1770,2645,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,The Blinding Vale,15,-1,1616.6,236754,2,328,2026-07-03
+1770,229,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,The Blinding Vale,15,-1,1616.6,212392,2,328,2026-07-03
+1770,1299,Hunter,BeastMastery,Pack Leader,DPS,US,The Blinding Vale,15,-1,1616.6,231447,3,328,2026-07-03
 1771,3809,DeathKnight,Blood,Deathbringer,Tank,US,Ruby Life Pools,12,1,1563.8,87704,1,321,2026-07-13
 1771,3810,Druid,Restoration,Wildstalker,Healer,US,Ruby Life Pools,12,1,1563.8,8328,1,321,2026-07-13
 1771,1715,Mage,Arcane,Spellslinger,DPS,US,Ruby Life Pools,12,1,1563.8,139976,2,321,2026-07-13
@@ -2972,11 +2972,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1795,3839,Priest,Shadow,Voidweaver,DPS,US,Ruby Life Pools,12,1,1333.4,185988,1,321,2026-07-11
 1795,1386,Mage,Arcane,Spellslinger,DPS,US,Ruby Life Pools,12,1,1333.4,190352,1,321,2026-07-11
 1795,3840,Warrior,Arms,Colossus,DPS,US,Ruby Life Pools,12,1,1333.4,190965,1,321,2026-07-11
-1796,901,DemonHunter,Vengeance,Annihilator,Tank,EU,Voidscar Arena,17,0,1709.4,140119,5,328,2026-07-03
-1796,787,Priest,Discipline,Voidweaver,Healer,EU,Voidscar Arena,17,0,1709.4,54744,7,328,2026-07-03
-1796,211,Shaman,Elemental,Farseer,DPS,EU,Voidscar Arena,17,0,1709.4,234495,13,328,2026-07-03
-1796,789,DeathKnight,Frost,Deathbringer,DPS,EU,Voidscar Arena,17,0,1709.4,304031,7,328,2026-07-03
-1796,788,Warlock,Affliction,Soul Harvester,DPS,EU,Voidscar Arena,17,0,1709.4,230648,9,328,2026-07-03
+1796,901,DemonHunter,Vengeance,Annihilator,Tank,EU,Voidscar Arena,17,-1,1709.4,140119,5,328,2026-07-03
+1796,787,Priest,Discipline,Voidweaver,Healer,EU,Voidscar Arena,17,-1,1709.4,54744,7,328,2026-07-03
+1796,211,Shaman,Elemental,Farseer,DPS,EU,Voidscar Arena,17,-1,1709.4,234495,13,328,2026-07-03
+1796,789,DeathKnight,Frost,Deathbringer,DPS,EU,Voidscar Arena,17,-1,1709.4,304031,7,328,2026-07-03
+1796,788,Warlock,Affliction,Soul Harvester,DPS,EU,Voidscar Arena,17,-1,1709.4,230648,9,328,2026-07-03
 1797,268,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,18,0,2210.3,172000,2,334,2026-07-10
 1797,113,Shaman,Restoration,Totemic,Healer,US,Kings' Rest,18,0,2210.3,39656,3,334,2026-07-10
 1797,115,DemonHunter,Devourer,Void-Scarred,DPS,US,Kings' Rest,18,0,2210.3,195759,4,334,2026-07-10
@@ -3441,11 +3441,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1889,3981,DeathKnight,Frost,Rider of the Apocalypse,DPS,TW,Altar of Fangs,15,-1,2094.7,263961,3,328,2026-06-26
 1889,3982,DemonHunter,Havoc,Fel-Scarred,DPS,TW,Altar of Fangs,15,-1,2094.7,224688,4,328,2026-06-26
 1889,3983,Warrior,Arms,Colossus,DPS,TW,Altar of Fangs,15,-1,2094.7,207571,3,328,2026-06-26
-1890,610,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,15,0,1705.7,107603,1,328,2026-07-03
-1890,46,Priest,Discipline,Voidweaver,Healer,EU,Den of Nalorakk,15,0,1705.7,48428,4,328,2026-07-03
-1890,48,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,15,0,1705.7,178423,3,328,2026-07-03
-1890,611,Hunter,BeastMastery,Pack Leader,DPS,EU,Den of Nalorakk,15,0,1705.7,158921,6,328,2026-07-03
-1890,47,Mage,Arcane,Spellslinger,DPS,EU,Den of Nalorakk,15,0,1705.7,184867,6,328,2026-07-03
+1890,610,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,15,-1,1705.7,107603,1,328,2026-07-03
+1890,46,Priest,Discipline,Voidweaver,Healer,EU,Den of Nalorakk,15,-1,1705.7,48428,4,328,2026-07-03
+1890,48,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,15,-1,1705.7,178423,3,328,2026-07-03
+1890,611,Hunter,BeastMastery,Pack Leader,DPS,EU,Den of Nalorakk,15,-1,1705.7,158921,6,328,2026-07-03
+1890,47,Mage,Arcane,Spellslinger,DPS,EU,Den of Nalorakk,15,-1,1705.7,184867,6,328,2026-07-03
 1891,175,Monk,Brewmaster,Master of Harmony,Tank,US,Kings' Rest,18,1,1855.6,162802,0,334,2026-07-12
 1891,65,Paladin,Holy,Lightsmith,Healer,US,Kings' Rest,18,1,1855.6,61074,1,334,2026-07-12
 1891,3984,Druid,Balance,Elune's Chosen,DPS,US,Kings' Rest,18,1,1855.6,249361,0,334,2026-07-12
@@ -3566,11 +3566,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1914,4007,Shaman,Elemental,Farseer,DPS,US,Ruby Life Pools,15,1,1239.2,237581,2,334,2026-07-13
 1914,1939,DeathKnight,Frost,Deathbringer,DPS,US,Ruby Life Pools,15,1,1239.2,248055,0,334,2026-07-13
 1914,308,Warrior,Arms,Colossus,DPS,US,Ruby Life Pools,15,1,1239.2,282456,0,334,2026-07-13
-1915,4008,Paladin,Protection,Lightsmith,Tank,EU,The Blinding Vale,12,1,1645.9,101442,0,315,2026-07-03
-1915,4009,Evoker,Preservation,Flameshaper,Healer,EU,The Blinding Vale,12,1,1645.9,15675,1,300,2026-07-03
-1915,392,Warrior,Arms,Colossus,DPS,EU,The Blinding Vale,12,1,1645.9,236294,0,315,2026-07-03
-1915,4010,Priest,Shadow,Archon,DPS,EU,The Blinding Vale,12,1,1645.9,206195,2,315,2026-07-03
-1915,4011,DeathKnight,Frost,Deathbringer,DPS,EU,The Blinding Vale,12,1,1645.9,135409,4,315,2026-07-03
+1915,4008,Paladin,Protection,Lightsmith,Tank,EU,The Blinding Vale,12,-1,1645.9,101442,0,315,2026-07-03
+1915,4009,Evoker,Preservation,Flameshaper,Healer,EU,The Blinding Vale,12,-1,1645.9,15675,1,300,2026-07-03
+1915,392,Warrior,Arms,Colossus,DPS,EU,The Blinding Vale,12,-1,1645.9,236294,0,315,2026-07-03
+1915,4010,Priest,Shadow,Archon,DPS,EU,The Blinding Vale,12,-1,1645.9,206195,2,315,2026-07-03
+1915,4011,DeathKnight,Frost,Deathbringer,DPS,EU,The Blinding Vale,12,-1,1645.9,135409,4,315,2026-07-03
 1916,2753,DemonHunter,Vengeance,Annihilator,Tank,EU,Ruby Life Pools,16,1,1554.4,146310,0,334,2026-07-09
 1916,2754,Evoker,Preservation,Flameshaper,Healer,EU,Ruby Life Pools,16,1,1554.4,57486,1,334,2026-07-09
 1916,2263,DeathKnight,Frost,Deathbringer,DPS,EU,Ruby Life Pools,16,1,1554.4,291548,1,334,2026-07-09
@@ -3731,11 +3731,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1947,141,Rogue,Subtlety,Trickster,DPS,US,The Blinding Vale,15,1,1570.2,205890,5,328,2026-07-04
 1947,1956,Hunter,BeastMastery,Pack Leader,DPS,US,The Blinding Vale,15,1,1570.2,262738,4,328,2026-07-04
 1947,1222,Warrior,Arms,Colossus,DPS,US,The Blinding Vale,15,1,1570.2,248182,3,328,2026-07-04
-1948,1165,DemonHunter,Vengeance,Annihilator,Tank,CN,The Blinding Vale,15,1,1616.6,112636,0,328,2026-07-03
-1948,1166,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,The Blinding Vale,15,1,1616.6,69268,0,328,2026-07-03
-1948,1167,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,The Blinding Vale,15,1,1616.6,236754,2,328,2026-07-03
-1948,1169,Hunter,BeastMastery,Pack Leader,DPS,CN,The Blinding Vale,15,1,1616.6,231447,3,328,2026-07-03
-1948,1168,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,The Blinding Vale,15,1,1616.6,212392,2,328,2026-07-03
+1948,1165,DemonHunter,Vengeance,Annihilator,Tank,CN,The Blinding Vale,15,-1,1616.6,112636,0,328,2026-07-03
+1948,1166,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,The Blinding Vale,15,-1,1616.6,69268,0,328,2026-07-03
+1948,1167,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,The Blinding Vale,15,-1,1616.6,236754,2,328,2026-07-03
+1948,1169,Hunter,BeastMastery,Pack Leader,DPS,CN,The Blinding Vale,15,-1,1616.6,231447,3,328,2026-07-03
+1948,1168,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,The Blinding Vale,15,-1,1616.6,212392,2,328,2026-07-03
 1949,342,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,15,1,1737.5,101777,0,328,2026-07-05
 1949,769,Priest,Discipline,Voidweaver,Healer,EU,Murder Row,15,1,1737.5,49681,1,328,2026-07-05
 1949,3039,DeathKnight,Frost,Deathbringer,DPS,EU,Murder Row,15,1,1737.5,250230,0,328,2026-07-05
@@ -3821,11 +3821,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1965,4085,DemonHunter,Havoc,Aldrachi Reaver,DPS,EU,Murder Row,18,1,1935.4,261039,0,334,2026-07-22
 1965,4086,Druid,Balance,Elune's Chosen,DPS,EU,Murder Row,18,1,1935.4,316530,1,334,2026-07-22
 1965,496,Mage,Arcane,Spellslinger,DPS,EU,Murder Row,18,1,1935.4,273365,0,334,2026-07-22
-1966,1189,DeathKnight,Blood,Deathbringer,Tank,EU,Voidscar Arena,15,0,1928.9,76838,2,328,2026-07-03
-1966,190,Shaman,Restoration,Totemic,Healer,EU,Voidscar Arena,15,0,1928.9,27122,4,328,2026-07-03
-1966,191,Shaman,Elemental,Farseer,DPS,EU,Voidscar Arena,15,0,1928.9,212013,5,328,2026-07-03
-1966,1191,DemonHunter,Havoc,Fel-Scarred,DPS,EU,Voidscar Arena,15,0,1928.9,151384,4,328,2026-07-03
-1966,1190,Warlock,Affliction,Soul Harvester,DPS,EU,Voidscar Arena,15,0,1928.9,180605,6,328,2026-07-03
+1966,1189,DeathKnight,Blood,Deathbringer,Tank,EU,Voidscar Arena,15,-1,1928.9,76838,2,328,2026-07-03
+1966,190,Shaman,Restoration,Totemic,Healer,EU,Voidscar Arena,15,-1,1928.9,27122,4,328,2026-07-03
+1966,191,Shaman,Elemental,Farseer,DPS,EU,Voidscar Arena,15,-1,1928.9,212013,5,328,2026-07-03
+1966,1191,DemonHunter,Havoc,Fel-Scarred,DPS,EU,Voidscar Arena,15,-1,1928.9,151384,4,328,2026-07-03
+1966,1190,Warlock,Affliction,Soul Harvester,DPS,EU,Voidscar Arena,15,-1,1928.9,180605,6,328,2026-07-03
 1967,642,DeathKnight,Blood,Deathbringer,Tank,CN,Ruby Life Pools,16,1,1416.9,155622,0,334,2026-07-23
 1967,643,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Ruby Life Pools,16,1,1416.9,61186,1,334,2026-07-23
 1967,502,Hunter,Marksmanship,Sentinel,DPS,CN,Ruby Life Pools,16,1,1416.9,352183,1,334,2026-07-23
@@ -3961,11 +3961,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 1993,4118,Mage,Fire,Sunfury,DPS,US,Altar of Fangs,16,-1,1553.4,207287,2,328,2026-06-29
 1993,668,Warrior,Arms,Colossus,DPS,US,Altar of Fangs,16,-1,1553.4,277397,1,328,2026-06-29
 1993,258,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,16,-1,1553.4,319566,1,328,2026-06-29
-1994,1348,DemonHunter,Vengeance,Annihilator,Tank,US,Murder Row,12,0,2237.2,89986,3,315,2026-07-03
-1994,1349,Priest,Discipline,Oracle,Healer,US,Murder Row,12,0,2237.2,43084,4,315,2026-07-03
-1994,1518,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,12,0,2237.2,165184,5,315,2026-07-03
-1994,1350,Shaman,Elemental,Stormbringer,DPS,US,Murder Row,12,0,2237.2,129646,5,315,2026-07-03
-1994,1519,Evoker,Augmentation,Scalecommander,DPS,US,Murder Row,12,0,2237.2,135393,6,315,2026-07-03
+1994,1348,DemonHunter,Vengeance,Annihilator,Tank,US,Murder Row,12,-1,2237.2,89986,3,315,2026-07-03
+1994,1349,Priest,Discipline,Oracle,Healer,US,Murder Row,12,-1,2237.2,43084,4,315,2026-07-03
+1994,1518,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,12,-1,2237.2,165184,5,315,2026-07-03
+1994,1350,Shaman,Elemental,Stormbringer,DPS,US,Murder Row,12,-1,2237.2,129646,5,315,2026-07-03
+1994,1519,Evoker,Augmentation,Scalecommander,DPS,US,Murder Row,12,-1,2237.2,135393,6,315,2026-07-03
 1995,2901,Warrior,Protection,Mountain Thane,Tank,US,Altar of Fangs,18,-1,1650.8,121961,0,328,2026-06-27
 1995,166,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Altar of Fangs,18,-1,1650.8,81017,2,328,2026-06-27
 1995,1496,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Altar of Fangs,18,-1,1650.8,376383,1,328,2026-06-27
@@ -4096,11 +4096,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2020,72,Mage,Frost,Frostfire,DPS,US,Temple of Sethraliss,15,1,1831.9,232684,1,334,2026-07-19
 2020,2918,DemonHunter,Havoc,Fel-Scarred,DPS,US,Temple of Sethraliss,15,1,1831.9,232107,2,334,2026-07-19
 2020,1739,Warrior,Arms,Colossus,DPS,US,Temple of Sethraliss,15,1,1831.9,236444,2,334,2026-07-19
-2021,132,Monk,Brewmaster,Shado-Pan,Tank,US,Den of Nalorakk,15,1,1671.0,96353,0,328,2026-07-03
-2021,920,Shaman,Restoration,Totemic,Healer,US,Den of Nalorakk,15,1,1671.0,39374,0,328,2026-07-03
-2021,2734,Paladin,Retribution,Herald of the Sun,DPS,US,Den of Nalorakk,15,1,1671.0,214454,1,328,2026-07-03
-2021,2036,DeathKnight,Frost,Deathbringer,DPS,US,Den of Nalorakk,15,1,1671.0,188432,3,328,2026-07-03
-2021,922,Warrior,Arms,Colossus,DPS,US,Den of Nalorakk,15,1,1671.0,197514,1,328,2026-07-03
+2021,132,Monk,Brewmaster,Shado-Pan,Tank,US,Den of Nalorakk,15,-1,1671.0,96353,0,328,2026-07-03
+2021,920,Shaman,Restoration,Totemic,Healer,US,Den of Nalorakk,15,-1,1671.0,39374,0,328,2026-07-03
+2021,2734,Paladin,Retribution,Herald of the Sun,DPS,US,Den of Nalorakk,15,-1,1671.0,214454,1,328,2026-07-03
+2021,2036,DeathKnight,Frost,Deathbringer,DPS,US,Den of Nalorakk,15,-1,1671.0,188432,3,328,2026-07-03
+2021,922,Warrior,Arms,Colossus,DPS,US,Den of Nalorakk,15,-1,1671.0,197514,1,328,2026-07-03
 2022,259,Druid,Guardian,Elune's Chosen,Tank,US,Altar of Fangs,12,-1,1866.6,105070,3,315,2026-06-27
 2022,260,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Altar of Fangs,12,-1,1866.6,59018,3,315,2026-06-27
 2022,4138,Druid,Balance,Elune's Chosen,DPS,US,Altar of Fangs,12,-1,1866.6,181811,4,315,2026-06-27
@@ -4371,16 +4371,16 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2075,3661,Hunter,Marksmanship,Sentinel,DPS,CN,Voidscar Arena,16,1,1501.0,287278,3,334,2026-07-26
 2075,1512,Hunter,Marksmanship,Sentinel,DPS,CN,Voidscar Arena,16,1,1501.0,240268,3,334,2026-07-26
 2075,4198,Priest,Shadow,Archon,DPS,CN,Voidscar Arena,16,1,1501.0,247584,1,334,2026-07-26
-2076,4199,Paladin,Protection,Lightsmith,Tank,US,Murder Row,15,0,2106.5,137044,0,328,2026-07-03
-2076,269,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Murder Row,15,0,2106.5,47917,1,328,2026-07-03
-2076,549,Evoker,Augmentation,Scalecommander,DPS,US,Murder Row,15,0,2106.5,177085,0,328,2026-07-03
-2076,4200,DemonHunter,Havoc,Fel-Scarred,DPS,US,Murder Row,15,0,2106.5,160130,2,319,2026-07-03
-2076,4201,Druid,Balance,Elune's Chosen,DPS,US,Murder Row,15,0,2106.5,185531,4,328,2026-07-03
-2077,919,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,15,1,1377.7,116976,0,328,2026-07-03
-2077,920,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,15,1,1377.7,31151,0,328,2026-07-03
-2077,923,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,15,1,1377.7,226256,0,328,2026-07-03
-2077,922,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,15,1,1377.7,190671,0,328,2026-07-03
-2077,921,Rogue,Assassination,Deathstalker,DPS,US,Voidscar Arena,15,1,1377.7,187578,4,328,2026-07-03
+2076,4199,Paladin,Protection,Lightsmith,Tank,US,Murder Row,15,-1,2106.5,137044,0,328,2026-07-03
+2076,269,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Murder Row,15,-1,2106.5,47917,1,328,2026-07-03
+2076,549,Evoker,Augmentation,Scalecommander,DPS,US,Murder Row,15,-1,2106.5,177085,0,328,2026-07-03
+2076,4200,DemonHunter,Havoc,Fel-Scarred,DPS,US,Murder Row,15,-1,2106.5,160130,2,319,2026-07-03
+2076,4201,Druid,Balance,Elune's Chosen,DPS,US,Murder Row,15,-1,2106.5,185531,4,328,2026-07-03
+2077,919,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,15,-1,1377.7,116976,0,328,2026-07-03
+2077,920,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,15,-1,1377.7,31151,0,328,2026-07-03
+2077,923,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,15,-1,1377.7,226256,0,328,2026-07-03
+2077,922,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,15,-1,1377.7,190671,0,328,2026-07-03
+2077,921,Rogue,Assassination,Deathstalker,DPS,US,Voidscar Arena,15,-1,1377.7,187578,4,328,2026-07-03
 2078,1332,Paladin,Protection,Lightsmith,Tank,US,Murder Row,15,0,2139.5,109466,0,334,2026-07-25
 2078,1333,Priest,Discipline,Oracle,Healer,US,Murder Row,15,0,2139.5,21835,2,334,2026-07-25
 2078,1335,Priest,Shadow,Archon,DPS,US,Murder Row,15,0,2139.5,228523,0,334,2026-07-25
@@ -4556,11 +4556,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2112,686,Druid,Balance,Elune's Chosen,DPS,EU,Ruby Life Pools,20,1,1677.0,365370,4,334,2026-07-11
 2112,684,Shaman,Elemental,Farseer,DPS,EU,Ruby Life Pools,20,1,1677.0,365806,0,334,2026-07-11
 2112,1791,DeathKnight,Frost,Deathbringer,DPS,EU,Ruby Life Pools,20,1,1677.0,323250,1,334,2026-07-11
-2113,904,Paladin,Protection,Lightsmith,Tank,EU,Murder Row,17,0,2152.9,169411,1,328,2026-07-02
-2113,1159,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Murder Row,17,0,2152.9,77475,1,328,2026-07-02
-2113,4220,Warrior,Fury,Mountain Thane,DPS,EU,Murder Row,17,0,2152.9,213453,6,328,2026-07-02
-2113,974,Rogue,Outlaw,Trickster,DPS,EU,Murder Row,17,0,2152.9,160720,5,328,2026-07-02
-2113,4221,DeathKnight,Frost,Rider of the Apocalypse,DPS,EU,Murder Row,17,0,2152.9,240643,1,328,2026-07-02
+2113,904,Paladin,Protection,Lightsmith,Tank,EU,Murder Row,17,-1,2152.9,169411,1,328,2026-07-02
+2113,1159,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Murder Row,17,-1,2152.9,77475,1,328,2026-07-02
+2113,4220,Warrior,Fury,Mountain Thane,DPS,EU,Murder Row,17,-1,2152.9,213453,6,328,2026-07-02
+2113,974,Rogue,Outlaw,Trickster,DPS,EU,Murder Row,17,-1,2152.9,160720,5,328,2026-07-02
+2113,4221,DeathKnight,Frost,Rider of the Apocalypse,DPS,EU,Murder Row,17,-1,2152.9,240643,1,328,2026-07-02
 2114,1393,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,12,-1,2385.1,104451,4,315,2026-06-28
 2114,1394,Priest,Holy,Archon,Healer,US,Altar of Fangs,12,-1,2385.1,5966,5,315,2026-06-28
 2114,1388,Warlock,Affliction,Soul Harvester,DPS,US,Altar of Fangs,12,-1,2385.1,195882,6,315,2026-06-28
@@ -4641,11 +4641,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2129,270,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,19,1,1719.6,408852,1,334,2026-07-20
 2129,115,DemonHunter,Devourer,Void-Scarred,DPS,US,Altar of Fangs,19,1,1719.6,360131,1,334,2026-07-20
 2129,900,Mage,Frost,Spellslinger,DPS,US,Altar of Fangs,19,1,1719.6,362456,0,334,2026-07-20
-2130,146,Paladin,Protection,Lightsmith,Tank,CN,The Blinding Vale,16,1,1354.8,172591,0,328,2026-07-03
-2130,4232,Shaman,Restoration,Totemic,Healer,CN,The Blinding Vale,16,1,1354.8,27490,0,328,2026-07-03
-2130,148,Warlock,Affliction,Soul Harvester,DPS,CN,The Blinding Vale,16,1,1354.8,313910,0,328,2026-07-03
-2130,1049,Mage,Arcane,Spellslinger,DPS,CN,The Blinding Vale,16,1,1354.8,292516,1,328,2026-07-03
-2130,690,Paladin,Retribution,Herald of the Sun,DPS,CN,The Blinding Vale,16,1,1354.8,272956,0,328,2026-07-03
+2130,146,Paladin,Protection,Lightsmith,Tank,CN,The Blinding Vale,16,-1,1354.8,172591,0,328,2026-07-03
+2130,4232,Shaman,Restoration,Totemic,Healer,CN,The Blinding Vale,16,-1,1354.8,27490,0,328,2026-07-03
+2130,148,Warlock,Affliction,Soul Harvester,DPS,CN,The Blinding Vale,16,-1,1354.8,313910,0,328,2026-07-03
+2130,1049,Mage,Arcane,Spellslinger,DPS,CN,The Blinding Vale,16,-1,1354.8,292516,1,328,2026-07-03
+2130,690,Paladin,Retribution,Herald of the Sun,DPS,CN,The Blinding Vale,16,-1,1354.8,272956,0,328,2026-07-03
 2131,723,Paladin,Protection,Lightsmith,Tank,EU,Ruby Life Pools,15,1,1121.9,142682,1,334,2026-07-10
 2131,769,Priest,Discipline,Voidweaver,Healer,EU,Ruby Life Pools,15,1,1121.9,52566,1,334,2026-07-10
 2131,2818,Warlock,Affliction,Soul Harvester,DPS,EU,Ruby Life Pools,15,1,1121.9,348251,3,334,2026-07-10
@@ -4656,11 +4656,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2132,827,Druid,Balance,Elune's Chosen,DPS,US,Ruby Life Pools,18,1,1300.2,312632,1,334,2026-07-10
 2132,828,Shaman,Enhancement,Stormbringer,DPS,US,Ruby Life Pools,18,1,1300.2,301812,0,334,2026-07-10
 2132,115,DemonHunter,Devourer,Void-Scarred,DPS,US,Ruby Life Pools,18,1,1300.2,333634,0,334,2026-07-10
-2133,45,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,15,1,1830.8,97730,0,328,2026-07-03
-2133,46,Priest,Discipline,Voidweaver,Healer,EU,Murder Row,15,1,1830.8,59410,3,328,2026-07-03
-2133,138,Paladin,Retribution,Herald of the Sun,DPS,EU,Murder Row,15,1,1830.8,166911,1,328,2026-07-03
-2133,2276,Evoker,Augmentation,Scalecommander,DPS,EU,Murder Row,15,1,1830.8,247425,3,328,2026-07-03
-2133,2277,DeathKnight,Frost,Rider of the Apocalypse,DPS,EU,Murder Row,15,1,1830.8,232910,0,328,2026-07-03
+2133,45,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,15,-1,1830.8,97730,0,328,2026-07-03
+2133,46,Priest,Discipline,Voidweaver,Healer,EU,Murder Row,15,-1,1830.8,59410,3,328,2026-07-03
+2133,138,Paladin,Retribution,Herald of the Sun,DPS,EU,Murder Row,15,-1,1830.8,166911,1,328,2026-07-03
+2133,2276,Evoker,Augmentation,Scalecommander,DPS,EU,Murder Row,15,-1,1830.8,247425,3,328,2026-07-03
+2133,2277,DeathKnight,Frost,Rider of the Apocalypse,DPS,EU,Murder Row,15,-1,1830.8,232910,0,328,2026-07-03
 2134,2880,Paladin,Protection,Lightsmith,Tank,CN,Altar of Fangs,15,1,1444.5,164966,0,334,2026-07-15
 2134,2881,Evoker,Preservation,Flameshaper,Healer,CN,Altar of Fangs,15,1,1444.5,55358,1,334,2026-07-15
 2134,460,Warrior,Arms,Colossus,DPS,CN,Altar of Fangs,15,1,1444.5,299628,1,334,2026-07-15
@@ -4766,11 +4766,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2154,3502,Shaman,Elemental,Farseer,DPS,US,Temple of Sethraliss,15,0,1960.5,224882,3,334,2026-07-12
 2154,833,DemonHunter,Devourer,Annihilator,DPS,US,Temple of Sethraliss,15,0,1960.5,254408,2,334,2026-07-12
 2154,4255,Mage,Arcane,Spellslinger,DPS,US,Temple of Sethraliss,15,0,1960.5,197403,1,334,2026-07-12
-2155,4217,Druid,Guardian,Elune's Chosen,Tank,EU,Den of Nalorakk,15,0,2102.6,85924,2,328,2026-07-03
-2155,190,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,15,0,2102.6,34046,1,328,2026-07-03
-2155,4218,Druid,Feral,Druid of the Claw,DPS,EU,Den of Nalorakk,15,0,2102.6,203838,5,328,2026-07-03
-2155,191,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,15,0,2102.6,225958,3,328,2026-07-03
-2155,4219,Paladin,Retribution,Templar,DPS,EU,Den of Nalorakk,15,0,2102.6,181063,2,328,2026-07-03
+2155,4217,Druid,Guardian,Elune's Chosen,Tank,EU,Den of Nalorakk,15,-1,2102.6,85924,2,328,2026-07-03
+2155,190,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,15,-1,2102.6,34046,1,328,2026-07-03
+2155,4218,Druid,Feral,Druid of the Claw,DPS,EU,Den of Nalorakk,15,-1,2102.6,203838,5,328,2026-07-03
+2155,191,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,15,-1,2102.6,225958,3,328,2026-07-03
+2155,4219,Paladin,Retribution,Templar,DPS,EU,Den of Nalorakk,15,-1,2102.6,181063,2,328,2026-07-03
 2156,194,DemonHunter,Vengeance,Annihilator,Tank,CN,Ruby Life Pools,17,0,1918.8,140560,4,334,2026-07-09
 2156,195,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Ruby Life Pools,17,0,1918.8,58650,6,334,2026-07-09
 2156,4256,Paladin,Retribution,Templar,DPS,CN,Ruby Life Pools,17,0,1918.8,222602,5,334,2026-07-09
@@ -4791,11 +4791,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2159,4265,DemonHunter,Devourer,Annihilator,DPS,EU,The Blinding Vale,15,1,1757.5,252254,2,334,2026-07-23
 2159,4266,Mage,Arcane,Spellslinger,DPS,EU,The Blinding Vale,15,1,1757.5,227236,5,334,2026-07-23
 2159,4267,DeathKnight,Frost,Deathbringer,DPS,EU,The Blinding Vale,15,1,1757.5,219282,1,334,2026-07-23
-2160,4268,Paladin,Protection,Lightsmith,Tank,EU,Voidscar Arena,15,1,1377.6,116985,0,328,2026-07-03
-2160,4269,Shaman,Restoration,Totemic,Healer,EU,Voidscar Arena,15,1,1377.6,31154,0,328,2026-07-03
-2160,392,Warrior,Arms,Slayer,DPS,EU,Voidscar Arena,15,1,1377.6,190686,0,328,2026-07-03
-2160,4270,Shaman,Enhancement,Stormbringer,DPS,EU,Voidscar Arena,15,1,1377.6,226274,0,328,2026-07-03
-2160,4271,Rogue,Assassination,Deathstalker,DPS,EU,Voidscar Arena,15,1,1377.6,187593,4,328,2026-07-03
+2160,4268,Paladin,Protection,Lightsmith,Tank,EU,Voidscar Arena,15,-1,1377.6,116985,0,328,2026-07-03
+2160,4269,Shaman,Restoration,Totemic,Healer,EU,Voidscar Arena,15,-1,1377.6,31154,0,328,2026-07-03
+2160,392,Warrior,Arms,Slayer,DPS,EU,Voidscar Arena,15,-1,1377.6,190686,0,328,2026-07-03
+2160,4270,Shaman,Enhancement,Stormbringer,DPS,EU,Voidscar Arena,15,-1,1377.6,226274,0,328,2026-07-03
+2160,4271,Rogue,Assassination,Deathstalker,DPS,EU,Voidscar Arena,15,-1,1377.6,187593,4,328,2026-07-03
 2161,3290,DemonHunter,Vengeance,Annihilator,Tank,US,Kings' Rest,15,1,1866.6,81899,1,334,2026-07-08
 2161,2150,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Kings' Rest,15,1,1866.6,61961,0,334,2026-07-08
 2161,258,Shaman,Enhancement,Stormbringer,DPS,US,Kings' Rest,15,1,1866.6,185699,2,334,2026-07-08
@@ -5121,11 +5121,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2225,4344,Warlock,Demonology,Unknown,DPS,US,Altar of Fangs,10,-1,3132.0,115682,9,315,2026-06-26
 2225,3229,Priest,Shadow,Unknown,DPS,US,Altar of Fangs,10,-1,3132.0,118948,12,315,2026-06-26
 2225,4345,Mage,Arcane,Unknown,DPS,US,Altar of Fangs,10,-1,3132.0,102294,13,315,2026-06-26
-2226,682,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,19,1,1705.8,159328,0,328,2026-07-03
-2226,787,Priest,Discipline,Oracle,Healer,EU,Den of Nalorakk,19,1,1705.8,44885,3,328,2026-07-03
-2226,1482,Mage,Arcane,Spellslinger,DPS,EU,Den of Nalorakk,19,1,1705.8,284368,4,328,2026-07-03
-2226,789,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,19,1,1705.8,313011,2,328,2026-07-03
-2226,788,Warlock,Affliction,Soul Harvester,DPS,EU,Den of Nalorakk,19,1,1705.8,244216,2,328,2026-07-03
+2226,682,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,19,-1,1705.8,159328,0,328,2026-07-03
+2226,787,Priest,Discipline,Oracle,Healer,EU,Den of Nalorakk,19,-1,1705.8,44885,3,328,2026-07-03
+2226,1482,Mage,Arcane,Spellslinger,DPS,EU,Den of Nalorakk,19,-1,1705.8,284368,4,328,2026-07-03
+2226,789,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,19,-1,1705.8,313011,2,328,2026-07-03
+2226,788,Warlock,Affliction,Soul Harvester,DPS,EU,Den of Nalorakk,19,-1,1705.8,244216,2,328,2026-07-03
 2227,565,Paladin,Protection,Unknown,Tank,EU,The Blinding Vale,15,1,1648.8,146777,0,334,2026-07-16
 2227,3018,Shaman,Restoration,Unknown,Healer,EU,The Blinding Vale,15,1,1648.8,37072,0,334,2026-07-16
 2227,567,DemonHunter,Devourer,Unknown,DPS,EU,The Blinding Vale,15,1,1648.8,276790,2,334,2026-07-16
@@ -5186,11 +5186,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2238,211,Shaman,Enhancement,Stormbringer,DPS,EU,Kings' Rest,17,1,1710.2,228497,2,334,2026-07-15
 2238,974,Rogue,Outlaw,Trickster,DPS,EU,Kings' Rest,17,1,1710.2,231451,0,334,2026-07-15
 2238,4368,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Kings' Rest,17,1,1710.2,202235,0,334,2026-07-15
-2239,2643,DemonHunter,Vengeance,Annihilator,Tank,US,Den of Nalorakk,15,1,1594.8,97454,0,328,2026-07-03
-2239,2644,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Den of Nalorakk,15,1,1594.8,55069,0,328,2026-07-03
-2239,229,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Den of Nalorakk,15,1,1594.8,233864,2,328,2026-07-03
-2239,2786,Mage,Arcane,Spellslinger,DPS,US,Den of Nalorakk,15,1,1594.8,202381,0,328,2026-07-03
-2239,2645,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Den of Nalorakk,15,1,1594.8,252547,1,328,2026-07-03
+2239,2643,DemonHunter,Vengeance,Annihilator,Tank,US,Den of Nalorakk,15,-1,1594.8,97454,0,328,2026-07-03
+2239,2644,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Den of Nalorakk,15,-1,1594.8,55069,0,328,2026-07-03
+2239,229,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Den of Nalorakk,15,-1,1594.8,233864,2,328,2026-07-03
+2239,2786,Mage,Arcane,Spellslinger,DPS,US,Den of Nalorakk,15,-1,1594.8,202381,0,328,2026-07-03
+2239,2645,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,Den of Nalorakk,15,-1,1594.8,252547,1,328,2026-07-03
 2240,971,Paladin,Protection,Lightsmith,Tank,EU,Kings' Rest,19,0,2016.4,177905,0,334,2026-07-20
 2240,390,Paladin,Holy,Herald of the Sun,Healer,EU,Kings' Rest,19,0,2016.4,30338,1,334,2026-07-20
 2240,1606,Priest,Shadow,Archon,DPS,EU,Kings' Rest,19,0,2016.4,223269,4,334,2026-07-20
@@ -5216,16 +5216,16 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2244,1186,Mage,Fire,Sunfury,DPS,US,Ruby Life Pools,12,1,1430.6,200931,0,321,2026-07-09
 2244,2352,Mage,Arcane,Spellslinger,DPS,US,Ruby Life Pools,12,1,1430.6,183648,4,321,2026-07-09
 2244,4088,Hunter,Survival,Pack Leader,DPS,US,Ruby Life Pools,12,1,1430.6,173646,1,321,2026-07-09
-2245,1165,DemonHunter,Vengeance,Annihilator,Tank,CN,Voidscar Arena,15,1,1444.1,80387,1,328,2026-07-03
-2245,1166,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Voidscar Arena,15,1,1444.1,50916,0,328,2026-07-03
-2245,1169,Hunter,BeastMastery,Pack Leader,DPS,CN,Voidscar Arena,15,1,1444.1,187871,4,328,2026-07-03
-2245,1168,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Voidscar Arena,15,1,1444.1,169562,3,328,2026-07-03
-2245,1167,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Voidscar Arena,15,1,1444.1,200339,1,328,2026-07-03
-2246,682,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,18,1,1753.6,156930,0,328,2026-07-03
-2246,787,Priest,Discipline,Oracle,Healer,EU,Den of Nalorakk,18,1,1753.6,28028,2,328,2026-07-03
-2246,211,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,18,1,1753.6,245374,3,328,2026-07-03
-2246,789,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,18,1,1753.6,312900,1,328,2026-07-03
-2246,788,Warlock,Affliction,Soul Harvester,DPS,EU,Den of Nalorakk,18,1,1753.6,213577,2,328,2026-07-03
+2245,1165,DemonHunter,Vengeance,Annihilator,Tank,CN,Voidscar Arena,15,-1,1444.1,80387,1,328,2026-07-03
+2245,1166,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Voidscar Arena,15,-1,1444.1,50916,0,328,2026-07-03
+2245,1169,Hunter,BeastMastery,Pack Leader,DPS,CN,Voidscar Arena,15,-1,1444.1,187871,4,328,2026-07-03
+2245,1168,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Voidscar Arena,15,-1,1444.1,169562,3,328,2026-07-03
+2245,1167,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Voidscar Arena,15,-1,1444.1,200339,1,328,2026-07-03
+2246,682,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,18,-1,1753.6,156930,0,328,2026-07-03
+2246,787,Priest,Discipline,Oracle,Healer,EU,Den of Nalorakk,18,-1,1753.6,28028,2,328,2026-07-03
+2246,211,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,18,-1,1753.6,245374,3,328,2026-07-03
+2246,789,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,18,-1,1753.6,312900,1,328,2026-07-03
+2246,788,Warlock,Affliction,Soul Harvester,DPS,EU,Den of Nalorakk,18,-1,1753.6,213577,2,328,2026-07-03
 2247,268,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,18,1,1609.1,247724,0,334,2026-07-15
 2247,3255,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,18,1,1609.1,52164,1,334,2026-07-15
 2247,270,Warrior,Arms,Colossus,DPS,US,The Blinding Vale,18,1,1609.1,366480,0,334,2026-07-15
@@ -5236,11 +5236,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2248,4374,Shaman,Elemental,Farseer,DPS,US,Temple of Sethraliss,12,0,1952.2,194524,3,321,2026-07-25
 2248,285,Hunter,Marksmanship,Sentinel,DPS,US,Temple of Sethraliss,12,0,1952.2,147971,5,321,2026-07-25
 2248,4375,Shaman,Elemental,Farseer,DPS,US,Temple of Sethraliss,12,0,1952.2,173308,4,321,2026-07-25
-2249,1050,Paladin,Protection,Unknown,Tank,CN,Murder Row,18,1,1791.8,159368,0,328,2026-07-03
-2249,2865,Priest,Discipline,Unknown,Healer,CN,Murder Row,18,1,1791.8,58428,0,328,2026-07-03
-2249,290,Mage,Arcane,Unknown,DPS,CN,Murder Row,18,1,1791.8,311293,1,328,2026-07-03
-2249,2866,DeathKnight,Frost,Unknown,DPS,CN,Murder Row,18,1,1791.8,290386,1,328,2026-07-03
-2249,2867,Warlock,Affliction,Unknown,DPS,CN,Murder Row,18,1,1791.8,278874,1,328,2026-07-03
+2249,1050,Paladin,Protection,Unknown,Tank,CN,Murder Row,18,-1,1791.8,159368,0,328,2026-07-03
+2249,2865,Priest,Discipline,Unknown,Healer,CN,Murder Row,18,-1,1791.8,58428,0,328,2026-07-03
+2249,290,Mage,Arcane,Unknown,DPS,CN,Murder Row,18,-1,1791.8,311293,1,328,2026-07-03
+2249,2866,DeathKnight,Frost,Unknown,DPS,CN,Murder Row,18,-1,1791.8,290386,1,328,2026-07-03
+2249,2867,Warlock,Affliction,Unknown,DPS,CN,Murder Row,18,-1,1791.8,278874,1,328,2026-07-03
 2250,4376,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,16,1,1708.4,139502,0,334,2026-07-25
 2250,1948,Shaman,Restoration,Totemic,Healer,US,Kings' Rest,16,1,1708.4,25132,0,334,2026-07-25
 2250,4377,DemonHunter,Devourer,Void-Scarred,DPS,US,Kings' Rest,16,1,1708.4,184432,1,334,2026-07-25
@@ -5381,21 +5381,21 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2277,1408,Warrior,Arms,Slayer,DPS,CN,Voidscar Arena,18,1,1526.5,292422,1,334,2026-07-21
 2277,508,DeathKnight,Unholy,Rider of the Apocalypse,DPS,CN,Voidscar Arena,18,1,1526.5,276069,1,334,2026-07-21
 2277,1409,Hunter,Marksmanship,Sentinel,DPS,CN,Voidscar Arena,18,1,1526.5,342412,1,334,2026-07-21
-2278,4397,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,16,1,1687.1,132908,0,328,2026-07-03
-2278,46,Priest,Discipline,Voidweaver,Healer,EU,Den of Nalorakk,16,1,1687.1,54419,2,328,2026-07-03
-2278,1615,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,16,1,1687.1,231246,0,328,2026-07-03
-2278,139,Mage,Arcane,Spellslinger,DPS,EU,Den of Nalorakk,16,1,1687.1,205739,1,328,2026-07-03
-2278,4398,Paladin,Retribution,Herald of the Sun,DPS,EU,Den of Nalorakk,16,1,1687.1,218133,2,328,2026-07-03
+2278,4397,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,16,-1,1687.1,132908,0,328,2026-07-03
+2278,46,Priest,Discipline,Voidweaver,Healer,EU,Den of Nalorakk,16,-1,1687.1,54419,2,328,2026-07-03
+2278,1615,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,16,-1,1687.1,231246,0,328,2026-07-03
+2278,139,Mage,Arcane,Spellslinger,DPS,EU,Den of Nalorakk,16,-1,1687.1,205739,1,328,2026-07-03
+2278,4398,Paladin,Retribution,Herald of the Sun,DPS,EU,Den of Nalorakk,16,-1,1687.1,218133,2,328,2026-07-03
 2279,2316,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,12,1,1548.3,118048,0,321,2026-07-09
 2279,879,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Kings' Rest,12,1,1548.3,49448,0,321,2026-07-09
 2279,4399,Warrior,Arms,Colossus,DPS,US,Kings' Rest,12,1,1548.3,149523,0,321,2026-07-09
 2279,4400,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,12,1,1548.3,163750,1,321,2026-07-09
 2279,8,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Kings' Rest,12,1,1548.3,170443,0,321,2026-07-09
-2280,1045,Paladin,Protection,Lightsmith,Tank,CN,Murder Row,18,1,1914.2,173972,2,328,2026-07-03
-2280,1522,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Murder Row,18,1,1914.2,58096,1,328,2026-07-03
-2280,1048,Mage,Arcane,Spellslinger,DPS,CN,Murder Row,18,1,1914.2,251749,2,328,2026-07-03
-2280,720,Druid,Feral,Druid of the Claw,DPS,CN,Murder Row,18,1,1914.2,274380,2,328,2026-07-03
-2280,186,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Murder Row,18,1,1914.2,296210,1,328,2026-07-03
+2280,1045,Paladin,Protection,Lightsmith,Tank,CN,Murder Row,18,-1,1914.2,173972,2,328,2026-07-03
+2280,1522,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Murder Row,18,-1,1914.2,58096,1,328,2026-07-03
+2280,1048,Mage,Arcane,Spellslinger,DPS,CN,Murder Row,18,-1,1914.2,251749,2,328,2026-07-03
+2280,720,Druid,Feral,Druid of the Claw,DPS,CN,Murder Row,18,-1,1914.2,274380,2,328,2026-07-03
+2280,186,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Murder Row,18,-1,1914.2,296210,1,328,2026-07-03
 2281,458,Paladin,Protection,Lightsmith,Tank,CN,Murder Row,17,1,1756.8,196596,0,328,2026-07-05
 2281,4401,Priest,Discipline,Oracle,Healer,CN,Murder Row,17,1,1756.8,26584,2,328,2026-07-05
 2281,4402,Shaman,Elemental,Farseer,DPS,CN,Murder Row,17,1,1756.8,277102,2,328,2026-07-05
@@ -5421,11 +5421,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2285,4407,Warlock,Affliction,Soul Harvester,DPS,EU,Altar of Fangs,12,-1,1931.0,218638,8,315,2026-06-30
 2285,4408,Evoker,Augmentation,Scalecommander,DPS,EU,Altar of Fangs,12,-1,1931.0,170140,9,315,2026-06-30
 2285,4409,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,12,-1,1931.0,184904,8,315,2026-06-30
-2286,146,Paladin,Protection,Lightsmith,Tank,CN,Murder Row,15,1,1586.5,155219,1,328,2026-07-03
-2286,4232,Shaman,Restoration,Totemic,Healer,CN,Murder Row,15,1,1586.5,21725,3,328,2026-07-03
-2286,148,Warlock,Affliction,Soul Harvester,DPS,CN,Murder Row,15,1,1586.5,276527,1,328,2026-07-03
-2286,1049,Mage,Arcane,Spellslinger,DPS,CN,Murder Row,15,1,1586.5,271629,1,328,2026-07-03
-2286,690,Paladin,Retribution,Herald of the Sun,DPS,CN,Murder Row,15,1,1586.5,257055,1,328,2026-07-03
+2286,146,Paladin,Protection,Lightsmith,Tank,CN,Murder Row,15,-1,1586.5,155219,1,328,2026-07-03
+2286,4232,Shaman,Restoration,Totemic,Healer,CN,Murder Row,15,-1,1586.5,21725,3,328,2026-07-03
+2286,148,Warlock,Affliction,Soul Harvester,DPS,CN,Murder Row,15,-1,1586.5,276527,1,328,2026-07-03
+2286,1049,Mage,Arcane,Spellslinger,DPS,CN,Murder Row,15,-1,1586.5,271629,1,328,2026-07-03
+2286,690,Paladin,Retribution,Herald of the Sun,DPS,CN,Murder Row,15,-1,1586.5,257055,1,328,2026-07-03
 2287,554,Paladin,Protection,Lightsmith,Tank,EU,Ruby Life Pools,15,1,1324.9,171633,0,334,2026-07-09
 2287,2443,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,15,1,1324.9,29842,0,334,2026-07-09
 2287,526,Priest,Shadow,Archon,DPS,EU,Ruby Life Pools,15,1,1324.9,281360,1,334,2026-07-09
@@ -5526,11 +5526,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2306,4051,Priest,Shadow,Archon,DPS,EU,Altar of Fangs,12,0,1646.3,187895,2,321,2026-07-24
 2306,341,Evoker,Augmentation,Chronowarden,DPS,EU,Altar of Fangs,12,0,1646.3,177929,2,321,2026-07-24
 2306,340,Shaman,Enhancement,Stormbringer,DPS,EU,Altar of Fangs,12,0,1646.3,257031,4,321,2026-07-24
-2307,1242,Warrior,Protection,Mountain Thane,Tank,CN,Murder Row,18,1,1659.7,137370,0,328,2026-07-03
-2307,1107,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Murder Row,18,1,1659.7,57016,3,328,2026-07-03
-2307,1243,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Murder Row,18,1,1659.7,290234,1,328,2026-07-03
-2307,290,Mage,Arcane,Spellslinger,DPS,CN,Murder Row,18,1,1659.7,401018,1,328,2026-07-03
-2307,4431,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Murder Row,18,1,1659.7,298066,1,328,2026-07-03
+2307,1242,Warrior,Protection,Mountain Thane,Tank,CN,Murder Row,18,-1,1659.7,137370,0,328,2026-07-03
+2307,1107,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Murder Row,18,-1,1659.7,57016,3,328,2026-07-03
+2307,1243,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Murder Row,18,-1,1659.7,290234,1,328,2026-07-03
+2307,290,Mage,Arcane,Spellslinger,DPS,CN,Murder Row,18,-1,1659.7,401018,1,328,2026-07-03
+2307,4431,DeathKnight,Frost,Rider of the Apocalypse,DPS,CN,Murder Row,18,-1,1659.7,298066,1,328,2026-07-03
 2308,1204,DeathKnight,Blood,Deathbringer,Tank,US,Murder Row,15,1,1712.4,149737,0,328,2026-07-05
 2308,2035,Shaman,Restoration,Totemic,Healer,US,Murder Row,15,1,1712.4,17552,1,328,2026-07-05
 2308,1075,Mage,Arcane,Spellslinger,DPS,US,Murder Row,15,1,1712.4,265173,0,328,2026-07-05
@@ -5551,11 +5551,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 2311,3342,Warlock,Destruction,Diabolist,DPS,US,Temple of Sethraliss,16,1,1526.8,276770,2,334,2026-07-12
 2311,1984,Priest,Shadow,Archon,DPS,US,Temple of Sethraliss,16,1,1526.8,253540,2,334,2026-07-12
 2311,667,Shaman,Enhancement,Stormbringer,DPS,US,Temple of Sethraliss,16,1,1526.8,293917,1,334,2026-07-12
-2312,1050,Paladin,Protection,Lightsmith,Tank,CN,Den of Nalorakk,18,1,1753.6,153974,0,328,2026-07-03
-2312,2865,Priest,Discipline,Oracle,Healer,CN,Den of Nalorakk,18,1,1753.6,27303,2,328,2026-07-03
-2312,2866,DeathKnight,Frost,Deathbringer,DPS,CN,Den of Nalorakk,18,1,1753.6,303233,1,328,2026-07-03
-2312,633,Shaman,Elemental,Farseer,DPS,CN,Den of Nalorakk,18,1,1753.6,236980,3,328,2026-07-03
-2312,2867,Warlock,Affliction,Soul Harvester,DPS,CN,Den of Nalorakk,18,1,1753.6,213495,2,328,2026-07-03
+2312,1050,Paladin,Protection,Lightsmith,Tank,CN,Den of Nalorakk,18,-1,1753.6,153974,0,328,2026-07-03
+2312,2865,Priest,Discipline,Oracle,Healer,CN,Den of Nalorakk,18,-1,1753.6,27303,2,328,2026-07-03
+2312,2866,DeathKnight,Frost,Deathbringer,DPS,CN,Den of Nalorakk,18,-1,1753.6,303233,1,328,2026-07-03
+2312,633,Shaman,Elemental,Farseer,DPS,CN,Den of Nalorakk,18,-1,1753.6,236980,3,328,2026-07-03
+2312,2867,Warlock,Affliction,Soul Harvester,DPS,CN,Den of Nalorakk,18,-1,1753.6,213495,2,328,2026-07-03
 2313,2141,DemonHunter,Vengeance,Annihilator,Tank,US,Temple of Sethraliss,17,0,2251.5,185028,0,334,2026-07-10
 2313,563,Paladin,Holy,Herald of the Sun,Healer,US,Temple of Sethraliss,17,0,2251.5,36825,3,334,2026-07-10
 2313,4435,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Temple of Sethraliss,17,0,2251.5,160843,1,334,2026-07-10
