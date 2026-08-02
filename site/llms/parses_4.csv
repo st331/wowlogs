@@ -13,11 +13,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 3604,106,Druid,Balance,Elune's Chosen,DPS,US,Kings' Rest,15,0,1985.3,205562,1,334,2026-07-12
 3604,1014,DeathKnight,Frost,Deathbringer,DPS,US,Kings' Rest,15,0,1985.3,143347,2,334,2026-07-12
 3604,5687,Warlock,Affliction,Soul Harvester,DPS,US,Kings' Rest,15,0,1985.3,169377,6,334,2026-07-12
-3605,637,Paladin,Protection,Unknown,Tank,KR,Murder Row,15,1,1655.9,173546,0,328,2026-07-03
-3605,2513,Shaman,Restoration,Unknown,Healer,KR,Murder Row,15,1,1655.9,23863,0,328,2026-07-03
-3605,2515,Mage,Arcane,Unknown,DPS,KR,Murder Row,15,1,1655.9,244188,0,328,2026-07-03
-3605,5284,DeathKnight,Unholy,Unknown,DPS,KR,Murder Row,15,1,1655.9,219756,1,328,2026-07-03
-3605,639,Priest,Shadow,Unknown,DPS,KR,Murder Row,15,1,1655.9,261062,1,328,2026-07-03
+3605,637,Paladin,Protection,Unknown,Tank,KR,Murder Row,15,-1,1655.9,173546,0,328,2026-07-03
+3605,2513,Shaman,Restoration,Unknown,Healer,KR,Murder Row,15,-1,1655.9,23863,0,328,2026-07-03
+3605,2515,Mage,Arcane,Unknown,DPS,KR,Murder Row,15,-1,1655.9,244188,0,328,2026-07-03
+3605,5284,DeathKnight,Unholy,Unknown,DPS,KR,Murder Row,15,-1,1655.9,219756,1,328,2026-07-03
+3605,639,Priest,Shadow,Unknown,DPS,KR,Murder Row,15,-1,1655.9,261062,1,328,2026-07-03
 3606,4672,Paladin,Protection,Lightsmith,Tank,EU,Ruby Life Pools,16,1,1265.0,219148,1,334,2026-07-12
 3606,5688,Paladin,Holy,Lightsmith,Healer,EU,Ruby Life Pools,16,1,1265.0,60738,1,334,2026-07-12
 3606,2370,Evoker,Augmentation,Chronowarden,DPS,EU,Ruby Life Pools,16,1,1265.0,251193,0,334,2026-07-12
@@ -63,11 +63,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 3614,167,Hunter,Survival,Unknown,DPS,US,Ruby Life Pools,17,1,1481.2,293285,0,334,2026-07-09
 3614,7,DeathKnight,Frost,Unknown,DPS,US,Ruby Life Pools,17,1,1481.2,272974,1,334,2026-07-09
 3614,372,Warrior,Arms,Unknown,DPS,US,Ruby Life Pools,17,1,1481.2,288820,0,334,2026-07-09
-3615,103,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,15,0,1710.7,155413,3,328,2026-07-01
-3615,899,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Altar of Fangs,15,0,1710.7,53925,3,328,2026-07-01
-3615,105,Evoker,Augmentation,Scalecommander,DPS,US,Altar of Fangs,15,0,1710.7,272214,2,328,2026-07-01
-3615,676,Hunter,BeastMastery,Pack Leader,DPS,US,Altar of Fangs,15,0,1710.7,226088,2,328,2026-07-01
-3615,1672,Paladin,Retribution,Herald of the Sun,DPS,US,Altar of Fangs,15,0,1710.7,248833,1,328,2026-07-01
+3615,103,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,15,-1,1710.7,155413,3,328,2026-07-01
+3615,899,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Altar of Fangs,15,-1,1710.7,53925,3,328,2026-07-01
+3615,105,Evoker,Augmentation,Scalecommander,DPS,US,Altar of Fangs,15,-1,1710.7,272214,2,328,2026-07-01
+3615,676,Hunter,BeastMastery,Pack Leader,DPS,US,Altar of Fangs,15,-1,1710.7,226088,2,328,2026-07-01
+3615,1672,Paladin,Retribution,Herald of the Sun,DPS,US,Altar of Fangs,15,-1,1710.7,248833,1,328,2026-07-01
 3616,878,DeathKnight,Blood,Deathbringer,Tank,US,Ruby Life Pools,10,1,1772.7,111390,0,321,2026-07-09
 3616,879,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Ruby Life Pools,10,1,1772.7,57344,0,321,2026-07-09
 3616,412,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Ruby Life Pools,10,1,1772.7,106454,0,321,2026-07-09
@@ -883,11 +883,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 3778,4266,Mage,Fire,Sunfury,DPS,EU,The Blinding Vale,15,0,1849.9,212061,9,334,2026-07-26
 3778,5815,DeathKnight,Frost,Deathbringer,DPS,EU,The Blinding Vale,15,0,1849.9,236463,1,334,2026-07-26
 3778,1994,Warrior,Arms,Slayer,DPS,EU,The Blinding Vale,15,0,1849.9,258183,7,334,2026-07-26
-3779,64,Paladin,Protection,Lightsmith,Tank,US,Murder Row,15,1,1808.0,163817,1,328,2026-07-02
-3779,1578,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Murder Row,15,1,1808.0,60202,2,328,2026-07-02
-3779,2385,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,15,1,1808.0,214476,1,328,2026-07-02
-3779,177,Druid,Balance,Elune's Chosen,DPS,US,Murder Row,15,1,1808.0,167758,1,328,2026-07-02
-3779,3211,DemonHunter,Havoc,Fel-Scarred,DPS,US,Murder Row,15,1,1808.0,209347,2,328,2026-07-02
+3779,64,Paladin,Protection,Lightsmith,Tank,US,Murder Row,15,-1,1808.0,163817,1,328,2026-07-02
+3779,1578,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Murder Row,15,-1,1808.0,60202,2,328,2026-07-02
+3779,2385,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,15,-1,1808.0,214476,1,328,2026-07-02
+3779,177,Druid,Balance,Elune's Chosen,DPS,US,Murder Row,15,-1,1808.0,167758,1,328,2026-07-02
+3779,3211,DemonHunter,Havoc,Fel-Scarred,DPS,US,Murder Row,15,-1,1808.0,209347,2,328,2026-07-02
 3780,890,Paladin,Protection,Lightsmith,Tank,EU,Altar of Fangs,18,1,1654.2,233122,0,334,2026-07-19
 3780,972,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Altar of Fangs,18,1,1654.2,72051,2,334,2026-07-19
 3780,394,Mage,Arcane,Spellslinger,DPS,EU,Altar of Fangs,18,1,1654.2,323378,2,334,2026-07-19
@@ -903,11 +903,11 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 3782,258,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,19,0,1704.0,350376,3,334,2026-07-17
 3782,179,Rogue,Outlaw,Trickster,DPS,US,Voidscar Arena,19,0,1704.0,328150,2,334,2026-07-17
 3782,1708,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,19,0,1704.0,321379,4,334,2026-07-17
-3783,3590,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,16,1,1470.8,194450,0,328,2026-07-01
-3783,258,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,16,1,1470.8,44197,0,328,2026-07-01
-3783,1074,Mage,Arcane,Spellslinger,DPS,US,Altar of Fangs,16,1,1470.8,280650,0,328,2026-07-01
-3783,1075,Mage,Arcane,Spellslinger,DPS,US,Altar of Fangs,16,1,1470.8,296436,0,328,2026-07-01
-3783,67,Paladin,Retribution,Herald of the Sun,DPS,US,Altar of Fangs,16,1,1470.8,323346,0,328,2026-07-01
+3783,3590,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,16,-1,1470.8,194450,0,328,2026-07-01
+3783,258,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,16,-1,1470.8,44197,0,328,2026-07-01
+3783,1074,Mage,Arcane,Spellslinger,DPS,US,Altar of Fangs,16,-1,1470.8,280650,0,328,2026-07-01
+3783,1075,Mage,Arcane,Spellslinger,DPS,US,Altar of Fangs,16,-1,1470.8,296436,0,328,2026-07-01
+3783,67,Paladin,Retribution,Herald of the Sun,DPS,US,Altar of Fangs,16,-1,1470.8,323346,0,328,2026-07-01
 3784,3721,Paladin,Protection,Lightsmith,Tank,KR,Kings' Rest,18,1,1816.0,116609,0,334,2026-07-21
 3784,3722,Monk,Mistweaver,Conduit of the Celestials,Healer,KR,Kings' Rest,18,1,1816.0,64785,0,334,2026-07-21
 3784,3724,Warrior,Arms,Slayer,DPS,KR,Kings' Rest,18,1,1816.0,205405,3,334,2026-07-21
