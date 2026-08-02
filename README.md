@@ -148,7 +148,8 @@ to the shared selection node that SimC attributes to a sibling tree.
 * Groups by **Class / Spec / Hero Talent** with **Total Runs, Average DPS,
   Median DPS, Average Deaths**; DPS and run counts use comma separators.
 * Sidebar filters: Class, Spec and Hero Talent multiselects, a Key Level
-  range slider, a Minimum Runs threshold slider (default 3) that hides
+  range slider, a Minimum Characters threshold slider (how many distinct
+  players must have parsed a spec, scaled per period) that hides
   statistical outliers, plus an optional Role filter.
 * Data is cached with `st.cache_data`; the **🔄 Refresh Data** button clears
   the cache and re-reads `data/mythic_runs.csv` from disk without restarting

@@ -186,11 +186,12 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
   </div>
 
   <div class="side-label">Quality</div>
-  <div>Minimum runs <span class="hint">/ full season</span>:
-    <b id="minruns-v" style="color:var(--gold)">200</b>
-    <span id="minruns-eff" class="hint"></span></div>
-  <input type="range" id="minruns" min="1" max="500" value="200">
-  <div class="hint" id="minruns-help">Scales with the period so the spec count
+  <div>Minimum characters <span class="hint">/ full season</span>:
+    <b id="minchars-v" style="color:var(--gold)">125</b>
+    <span id="minchars-eff" class="hint"></span></div>
+  <input type="range" id="minchars" min="1" max="1200" value="125">
+  <div class="hint" id="minchars-help">How many distinct players must have
+    parsed a spec for it to show. Scales with the period so the spec count
     stays constant when you switch periods — drag to show more/fewer.</div>
   <details><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
   <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. Hover any week chip for its dates and volume.</p>
@@ -310,7 +311,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
-             minruns:200, sort:"desc", tab:"avg", trendMetric:"avg",
+             minchars:125, sort:"desc", tab:"avg", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:false,
              tsort:{col:"a_v", dir:-1}};
 let hasScore=false, hasTimed=false;
@@ -328,14 +329,14 @@ const SOURCES={
     sub:"Midnight Season 1 · Keystones +12 – 25 · built from Warcraft Logs fight rankings",
     foot:'Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs fight '
         +'rankings — read it as "what strong runs pull", not a population census.',
-    minruns:200, keydef:[18,22]},
+    minchars:125, maxchars:1200, keydef:[18,22]},
   ptr:{file:"data_ptr.json",
     sub:"Midnight Season 2 (PTR) · every logged completed key · built from Warcraft Logs PTR reports",
     foot:"Data is every completed keystone run logged to the PTR zone on Warcraft Logs — "
         +"a small, self-selected tester population, so expect noisy numbers. Timed status "
         +"is inferred from the in-game rating (depleted keys cap at 320 rating); keys "
         +"below +10 can't be told apart and are excluded from the timed-only view.",
-    minruns:25, keydef:null},   // keydef null = default to the full key range
+    minchars:20, maxchars:200, keydef:null},   // keydef null = default to the full key range
 };
 let SRC="live"; const DATA_CACHE={};
 
@@ -397,8 +398,10 @@ function initData(d,cfg){
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
   const kd=cfg.keydef||[keys[0],keys[keys.length-1]];
   state.klo=kd[0]; state.khi=kd[1];
-  state.minruns=cfg.minruns;
-  $("minruns").value=state.minruns; $("minruns-v").textContent=state.minruns;
+  state.minchars=cfg.minchars;
+  $("minchars").max=cfg.maxchars;   // PTR's population is ~6x smaller
+  $("minchars").value=state.minchars;
+  $("minchars-v").textContent=state.minchars;
   state.compare=false; $("cmp").checked=false;
   buildControls();
   $("hero-sub").textContent=cfg.sub;
@@ -662,8 +665,8 @@ function buildControls(){
   $("hero-box").style.display=state.merge?"none":"";
   $("melee").onchange=e=>{state.melee=e.target.checked; render()};
   $("ranged").onchange=e=>{state.ranged=e.target.checked; render()};
-  $("minruns").oninput=e=>{state.minruns=+e.target.value;
-    $("minruns-v").textContent=state.minruns; render()};
+  $("minchars").oninput=e=>{state.minchars=+e.target.value;
+    $("minchars-v").textContent=state.minchars; render()};
 
   $("sortseg").querySelectorAll("button").forEach(b=>{
     b.onclick=()=>{state.sort=b.dataset.s;
@@ -748,14 +751,16 @@ function rowPass(i,m){
 function groupKey(i){
   return state.merge ? R.cls[i]*100+R.spec[i] : (R.cls[i]*100+R.spec[i])*200+R.hero[i];
 }
-function countParses(weeks){
-  const m=baseMasks(), cut=periodCut(weeks); let c=0;
+// distinct characters matching the filters in a period — the yardstick the
+// minimum-characters threshold is scaled against
+function countUnique(weeks){
+  const m=baseMasks(), cut=periodCut(weeks), seen=new Set();
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     if(!periodPass(i,weeks,cut)) continue;
-    c++;
+    seen.add(R.char[i]);
   }
-  return c;
+  return seen.size;
 }
 // composite-key strides for per-character score totals; groupKey() tops out
 // below GS (non-merged: (13*100+36)*200+199) and dungeon index below 16
@@ -763,7 +768,7 @@ const GS=300000;
 function aggregate(weeks){
   const m=baseMasks(), cut=periodCut(weeks);
   const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
-  const runSeen=new Uint8Array(runCount);
+  const runSeen=new Uint8Array(runCount), charSeen=new Set();
   // (char, group, dungeon) -> that character's best run score in the dungeon;
   // summing the bests across dungeons gives the season-style total score
   const charBest=(hasScore&&R.char)?new Map():null;
@@ -781,7 +786,7 @@ function aggregate(weeks){
     g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
     g.dps.push(R.dps[i]);
-    if(R.char) g.chars.add(R.char[i]);
+    g.chars.add(R.char[i]); charSeen.add(R.char[i]);
     if(charBest&&R.score[i]>=0){
       const ck=(R.char[i]*GS+key)*16+R.dun[i];
       const prev=charBest.get(ck);
@@ -821,7 +826,7 @@ function aggregate(weeks){
       chars:g.chars.size,
       ascore, mscore, tscore, cn});
   }
-  return {groups:out, parses, runs, dmin, dmax};
+  return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax};
 }
 
 /* ---------------- rendering ---------------- */
@@ -879,23 +884,25 @@ function render(){
   const A=aggregate(state.weeksA);
   const B=state.compare?aggregate(state.weeksB):null;
 
-  // period-proportional min-runs: the slider is a per-full-season figure; the
-  // effective threshold scales with the share of the season a period holds, so
-  // the same specs qualify and the displayed count stays constant across
-  // periods. Each period is scaled by its own share (matters in compare mode).
-  const seasonParses=countParses(EMPTY);
-  const scale=p=>seasonParses>0
-    ? Math.max(1,Math.round(state.minruns*p/seasonParses)) : state.minruns;
-  const effMinA=scale(A.parses), effMinB=B?scale(B.parses):effMinA;
+  // period-proportional minimum: the slider is a per-full-season figure; the
+  // effective threshold scales with the share of the season's players a period
+  // holds, so the same specs qualify and the displayed count stays constant
+  // across periods. Each period is scaled by its own share (matters in
+  // compare mode). Characters — not parses — set the ratio, because a short
+  // window has proportionally fewer runs per player than a whole season.
+  const seasonChars=countUnique(EMPTY);
+  const scale=p=>seasonChars>0
+    ? Math.max(1,Math.round(state.minchars*p/seasonChars)) : state.minchars;
+  const effMinA=scale(A.chars), effMinB=B?scale(B.chars):effMinA;
   lastEffMin=effMinA;
-  $("minruns-eff").textContent =
-    effMinA!==state.minruns ? "→ ≥ "+effMinA.toLocaleString("en-US")+" this period" : "";
+  $("minchars-eff").textContent =
+    effMinA!==state.minchars ? "→ ≥ "+effMinA.toLocaleString("en-US")+" this period" : "";
 
   // join
   const rows=[];
   for(const [key,a] of A.groups){
     const b=B?B.groups.get(key)||null:null;
-    if(a.n<effMinA&&!(b&&b.n>=effMinB)) continue;
+    if(a.chars<effMinA&&!(b&&b.chars>=effMinB)) continue;
     rows.push({key, cls:a.cls, spec:a.spec, hero:a.hero, a, b});
   }
 
@@ -951,7 +958,7 @@ function render(){
   chart.innerHTML="";
   if(!view.length){
     chart.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups match '
-      +'the current filters — widen the filters or lower the minimum-runs threshold '
+      +'the current filters — widen the filters or lower the minimum-characters threshold '
       +'(≥ '+effMinA+' this period).</div>';
   }
   for(const r of view){
@@ -1034,9 +1041,10 @@ function renderTrend(){
     const v=useDeaths?R.deaths[i]:R.dps[i];
     const key=groupKey(i);
     let t=tot.get(key);
-    if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],n:0,vals:[]};
+    if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
+             n:0,vals:[],chars:new Set()};
       tot.set(key,t)}
-    t.n++; t.vals.push(v);
+    t.n++; t.vals.push(v); t.chars.add(R.char[i]);
     const wk=key*1000+w;
     let g=byWeek.get(wk);
     if(!g){g=[]; byWeek.set(wk,g)}
@@ -1044,7 +1052,7 @@ function renderTrend(){
   }
   // top groups by the selected metric itself ("best" respects its direction)
   const dir=mt.betterUp?-1:1;
-  const top=[...tot.entries()].filter(([,t])=>t.n>=state.minruns)
+  const top=[...tot.entries()].filter(([,t])=>t.chars.size>=state.minchars)
     .map(([key,t])=>[key,t,calc(t.vals)])
     .sort((a,b)=>(a[2]-b[2])*dir).slice(0,TREND_MAX);
   if(!top.length){
@@ -1275,7 +1283,7 @@ function renderTable(rows,tab){
     };
   });
   $("tbl-sub").textContent="every "+(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
-    +" group with ≥ "+lastEffMin+" runs in this period"
+    +" group with ≥ "+lastEffMin+" distinct characters in this period"
     +(compare?" — "+metricLabel+" for periods A and B; click a column to sort":" — click a column to sort");
 }
 </script>
