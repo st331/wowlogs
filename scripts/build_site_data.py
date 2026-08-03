@@ -196,6 +196,8 @@ def build_llms() -> None:
     df["reset_start"] = [
         (EPOCH + pd.Timedelta(days=us_b0 - 7 * b)).strftime("%Y-%m-%d")
         if b >= 0 else "" for b in df["reset_bucket"]]
+    patch = latest_tuning()
+    df["post_tuning"] = post_tuning_flag(started, df["region"], patch)
     df["run_id"] = pd.factorize(df["report_code"].astype(str) + ":"
                                 + df["fight_id"].astype(str))[0]
     df["char_id"] = pd.factorize(df["character"].fillna("?").astype(str) + "@"
@@ -225,21 +227,26 @@ def build_llms() -> None:
             out[c] = out[c].astype("Int64")
         return out
 
-    def with_subsets(by):
-        both = [agg(df, by).assign(subset="all"),
-                agg(df[df["timed"] == 1], by).assign(subset="timed")]
-        out = pd.concat(both, ignore_index=True)
+    def with_subsets(by, tuning=False):
+        parts = [agg(df, by).assign(subset="all"),
+                 agg(df[df["timed"] == 1], by).assign(subset="timed")]
+        if tuning and (df["post_tuning"] == 1).any():
+            post = df[df["post_tuning"] == 1]
+            parts += [agg(post, by).assign(subset="post_tuning"),
+                      agg(post[post["timed"] == 1], by)
+                      .assign(subset="post_tuning_timed")]
+        out = pd.concat(parts, ignore_index=True)
         return out[["subset"] + [c for c in out.columns if c != "subset"]]
 
     spec_summary = pd.concat([
-        with_subsets(["class", "spec", "hero_talent", "role"]),
-        with_subsets(["class", "spec", "role"]).assign(hero_talent="(all merged)"),
+        with_subsets(["class", "spec", "hero_talent", "role"], True),
+        with_subsets(["class", "spec", "role"], True).assign(hero_talent="(all merged)"),
     ], ignore_index=True)
 
     files: list[tuple[str, pd.DataFrame | str]] = [
         ("spec_summary.csv", spec_summary),
-        ("spec_by_key.csv", with_subsets(["class", "spec", "role", "key_level"])),
-        ("spec_by_dungeon.csv", with_subsets(["class", "spec", "role", "dungeon"])),
+        ("spec_by_key.csv", with_subsets(["class", "spec", "role", "key_level"], True)),
+        ("spec_by_dungeon.csv", with_subsets(["class", "spec", "role", "dungeon"], True)),
         ("spec_by_reset.csv",
          with_subsets(["class", "spec", "role", "reset_bucket", "reset_start"])),
         ("spec_by_day.csv", with_subsets(["class", "spec", "role", "date"])),
@@ -256,7 +263,8 @@ def build_llms() -> None:
     ]
     raw_cols = ["run_id", "char_id", "class", "spec", "hero_talent", "role",
                 "region", "dungeon", "key_level", "timed", "duration_s",
-                "dps", "deaths", "item_level", "date", "reset_bucket"]
+                "dps", "deaths", "item_level", "date", "reset_bucket",
+                "post_tuning"]
     raw = df[raw_cols].sort_values(["run_id"]).reset_index(drop=True)
     chunks = [(f"parses_{i // CHUNK + 1}.csv", raw.iloc[i:i + CHUNK])
               for i in range(0, len(raw), CHUNK)]
@@ -270,6 +278,20 @@ def build_llms() -> None:
     cur_start = (EPOCH + pd.Timedelta(days=us_b0)).strftime("%Y-%m-%d")
     # figures that make the double-counting traps concrete in the index
     naive_sum = int(spec_summary["parses"].sum())
+    if patch:
+        cut = patch["regions"].get("default", "?")
+        n_post = int((df["post_tuning"] == 1).sum())
+        tuning_para = (
+            f"**Tuning cutoff.** The latest class-tuning pass is "
+            f"{patch['label']}, taken as live at {cut} "
+            f"({n_post:,} of {len(df):,} parses fall after it). Each run is "
+            f"classified by its exact start instant, and the raw chunks carry "
+            f"a `post_tuning` column (1 = after, 0 = before) so you can slice "
+            f"it yourself. {patch.get('note','')} "
+            f"{patch.get('why_not_per_region','')} {patch.get('robustness','')}")
+    else:
+        tuning_para = ("No class-tuning pass is currently recorded, so no "
+                       "post_tuning subsets are published.")
     tsplit = df["timed"].value_counts().to_dict()
     region_line = ", ".join(f"{r} {n:,}" for r, n
                             in df["region"].value_counts().items())
@@ -311,8 +333,12 @@ def build_llms() -> None:
         f"- {BASE_URL}/llms/dungeon_summary.csv — per-dungeon runs, players, "
         "timed %, average duration/key/deaths.",
         "",
-        "The `subset` column is \"all\" (every completed run) or \"timed\" "
-        "(runs that beat the timer only).",
+        "The `subset` column is \"all\" (every completed run), \"timed\" (runs "
+        "that beat the timer), and — on spec_summary / spec_by_key / "
+        "spec_by_dungeon — \"post_tuning\" and \"post_tuning_timed\", which "
+        "restrict to runs started after the most recent class-tuning pass.",
+        "",
+        tuning_para,
         "",
         "**Combining rows — read this before adding anything up.** These "
         "files deliberately contain overlapping views of the same data, so "

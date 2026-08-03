@@ -1,15 +1,34 @@
 {
   "_comment": [
     "Class-tuning passes applied to the Midnight 12.1 PTR, newest first.",
-    "The dashboard's 'since latest tuning' filter compares each run's exact",
-    "start timestamp (epoch ms, UTC) against the cutoff for the region whose",
-    "PTR realm the run was played on, so a run is included only once tuning",
-    "was actually live for that region.",
+    "The dashboard's 'Since latest tuning' filter compares each run's exact",
+    "start instant (epoch ms, UTC) against the cutoff for the region whose PTR",
+    "realm the run was played on, so a run counts only once tuning was live",
+    "for it. Add a new entry at the TOP after each pass — the dashboard and the",
+    "LLM export always use patches[0].",
     "",
-    "'regions' maps a WCL region code to the ISO8601 UTC instant the pass went",
-    "live there; 'default' covers any region not listed explicitly.",
-    "Add a new entry at the top of 'patches' after each tuning pass — the",
-    "dashboard always uses patches[0]."
+    "'regions' maps a WCL region code to the ISO8601 UTC instant tuning went",
+    "live there; 'default' covers every region not listed. Per-region keys are",
+    "supported but currently unused on purpose - see the note below."
   ],
-  "patches": []
+  "patches": [
+    {
+      "date": "2026-07-31",
+      "label": "Curse of Ula'tek PTR class tuning (Jul 31)",
+      "regions": {
+        "default": "2026-07-31T18:49:03Z"
+      },
+      "anchor": "blizzard_forum_post_time",
+      "note": "Anchored on the moment Blizzard published the notes. Blizzard announced no PTR restart or go-live time for this pass, so the publication instant is the best sourced anchor rather than a stated deployment time.",
+      "same_for_all_regions": true,
+      "why_not_per_region": "Patch 12.1 hit its release candidate build (68914, Jul 24), after which tuning ships as server-side hotfixes applied globally rather than via per-region realm restarts. The EU notes were mirrored 26 seconds after the US post, and no source publishes separate regional deployment times, so per-region cutoffs would be false precision.",
+      "robustness": "The cutoff falls in a 38-minute window with no logged runs (nearest run before 18:34:57Z, nearest after 19:13:06Z). Moving the assumed go-live by +/-30 min reclassifies only 2 runs, and by +/-1 h at most 10, so the split is insensitive to the exact minute.",
+      "sources": [
+        "https://us.forums.blizzard.com/en/wow/t/midnight-curse-of-ulatek-ptr-development-notes/2317811 (post #18, created_at 2026-07-31T18:49:03.141Z)",
+        "https://eu.forums.blizzard.com/en/wow/t/621832 (EU mirror, 2026-07-31T18:49:29.860Z)",
+        "https://www.wowhead.com/news/patch-12-1-ptr-class-tuning-and-dev-notes-for-july-31st-rogue-aura-buffs-382322"
+      ],
+      "verified_nothing_newer_at": "2026-08-03T07:48Z"
+    }
+  ]
 }

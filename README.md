@@ -118,6 +118,12 @@ around getting the maximum data per point:
   not single-run scores. It lands in
   per-source files (`mythic_runs_ptr.csv`, `data_ptr.json`) and the dashboard's
   Live / PTR toggle switches between the two.
+* **Tuning cutoff.** `data/tuning_patches.json` records each PTR class-tuning
+  pass with the UTC instant it went live (per region if that ever differs).
+  The build stamps every run with a `post_tuning` flag by comparing its exact
+  start instant against that cutoff, powering the dashboard's "Since latest
+  tuning" checkbox and the `post_tuning` subsets in the LLM export. Add a new
+  entry at the top of `patches` after each pass; nothing else needs changing.
 * **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries
   are Blizzard-leaderboard imports or anonymized logs with **no report
   attached** (`report.code == ""`, `deaths == 300000000` sentinel) — there is
