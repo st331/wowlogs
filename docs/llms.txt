@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 04:46 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 04:51 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -17,11 +17,13 @@ Every file below carries the same metric block: parses, runs, **characters** (di
 
 The `subset` column is "all" (every completed run) or "timed" (runs that beat the timer only).
 
-**Combining rows — read this before adding anything up.** Only `parses` is additive: every parse belongs to exactly one row. The others are not.
-- `runs` counts distinct runs a spec appeared in, and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x.
-- `characters` counts distinct players, and a player recurs across dungeons, days and resets, so summing it double-counts too.
-- Medians and p90s are exact within a row but cannot be averaged across rows.
-For any of these, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) instead of summing.
+**Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
+
+1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 78,354 parses against a true 25,894. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 25,894. "timed" is a subset of "all", never a separate population to add on.
+2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x (a real example: the current reset's 1,098 runs sum to 5,445 across spec rows). `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
+3. *Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.
+
+When a question spans rows, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) rather than summing aggregates.
 
 ## Raw per-parse data (25,894 rows, complete)
 
@@ -57,10 +59,30 @@ The reset now in progress (bucket 0) started 2026-07-28 and covers 7 day(s) of d
 - It hides thin specs with a minimum-distinct-characters threshold, so mirror that by filtering on the `characters` column rather than `parses` — a spec carried by a handful of grinders has many parses but few players.
 - Its "this reset, last N days" zoom = reset_bucket 0 rows whose `date` is within the newest N dates present.
 
+These recipes are checked on every build: the exported rows are compared against the dashboard's own in-browser aggregation for the whole dataset, for individual reset buckets and for the day zoom, and they reproduce its parse, run and character counts exactly.
+
+## Dataset shape at a glance
+
+- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 5,181 runs, 25,894 parses.
+- Regions by parses: US 12,391, EU 8,643, CN 4,140, KR 520, TW 200.
+- Timed split: 13,283 timed, 7,488 over timer, 5,123 unknown (keys under +10).
+- 8 dungeons, keystone levels +2-+21, median +15.
+- Sample size: this is a PTR tester population, so many class/spec/dungeon cells are thin. Treat a row with fewer than ~30 characters as indicative only, and prefer `characters` over `parses` when judging whether a number is broadly based.
+
+## Worked example
+
+"Which DPS specs perform best on timed +18 keys?" — fetch spec_by_key.csv, keep subset="timed", role="DPS", key_level=18, drop rows with a low `characters` count, then sort by avg_dps (or median_dps, which is less swayed by outliers). Do not add those rows to anything else; for a multi-key answer, pull the raw chunks and recompute.
+
+## What is not in this export
+
+- Live Season 1 data. The dashboard carries it (a much larger, leaderboard-sampled dataset) but only the PTR season is exported here.
+- M+ score/rating. WCL computes no ranking score for PTR zones; the in-game rating is collected but only used to derive the `timed` flag, and is deliberately not published as a metric because the tester population makes per-character totals meaningless.
+- Player names and realms: characters are exposed only as opaque char_id integers.
+
 ## Provenance and caveats
 
 - Source: Warcraft Logs API v2 report data for the PTR Mythic+ zone; every *completed* keystone fight (kill == true) is included — wipes and abandoned keys are not. This is a census of what testers logged, not a leaderboard sample.
-- The PTR population is small and self-selected; expect noisy numbers, especially for rare specs — check the `parses` column before trusting a row.
+- The PTR population is small and self-selected; expect noisy numbers, especially for rare specs — check the `characters` column before trusting a row.
 - Timed status is inferred from Blizzard's in-game rating (depleted keys are rating-capped at 320 regardless of level).
 - Hero talents come from an offline SimulationCraft trait-tree mapping.
 - Dataset regenerates on each data refresh; row counts and ids change between versions.

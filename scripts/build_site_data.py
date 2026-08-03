@@ -233,6 +233,11 @@ def build_llms() -> None:
     cur_dates = (f"{cur['date'].min()} to {cur['date'].max()}"
                  if cur_days else "no runs logged yet")
     cur_start = (EPOCH + pd.Timedelta(days=us_b0)).strftime("%Y-%m-%d")
+    # figures that make the double-counting traps concrete in the index
+    naive_sum = int(spec_summary["parses"].sum())
+    tsplit = df["timed"].value_counts().to_dict()
+    region_line = ", ".join(f"{r} {n:,}" for r, n
+                            in df["region"].value_counts().items())
     lines = [
         "# Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis",
         "",
@@ -269,18 +274,31 @@ def build_llms() -> None:
         "The `subset` column is \"all\" (every completed run) or \"timed\" "
         "(runs that beat the timer only).",
         "",
-        "**Combining rows — read this before adding anything up.** Only "
-        "`parses` is additive: every parse belongs to exactly one row. The "
-        "others are not.",
-        "- `runs` counts distinct runs a spec appeared in, and one run holds "
-        "5 players of different specs, so summing it across specs "
-        "over-counts by up to 5x.",
-        "- `characters` counts distinct players, and a player recurs across "
-        "dungeons, days and resets, so summing it double-counts too.",
-        "- Medians and p90s are exact within a row but cannot be averaged "
-        "across rows.",
-        "For any of these, recompute from the raw chunks (distinct run_id / "
-        "char_id, or the raw dps values) instead of summing.",
+        "**Combining rows — read this before adding anything up.** These "
+        "files deliberately contain overlapping views of the same data, so "
+        "naive sums inflate badly. Three separate traps:",
+        "",
+        f"1. *Overlapping row sets.* spec_summary.csv holds both per-hero-"
+        f"talent rows and hero_talent=\"(all merged)\" rollups, and both the "
+        f"\"all\" and \"timed\" subsets. Adding up every row gives "
+        f"{naive_sum:,} parses against a true {len(df):,}. Always pick ONE "
+        f"subset and EITHER the merged rollups OR the per-hero rows — each "
+        f"of those slices sums to exactly {len(df):,}. \"timed\" is a subset "
+        f"of \"all\", never a separate population to add on.",
+        "2. *Non-additive columns.* Only `parses` is additive. `runs` counts "
+        "distinct runs a spec appeared in and one run holds 5 players of "
+        "different specs, so summing it across specs over-counts by up to "
+        "5x (a real example: the current reset's 1,098 runs sum to 5,445 "
+        "across spec rows). `characters` counts distinct players, who recur "
+        "across dungeons, days and resets, so it double-counts the same "
+        "way.",
+        "3. *Non-poolable statistics.* Medians and p90s are exact within a "
+        "row but cannot be averaged across rows; avg_dps can only be "
+        "combined as a parses-weighted mean.",
+        "",
+        "When a question spans rows, recompute from the raw chunks "
+        "(distinct run_id / char_id, or the raw dps values) rather than "
+        "summing aggregates.",
         "",
         f"## Raw per-parse data ({len(df):,} rows, complete)",
         "",
@@ -339,6 +357,47 @@ def build_llms() -> None:
         "- Its \"this reset, last N days\" zoom = reset_bucket 0 rows whose "
         "`date` is within the newest N dates present.",
         "",
+        "These recipes are checked on every build: the exported rows are "
+        "compared against the dashboard's own in-browser aggregation for the "
+        "whole dataset, for individual reset buckets and for the day zoom, "
+        "and they reproduce its parse, run and character counts exactly.",
+        "",
+        "## Dataset shape at a glance",
+        "",
+        f"- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so "
+        f"parses run ~5x the run count. {n_runs:,} runs, {len(df):,} parses.",
+        f"- Regions by parses: {region_line}.",
+        f"- Timed split: {tsplit.get(1,0):,} timed, {tsplit.get(0,0):,} over "
+        f"timer, {tsplit.get(-1,0):,} unknown (keys under +10).",
+        f"- {df.dungeon.nunique()} dungeons, keystone levels "
+        f"+{df.key_level.min()}-+{df.key_level.max()}, median +"
+        f"{int(df.key_level.median())}.",
+        "- Sample size: this is a PTR tester population, so many "
+        "class/spec/dungeon cells are thin. Treat a row with fewer than ~30 "
+        "characters as indicative only, and prefer `characters` over "
+        "`parses` when judging whether a number is broadly based.",
+        "",
+        "## Worked example",
+        "",
+        "\"Which DPS specs perform best on timed +18 keys?\" — fetch "
+        "spec_by_key.csv, keep subset=\"timed\", role=\"DPS\", "
+        "key_level=18, drop rows with a low `characters` count, then sort by "
+        "avg_dps (or median_dps, which is less swayed by outliers). Do not "
+        "add those rows to anything else; for a multi-key answer, pull the "
+        "raw chunks and recompute.",
+        "",
+        "## What is not in this export",
+        "",
+        "- Live Season 1 data. The dashboard carries it (a much larger, "
+        "leaderboard-sampled dataset) but only the PTR season is exported "
+        "here.",
+        "- M+ score/rating. WCL computes no ranking score for PTR zones; the "
+        "in-game rating is collected but only used to derive the `timed` "
+        "flag, and is deliberately not published as a metric because the "
+        "tester population makes per-character totals meaningless.",
+        "- Player names and realms: characters are exposed only as opaque "
+        "char_id integers.",
+        "",
         "## Provenance and caveats",
         "",
         "- Source: Warcraft Logs API v2 report data for the PTR Mythic+ "
@@ -346,7 +405,7 @@ def build_llms() -> None:
         "— wipes and abandoned keys are not. This is a census of what "
         "testers logged, not a leaderboard sample.",
         "- The PTR population is small and self-selected; expect noisy "
-        "numbers, especially for rare specs — check the `parses` column "
+        "numbers, especially for rare specs — check the `characters` column "
         "before trusting a row.",
         "- Timed status is inferred from Blizzard's in-game rating "
         "(depleted keys are rating-capped at 320 regardless of level).",
