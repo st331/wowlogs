@@ -209,6 +209,10 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       <button data-t="0" class="on">All completed</button>
       <button data-t="1">⏱ Timed only</button>
     </div>
+    <label class="small" id="tunebox" style="display:none; margin-left:10px">
+      <input type="checkbox" id="posttune"> Since latest tuning
+      <span class="hint" id="tunehint"></span>
+    </label>
   </div>
   <div class="hero-rule"></div>
 
@@ -313,10 +317,11 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
+             postTune:false,   // only runs after the latest PTR class tuning
              minchars:125, sort:"desc", tab:"avg", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:false,
              tsort:{col:"a_v", dir:-1}};
-let hasScore=false, hasTimed=false;
+let hasScore=false, hasTimed=false, hasTune=false;
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
@@ -377,6 +382,16 @@ function initData(d,cfg){
   // score tabs only make sense where the source has rankings (never on PTR)
   hasScore=false;
   if(R.score) for(let i=0;i<N;i++) if(R.score[i]>=0){hasScore=true; break}
+  hasTune=!!(d.tuning&&R.post);
+  $("tunebox").style.display=hasTune?"":"none";
+  if(!hasTune) state.postTune=false;
+  if(hasTune){
+    const t=d.tuning;
+    $("tunehint").textContent="("+t.date+" · "+fmtInt(t.runs)+" parses)";
+    $("tunebox").title="Only runs that started after the "+t.label+" went live "
+      +"on that run's own region. "+(t.note||"");
+  }
+  $("posttune").checked=state.postTune;
   hasTimed=false;
   if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
   $("timedseg").style.display=hasTimed?"":"none";
@@ -423,6 +438,7 @@ $("srcseg").querySelectorAll("button").forEach(b=>{
     loadSource(b.dataset.src);
   };
 });
+$("posttune").onchange=e=>{state.postTune=e.target.checked; render()};
 $("timedseg").querySelectorAll("button").forEach(b=>{
   b.onclick=()=>{
     const want=b.dataset.t==="1";
@@ -739,6 +755,7 @@ function baseMasks(){
     atk:state.melee!==state.ranged?(state.melee?1:2):0};
 }
 function rowPass(i,m){
+  if(state.postTune&&R.post[i]!==1) return false;
   if(state.timedOnly&&R.timed[i]!==1) return false;
   if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
   if(m.cls&&!m.cls.has(R.cls[i])) return false;
@@ -913,7 +930,8 @@ function render(){
   $("k-parses").textContent=fmtInt(A.parses);
   $("k-groups").textContent=fmtInt(rows.length);
   $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
-  $("period-note").innerHTML = (state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
+  $("period-note").innerHTML = (state.postTune?"<b>Post-tuning runs only.</b> ":"")
+    +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
     +(state.compare
     ? "Period <b>A</b>: "+describePeriod(state.weeksA)+" (solid, class colors) &nbsp;·&nbsp; "
       +"Period <b>B</b>: "+describePeriod(state.weeksB)+" (grey ghost bars) — KPIs show period A. "

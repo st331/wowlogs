@@ -1,0 +1,15 @@
+{
+  "_comment": [
+    "Class-tuning passes applied to the Midnight 12.1 PTR, newest first.",
+    "The dashboard's 'since latest tuning' filter compares each run's exact",
+    "start timestamp (epoch ms, UTC) against the cutoff for the region whose",
+    "PTR realm the run was played on, so a run is included only once tuning",
+    "was actually live for that region.",
+    "",
+    "'regions' maps a WCL region code to the ISO8601 UTC instant the pass went",
+    "live there; 'default' covers any region not listed explicitly.",
+    "Add a new entry at the top of 'patches' after each tuning pass — the",
+    "dashboard always uses patches[0]."
+  ],
+  "patches": []
+}

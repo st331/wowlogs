@@ -34,6 +34,33 @@ SOURCES = {
 }
 
 EPOCH = pd.Timestamp("2026-01-01")
+TUNING_FILE = ROOT / "data" / "tuning_patches.json"
+
+
+def latest_tuning():
+    """The newest class-tuning pass, or None if none is recorded."""
+    if not TUNING_FILE.exists():
+        return None
+    patches = json.loads(TUNING_FILE.read_text()).get("patches") or []
+    return patches[0] if patches else None
+
+
+def post_tuning_flag(started, regions, patch):
+    """1 where a run started at/after tuning went live in ITS region, else 0.
+
+    Compared as exact UTC instants (the source timestamps are epoch ms), not
+    calendar dates, because the cutoff lands mid-day and differs per region.
+    """
+    if patch is None:
+        return pd.Series(-1, index=started.index, dtype=int)
+    cutoffs = patch.get("regions", {})
+    default = cutoffs.get("default")
+    utc = started.dt.tz_localize("UTC") if started.dt.tz is None else started
+    cut = regions.map(lambda r: cutoffs.get(r, default))
+    cut = pd.to_datetime(cut, utc=True, errors="coerce")
+    flag = (utc >= cut)
+    # unknown cutoff (no default) -> -1 rather than a false negative
+    return flag.astype(int).where(cut.notna(), -1).astype(int)
 
 
 def build(name: str, cfg: dict) -> None:
@@ -74,11 +101,17 @@ def build(name: str, cfg: dict) -> None:
     # "timed" is the PTR rating-derived value), 0 = over timer, -1 = unknown
     timed = df["medal"].map({"gold": 1, "silver": 1, "bronze": 1, "timed": 1,
                              "none": 0}).fillna(-1).astype(int)
+    patch = latest_tuning() if name == "ptr" else None
+    post = post_tuning_flag(started, df["region"], patch)
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
         "season": cfg["season"],
         "epoch": str(EPOCH.date()),
+        "tuning": ({"label": patch.get("label"), "date": patch.get("date"),
+                    "regions": patch.get("regions"),
+                    "note": patch.get("note", ""),
+                    "runs": int((post == 1).sum())} if patch else None),
         "classes": classes, "specs": specs, "heroes": heroes,
         "dungeons": dungeons, "regions": regions, "roles": roles,
         "rows": {
@@ -89,6 +122,7 @@ def build(name: str, cfg: dict) -> None:
             "dps": df["dps"].round(0).astype(int).tolist(),
             "score": score.tolist(),
             "timed": timed.tolist(),
+            "post": post.tolist(),
             "day": day.tolist(),
             "run": run_arr,
             "char": char_arr,
