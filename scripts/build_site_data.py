@@ -14,6 +14,7 @@ import argparse
 import json
 import pathlib
 
+import numpy as np
 import pandas as pd
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -112,6 +113,24 @@ def build(name: str, cfg: dict) -> None:
 BASE_URL = "https://st331.github.io/wowlogs"
 CHUNK = 6000  # raw parse rows per file (~500 KB — safely inside fetch limits)
 
+# Weekly reset schedule, mirroring the dashboard's client-side rules so the
+# exported reset buckets line up exactly with what the site shows.
+RESET_RULES = {"US": (1, 15), "EU": (2, 4)}   # (weekday, hour UTC), Mon = 0
+RESET_DEFAULT = (2, 22)
+
+
+def reset_bounds(now, regions):
+    """Day index (from EPOCH) of each region's most recent weekly reset."""
+    out = {}
+    for reg in regions:
+        wd, hh = RESET_RULES.get(reg, RESET_DEFAULT)
+        b = now.replace(hour=hh, minute=0, second=0, microsecond=0, nanosecond=0)
+        b -= pd.Timedelta(days=(b.weekday() - wd + 7) % 7)
+        if b > now:
+            b -= pd.Timedelta(days=7)
+        out[reg] = (b.normalize() - EPOCH.tz_localize("UTC")).days
+    return out
+
 
 def build_llms() -> None:
     csv = ROOT / "data" / SOURCES["ptr"]["csv"]
@@ -125,8 +144,23 @@ def build_llms() -> None:
     started = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
                              unit="ms", errors="coerce")
     df["date"] = started.dt.strftime("%Y-%m-%d")
-    df["week_start"] = (started - pd.to_timedelta(
-        started.dt.dayofweek, unit="D")).dt.strftime("%Y-%m-%d")
+    # reset buckets: 0 = the reset now in progress, 1 = the one before it, ...
+    # Each row is measured against ITS OWN region's reset, exactly as the
+    # dashboard does, because US/EU/other regions roll over on different days.
+    now = pd.Timestamp.now("UTC")
+    bounds = reset_bounds(now, sorted(df["region"].unique()))
+    day = (started.dt.normalize() - EPOCH).dt.days
+    b0 = df["region"].map(bounds).astype("float")
+    bucket = pd.Series(0, index=df.index, dtype="float")
+    behind = day < b0
+    bucket[behind] = np.ceil((b0[behind] - day[behind]) / 7)
+    df["reset_bucket"] = bucket.fillna(-1).astype(int)
+    # calendar label for a bucket, anchored on the US reset (other regions roll
+    # over within ~1.5 days of it) — handy for reasoning about dates
+    us_b0 = bounds.get("US", next(iter(bounds.values())))
+    df["reset_start"] = [
+        (EPOCH + pd.Timedelta(days=us_b0 - 7 * b)).strftime("%Y-%m-%d")
+        if b >= 0 else "" for b in df["reset_bucket"]]
     df["run_id"] = pd.factorize(df["report_code"].astype(str) + ":"
                                 + df["fight_id"].astype(str))[0]
     df["char_id"] = pd.factorize(df["character"].fillna("?").astype(str) + "@"
@@ -140,6 +174,7 @@ def build_llms() -> None:
         out = g.agg(
             parses=("dps", "size"),
             runs=("run_id", "nunique"),
+            characters=("char_id", "nunique"),
             avg_dps=("dps", "mean"),
             median_dps=("dps", "median"),
             p90_dps=("dps", lambda s: s.quantile(0.9)),
@@ -170,9 +205,12 @@ def build_llms() -> None:
         ("spec_summary.csv", spec_summary),
         ("spec_by_key.csv", with_subsets(["class", "spec", "role", "key_level"])),
         ("spec_by_dungeon.csv", with_subsets(["class", "spec", "role", "dungeon"])),
-        ("spec_by_week.csv", with_subsets(["class", "spec", "role", "week_start"])),
+        ("spec_by_reset.csv",
+         with_subsets(["class", "spec", "role", "reset_bucket", "reset_start"])),
+        ("spec_by_day.csv", with_subsets(["class", "spec", "role", "date"])),
         ("dungeon_summary.csv", df.groupby("dungeon").agg(
             runs=("run_id", "nunique"), parses=("dps", "size"),
+            characters=("char_id", "nunique"),
             timed_run_pct=("timed", lambda s: round(
                 (s == 1).sum() / max((s >= 0).sum(), 1) * 100, 1)),
             avg_duration_s=("duration_s", lambda s: round(s.mean(), 0)),
@@ -183,13 +221,18 @@ def build_llms() -> None:
     ]
     raw_cols = ["run_id", "char_id", "class", "spec", "hero_talent", "role",
                 "region", "dungeon", "key_level", "timed", "duration_s",
-                "dps", "deaths", "item_level", "date"]
+                "dps", "deaths", "item_level", "date", "reset_bucket"]
     raw = df[raw_cols].sort_values(["run_id"]).reset_index(drop=True)
     chunks = [(f"parses_{i // CHUNK + 1}.csv", raw.iloc[i:i + CHUNK])
               for i in range(0, len(raw), CHUNK)]
 
     built = pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC")
     n_runs = df["run_id"].nunique()
+    cur = df[df["reset_bucket"] == 0]
+    cur_days = cur["date"].nunique()
+    cur_dates = (f"{cur['date'].min()} to {cur['date'].max()}"
+                 if cur_days else "no runs logged yet")
+    cur_start = (EPOCH + pd.Timedelta(days=us_b0)).strftime("%Y-%m-%d")
     lines = [
         "# Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis",
         "",
@@ -206,24 +249,38 @@ def build_llms() -> None:
         "",
         "## Start here (pre-aggregated)",
         "",
+        "Every file below carries the same metric block: parses, runs, "
+        "**characters** (distinct players), avg_dps, median_dps, p90_dps, "
+        "avg_deaths, deathless_pct, avg_item_level.",
+        "",
         f"- {BASE_URL}/llms/spec_summary.csv — one row per class/spec/"
         "hero-talent/role (plus hero_talent=\"(all merged)\" rollups) × "
-        "subset. Columns: subset, class, spec, hero_talent, role, parses, "
-        "runs, avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, "
-        "avg_item_level.",
-        f"- {BASE_URL}/llms/spec_by_key.csv — same metrics split by "
-        "keystone level.",
-        f"- {BASE_URL}/llms/spec_by_dungeon.csv — same metrics split by "
-        "dungeon.",
-        f"- {BASE_URL}/llms/spec_by_week.csv — same metrics split by week "
-        "(week_start = Monday, UTC).",
-        f"- {BASE_URL}/llms/dungeon_summary.csv — per-dungeon run counts, "
+        "subset. The whole-dataset view.",
+        f"- {BASE_URL}/llms/spec_by_key.csv — split by keystone level.",
+        f"- {BASE_URL}/llms/spec_by_dungeon.csv — split by dungeon.",
+        f"- {BASE_URL}/llms/spec_by_reset.csv — split by weekly reset "
+        "(reset_bucket 0 = the reset now in progress, 1 = the one before "
+        "it, ...; reset_start is that bucket's US reset date).",
+        f"- {BASE_URL}/llms/spec_by_day.csv — split by calendar day (UTC). "
+        "Use this for day-granular questions such as \"the last 3 days\".",
+        f"- {BASE_URL}/llms/dungeon_summary.csv — per-dungeon runs, players, "
         "timed %, average duration/key/deaths.",
         "",
         "The `subset` column is \"all\" (every completed run) or \"timed\" "
-        "(runs that beat the timer only). Medians and p90s are exact within "
-        "each row — never average them across rows; recompute from the raw "
-        "chunks instead.",
+        "(runs that beat the timer only).",
+        "",
+        "**Combining rows — read this before adding anything up.** Only "
+        "`parses` is additive: every parse belongs to exactly one row. The "
+        "others are not.",
+        "- `runs` counts distinct runs a spec appeared in, and one run holds "
+        "5 players of different specs, so summing it across specs "
+        "over-counts by up to 5x.",
+        "- `characters` counts distinct players, and a player recurs across "
+        "dungeons, days and resets, so summing it double-counts too.",
+        "- Medians and p90s are exact within a row but cannot be averaged "
+        "across rows.",
+        "For any of these, recompute from the raw chunks (distinct run_id / "
+        "char_id, or the raw dps values) instead of summing.",
         "",
         f"## Raw per-parse data ({len(df):,} rows, complete)",
         "",
@@ -253,6 +310,34 @@ def build_llms() -> None:
         "duration (WCL \"Overall DPS\"); deaths: that player's deaths in "
         "the run, parsed from the report's death events.",
         "- item_level: player max item level during the run (may be blank).",
+        "- date: UTC calendar day the run started. reset_bucket: which weekly "
+        "reset it falls in, 0 = the reset now in progress.",
+        "",
+        "## Time periods and the current reset",
+        "",
+        f"Resets are regional: US rolls over Tuesday 15:00 UTC, EU Wednesday "
+        f"04:00 UTC, other regions ~Wednesday 22:00 UTC. Each row's "
+        f"reset_bucket is measured against its OWN region's reset, so bucket "
+        f"0 always means \"the reset that region is currently in\". Buckets "
+        f"present: {', '.join(str(b) for b in sorted(set(df.reset_bucket)) )}.",
+        "",
+        f"The reset now in progress (bucket 0) started {cur_start} and covers "
+        f"{cur_days} day(s) of data so far — {cur_dates}. For \"the last N "
+        "days\" questions use spec_by_day.csv, or filter the raw chunks on "
+        "`date`; for \"this reset vs last reset\" use spec_by_reset.csv.",
+        "",
+        "## Reproducing what the dashboard shows",
+        "",
+        "- Its default view is DPS-role only, hero talents merged into the "
+        "spec — that is the hero_talent=\"(all merged)\" rows of "
+        "spec_summary.csv filtered to role=DPS.",
+        "- Its \"⏱ Timed only\" switch is the subset=\"timed\" rows.",
+        "- It hides thin specs with a minimum-distinct-characters threshold, "
+        "so mirror that by filtering on the `characters` column rather than "
+        "`parses` — a spec carried by a handful of grinders has many parses "
+        "but few players.",
+        "- Its \"this reset, last N days\" zoom = reset_bucket 0 rows whose "
+        "`date` is within the newest N dates present.",
         "",
         "## Provenance and caveats",
         "",

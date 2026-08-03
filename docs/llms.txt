@@ -1,18 +1,27 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 04:25 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 04:46 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
 ## Start here (pre-aggregated)
 
-- https://st331.github.io/wowlogs/llms/spec_summary.csv — one row per class/spec/hero-talent/role (plus hero_talent="(all merged)" rollups) × subset. Columns: subset, class, spec, hero_talent, role, parses, runs, avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level.
-- https://st331.github.io/wowlogs/llms/spec_by_key.csv — same metrics split by keystone level.
-- https://st331.github.io/wowlogs/llms/spec_by_dungeon.csv — same metrics split by dungeon.
-- https://st331.github.io/wowlogs/llms/spec_by_week.csv — same metrics split by week (week_start = Monday, UTC).
-- https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon run counts, timed %, average duration/key/deaths.
+Every file below carries the same metric block: parses, runs, **characters** (distinct players), avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level.
 
-The `subset` column is "all" (every completed run) or "timed" (runs that beat the timer only). Medians and p90s are exact within each row — never average them across rows; recompute from the raw chunks instead.
+- https://st331.github.io/wowlogs/llms/spec_summary.csv — one row per class/spec/hero-talent/role (plus hero_talent="(all merged)" rollups) × subset. The whole-dataset view.
+- https://st331.github.io/wowlogs/llms/spec_by_key.csv — split by keystone level.
+- https://st331.github.io/wowlogs/llms/spec_by_dungeon.csv — split by dungeon.
+- https://st331.github.io/wowlogs/llms/spec_by_reset.csv — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).
+- https://st331.github.io/wowlogs/llms/spec_by_day.csv — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".
+- https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon runs, players, timed %, average duration/key/deaths.
+
+The `subset` column is "all" (every completed run) or "timed" (runs that beat the timer only).
+
+**Combining rows — read this before adding anything up.** Only `parses` is additive: every parse belongs to exactly one row. The others are not.
+- `runs` counts distinct runs a spec appeared in, and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x.
+- `characters` counts distinct players, and a player recurs across dungeons, days and resets, so summing it double-counts too.
+- Medians and p90s are exact within a row but cannot be averaged across rows.
+For any of these, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) instead of summing.
 
 ## Raw per-parse data (25,894 rows, complete)
 
@@ -22,7 +31,7 @@ The `subset` column is "all" (every completed run) or "timed" (runs that beat th
 - https://st331.github.io/wowlogs/llms/parses_4.csv — rows 18,001-24,000
 - https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-25,894
 
-One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date.
+One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket.
 
 ## Column dictionary
 
@@ -33,6 +42,20 @@ One row per player per run; a run's 5 players share a run_id, so team compositio
 - timed: 1 = beat the timer, 0 = completed over timer, -1 = unknown (keys below +10, where the in-game rating cannot distinguish the two).
 - duration_s: fight duration in seconds; dps = total damage done ÷ duration (WCL "Overall DPS"); deaths: that player's deaths in the run, parsed from the report's death events.
 - item_level: player max item level during the run (may be blank).
+- date: UTC calendar day the run started. reset_bucket: which weekly reset it falls in, 0 = the reset now in progress.
+
+## Time periods and the current reset
+
+Resets are regional: US rolls over Tuesday 15:00 UTC, EU Wednesday 04:00 UTC, other regions ~Wednesday 22:00 UTC. Each row's reset_bucket is measured against its OWN region's reset, so bucket 0 always means "the reset that region is currently in". Buckets present: 0, 1, 2, 3, 4, 5, 6.
+
+The reset now in progress (bucket 0) started 2026-07-28 and covers 7 day(s) of data so far — 2026-07-28 to 2026-08-03. For "the last N days" questions use spec_by_day.csv, or filter the raw chunks on `date`; for "this reset vs last reset" use spec_by_reset.csv.
+
+## Reproducing what the dashboard shows
+
+- Its default view is DPS-role only, hero talents merged into the spec — that is the hero_talent="(all merged)" rows of spec_summary.csv filtered to role=DPS.
+- Its "⏱ Timed only" switch is the subset="timed" rows.
+- It hides thin specs with a minimum-distinct-characters threshold, so mirror that by filtering on the `characters` column rather than `parses` — a spec carried by a handful of grinders has many parses but few players.
+- Its "this reset, last N days" zoom = reset_bucket 0 rows whose `date` is within the newest N dates present.
 
 ## Provenance and caveats
 
