@@ -13,6 +13,7 @@ skipped, so the live build never blocks on PTR data existing.
 import argparse
 import json
 import pathlib
+import re
 
 import numpy as np
 import pandas as pd
@@ -252,6 +253,11 @@ def build_llms() -> None:
         "use the static files below instead. All URLs are absolute — fetch "
         "any of them directly. CSVs are comma-separated with a header row.",
         "",
+        f"If your fetcher only handles HTML, everything here is mirrored as "
+        f"pages: {BASE_URL}/llms/ carries this same documentation, and each "
+        f"CSV below has an .html twin at the same path (for example "
+        f"{BASE_URL}/llms/spec_summary.html). The content is identical.",
+        "",
         "## Start here (pre-aggregated)",
         "",
         "Every file below carries the same metric block: parses, runs, "
@@ -416,22 +422,97 @@ def build_llms() -> None:
     ]
     index_txt = "\n".join(lines) + "\n"
 
-    redirect = ('<!doctype html><meta http-equiv="refresh" '
-                f'content="0;url={BASE_URL}/llms.txt">'
-                f'<a href="{BASE_URL}/llms.txt">llms.txt</a>\n')
+    # HTML mirrors: some agent fetchers only handle text/html reliably, so the
+    # same documentation and tables are published as pages too. (llms.txt
+    # stays canonical for the ones that read plain text.)
+    def html_doc(title, body):
+        return ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                "<meta name=\"viewport\" content=\"width=device-width,"
+                "initial-scale=1\"><meta name=\"robots\" content=\"index,follow\">"
+                f"<title>{title}</title><style>body{{font:15px/1.5 -apple-system,"
+                "Segoe UI,Roboto,sans-serif;max-width:60rem;margin:2rem auto;"
+                "padding:0 1rem;color:#111}table{border-collapse:collapse;"
+                "font-size:.85rem}th,td{border:1px solid #ccc;padding:.2rem .45rem;"
+                "text-align:right}th{background:#f2f2f2}td:nth-child(-n+5),"
+                "th:nth-child(-n+5){text-align:left}code{background:#f2f2f2;"
+                "padding:0 .2rem}</style></head><body>" + body + "</body></html>\n")
+
+    def md_to_html(md_lines):
+        out, in_list = [], False
+        for ln in md_lines:
+            esc = (ln.replace("&", "&amp;").replace("<", "&lt;")
+                     .replace("**", "\x00"))
+            while "\x00" in esc:  # bold pairs
+                esc = esc.replace("\x00", "<b>", 1).replace("\x00", "</b>", 1)
+            esc = re.sub(r"`([^`]+)`", r"<code>\1</code>", esc)
+            esc = re.sub(r"(https?://[^\s,)]+)", r'<a href="\1">\1</a>', esc)
+            if esc.startswith("# "):
+                item, tag = esc[2:], "h1"
+            elif esc.startswith("## "):
+                item, tag = esc[3:], "h2"
+            elif esc.startswith("> ") or esc.startswith("- ") or re.match(r"^\d+\. ", esc):
+                item, tag = re.sub(r"^(> |- |\d+\. )", "", esc), "li"
+            elif esc.strip():
+                item, tag = esc, "p"
+            else:
+                item, tag = "", None
+            if tag == "li" and not in_list:
+                out.append("<ul>"); in_list = True
+            elif tag != "li" and in_list:
+                out.append("</ul>"); in_list = False
+            if tag:
+                out.append(f"<{tag}>{item}</{tag}>")
+        if in_list:
+            out.append("</ul>")
+        return "\n".join(out)
+
+    tables_html = ["<h2>Data tables (HTML mirrors of the CSVs)</h2><ul>"]
+    for name, frame in files:
+        stem = name[:-4]
+        tables_html.append(f'<li><a href="{BASE_URL}/llms/{stem}.html">'
+                           f'{stem}.html</a> — {len(frame):,} rows</li>')
+    tables_html.append("</ul>")
+    doc_html = html_doc("Midnight M+ Season 2 (PTR) — data for LLMs",
+                        md_to_html(lines) + "\n".join(tables_html))
+    # Explicitly welcome AI crawlers. NOTE: crawlers only honour robots.txt at
+    # the DOMAIN root (st331.github.io/robots.txt), which a project page cannot
+    # publish — this copy exists so nothing here looks disallowed to fetchers
+    # that do check the path, and it documents the intent either way.
+    robots = ("# Everything here is public data, deliberately open to AI agents.\n"
+              "User-agent: *\nAllow: /\n\n"
+              + "".join(f"User-agent: {ua}\nAllow: /\n\n" for ua in
+                        ("Google-Extended", "Googlebot", "GPTBot", "OAI-SearchBot",
+                         "ChatGPT-User", "ClaudeBot", "Claude-User", "anthropic-ai",
+                         "PerplexityBot", "CCBot", "Bingbot"))
+              + f"Sitemap: {BASE_URL}/sitemap.xml\n")
+    pages = [f"{BASE_URL}/", f"{BASE_URL}/llms.txt", f"{BASE_URL}/llms/"] + \
+            [f"{BASE_URL}/llms/{n[:-4]}.html" for n, _ in files] + \
+            [f"{BASE_URL}/llms/{n}" for n, _ in files]
+    today = pd.Timestamp.now("UTC").strftime("%Y-%m-%d")
+    sitemap = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+               '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+               + "".join(f"  <url><loc>{u}</loc><lastmod>{today}</lastmod></url>\n"
+                         for u in pages) + "</urlset>\n")
     for d in SITE_DIRS:
         (d / "llms").mkdir(parents=True, exist_ok=True)
         (d / "llms.txt").write_text(index_txt)
-        (d / "llms" / "index.html").write_text(redirect)
+        (d / "llms" / "index.html").write_text(doc_html)
+        (d / "robots.txt").write_text(robots)
+        (d / "sitemap.xml").write_text(sitemap)
         (d / ".nojekyll").write_text("")
         for name, frame in files:
             frame.to_csv(d / "llms" / name, index=False)
+            (d / "llms" / f"{name[:-4]}.html").write_text(html_doc(
+                name[:-4],
+                f"<h1>{name[:-4]}</h1><p>Midnight M+ Season 2 (PTR), generated "
+                f"{built}. CSV: <a href=\"{BASE_URL}/llms/{name}\">{name}</a> · "
+                f"docs: <a href=\"{BASE_URL}/llms.txt\">llms.txt</a></p>"
+                + frame.to_html(index=False, border=0, na_rep="")))
         for name, chunk in chunks:
             chunk.to_csv(d / "llms" / name, index=False)
-    total = sum((SITE_DIRS[0] / "llms" / n).stat().st_size
-                for n, _ in files + chunks) / 1e6
-    print(f"[llms] llms.txt + {len(files) + len(chunks)} files "
-          f"({total:.1f} MB) -> site/llms + docs/llms")
+    total = sum(f.stat().st_size for f in (SITE_DIRS[0] / "llms").iterdir()) / 1e6
+    print(f"[llms] llms.txt + {len(files) + len(chunks)} data files + "
+          f"{len(files) + 1} HTML pages + robots/sitemap ({total:.1f} MB)")
 
 
 def main() -> None:

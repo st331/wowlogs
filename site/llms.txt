@@ -1,8 +1,10 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 04:51 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 05:09 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
+
+If your fetcher only handles HTML, everything here is mirrored as pages: https://st331.github.io/wowlogs/llms/ carries this same documentation, and each CSV below has an .html twin at the same path (for example https://st331.github.io/wowlogs/llms/spec_summary.html). The content is identical.
 
 ## Start here (pre-aggregated)
 

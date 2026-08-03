@@ -1,1 +1,86 @@
-<!doctype html><meta http-equiv="refresh" content="0;url=https://st331.github.io/wowlogs/llms.txt"><a href="https://st331.github.io/wowlogs/llms.txt">llms.txt</a>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><title>Midnight M+ Season 2 (PTR) — data for LLMs</title><style>body{font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#111}table{border-collapse:collapse;font-size:.85rem}th,td{border:1px solid #ccc;padding:.2rem .45rem;text-align:right}th{background:#f2f2f2}td:nth-child(-n+5),th:nth-child(-n+5){text-align:left}code{background:#f2f2f2;padding:0 .2rem}</style></head><body><h1>Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis</h1>
+<ul>
+<li>Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 05:09 UTC.</li>
+</ul>
+<p>The interactive dashboard at <a href="https://st331.github.io/wowlogs/#ptr">https://st331.github.io/wowlogs/#ptr</a> is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.</p>
+<p>If your fetcher only handles HTML, everything here is mirrored as pages: <a href="https://st331.github.io/wowlogs/llms/">https://st331.github.io/wowlogs/llms/</a> carries this same documentation, and each CSV below has an .html twin at the same path (for example <a href="https://st331.github.io/wowlogs/llms/spec_summary.html">https://st331.github.io/wowlogs/llms/spec_summary.html</a>). The content is identical.</p>
+<h2>Start here (pre-aggregated)</h2>
+<p>Every file below carries the same metric block: parses, runs, <b>characters</b> (distinct players), avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level.</p>
+<ul>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_summary.csv">https://st331.github.io/wowlogs/llms/spec_summary.csv</a> — one row per class/spec/hero-talent/role (plus hero_talent="(all merged)" rollups) × subset. The whole-dataset view.</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_key.csv">https://st331.github.io/wowlogs/llms/spec_by_key.csv</a> — split by keystone level.</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_dungeon.csv">https://st331.github.io/wowlogs/llms/spec_by_dungeon.csv</a> — split by dungeon.</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_reset.csv">https://st331.github.io/wowlogs/llms/spec_by_reset.csv</a> — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_day.csv">https://st331.github.io/wowlogs/llms/spec_by_day.csv</a> — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".</li>
+<li><a href="https://st331.github.io/wowlogs/llms/dungeon_summary.csv">https://st331.github.io/wowlogs/llms/dungeon_summary.csv</a> — per-dungeon runs, players, timed %, average duration/key/deaths.</li>
+</ul>
+<p>The <code>subset</code> column is "all" (every completed run) or "timed" (runs that beat the timer only).</p>
+<p><b>Combining rows — read this before adding anything up.</b> These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:</p>
+<ul>
+<li>*Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 78,354 parses against a true 25,894. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 25,894. "timed" is a subset of "all", never a separate population to add on.</li>
+<li>*Non-additive columns.* Only <code>parses</code> is additive. <code>runs</code> counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x (a real example: the current reset's 1,098 runs sum to 5,445 across spec rows). <code>characters</code> counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.</li>
+<li>*Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.</li>
+</ul>
+<p>When a question spans rows, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) rather than summing aggregates.</p>
+<h2>Raw per-parse data (25,894 rows, complete)</h2>
+<ul>
+<li><a href="https://st331.github.io/wowlogs/llms/parses_1.csv">https://st331.github.io/wowlogs/llms/parses_1.csv</a> — rows 1-6,000</li>
+<li><a href="https://st331.github.io/wowlogs/llms/parses_2.csv">https://st331.github.io/wowlogs/llms/parses_2.csv</a> — rows 6,001-12,000</li>
+<li><a href="https://st331.github.io/wowlogs/llms/parses_3.csv">https://st331.github.io/wowlogs/llms/parses_3.csv</a> — rows 12,001-18,000</li>
+<li><a href="https://st331.github.io/wowlogs/llms/parses_4.csv">https://st331.github.io/wowlogs/llms/parses_4.csv</a> — rows 18,001-24,000</li>
+<li><a href="https://st331.github.io/wowlogs/llms/parses_5.csv">https://st331.github.io/wowlogs/llms/parses_5.csv</a> — rows 24,001-25,894</li>
+</ul>
+<p>One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket.</p>
+<h2>Column dictionary</h2>
+<ul>
+<li>run_id / char_id: stable anonymous integer ids within this dataset version.</li>
+<li>class / spec / hero_talent: e.g. Warlock / Demonology / Diabolist; hero_talent may be "Unknown" where the talent tree could not be resolved (~5% of rows).</li>
+<li>role: DPS, Healer or Tank.</li>
+<li>key_level: keystone level (+N).</li>
+<li>timed: 1 = beat the timer, 0 = completed over timer, -1 = unknown (keys below +10, where the in-game rating cannot distinguish the two).</li>
+<li>duration_s: fight duration in seconds; dps = total damage done ÷ duration (WCL "Overall DPS"); deaths: that player's deaths in the run, parsed from the report's death events.</li>
+<li>item_level: player max item level during the run (may be blank).</li>
+<li>date: UTC calendar day the run started. reset_bucket: which weekly reset it falls in, 0 = the reset now in progress.</li>
+</ul>
+<h2>Time periods and the current reset</h2>
+<p>Resets are regional: US rolls over Tuesday 15:00 UTC, EU Wednesday 04:00 UTC, other regions ~Wednesday 22:00 UTC. Each row's reset_bucket is measured against its OWN region's reset, so bucket 0 always means "the reset that region is currently in". Buckets present: 0, 1, 2, 3, 4, 5, 6.</p>
+<p>The reset now in progress (bucket 0) started 2026-07-28 and covers 7 day(s) of data so far — 2026-07-28 to 2026-08-03. For "the last N days" questions use spec_by_day.csv, or filter the raw chunks on <code>date</code>; for "this reset vs last reset" use spec_by_reset.csv.</p>
+<h2>Reproducing what the dashboard shows</h2>
+<ul>
+<li>Its default view is DPS-role only, hero talents merged into the spec — that is the hero_talent="(all merged)" rows of spec_summary.csv filtered to role=DPS.</li>
+<li>Its "⏱ Timed only" switch is the subset="timed" rows.</li>
+<li>It hides thin specs with a minimum-distinct-characters threshold, so mirror that by filtering on the <code>characters</code> column rather than <code>parses</code> — a spec carried by a handful of grinders has many parses but few players.</li>
+<li>Its "this reset, last N days" zoom = reset_bucket 0 rows whose <code>date</code> is within the newest N dates present.</li>
+</ul>
+<p>These recipes are checked on every build: the exported rows are compared against the dashboard's own in-browser aggregation for the whole dataset, for individual reset buckets and for the day zoom, and they reproduce its parse, run and character counts exactly.</p>
+<h2>Dataset shape at a glance</h2>
+<ul>
+<li>Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 5,181 runs, 25,894 parses.</li>
+<li>Regions by parses: US 12,391, EU 8,643, CN 4,140, KR 520, TW 200.</li>
+<li>Timed split: 13,283 timed, 7,488 over timer, 5,123 unknown (keys under +10).</li>
+<li>8 dungeons, keystone levels +2-+21, median +15.</li>
+<li>Sample size: this is a PTR tester population, so many class/spec/dungeon cells are thin. Treat a row with fewer than ~30 characters as indicative only, and prefer <code>characters</code> over <code>parses</code> when judging whether a number is broadly based.</li>
+</ul>
+<h2>Worked example</h2>
+<p>"Which DPS specs perform best on timed +18 keys?" — fetch spec_by_key.csv, keep subset="timed", role="DPS", key_level=18, drop rows with a low <code>characters</code> count, then sort by avg_dps (or median_dps, which is less swayed by outliers). Do not add those rows to anything else; for a multi-key answer, pull the raw chunks and recompute.</p>
+<h2>What is not in this export</h2>
+<ul>
+<li>Live Season 1 data. The dashboard carries it (a much larger, leaderboard-sampled dataset) but only the PTR season is exported here.</li>
+<li>M+ score/rating. WCL computes no ranking score for PTR zones; the in-game rating is collected but only used to derive the <code>timed</code> flag, and is deliberately not published as a metric because the tester population makes per-character totals meaningless.</li>
+<li>Player names and realms: characters are exposed only as opaque char_id integers.</li>
+</ul>
+<h2>Provenance and caveats</h2>
+<ul>
+<li>Source: Warcraft Logs API v2 report data for the PTR Mythic+ zone; every *completed* keystone fight (kill == true) is included — wipes and abandoned keys are not. This is a census of what testers logged, not a leaderboard sample.</li>
+<li>The PTR population is small and self-selected; expect noisy numbers, especially for rare specs — check the <code>characters</code> column before trusting a row.</li>
+<li>Timed status is inferred from Blizzard's in-game rating (depleted keys are rating-capped at 320 regardless of level).</li>
+<li>Hero talents come from an offline SimulationCraft trait-tree mapping.</li>
+<li>Dataset regenerates on each data refresh; row counts and ids change between versions.</li>
+</ul><h2>Data tables (HTML mirrors of the CSVs)</h2><ul>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_summary.html">spec_summary.html</a> — 322 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_key.html">spec_by_key.html</a> — 856 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_dungeon.html">spec_by_dungeon.html</a> — 640 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_reset.html">spec_by_reset.html</a> — 444 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_day.html">spec_by_day.html</a> — 2,523 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/dungeon_summary.html">dungeon_summary.html</a> — 8 rows</li>
+</ul></body></html>
