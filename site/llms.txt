@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,181 runs / 25,894 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 05:09 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,198 runs / 25,979 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-03. Generated 2026-08-03 07:32 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -21,19 +21,19 @@ The `subset` column is "all" (every completed run) or "timed" (runs that beat th
 
 **Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
 
-1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 78,354 parses against a true 25,894. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 25,894. "timed" is a subset of "all", never a separate population to add on.
+1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 78,546 parses against a true 25,979. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 25,979. "timed" is a subset of "all", never a separate population to add on.
 2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x (a real example: the current reset's 1,098 runs sum to 5,445 across spec rows). `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
 3. *Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.
 
 When a question spans rows, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) rather than summing aggregates.
 
-## Raw per-parse data (25,894 rows, complete)
+## Raw per-parse data (25,979 rows, complete)
 
 - https://st331.github.io/wowlogs/llms/parses_1.csv — rows 1-6,000
 - https://st331.github.io/wowlogs/llms/parses_2.csv — rows 6,001-12,000
 - https://st331.github.io/wowlogs/llms/parses_3.csv — rows 12,001-18,000
 - https://st331.github.io/wowlogs/llms/parses_4.csv — rows 18,001-24,000
-- https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-25,894
+- https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-25,979
 
 One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket.
 
@@ -65,9 +65,9 @@ These recipes are checked on every build: the exported rows are compared against
 
 ## Dataset shape at a glance
 
-- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 5,181 runs, 25,894 parses.
-- Regions by parses: US 12,391, EU 8,643, CN 4,140, KR 520, TW 200.
-- Timed split: 13,283 timed, 7,488 over timer, 5,123 unknown (keys under +10).
+- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 5,198 runs, 25,979 parses.
+- Regions by parses: US 12,466, EU 8,643, CN 4,150, KR 520, TW 200.
+- Timed split: 13,294 timed, 7,460 over timer, 5,225 unknown (keys under +10).
 - 8 dungeons, keystone levels +2-+21, median +15.
 - Sample size: this is a PTR tester population, so many class/spec/dungeon cells are thin. Treat a row with fewer than ~30 characters as indicative only, and prefer `characters` over `parses` when judging whether a number is broadly based.
 
