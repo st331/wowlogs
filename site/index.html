@@ -347,15 +347,25 @@ const SOURCES={
 };
 let SRC="live"; const DATA_CACHE={};
 
+// Large datasets are published pre-gzipped (the deploy artifact has to stay
+// small); inflate them in the browser, else fall back to the plain file.
+async function loadJSON(file){
+  if(typeof DecompressionStream==="function"){
+    const gz=await fetch(file+".gz");
+    if(gz.ok) return new Response(
+      gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
+  }
+  const r=await fetch(file);
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+
 function loadSource(src){
   SRC=src; const cfg=SOURCES[src];
   $("loading").textContent="Loading data…";
   $("loading").style.display=""; $("app").style.display="none";
   const got=DATA_CACHE[src]?Promise.resolve(DATA_CACHE[src])
-    :fetch(cfg.file).then(r=>{
-      if(!r.ok) throw new Error("HTTP "+r.status);
-      return r.json();
-    }).then(d=>(DATA_CACHE[src]=d));
+    :loadJSON(cfg.file).then(d=>(DATA_CACHE[src]=d));
   got.then(d=>initData(d,cfg)).catch(e=>{
     $("loading").textContent = src==="ptr"
       ? "PTR data isn't available yet — run the collector with --source ptr and rebuild."

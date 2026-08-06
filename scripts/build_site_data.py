@@ -11,6 +11,7 @@ each self-describing via its "season" label. Sources whose CSV is missing are
 skipped, so the live build never blocks on PTR data existing.
 """
 import argparse
+import gzip
 import json
 import pathlib
 import re
@@ -129,12 +130,26 @@ def build(name: str, cfg: dict) -> None:
         },
     }
     blob = json.dumps(payload, separators=(",", ":"))
+    # Big datasets ship pre-compressed: GitHub Pages' deploy step has a hard
+    # 10-minute publish budget and a multi-tens-of-MB artifact blows it. The
+    # client inflates via DecompressionStream, falling back to the plain file.
+    gz = len(blob) > 8_000_000
     for d in SITE_DIRS:
         d.mkdir(exist_ok=True)
         out = d / cfg["out"]
-        out.write_text(blob)
-        print(f"[{name}] {len(df):,} rows -> {out} "
-              f"({out.stat().st_size / 1e6:.1f} MB raw)")
+        plain, packed = out, out.with_suffix(out.suffix + ".gz")
+        if gz:
+            plain.unlink(missing_ok=True)
+            with gzip.open(packed, "wb", compresslevel=9) as fh:
+                fh.write(blob.encode())
+            print(f"[{name}] {len(df):,} rows -> {packed} "
+                  f"({packed.stat().st_size / 1e6:.1f} MB gz, "
+                  f"{len(blob) / 1e6:.1f} MB raw)")
+        else:
+            packed.unlink(missing_ok=True)
+            plain.write_text(blob)
+            print(f"[{name}] {len(df):,} rows -> {plain} "
+                  f"({plain.stat().st_size / 1e6:.1f} MB raw)")
 
 
 # --------------------------------------------------------------------------
