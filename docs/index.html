@@ -317,9 +317,9 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
-             postTune:false,   // only runs after the latest PTR class tuning
+             postTune:true,    // default: only runs after the latest tuning
              minchars:125, sort:"desc", tab:"avg", trendMetric:"avg",
-             trendView:"lines", trendPin:new Set(), timedOnly:false,
+             trendView:"lines", trendPin:new Set(), timedOnly:true,
              tsort:{col:"a_v", dir:-1}};
 let hasScore=false, hasTimed=false, hasTune=false;
 
@@ -384,7 +384,7 @@ function initData(d,cfg){
   if(R.score) for(let i=0;i<N;i++) if(R.score[i]>=0){hasScore=true; break}
   hasTune=!!(d.tuning&&R.post);
   $("tunebox").style.display=hasTune?"":"none";
-  if(!hasTune) state.postTune=false;
+  state.postTune=hasTune;
   if(hasTune){
     const t=d.tuning;
     $("tunehint").textContent="("+t.date+" · "+fmtInt(t.runs)+" parses)";
@@ -395,7 +395,9 @@ function initData(d,cfg){
   hasTimed=false;
   if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
   $("timedseg").style.display=hasTimed?"":"none";
-  if(!hasTimed) state.timedOnly=false;
+  state.timedOnly=hasTimed;
+  $("timedseg").querySelectorAll("button").forEach(x=>
+    x.classList.toggle("on",(x.dataset.t==="1")===state.timedOnly));
   if(!hasScore){
     if(TABS.find(t=>t.id===state.tab)?.score) state.tab="avg";
     if(TABS.find(t=>t.id===state.trendMetric)?.score) state.trendMetric="avg";
