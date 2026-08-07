@@ -318,7 +318,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              postTune:true,    // default: only runs after the latest tuning
-             minchars:125, sort:"desc", tab:"avg", trendMetric:"avg",
+             minchars:125, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
              tsort:{col:"a_v", dir:-1}};
 let hasScore=false, hasTimed=false, hasTune=false;
@@ -409,7 +409,7 @@ function initData(d,cfg){
   $("timedseg").querySelectorAll("button").forEach(x=>
     x.classList.toggle("on",(x.dataset.t==="1")===state.timedOnly));
   if(!hasScore){
-    if(TABS.find(t=>t.id===state.tab)?.score) state.tab="avg";
+    if(TABS.find(t=>t.id===state.tab)?.score) state.tab="med";
     if(TABS.find(t=>t.id===state.trendMetric)?.score) state.trendMetric="avg";
   }
   // selections carry over between sources only where the names still exist
