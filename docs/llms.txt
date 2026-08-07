@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,902 runs / 29,499 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-07. Generated 2026-08-07 01:57 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 5,975 runs / 29,864 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-07. Generated 2026-08-07 17:12 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -19,23 +19,23 @@ Every file below carries the same metric block: parses, runs, **characters** (di
 
 The `subset` column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.
 
-**Tuning cutoff.** The latest class-tuning pass is Curse of Ula'tek PTR class tuning (Jul 31), taken as live at 2026-07-31T18:49:03Z (6,320 of 29,499 parses fall after it). Each run is classified by its exact start instant, and the raw chunks carry a `post_tuning` column (1 = after, 0 = before) so you can slice it yourself. Anchored on the moment Blizzard published the notes. Blizzard announced no PTR restart or go-live time for this pass, so the publication instant is the best sourced anchor rather than a stated deployment time. Patch 12.1 hit its release candidate build (68914, Jul 24), after which tuning ships as server-side hotfixes applied globally rather than via per-region realm restarts. The EU notes were mirrored 26 seconds after the US post, and no source publishes separate regional deployment times, so per-region cutoffs would be false precision. The cutoff falls in a 38-minute window with no logged runs (nearest run before 18:34:57Z, nearest after 19:13:06Z). Moving the assumed go-live by +/-30 min reclassifies only 2 runs, and by +/-1 h at most 10, so the split is insensitive to the exact minute.
+**Tuning cutoff.** The latest class-tuning pass is Curse of Ula'tek PTR class tuning (Jul 31), taken as live at 2026-07-31T18:49:03Z (6,685 of 29,864 parses fall after it). Each run is classified by its exact start instant, and the raw chunks carry a `post_tuning` column (1 = after, 0 = before) so you can slice it yourself. Anchored on the moment Blizzard published the notes. Blizzard announced no PTR restart or go-live time for this pass, so the publication instant is the best sourced anchor rather than a stated deployment time. Patch 12.1 hit its release candidate build (68914, Jul 24), after which tuning ships as server-side hotfixes applied globally rather than via per-region realm restarts. The EU notes were mirrored 26 seconds after the US post, and no source publishes separate regional deployment times, so per-region cutoffs would be false precision. The cutoff falls in a 38-minute window with no logged runs (nearest run before 18:34:57Z, nearest after 19:13:06Z). Moving the assumed go-live by +/-30 min reclassifies only 2 runs, and by +/-1 h at most 10, so the split is insensitive to the exact minute.
 
 **Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
 
-1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 105,356 parses against a true 29,499. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 29,499. "timed" is a subset of "all", never a separate population to add on.
+1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 106,886 parses against a true 29,864. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 29,864. "timed" is a subset of "all", never a separate population to add on.
 2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x (a real example: the current reset's 1,098 runs sum to 5,445 across spec rows). `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
 3. *Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.
 
 When a question spans rows, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) rather than summing aggregates.
 
-## Raw per-parse data (29,499 rows, complete)
+## Raw per-parse data (29,864 rows, complete)
 
 - https://st331.github.io/wowlogs/llms/parses_1.csv — rows 1-6,000
 - https://st331.github.io/wowlogs/llms/parses_2.csv — rows 6,001-12,000
 - https://st331.github.io/wowlogs/llms/parses_3.csv — rows 12,001-18,000
 - https://st331.github.io/wowlogs/llms/parses_4.csv — rows 18,001-24,000
-- https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-29,499
+- https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-29,864
 
 One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning.
 
@@ -67,9 +67,9 @@ These recipes are checked on every build: the exported rows are compared against
 
 ## Dataset shape at a glance
 
-- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 5,902 runs, 29,499 parses.
-- Regions by parses: US 13,931, EU 9,988, CN 4,815, KR 555, TW 210.
-- Timed split: 13,104 timed, 7,690 over timer, 8,705 unknown (keys under +10).
+- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 5,975 runs, 29,864 parses.
+- Regions by parses: US 14,066, EU 10,078, CN 4,955, KR 555, TW 210.
+- Timed split: 12,934 timed, 7,690 over timer, 9,240 unknown (keys under +10).
 - 8 dungeons, keystone levels +2-+21, median +15.
 - Sample size: this is a PTR tester population, so many class/spec/dungeon cells are thin. Treat a row with fewer than ~30 characters as indicative only, and prefer `characters` over `parses` when judging whether a number is broadly based.
 
