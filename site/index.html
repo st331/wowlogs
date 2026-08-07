@@ -302,6 +302,9 @@ const TABS = [
   {id:"tscore", label:"Top Score", fmt:fmtInt, betterUp:true, inlay:"dps",
    shade:"avg", tick:"ascore", score:true,
    cap:"What this spec can hit: the 95th-percentile character total score (sum of best run per dungeon, within the current filters). Grey tick: average."},
+  {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
+   inlay:"dps", shade:"avg", tick:null,
+   cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher average DPS."},
   {id:"trend", label:"Trend", trend:true,
    cap:"Weekly {metric} for the top groups under the current filters, whole season. "+
        "Weeks with fewer than 25 parses for a group are skipped."},
@@ -1054,10 +1057,12 @@ function renderTrend(){
   let mt=TABS.find(t=>t.id===state.trendMetric)||TABS[0];
   if(mt.score){state.trendMetric="avg"; mt=TABS[0];}
   const useDeaths=mt.id==="adeaths"||mt.id==="deathless";
+  const useChars=mt.id==="chars";
   const calc=vals=>{           // metric over one bag of per-parse source values
     const n=vals.length; if(!n) return NaN;
     let s=0,z=0; for(const v of vals){s+=v; if(v===0)z++}
     switch(mt.id){
+      case "chars": return new Set(vals).size;
       case "avg": case "adeaths": return s/n;
       case "med": return q50([...vals].sort((a,b)=>a-b));
       case "diff": return s/n-q50([...vals].sort((a,b)=>a-b));
@@ -1070,7 +1075,7 @@ function renderTrend(){
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     const w=R.rbucket[i]; if(w>=999) continue;
-    const v=useDeaths?R.deaths[i]:R.dps[i];
+    const v=useChars?R.char[i]:useDeaths?R.deaths[i]:R.dps[i];
     const key=groupKey(i);
     let t=tot.get(key);
     if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
@@ -1115,12 +1120,12 @@ function renderTrend(){
   let ymin=1e18,ymax=-1e18;
   series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
   const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
-  if(useDeaths&&ymin<0) ymin=0;                    // these metrics can't go negative
+  if((useDeaths||useChars)&&ymin<0) ymin=0;        // these metrics can't go negative
   if(mt.id==="deathless"&&ymax>100) ymax=100;
   const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
   const ys=v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
   const axf=v=>useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
-    :Math.round(v/1000)+"k";
+    :useChars?String(Math.round(v)):Math.round(v/1000)+"k";
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,weeks,ymin,ymax,mt);
     wireTrendTips(box,mt);
@@ -1252,7 +1257,8 @@ function renderTable(rows,tab){
   } else {
     cols=[["cls","Class","txt"],["spec","Spec","txt"]];
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
-    cols.push(["a_n","Total Runs"],["avg","Average DPS"],["med","Median DPS"],
+    cols.push(["a_n","Total Runs"],["chars","Characters"],
+      ["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
     if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"],
@@ -1288,7 +1294,7 @@ function renderTable(rows,tab){
     const v=get(r,k);
     if(k==="cls") return `<span class="classdot" style="background:${CLASS_COLORS[r.cls]||"#999"}"></span>`+esc(r.cls);
     if(k==="spec"||k==="hero") return esc(v);
-    if(k==="a_n") return fmtInt(v);
+    if(k==="a_n"||k==="chars") return fmtInt(v);
     if(k==="b_n") return v<0?"–":fmtInt(v);
     if(k==="a_v") return isFinite(v)?fmt(v):"–";
     if(k==="b_v") return isFinite(v)?fmt(v):"–";
