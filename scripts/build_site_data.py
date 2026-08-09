@@ -345,13 +345,31 @@ def build_llms() -> None:
     SHRINK_K = 5   # keep in step with the dashboard's Strength column
 
     def comp_agg(frame):
+        """One row per comp, ranked by a key-normalised, difficulty-credited
+        margin. Mirrors renderComps() in site/index.html exactly."""
         frame = frame.dropna(subset=["pct"])
         if frame.empty:
             return None
-        global_mean = frame["pct"].mean()
-        g = frame.sort_values("pct", ascending=False).groupby("composition")
+        # The keystone timer does not move with key level, so the margin under
+        # it falls steadily as keys rise. Fit that line and score each run
+        # against what is typical AT ITS KEY, so +20 and +12 start level...
+        n = len(frame)
+        x, y = frame["key_level"].astype(float), frame["pct"].astype(float)
+        den = n * (x * x).sum() - x.sum() ** 2
+        slope = ((n * (x * y).sum() - x.sum() * y.sum()) / den
+                 if n >= 10 and abs(den) > 1e-9 else 0.0)
+        icpt = (y.sum() - slope * x.sum()) / n
+        ref_key, credit = x.mean(), abs(slope)
+        # ...then deliberately tip it back: every key level above the mean is
+        # worth `credit` points, the going rate for a level of difficulty, so
+        # timing a harder key counts for more.
+        scored = frame.assign(
+            _s=(y - (icpt + slope * x)) + credit * (x - ref_key))
+        g = scored.sort_values("pct", ascending=False).groupby("composition")
         out = g.agg(
             runs=("pct", "size"),
+            score_sum=("_s", "sum"),
+            avg_key=("key_level", "mean"),
             avg_pct_under=("pct", "mean"),
             best_pct_under=("pct", "max"),
             median_pct_under=("pct", "median"),
@@ -363,19 +381,19 @@ def build_llms() -> None:
             avg_deaths_per_run=("deaths", "mean"),
             timed_pct=("timed", lambda s: (s == 1).mean() * 100),
         ).reset_index()
-        # evidence-weighted ranking: a comp's mean margin pulled toward the
-        # overall mean by however few runs support it, so a single lucky run
-        # cannot top the table
-        out["strength"] = ((out["avg_pct_under"] * out["runs"]
-                            + SHRINK_K * global_mean)
-                           / (out["runs"] + SHRINK_K))
-        out["shrunk_toward"] = round(global_mean, 2)
-        for c, r in (("strength", 2), ("avg_pct_under", 1),
+        # shrink toward 0 (= a typical run at a typical key) by however few
+        # runs support the comp, so a single lucky pull cannot top the table
+        out["strength"] = out["score_sum"] / (out["runs"] + SHRINK_K)
+        out = out.drop(columns=["score_sum"])
+        out["key_slope"] = round(slope, 3)
+        out["ref_key"] = round(ref_key, 2)
+        for c, r in (("strength", 2), ("avg_key", 1), ("avg_pct_under", 1),
                      ("median_pct_under", 1), ("avg_deaths_per_run", 2),
                      ("timed_pct", 1), ("median_time_s", 0)):
             out[c] = out[c].round(r)
-        cols = ["composition", "runs", "strength", "avg_pct_under",
-                "best_pct_under", "median_pct_under", "shrunk_toward"]
+        cols = ["composition", "runs", "strength", "avg_key",
+                "avg_pct_under", "best_pct_under", "median_pct_under",
+                "key_slope", "ref_key"]
         out = out[cols + [c for c in out.columns if c not in cols]]
         return out.sort_values("strength", ascending=False)
 
@@ -476,9 +494,9 @@ def build_llms() -> None:
         "keystone timer.",
         f"- {BASE_URL}/llms/comps.csv — one row per distinct 5-player "
         "composition, ranked by `strength`. Columns: subset, composition, "
-        "runs, strength, avg_pct_under, best_pct_under, median_pct_under, "
-        "shrunk_toward, best_time_s, best_dungeon, best_key, best_date, "
-        "median_time_s, avg_deaths_per_run, timed_pct.",
+        "runs, strength, avg_key, avg_pct_under, best_pct_under, "
+        "median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, "
+        "best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.",
         "",
         "The `subset` column is \"all\" (every completed run), \"timed\" (runs "
         "that beat the timer), and — on spec_summary / spec_by_key / "
@@ -498,24 +516,45 @@ def build_llms() -> None:
         "",
         "Subsets: all / timed / post_tuning / post_tuning_timed / key15plus. "
         "`post_tuning_timed` is what the dashboard shows by default, so use "
-        "that to reproduce the site; `key15plus` (timed, +15 and above) is "
-        "the most meaningful ranking overall.",
+        "that to reproduce the site; `key15plus` (timed, +15 and above) "
+        "narrows to serious keys if you want that on top of the key "
+        "normalisation described next.",
         "",
-        "Rank comps by `strength`, not by `best_pct_under`. Strength is the "
-        "comp's mean margin shrunk toward the overall mean of its subset: "
-        "(runs*avg_pct_under + 5*shrunk_toward) / (runs + 5). Ranking on the "
-        "single best run rewards one lucky pull, so a comp seen twice would "
-        "outrank one proven over twenty runs; the shrunk figure pulls thin "
-        "evidence back toward average while leaving well-sampled comps near "
-        "their own mean. `shrunk_toward` is the subset mean used, so the "
-        "figure is reproducible, and avg/best/median are all published so you "
-        "can rank differently if you want.",
+        "Rank comps by `strength`, not by `best_pct_under` or `runs`. "
+        "Strength answers \"how well did this comp play for the difficulty it "
+        "played at\", and then rewards difficulty. It is built in three "
+        "steps, per subset:",
         "",
-        "IMPORTANT: the timer does NOT change with key level, so a +2 posts a "
-        "far bigger margin than a +20 of equal quality and the unrestricted "
-        "ranking is topped by trivial keys. Use the `key15plus` subset (timed "
-        "runs at +15 and above) for a meaningful ranking, or filter on "
-        "`best_key`. The `composition` string is role-ordered and "
+        "  1. *Normalise for key level.* The keystone timer is the SAME at +2 "
+        "and +20, so the margin under it falls steadily as keys rise — about "
+        "a point per level. A least-squares line margin = intercept + "
+        "`key_slope` * key_level is fitted over the subset, and each run is "
+        "scored as its margin MINUS that fitted expectation. A typical run at "
+        "any key therefore scores 0, and a +20 is no longer punished for "
+        "being a +20.",
+        "  2. *Credit difficulty.* abs(`key_slope`) points are then added per "
+        "key level above `ref_key` (the subset's mean key level). That is the "
+        "going rate a level of difficulty costs in margin, so timing a harder "
+        "key counts for more: a typical +20 outscores a typical +15 by "
+        "roughly what those five levels cost.",
+        "  3. *Shrink thin evidence.* Each comp's strength is the SUM of its "
+        "run scores divided by (runs + 5), i.e. its mean pulled toward 0 by "
+        "however few runs support it. Ranking on the single best run rewards "
+        "one lucky pull, so a comp seen twice would outrank one proven over "
+        "twenty; this pulls thin evidence back toward typical while leaving "
+        "well-sampled comps near their own mean.",
+        "",
+        "Read strength as points of margin relative to a typical run at a "
+        "typical key: 0 is par, +5 is five points better than expected for "
+        "its difficulty, negative is worse. `key_slope` and `ref_key` are "
+        "published per subset so the figure is reproducible, and `avg_key`, "
+        "`avg_pct_under`, `best_pct_under` and `median_pct_under` are the raw "
+        "unadjusted numbers if you want to rank differently. Note that "
+        "because of step 1 you no longer need `key15plus` to keep trivial "
+        "keys off the top — a +2 that merely beats the timer by the usual "
+        "huge margin for a +2 scores near 0.",
+        "",
+        "The `composition` string is role-ordered and "
         "pipe-separated, e.g. \"T:Blood DeathKnight | H:Holy Paladin | "
         "D:Arcane Mage | ...\"; the raw chunks carry keystone_s and "
         "pct_under_timer per row so any other cut can be rebuilt by grouping "

@@ -1105,37 +1105,49 @@ function render(){
 /* ---------------- top comps ---------------- */
 const COMPS_MAX=25;
 function renderComps(A){
-  // A composition's row is built from ALL its qualifying runs, not just its
-  // best one: ranking on the single fastest run rewards one lucky pull, so a
-  // comp seen twice can outrank one proven over twenty runs.
+  // Strength answers "how well did this comp play, for the difficulty it
+  // played at", then deliberately rewards difficulty on top.
   //
-  // Strength shrinks a comp's mean margin toward the overall mean in
-  // proportion to how thin its evidence is (a standard shrunk estimate):
-  //   (n*mean + K*global) / (n + K)
-  // With K=5, a single outlier run is pulled most of the way back to average
-  // while a comp with plenty of runs keeps essentially its own mean.
+  //   1. Fit margin ~ key level over the qualifying runs. The keystone timer
+  //      does not move with key level, so margin falls steadily as keys rise
+  //      (about a point per level); subtracting the fitted expectation puts a
+  //      typical run at every key on zero.
+  //   2. Add a difficulty credit of |slope| per key level above the mean key,
+  //      so a typical +20 outscores a typical +15 by roughly what those five
+  //      levels of difficulty cost in margin.
+  //   3. Shrink each comp's mean toward zero by its run count, so a single
+  //      lucky pull cannot top the table.
   const K=5;
-  const byComp=new Map(); let gSum=0, gN=0;
+  const qual=[];
   for(let r=0;r<runCount;r++){
     if(!A.runSeen[r]) continue;
     const o=RUNS[r];
-    if(!o||o.pct===null) continue;
-    gSum+=o.pct; gN++;
-    let e=byComp.get(o.key_);
-    if(!e){e={best:o, pcts:[], deaths:0}; byComp.set(o.key_,e)}
-    e.pcts.push(o.pct); e.deaths+=o.deaths;
-    if(o.pct>e.best.pct) e.best=o;
+    if(o&&o.pct!==null) qual.push(o);
   }
-  const gMean=gN?gSum/gN:0;
+  let n=0,sx=0,sy=0,sxx=0,sxy=0;
+  for(const o of qual){n++; sx+=o.key; sy+=o.pct; sxx+=o.key*o.key; sxy+=o.key*o.pct}
+  const den=n*sxx-sx*sx;
+  const slope=(n>=10&&Math.abs(den)>1e-9)?(n*sxy-sx*sy)/den:0;
+  const icpt=n?(sy-slope*sx)/n:0, refKey=n?sx/n:0, W=Math.abs(slope);
+  const score=o=>(o.pct-(icpt+slope*o.key))+W*(o.key-refKey);
+
+  const byComp=new Map();
+  for(const o of qual){
+    let e=byComp.get(o.key_);
+    if(!e){e={best:o,scores:[],pcts:[],keys:[],deaths:0}; byComp.set(o.key_,e)}
+    e.scores.push(score(o)); e.pcts.push(o.pct); e.keys.push(o.key);
+    e.deaths+=o.deaths;
+    if(score(o)>score(e.best)) e.best=o;
+  }
   const all=[...byComp.values()];
-  const rows=all.filter(e=>e.pcts.length>=state.compMin).map(e=>{
-    const n=e.pcts.length, sum=e.pcts.reduce((a,b)=>a+b,0);
-    const sorted=[...e.pcts].sort((a,b)=>a-b);
+  const rows=all.filter(e=>e.scores.length>=state.compMin).map(e=>{
+    const m=e.scores.length, sum=e.scores.reduce((a,b)=>a+b,0);
     return {
-      strength:(sum + K*gMean)/(n + K),
-      best:e.best.pct, median:q50(sorted), n,
+      strength:sum/(m+K),                       // shrunk toward 0 = typical run
+      best:Math.max(...e.pcts), median:q50([...e.pcts].sort((a,b)=>a-b)),
+      avgkey:e.keys.reduce((a,b)=>a+b,0)/m, n:m,
       kdur:e.best.kdur, dun:D.dungeons[e.best.dun], key:e.best.key,
-      deaths:e.deaths/n, day:e.best.day, comp:e.best.comp,
+      deaths:e.deaths/m, day:e.best.day, comp:e.best.comp,
     };
   });
   const t=$("comps");
@@ -1148,9 +1160,10 @@ function renderComps(A){
     return;
   }
   const COLS=[["rank","#","txt"],["comp","Composition","txt"],
-    ["strength","Strength"],["best","Best"],["median","Median"],
-    ["n","Runs"],["deaths","Deaths"],["kdur","Best time"],
-    ["dun","Dungeon","txt"],["key","Key"],["day","Date","txt"]];
+    ["strength","Strength"],["avgkey","Avg key"],["best","Best"],
+    ["median","Median"],["n","Runs"],["deaths","Deaths"],
+    ["kdur","Best time"],["dun","Dungeon","txt"],["key","Key"],
+    ["day","Date","txt"]];
   if(!COLS.some(c=>c[0]===state.csort.col)) state.csort={col:"strength",dir:-1};
   rows.sort((a,b)=>b.strength-a.strength).forEach((r,i)=>r.rank=i+1);
   const {col,dir}=state.csort;
@@ -1176,9 +1189,10 @@ function renderComps(A){
     }).join("");
     h+='<tr><td class="txt">'+r.rank+'</td>'
       +'<td class="txt"><div class="comp">'+comp+'</div></td>'
-      +'<td>'+pctCell(r.strength)+'</td>'
-      +'<td>'+pctCell(r.best)+'</td>'
-      +'<td>'+pctCell(r.median)+'</td>'
+      +'<td><b class="delta '+(r.strength>=0?"up":"down")+'">'
+        +(r.strength>=0?"+":"")+r.strength.toFixed(1)+'</b></td>'
+      +'<td>+'+r.avgkey.toFixed(1)+'</td>'
+      +'<td>'+pctCell(r.best)+'</td><td>'+pctCell(r.median)+'</td>'
       +'<td>'+fmtInt(r.n)+'</td><td>'+r.deaths.toFixed(1)+'</td>'
       +'<td>'+fmtDur(r.kdur)+'</td>'
       +'<td class="txt">'+esc(r.dun)+'</td>'
@@ -1196,14 +1210,14 @@ function renderComps(A){
   $("comps-sub").textContent=fmtInt(rows.length)+" comps with "
     +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
     +" distinct — ranked by strength, click a column to sort";
-  $("comps-caption").textContent="Strength is the comp's average margin under "
-    +"the dungeon timer, shrunk toward the overall average ("+gMean.toFixed(1)
-    +"%) according to how many runs back it — so a comp proven over many runs "
-    +"outranks one that got a single lucky pull. Best and Median show the raw "
-    +"spread. Margins compare fairly across dungeons because each is measured "
-    +"against that dungeon's own timer, but NOT across key levels (the timer "
-    +"is the same at +2 as at +20), so set the key range to compare like with "
-    +"like. A run counts when any of its players matches the filters.";
+  $("comps-caption").textContent="Strength scores each run against what is "
+    +"typical at its key level, then credits higher keys: margin under the "
+    +"timer drops about "+W.toFixed(2)+" points per key level in this "
+    +"selection, so that is the rate each level above +"+refKey.toFixed(1)
+    +" is rewarded at. 0 is a typical run at a typical key; +5 is five points "
+    +"of margin better than par for its difficulty. Comps with few runs are "
+    +"pulled toward 0 so one lucky pull cannot top the table. Best and Median "
+    +"are the raw margins under the timer, unadjusted.";
 }
 
 /* ---------------- trend ---------------- */
