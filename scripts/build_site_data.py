@@ -342,13 +342,17 @@ def build_llms() -> None:
     ).join(comp_of.rename("composition"))
     runs = runs[runs["players"].between(4, 6)]
 
+    SHRINK_K = 5   # keep in step with the dashboard's Strength column
+
     def comp_agg(frame):
         frame = frame.dropna(subset=["pct"])
         if frame.empty:
             return None
+        global_mean = frame["pct"].mean()
         g = frame.sort_values("pct", ascending=False).groupby("composition")
         out = g.agg(
             runs=("pct", "size"),
+            avg_pct_under=("pct", "mean"),
             best_pct_under=("pct", "max"),
             median_pct_under=("pct", "median"),
             best_time_s=("keystone_s", "first"),
@@ -359,10 +363,21 @@ def build_llms() -> None:
             avg_deaths_per_run=("deaths", "mean"),
             timed_pct=("timed", lambda s: (s == 1).mean() * 100),
         ).reset_index()
-        for c, r in (("median_pct_under", 1), ("avg_deaths_per_run", 2),
+        # evidence-weighted ranking: a comp's mean margin pulled toward the
+        # overall mean by however few runs support it, so a single lucky run
+        # cannot top the table
+        out["strength"] = ((out["avg_pct_under"] * out["runs"]
+                            + SHRINK_K * global_mean)
+                           / (out["runs"] + SHRINK_K))
+        out["shrunk_toward"] = round(global_mean, 2)
+        for c, r in (("strength", 2), ("avg_pct_under", 1),
+                     ("median_pct_under", 1), ("avg_deaths_per_run", 2),
                      ("timed_pct", 1), ("median_time_s", 0)):
             out[c] = out[c].round(r)
-        return out.sort_values("best_pct_under", ascending=False)
+        cols = ["composition", "runs", "strength", "avg_pct_under",
+                "best_pct_under", "median_pct_under", "shrunk_toward"]
+        out = out[cols + [c for c in out.columns if c not in cols]]
+        return out.sort_values("strength", ascending=False)
 
     comp_parts = []
     # key15plus matters: the dungeon timer is the SAME at +2 and +20, so a
@@ -370,6 +385,9 @@ def build_llms() -> None:
     # ranking mean something.
     for label, frame in (("all", runs), ("timed", runs[runs["timed"] == 1]),
                          ("post_tuning", runs[runs["post"] == 1]),
+                         # matches the dashboard's default view exactly
+                         ("post_tuning_timed", runs[(runs["post"] == 1)
+                                                    & (runs["timed"] == 1)]),
                          ("key15plus", runs[(runs["key_level"] >= 15)
                                             & (runs["timed"] == 1)])):
         got = comp_agg(frame)
@@ -398,6 +416,9 @@ def build_llms() -> None:
     cur_start = (EPOCH + pd.Timedelta(days=us_b0)).strftime("%Y-%m-%d")
     # figures that make the double-counting traps concrete in the index
     naive_sum = int(spec_summary["parses"].sum())
+    runs_naive = int(spec_summary[(spec_summary["subset"] == "all")
+                                  & (spec_summary["hero_talent"]
+                                     == "(all merged)")]["runs"].sum())
     if patch:
         cut = patch["regions"].get("default", "?")
         n_post = int((df["post_tuning"] == 1).sum())
@@ -454,8 +475,9 @@ def build_llms() -> None:
         "timed %, average duration/key/deaths, and `timer_s`: that dungeon's "
         "keystone timer.",
         f"- {BASE_URL}/llms/comps.csv — one row per distinct 5-player "
-        "composition. Columns: subset, composition, runs, best_pct_under, "
-        "median_pct_under, best_time_s, best_dungeon, best_key, best_date, "
+        "composition, ranked by `strength`. Columns: subset, composition, "
+        "runs, strength, avg_pct_under, best_pct_under, median_pct_under, "
+        "shrunk_toward, best_time_s, best_dungeon, best_key, best_date, "
         "median_time_s, avg_deaths_per_run, timed_pct.",
         "",
         "The `subset` column is \"all\" (every completed run), \"timed\" (runs "
@@ -465,13 +487,29 @@ def build_llms() -> None:
         "",
         tuning_para,
         "",
-        "**Compositions.** comps.csv ranks comps by `best_pct_under` — how far "
-        "under that dungeon's keystone timer the comp's fastest run finished "
-        "(negative means the key was depleted). Dungeon timers differ, so the "
+        "**Compositions.** comps.csv has one row per distinct 5-player comp, "
+        "ranked by `strength` (see below). The underlying measure is how far "
+        "under that dungeon's keystone timer a run finished (negative means "
+        "the key was depleted). Dungeon timers differ, so the "
         "margin is what makes runs in different dungeons comparable; the "
         "timers themselves are in dungeon_summary.csv and are derived from "
         "where timed and depleted runs separate on the clock, not published "
         "by the API.",
+        "",
+        "Subsets: all / timed / post_tuning / post_tuning_timed / key15plus. "
+        "`post_tuning_timed` is what the dashboard shows by default, so use "
+        "that to reproduce the site; `key15plus` (timed, +15 and above) is "
+        "the most meaningful ranking overall.",
+        "",
+        "Rank comps by `strength`, not by `best_pct_under`. Strength is the "
+        "comp's mean margin shrunk toward the overall mean of its subset: "
+        "(runs*avg_pct_under + 5*shrunk_toward) / (runs + 5). Ranking on the "
+        "single best run rewards one lucky pull, so a comp seen twice would "
+        "outrank one proven over twenty runs; the shrunk figure pulls thin "
+        "evidence back toward average while leaving well-sampled comps near "
+        "their own mean. `shrunk_toward` is the subset mean used, so the "
+        "figure is reproducible, and avg/best/median are all published so you "
+        "can rank differently if you want.",
         "",
         "IMPORTANT: the timer does NOT change with key level, so a +2 posts a "
         "far bigger margin than a +20 of equal quality and the unrestricted "
@@ -494,13 +532,13 @@ def build_llms() -> None:
         f"subset and EITHER the merged rollups OR the per-hero rows — each "
         f"of those slices sums to exactly {len(df):,}. \"timed\" is a subset "
         f"of \"all\", never a separate population to add on.",
-        "2. *Non-additive columns.* Only `parses` is additive. `runs` counts "
-        "distinct runs a spec appeared in and one run holds 5 players of "
-        "different specs, so summing it across specs over-counts by up to "
-        "5x (a real example: the current reset's 1,098 runs sum to 5,445 "
-        "across spec rows). `characters` counts distinct players, who recur "
-        "across dungeons, days and resets, so it double-counts the same "
-        "way.",
+        f"2. *Non-additive columns.* Only `parses` is additive. `runs` counts "
+        f"distinct runs a spec appeared in and one run holds 5 players of "
+        f"different specs, so summing it across specs over-counts by up to "
+        f"5x — in this dataset the {n_runs:,} real runs sum to "
+        f"{runs_naive:,} across spec_summary rows. `characters` counts "
+        f"distinct players, who recur across dungeons, days and resets, so "
+        f"it double-counts the same way.",
         "3. *Non-poolable statistics.* Medians and p90s are exact within a "
         "row but cannot be averaged across rows; avg_dps can only be "
         "combined as a parses-weighted mean.",
@@ -618,6 +656,14 @@ def build_llms() -> None:
         "before trusting a row.",
         "- Timed status is inferred from Blizzard's in-game rating "
         "(depleted keys are rating-capped at 320 regardless of level).",
+        "- Duplicate uploads are collapsed. Several members of a group often "
+        "each upload the same fight, so one real run arrives under multiple "
+        "report codes; a run is identified by dungeon + key level + keystone "
+        "clock + exact roster, and only one copy is kept. This removed about "
+        "27% of apparent PTR runs, so run counts here are lower — and "
+        "correct — versus anything computed before the fix. Start timestamps "
+        "cannot be used for this: each uploader's report begins at a "
+        "different moment, tens of seconds apart for the same fight.",
         "- Hero talents come from an offline SimulationCraft trait-tree "
         "mapping.",
         "- Dataset regenerates on each data refresh; row counts and ids "
@@ -696,8 +742,20 @@ def build_llms() -> None:
                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                + "".join(f"  <url><loc>{u}</loc><lastmod>{today}</lastmod></url>\n"
                          for u in pages) + "</urlset>\n")
+    # Anything previously published but not part of THIS build is stale and
+    # must go: the dataset can shrink (fewer raw chunks) or a file can be
+    # renamed, and a leftover keeps being served and silently double-counts.
+    expected = {"index.html"}
+    for name, _ in files:
+        expected |= {name, name[:-4] + ".html"}
+    expected |= {name for name, _ in chunks}
     for d in SITE_DIRS:
         (d / "llms").mkdir(parents=True, exist_ok=True)
+        for old in (d / "llms").iterdir():
+            if old.is_file() and old.name not in expected:
+                old.unlink()
+                print(f"[llms] removed stale {old.relative_to(d.parent)}",
+                      flush=True)
         (d / "llms.txt").write_text(index_txt)
         (d / "llms" / "index.html").write_text(doc_html)
         (d / "robots.txt").write_text(robots)
