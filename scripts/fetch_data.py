@@ -55,7 +55,9 @@ CHECKPOINTS = ROOT / "data" / "checkpoints"
 RANKINGS_FILE = RAW / "rankings.jsonl"
 SUMMARIES_DONE = PROCESSED / "summaries_done.txt"
 PLAYERS_FILE = PROCESSED / "players.jsonl"
-CSV_FILE = ROOT / "data" / "mythic_runs.csv"
+# stored gzipped: the live CSV crossed GitHub's hard 100 MB blob limit,
+# and pandas reads/writes .csv.gz transparently
+CSV_FILE = ROOT / "data" / "mythic_runs.csv.gz"
 HERO_MAP_FILE = ROOT / "data" / "hero_talent_map.json"
 
 # GraphQL error messages that mean a report can never be fetched (vs. a
@@ -135,7 +137,7 @@ def use_source(name: str) -> None:
     RANKINGS_FILE = RAW / f"rankings{sfx}.jsonl"
     SUMMARIES_DONE = PROCESSED / f"summaries_done{sfx}.txt"
     PLAYERS_FILE = PROCESSED / f"players{sfx}.jsonl"
-    CSV_FILE = ROOT / "data" / f"mythic_runs{sfx}.csv"
+    CSV_FILE = ROOT / "data" / f"mythic_runs{sfx}.csv.gz"
 
 
 def bracket_to_key(bracket: int) -> int:
@@ -720,6 +722,21 @@ def export() -> None:
     # (e.g. PTR fight ratings / timer medals) reach rows fetched before the
     # journal carried them
     jmap = {(f["code"], f["fid"]): f for f in load_fights(None).values()}
+    # The keystone clock (wall-time against the dungeon timer) differs from the
+    # combat duration already stored, and is what "% under timer" needs. WCL's
+    # zone report list only goes back so far, so keep a persistent map that
+    # accumulates across sweeps instead of losing older runs on every resweep.
+    ks_file = ROOT / "data" / f"keystone_times{'' if SOURCE == 'live' else '_' + SOURCE}.json"
+    ks = json.loads(ks_file.read_text()) if ks_file.exists() else {}
+    for (c, f), fight in jmap.items():
+        ms = fight.get("rank_duration_ms")
+        if ms:
+            ks[f"{c}:{f}"] = round(ms / 1000, 1)
+    tmp = ks_file.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(ks, separators=(",", ":")))
+    os.replace(tmp, ks_file)
+    df["keystone_s"] = [ks.get(f"{c}:{f}", "")
+                        for c, f in zip(df["report_code"], df["fight_id"])]
     if jmap:
         for col in ("score", "medal"):
             df[col] = [
@@ -741,8 +758,8 @@ def export() -> None:
         df["medal"] = [timed_medal(sc, lvl) for sc, lvl in
                        zip(pd.to_numeric(df["score"], errors="coerce"),
                            df["key_level"])]
-    tmp = CSV_FILE.with_suffix(".csv.tmp")
-    df.to_csv(tmp, index=False)
+    tmp = CSV_FILE.with_name(CSV_FILE.name + ".tmp")
+    df.to_csv(tmp, index=False, compression="gzip")
     os.replace(tmp, CSV_FILE)  # atomic: the live dashboard never sees a torn file
     print(f"[export] {len(df)} player-rows ({before - len(df)} dupes dropped) "
           f"across {df[['report_code', 'fight_id']].drop_duplicates().shape[0]} runs "

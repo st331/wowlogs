@@ -101,7 +101,8 @@ main{padding:26px 30px 60px; max-width:1150px}
 .bval{position:absolute; top:50%; transform:translateY(-50%);
   font-size:.8rem; font-weight:700; color:var(--ink); white-space:nowrap; padding-left:7px}
 .delta{font-size:.72rem; font-weight:700; margin-left:6px}
-.delta.up{color:var(--up)} .delta.down{color:var(--down)} .delta.na{color:var(--muted); font-weight:500}
+.delta.up{color:var(--up)} .delta.down{color:var(--down)}
+td .delta{font-size:.85rem} .delta.na{color:var(--muted); font-weight:500}
 .caption{color:var(--muted); font-size:.78rem; margin-top:.7rem}
 /* tooltip */
 #tip{position:fixed; z-index:10; background:var(--panel2); border:1px solid var(--grid);
@@ -197,7 +198,12 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
   <div class="hint" id="minchars-help">How many distinct players must have
     parsed a spec for it to show. Scales with the period so the spec count
     stays constant when you switch periods — drag to show more/fewer.</div>
-  <details><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
+  <div style="margin-top:.7rem">Min runs per comp:
+    <b id="compmin-v" style="color:var(--gold)">2</b></div>
+  <input type="range" id="compmin" min="1" max="20" value="2">
+  <div class="hint">A composition needs this many runs to appear in Top Comps —
+    raise it to filter out one-off groups.</div>
+  <details style="margin-top:.6rem"><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
   <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. Hover any week chip for its dates and volume.</p>
 </aside>
 
@@ -329,6 +335,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
+             compMin:2, csort:{col:"pct", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
              minchars:125, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
@@ -464,6 +471,8 @@ $("srcseg").querySelectorAll("button").forEach(b=>{
   };
 });
 $("posttune").onchange=e=>{state.postTune=e.target.checked; render()};
+$("compmin").oninput=e=>{state.compMin=+e.target.value;
+  $("compmin-v").textContent=state.compMin; render()};
 $("timedseg").querySelectorAll("button").forEach(b=>{
   b.onclick=()=>{
     const want=b.dataset.t==="1";
@@ -488,7 +497,8 @@ function buildRuns(){
   for(let i=0;i<N;i++){
     const r=R.run[i];
     let o=RUNS[r];
-    if(!o) o=RUNS[r]={dur:R.dur?R.dur[i]:0, dun:R.dun[i], key:R.key[i],
+    if(!o) o=RUNS[r]={dur:R.dur?R.dur[i]:0, kdur:R.kdur?R.kdur[i]:0,
+                      dun:R.dun[i], key:R.key[i],
                       day:R.day[i], deaths:0, comp:[]};
     o.deaths+=R.deaths[i];
     o.comp.push({cls:R.cls[i], spec:R.spec[i], role:R.role[i]});
@@ -500,6 +510,10 @@ function buildRuns(){
       || D.classes[a.cls].localeCompare(D.classes[b.cls])
       || D.specs[a.spec].localeCompare(D.specs[b.spec]));
     o.key_ = o.comp.map(c=>c.cls*100+c.spec).join(",");
+    // how far under the dungeon timer the run finished; absolute clock times
+    // are meaningless across dungeons, this is comparable everywhere
+    const par=(D.pars||[])[o.dun]||0;
+    o.pct = (par && o.kdur) ? (par-o.kdur)/par*100 : null;
   }
 }
 function fmtDur(sec){
@@ -1091,55 +1105,86 @@ function render(){
 /* ---------------- top comps ---------------- */
 const COMPS_MAX=25;
 function renderComps(A){
-  // One row per distinct composition, represented by its fastest qualifying
-  // run. A run qualifies when ANY of its players passes the current filters,
-  // so a spec filter reads as "top comps that include this spec" while the
-  // comp itself still shows all five players.
+  // One row per distinct composition, represented by its best qualifying run.
+  // "Best" is the largest margin under that dungeon's keystone timer, so runs
+  // in different dungeons and key levels compare fairly. A run qualifies when
+  // ANY of its players passes the filters, so a spec filter reads as "top
+  // comps that include this spec" while the row still shows all five players.
   const best=new Map();
   for(let r=0;r<runCount;r++){
     if(!A.runSeen[r]) continue;
     const o=RUNS[r];
-    if(!o||!o.dur) continue;
+    if(!o||o.pct===null) continue;
     const cur=best.get(o.key_);
     if(!cur){best.set(o.key_,{o,n:1}); continue}
     cur.n++;
-    if(o.dur<cur.o.dur) cur.o=o;
+    if(o.pct>cur.o.pct) cur.o=o;
   }
-  const list=[...best.values()].sort((a,b)=>a.o.dur-b.o.dur).slice(0,COMPS_MAX);
+  const all=[...best.values()];
+  const rows=all.filter(e=>e.n>=state.compMin).map(e=>({
+    pct:e.o.pct, kdur:e.o.kdur, dun:D.dungeons[e.o.dun], key:e.o.key,
+    deaths:e.o.deaths, n:e.n, day:e.o.day, comp:e.o.comp}));
   const t=$("comps");
-  if(!list.length){
+  if(!rows.length){
     t.innerHTML="";
-    $("comps-sub").textContent="no runs match the current filters";
+    $("comps-sub").textContent=all.length
+      ? "no comp has "+state.compMin+"+ runs under these filters"
+      : "no timed-clock runs match the current filters";
     $("comps-caption").textContent="";
     return;
   }
-  let h='<thead><tr><th class="txt">#</th><th class="txt">Composition</th>'
-      +'<th>Time</th><th class="txt">Dungeon</th><th>Key</th>'
-      +'<th>Deaths</th><th>Runs</th><th class="txt">Date</th></tr></thead><tbody>';
-  list.forEach((e,i)=>{
-    const o=e.o;
-    const comp=o.comp.map(c=>{
+  const COLS=[["rank","#","txt"],["comp","Composition","txt"],
+    ["pct","Under timer"],["kdur","Time"],["dun","Dungeon","txt"],
+    ["key","Key"],["deaths","Deaths"],["n","Runs"],["day","Date","txt"]];
+  if(!COLS.some(c=>c[0]===state.csort.col)) state.csort={col:"pct",dir:-1};
+  // rank is always by margin, so it stays stable while you re-sort the table
+  rows.sort((a,b)=>b.pct-a.pct).forEach((r,i)=>r.rank=i+1);
+  const {col,dir}=state.csort;
+  const val=(r,k)=>k==="comp"
+    ? r.comp.map(c=>D.specs[c.spec]+D.classes[c.cls]).join()
+    : k==="dun" ? r.dun : r[k];
+  const sorted=[...rows].sort((a,b)=>{
+    const x=val(a,col), y=val(b,col);
+    return (typeof x==="string"?x.localeCompare(y):x-y)*dir;
+  }).slice(0,COMPS_MAX);
+  let h="<thead><tr>";
+  for(const [k,label,txt] of COLS)
+    h+=`<th class="${txt||""} ${k===col?"sorted":""}" data-c="${k}">${label}${
+      k===col?(dir<0?" ↓":" ↑"):""}</th>`;
+  h+="</tr></thead><tbody>";
+  for(const r of sorted){
+    const comp=r.comp.map(c=>{
       const cn=D.classes[c.cls];
       return '<span style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
         +'<span class="role">'+esc((D.roles[c.role]||"?").slice(0,1))+'</span>'
         +esc(D.specs[c.spec]+" "+cn)+'</span>';
     }).join("");
-    h+='<tr><td class="txt">'+(i+1)+'</td>'
+    h+='<tr><td class="txt">'+r.rank+'</td>'
       +'<td class="txt"><div class="comp">'+comp+'</div></td>'
-      +'<td><b>'+fmtDur(o.dur)+'</b></td>'
-      +'<td class="txt">'+esc(D.dungeons[o.dun])+'</td>'
-      +'<td>+'+o.key+'</td><td>'+o.deaths+'</td><td>'+fmtInt(e.n)+'</td>'
-      +'<td class="txt">'+(o.day>=0?fmtDay(o.day):"–")+'</td></tr>';
-  });
+      +'<td><b class="delta '+(r.pct>=0?"up":"down")+'">'
+        +r.pct.toFixed(1)+'%</b></td>'
+      +'<td>'+fmtDur(r.kdur)+'</td>'
+      +'<td class="txt">'+esc(r.dun)+'</td>'
+      +'<td>+'+r.key+'</td><td>'+r.deaths+'</td><td>'+fmtInt(r.n)+'</td>'
+      +'<td class="txt">'+(r.day>=0?fmtDay(r.day):"–")+'</td></tr>';
+  }
   t.innerHTML=h+"</tbody>";
-  $("comps-sub").textContent=fmtInt(best.size)+" distinct comps across "
-    +fmtInt(A.runs)+" runs — fastest first";
-  $("comps-caption").textContent="Each row is one composition, shown by its "
-    +"fastest run under the current filters; \u201cRuns\u201d counts how many "
-    +"runs used that exact comp. Clear times are only comparable within a "
-    +"dungeon and key level, so filter to a single dungeon for a like-for-like "
-    +"ranking. A run is included when any of its players matches the filters, "
-    +"so a class or spec filter shows the best comps containing it.";
+  t.querySelectorAll("th").forEach(th=>{
+    th.onclick=()=>{
+      const c=th.dataset.c;
+      state.csort={col:c, dir:state.csort.col===c?-state.csort.dir:-1};
+      renderComps(A);
+    };
+  });
+  $("comps-sub").textContent=fmtInt(rows.length)+" comps with "
+    +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
+    +" distinct — click a column to sort";
+  $("comps-caption").textContent="Ranked by how far under that dungeon's "
+    +"keystone timer the comp's best run finished, so different dungeons and "
+    +"key levels compare fairly (a negative figure means the key was "
+    +"depleted). Timers are derived from where timed and depleted runs "
+    +"separate on the clock. A run counts when any of its players matches the "
+    +"filters, so a class or spec filter shows the best comps containing it.";
 }
 
 /* ---------------- trend ---------------- */

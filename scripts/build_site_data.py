@@ -25,12 +25,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE_DIRS = [ROOT / "site", ROOT / "docs"]
 
 SOURCES = {
-    "live": {"csv": "mythic_runs.csv", "out": "data.json",
+    "live": {"csv": "mythic_runs.csv.gz", "out": "data.json",
              "season": "Midnight Season 1"},
     # score suppressed on PTR: the tiny tester population makes per-character
     # totals meaningless there, so the dashboard hides all score UI (the run
     # ratings still live in the CSV — the timed flag is derived from them)
-    "ptr": {"csv": "mythic_runs_ptr.csv", "out": "data_ptr.json",
+    "ptr": {"csv": "mythic_runs_ptr.csv.gz", "out": "data_ptr.json",
             "season": "Midnight Season 2 (PTR)", "score": False},
 }
 
@@ -64,10 +64,40 @@ def post_tuning_flag(started, regions, patch):
     return flag.astype(int).where(cut.notna(), -1).astype(int)
 
 
+def derive_pars(df, dungeons):
+    """Each dungeon's keystone timer, inferred from the data.
+
+    WCL exposes no par time, but the timer is exactly the line separating
+    timed from depleted runs on the keystone clock. Pick the threshold that
+    misclassifies fewest runs and snap it to the nearest 30s, since Blizzard's
+    timers are round values — on live this separates every dungeon perfectly.
+    """
+    if "keystone_s" not in df.columns:
+        return [0] * len(dungeons)
+    ks = pd.to_numeric(df["keystone_s"], errors="coerce")
+    if ks.notna().sum() == 0:
+        return [0] * len(dungeons)
+    ok = df["medal"].isin(["timed", "gold", "silver", "bronze"])
+    runs = pd.DataFrame({"dun": df["dungeon"], "ks": ks, "ok": ok}) \
+        .dropna(subset=["ks"]).drop_duplicates()
+    out = []
+    for d in dungeons:
+        g = runs[runs["dun"] == d]
+        if len(g) < 20 or g["ok"].nunique() < 2:
+            out.append(0)
+            continue
+        cands = np.arange(g["ks"].min(), g["ks"].max() + 30, 15)
+        errs = [int(((g["ks"] <= c) != g["ok"]).sum()) for c in cands]
+        out.append(int(round(cands[int(np.argmin(errs))] / 30) * 30))
+    return out
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
+    if not csv.exists():                       # tolerate an un-gzipped copy
+        csv = csv.with_suffix("")
     if not csv.exists():
-        print(f"[{name}] {csv.name} missing — skipped")
+        print(f"[{name}] {cfg['csv']} missing — skipped")
         return
     df = pd.read_csv(csv)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
@@ -115,6 +145,8 @@ def build(name: str, cfg: dict) -> None:
                     "runs": int((post == 1).sum())} if patch else None),
         "classes": classes, "specs": specs, "heroes": heroes,
         "dungeons": dungeons, "regions": regions, "roles": roles,
+        "pars": derive_pars(df, dungeons),   # keystone timer per dungeon, seconds
+
         "rows": {
             "cls": cls_arr, "spec": spec_arr, "hero": hero_arr,
             "dun": dun_arr, "reg": reg_arr, "role": role_arr,
@@ -123,6 +155,10 @@ def build(name: str, cfg: dict) -> None:
             "dps": df["dps"].round(0).astype(int).tolist(),
             "dur": pd.to_numeric(df["duration_s"], errors="coerce")
                      .fillna(0).round(0).astype(int).tolist(),
+            "kdur": (pd.to_numeric(df["keystone_s"], errors="coerce")
+                     if "keystone_s" in df.columns
+                     else pd.Series(0, index=df.index))
+                    .fillna(0).round(0).astype(int).tolist(),
             "score": score.tolist(),
             "timed": timed.tolist(),
             "post": post.tolist(),
@@ -186,6 +222,8 @@ def reset_bounds(now, regions):
 
 def build_llms() -> None:
     csv = ROOT / "data" / SOURCES["ptr"]["csv"]
+    if not csv.exists():
+        csv = csv.with_suffix("")
     if not csv.exists():
         print("[llms] PTR csv missing — skipped")
         return
