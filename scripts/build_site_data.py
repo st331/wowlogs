@@ -253,6 +253,16 @@ def build_llms() -> None:
         if b >= 0 else "" for b in df["reset_bucket"]]
     patch = latest_tuning()
     df["post_tuning"] = post_tuning_flag(started, df["region"], patch)
+    # keystone clock and how far under the dungeon timer each run finished —
+    # the only fair way to compare runs across dungeons and key levels
+    pars = dict(zip(sorted(df["dungeon"].unique()),
+                    derive_pars(df, sorted(df["dungeon"].unique()))))
+    ks = pd.to_numeric(df.get("keystone_s"), errors="coerce") \
+        if "keystone_s" in df.columns else pd.Series(np.nan, index=df.index)
+    df["keystone_s"] = ks.round(0)
+    par_s = df["dungeon"].map(pars).replace(0, np.nan)
+    df["par_s"] = par_s
+    df["pct_under_timer"] = ((par_s - ks) / par_s * 100).round(1)
     df["run_id"] = pd.factorize(df["report_code"].astype(str) + ":"
                                 + df["fight_id"].astype(str))[0]
     df["char_id"] = pd.factorize(df["character"].fillna("?").astype(str) + "@"
@@ -308,6 +318,7 @@ def build_llms() -> None:
         ("dungeon_summary.csv", df.groupby("dungeon").agg(
             runs=("run_id", "nunique"), parses=("dps", "size"),
             characters=("char_id", "nunique"),
+            timer_s=("par_s", "max"),
             timed_run_pct=("timed", lambda s: round(
                 (s == 1).sum() / max((s >= 0).sum(), 1) * 100, 1)),
             avg_duration_s=("duration_s", lambda s: round(s.mean(), 0)),
@@ -316,10 +327,64 @@ def build_llms() -> None:
             avg_deaths_per_player=("deaths", lambda s: round(s.mean(), 2)),
         ).reset_index()),
     ]
+    # ---- compositions: one row per distinct 5-player comp, per subset ----
+    ROLE_ORDER = {"Tank": 0, "Healer": 1, "DPS": 2}
+    df["_ro"] = df["role"].map(ROLE_ORDER).fillna(3)
+    df["_who"] = df["role"].str[0] + ":" + df["spec"] + " " + df["class"]
+    ordered = df.sort_values(["run_id", "_ro", "class", "spec"])
+    comp_of = ordered.groupby("run_id")["_who"].apply(" | ".join)
+    runs = ordered.groupby("run_id").agg(
+        dungeon=("dungeon", "first"), key_level=("key_level", "first"),
+        keystone_s=("keystone_s", "first"), pct=("pct_under_timer", "first"),
+        deaths=("deaths", "sum"), date=("date", "first"),
+        timed=("timed", "first"), post=("post_tuning", "first"),
+        chars=("char_id", "nunique"), players=("char_id", "size"),
+    ).join(comp_of.rename("composition"))
+    runs = runs[runs["players"].between(4, 6)]
+
+    def comp_agg(frame):
+        frame = frame.dropna(subset=["pct"])
+        if frame.empty:
+            return None
+        g = frame.sort_values("pct", ascending=False).groupby("composition")
+        out = g.agg(
+            runs=("pct", "size"),
+            best_pct_under=("pct", "max"),
+            median_pct_under=("pct", "median"),
+            best_time_s=("keystone_s", "first"),
+            best_dungeon=("dungeon", "first"),
+            best_key=("key_level", "first"),
+            best_date=("date", "first"),
+            median_time_s=("keystone_s", "median"),
+            avg_deaths_per_run=("deaths", "mean"),
+            timed_pct=("timed", lambda s: (s == 1).mean() * 100),
+        ).reset_index()
+        for c, r in (("median_pct_under", 1), ("avg_deaths_per_run", 2),
+                     ("timed_pct", 1), ("median_time_s", 0)):
+            out[c] = out[c].round(r)
+        return out.sort_values("best_pct_under", ascending=False)
+
+    comp_parts = []
+    # key15plus matters: the dungeon timer is the SAME at +2 and +20, so a
+    # trivial low key posts a huge margin. Restricting to real keys makes the
+    # ranking mean something.
+    for label, frame in (("all", runs), ("timed", runs[runs["timed"] == 1]),
+                         ("post_tuning", runs[runs["post"] == 1]),
+                         ("key15plus", runs[(runs["key_level"] >= 15)
+                                            & (runs["timed"] == 1)])):
+        got = comp_agg(frame)
+        if got is not None and len(got):
+            comp_parts.append(got.assign(subset=label))
+    if comp_parts:
+        comps = pd.concat(comp_parts, ignore_index=True)
+        files.append(("comps.csv",
+                      comps[["subset"] + [c for c in comps.columns
+                                          if c != "subset"]]))
+
     raw_cols = ["run_id", "char_id", "class", "spec", "hero_talent", "role",
                 "region", "dungeon", "key_level", "timed", "duration_s",
                 "dps", "deaths", "item_level", "date", "reset_bucket",
-                "post_tuning"]
+                "post_tuning", "keystone_s", "pct_under_timer"]
     raw = df[raw_cols].sort_values(["run_id"]).reset_index(drop=True)
     chunks = [(f"parses_{i // CHUNK + 1}.csv", raw.iloc[i:i + CHUNK])
               for i in range(0, len(raw), CHUNK)]
@@ -386,7 +451,12 @@ def build_llms() -> None:
         f"- {BASE_URL}/llms/spec_by_day.csv — split by calendar day (UTC). "
         "Use this for day-granular questions such as \"the last 3 days\".",
         f"- {BASE_URL}/llms/dungeon_summary.csv — per-dungeon runs, players, "
-        "timed %, average duration/key/deaths.",
+        "timed %, average duration/key/deaths, and `timer_s`: that dungeon's "
+        "keystone timer.",
+        f"- {BASE_URL}/llms/comps.csv — one row per distinct 5-player "
+        "composition. Columns: subset, composition, runs, best_pct_under, "
+        "median_pct_under, best_time_s, best_dungeon, best_key, best_date, "
+        "median_time_s, avg_deaths_per_run, timed_pct.",
         "",
         "The `subset` column is \"all\" (every completed run), \"timed\" (runs "
         "that beat the timer), and — on spec_summary / spec_by_key / "
@@ -394,6 +464,24 @@ def build_llms() -> None:
         "restrict to runs started after the most recent class-tuning pass.",
         "",
         tuning_para,
+        "",
+        "**Compositions.** comps.csv ranks comps by `best_pct_under` — how far "
+        "under that dungeon's keystone timer the comp's fastest run finished "
+        "(negative means the key was depleted). Dungeon timers differ, so the "
+        "margin is what makes runs in different dungeons comparable; the "
+        "timers themselves are in dungeon_summary.csv and are derived from "
+        "where timed and depleted runs separate on the clock, not published "
+        "by the API.",
+        "",
+        "IMPORTANT: the timer does NOT change with key level, so a +2 posts a "
+        "far bigger margin than a +20 of equal quality and the unrestricted "
+        "ranking is topped by trivial keys. Use the `key15plus` subset (timed "
+        "runs at +15 and above) for a meaningful ranking, or filter on "
+        "`best_key`. The `composition` string is role-ordered and "
+        "pipe-separated, e.g. \"T:Blood DeathKnight | H:Holy Paladin | "
+        "D:Arcane Mage | ...\"; the raw chunks carry keystone_s and "
+        "pct_under_timer per row so any other cut can be rebuilt by grouping "
+        "on run_id.",
         "",
         "**Combining rows — read this before adding anything up.** These "
         "files deliberately contain overlapping views of the same data, so "

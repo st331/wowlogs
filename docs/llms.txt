@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 6,294 runs / 31,459 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-09. Generated 2026-08-09 04:48 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 6,294 runs / 31,459 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-09. Generated 2026-08-09 05:03 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -15,11 +15,16 @@ Every file below carries the same metric block: parses, runs, **characters** (di
 - https://st331.github.io/wowlogs/llms/spec_by_dungeon.csv — split by dungeon.
 - https://st331.github.io/wowlogs/llms/spec_by_reset.csv — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).
 - https://st331.github.io/wowlogs/llms/spec_by_day.csv — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".
-- https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon runs, players, timed %, average duration/key/deaths.
+- https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon runs, players, timed %, average duration/key/deaths, and `timer_s`: that dungeon's keystone timer.
+- https://st331.github.io/wowlogs/llms/comps.csv — one row per distinct 5-player composition. Columns: subset, composition, runs, best_pct_under, median_pct_under, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.
 
 The `subset` column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.
 
 **Tuning cutoff.** The latest class-tuning pass is Curse of Ula'tek PTR class tuning (Jul 31), taken as live at 2026-07-31T18:49:03Z (8,280 of 31,459 parses fall after it). Each run is classified by its exact start instant, and the raw chunks carry a `post_tuning` column (1 = after, 0 = before) so you can slice it yourself. Anchored on the moment Blizzard published the notes. Blizzard announced no PTR restart or go-live time for this pass, so the publication instant is the best sourced anchor rather than a stated deployment time. Patch 12.1 hit its release candidate build (68914, Jul 24), after which tuning ships as server-side hotfixes applied globally rather than via per-region realm restarts. The EU notes were mirrored 26 seconds after the US post, and no source publishes separate regional deployment times, so per-region cutoffs would be false precision. The cutoff falls in a 38-minute window with no logged runs (nearest run before 18:34:57Z, nearest after 19:13:06Z). Moving the assumed go-live by +/-30 min reclassifies only 2 runs, and by +/-1 h at most 10, so the split is insensitive to the exact minute.
+
+**Compositions.** comps.csv ranks comps by `best_pct_under` — how far under that dungeon's keystone timer the comp's fastest run finished (negative means the key was depleted). Dungeon timers differ, so the margin is what makes runs in different dungeons comparable; the timers themselves are in dungeon_summary.csv and are derived from where timed and depleted runs separate on the clock, not published by the API.
+
+IMPORTANT: the timer does NOT change with key level, so a +2 posts a far bigger margin than a +20 of equal quality and the unrestricted ranking is topped by trivial keys. Use the `key15plus` subset (timed runs at +15 and above) for a meaningful ranking, or filter on `best_key`. The `composition` string is role-ordered and pipe-separated, e.g. "T:Blood DeathKnight | H:Holy Paladin | D:Arcane Mage | ..."; the raw chunks carry keystone_s and pct_under_timer per row so any other cut can be rebuilt by grouping on run_id.
 
 **Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
 
@@ -38,7 +43,7 @@ When a question spans rows, recompute from the raw chunks (distinct run_id / cha
 - https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-30,000
 - https://st331.github.io/wowlogs/llms/parses_6.csv — rows 30,001-31,459
 
-One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning.
+One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.
 
 ## Column dictionary
 
