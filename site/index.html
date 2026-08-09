@@ -123,6 +123,10 @@ table.data{border-collapse:collapse; width:100%; font-size:.85rem; min-width:700
   font-variant-numeric:tabular-nums}
 .data td.txt{text-align:left; white-space:nowrap}
 .classdot{display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:7px}
+.comp{display:flex; flex-wrap:wrap; gap:.15rem .5rem; white-space:normal}
+.comp span{font-size:.8rem; white-space:nowrap}
+.comp .role{color:var(--muted); font-size:.66rem; text-transform:uppercase;
+  letter-spacing:.06em; margin-right:.15rem}
 footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 #loading{padding:80px 30px; color:var(--muted); font-size:1rem}
 .btn{background:var(--panel); border:1px solid var(--grid); color:var(--ink);
@@ -243,6 +247,11 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 
     <div class="sec"><span class="t">Breakdown</span><span class="s" id="tbl-sub"></span></div>
     <div class="tblwrap"><table class="data" id="tbl"></table></div>
+
+    <div class="sec"><span class="t">Top Comps</span>
+      <span class="s" id="comps-sub"></span></div>
+    <div class="tblwrap"><table class="data" id="comps"></table></div>
+    <div class="caption" id="comps-caption"></div>
 
     <footer>
       DPS is per-player overall damage ÷ run duration; deaths are parsed from each report's
@@ -391,6 +400,7 @@ function initData(d,cfg){
     if(!csHeroes.has(k)) csHeroes.set(k,new Set());
     if(hn!=="Unknown") csHeroes.get(k).add(hn);
   }
+  buildRuns();
   computeResetBuckets();
   // score tabs only make sense where the source has rankings (never on PTR)
   hasScore=false;
@@ -469,6 +479,33 @@ $("srcseg").querySelectorAll("button").forEach(x=>
   x.classList.toggle("on",x.dataset.src===initSrc));
 loadSource(initSrc);
 
+// One entry per run: its duration, where/when it happened, and the full
+// 5-player composition. Built once per dataset because none of it depends on
+// the filters — only which runs qualify does.
+let RUNS=[];
+function buildRuns(){
+  RUNS=new Array(runCount);
+  for(let i=0;i<N;i++){
+    const r=R.run[i];
+    let o=RUNS[r];
+    if(!o) o=RUNS[r]={dur:R.dur?R.dur[i]:0, dun:R.dun[i], key:R.key[i],
+                      day:R.day[i], deaths:0, comp:[]};
+    o.deaths+=R.deaths[i];
+    o.comp.push({cls:R.cls[i], spec:R.spec[i], role:R.role[i]});
+  }
+  const rank={Tank:0, Healer:1, DPS:2};
+  for(const o of RUNS){
+    if(!o) continue;
+    o.comp.sort((a,b)=>(rank[D.roles[a.role]] ?? 3)-(rank[D.roles[b.role]] ?? 3)
+      || D.classes[a.cls].localeCompare(D.classes[b.cls])
+      || D.specs[a.spec].localeCompare(D.specs[b.spec]));
+    o.key_ = o.comp.map(c=>c.cls*100+c.spec).join(",");
+  }
+}
+function fmtDur(sec){
+  const m=Math.floor(sec/60), r=Math.round(sec%60);
+  return m+":"+String(r).padStart(2,"0");
+}
 function computeResetBuckets(){
   const epoch=new Date(D.epoch+"T00:00:00Z"), now=new Date();
   const bounds={};
@@ -860,7 +897,7 @@ function aggregate(weeks){
       chars:g.chars.size,
       ascore, mscore, tscore, cn});
   }
-  return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax};
+  return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
 
 /* ---------------- rendering ---------------- */
@@ -956,6 +993,7 @@ function render(){
   $("trendseg").style.display=tab.trend?"":"none";
   $("trendview").style.display=tab.trend?"":"none";
   $("sortseg").style.display=tab.trend?"none":"";
+  renderComps(A);
   if(tab.trend){ renderTrend(); renderTable(rows,tab); return; }
   $("trendbox").style.display="none"; $("chart").style.display="";
 
@@ -1048,6 +1086,60 @@ function render(){
   if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
   $("chart-caption").textContent=cap;
   renderTable(rows,tab);
+}
+
+/* ---------------- top comps ---------------- */
+const COMPS_MAX=25;
+function renderComps(A){
+  // One row per distinct composition, represented by its fastest qualifying
+  // run. A run qualifies when ANY of its players passes the current filters,
+  // so a spec filter reads as "top comps that include this spec" while the
+  // comp itself still shows all five players.
+  const best=new Map();
+  for(let r=0;r<runCount;r++){
+    if(!A.runSeen[r]) continue;
+    const o=RUNS[r];
+    if(!o||!o.dur) continue;
+    const cur=best.get(o.key_);
+    if(!cur){best.set(o.key_,{o,n:1}); continue}
+    cur.n++;
+    if(o.dur<cur.o.dur) cur.o=o;
+  }
+  const list=[...best.values()].sort((a,b)=>a.o.dur-b.o.dur).slice(0,COMPS_MAX);
+  const t=$("comps");
+  if(!list.length){
+    t.innerHTML="";
+    $("comps-sub").textContent="no runs match the current filters";
+    $("comps-caption").textContent="";
+    return;
+  }
+  let h='<thead><tr><th class="txt">#</th><th class="txt">Composition</th>'
+      +'<th>Time</th><th class="txt">Dungeon</th><th>Key</th>'
+      +'<th>Deaths</th><th>Runs</th><th class="txt">Date</th></tr></thead><tbody>';
+  list.forEach((e,i)=>{
+    const o=e.o;
+    const comp=o.comp.map(c=>{
+      const cn=D.classes[c.cls];
+      return '<span style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
+        +'<span class="role">'+esc((D.roles[c.role]||"?").slice(0,1))+'</span>'
+        +esc(D.specs[c.spec]+" "+cn)+'</span>';
+    }).join("");
+    h+='<tr><td class="txt">'+(i+1)+'</td>'
+      +'<td class="txt"><div class="comp">'+comp+'</div></td>'
+      +'<td><b>'+fmtDur(o.dur)+'</b></td>'
+      +'<td class="txt">'+esc(D.dungeons[o.dun])+'</td>'
+      +'<td>+'+o.key+'</td><td>'+o.deaths+'</td><td>'+fmtInt(e.n)+'</td>'
+      +'<td class="txt">'+(o.day>=0?fmtDay(o.day):"–")+'</td></tr>';
+  });
+  t.innerHTML=h+"</tbody>";
+  $("comps-sub").textContent=fmtInt(best.size)+" distinct comps across "
+    +fmtInt(A.runs)+" runs — fastest first";
+  $("comps-caption").textContent="Each row is one composition, shown by its "
+    +"fastest run under the current filters; \u201cRuns\u201d counts how many "
+    +"runs used that exact comp. Clear times are only comparable within a "
+    +"dungeon and key level, so filter to a single dungeon for a like-for-like "
+    +"ranking. A run is included when any of its players matches the filters, "
+    +"so a class or spec filter shows the best comps containing it.";
 }
 
 /* ---------------- trend ---------------- */

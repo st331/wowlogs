@@ -121,6 +121,8 @@ def build(name: str, cfg: dict) -> None:
             "key": df["key_level"].astype(int).tolist(),
             "deaths": df["deaths"].astype(int).tolist(),
             "dps": df["dps"].round(0).astype(int).tolist(),
+            "dur": pd.to_numeric(df["duration_s"], errors="coerce")
+                     .fillna(0).round(0).astype(int).tolist(),
             "score": score.tolist(),
             "timed": timed.tolist(),
             "post": post.tolist(),
