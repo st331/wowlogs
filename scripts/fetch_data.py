@@ -737,6 +737,36 @@ def export() -> None:
     os.replace(tmp, ks_file)
     df["keystone_s"] = [ks.get(f"{c}:{f}", "")
                         for c, f in zip(df["report_code"], df["fight_id"])]
+
+    # Several members of a group often upload the same fight, so one real run
+    # appears under multiple report codes and gets counted repeatedly. Identify
+    # a run by dungeon + key + keystone clock + its exact roster: the copies
+    # agree on all four, while two genuinely different runs that happen to
+    # share a clock do not (their rosters differ). Start timestamps are NOT
+    # usable here — each uploader's report begins at a different moment, so
+    # the same fight can be tens of seconds apart between copies.
+    per_run = df.groupby(["report_code", "fight_id"]).agg(
+        _dun=("dungeon", "first"), _key=("key_level", "first"),
+        _ks=("keystone_s", "first"),
+        _roster=("character", lambda s: "|".join(sorted(map(str, s)))),
+        _n=("character", "size")).reset_index()
+    per_run["_sig"] = (per_run["_dun"].astype(str) + "/"
+                       + per_run["_key"].astype(str) + "/"
+                       + per_run["_ks"].astype(str) + "/" + per_run["_roster"])
+    # a run with no keystone clock has a weak signature, so never merge those
+    weak = per_run["_ks"].astype(str).isin(["", "nan", "None"])
+    canon = pd.concat([
+        per_run[weak],
+        (per_run[~weak].sort_values(["_sig", "_n", "report_code"],
+                                    ascending=[True, False, True])
+         .drop_duplicates("_sig")),
+    ])
+    if len(canon) < len(per_run):
+        keep = set(zip(canon["report_code"], canon["fight_id"]))
+        df = df[[(c, f) in keep
+                 for c, f in zip(df["report_code"], df["fight_id"])]]
+        print(f"[export] collapsed {len(per_run) - len(canon)} duplicate "
+              f"uploads of the same fight", flush=True)
     if jmap:
         for col in ("score", "medal"):
             df[col] = [
