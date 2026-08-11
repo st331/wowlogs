@@ -1,15 +1,15 @@
 subset,class,spec,role,dungeon,parses,runs,characters,avg_dps,median_dps,p90_dps,avg_deaths,deathless_pct,avg_item_level
-all,DeathKnight,Blood,Tank,Altar of Fangs,275,275,202,178717,180994,251897,0.95,57.1,329.3
-all,DeathKnight,Blood,Tank,Den of Nalorakk,139,139,114,150125,149582,203691,0.75,58.3,331.2
-all,DeathKnight,Blood,Tank,Kings' Rest,169,169,139,121257,121966,157865,0.98,50.3,331.2
-all,DeathKnight,Blood,Tank,Murder Row,172,172,134,160488,162582,218399,0.7,59.3,331.2
+all,DeathKnight,Blood,Tank,Altar of Fangs,277,277,203,178688,180994,251835,0.96,57.0,329.3
+all,DeathKnight,Blood,Tank,Den of Nalorakk,140,140,115,150189,150197,203636,0.74,58.6,331.2
+all,DeathKnight,Blood,Tank,Kings' Rest,170,170,140,121112,121892,157733,0.98,50.0,331.3
+all,DeathKnight,Blood,Tank,Murder Row,174,174,135,160493,162582,217696,0.74,59.2,331.2
 all,DeathKnight,Blood,Tank,Ruby Life Pools,302,302,214,192432,188122,271441,0.51,70.9,331.3
-all,DeathKnight,Blood,Tank,Temple of Sethraliss,137,137,102,160621,159843,218493,0.57,63.5,331.1
+all,DeathKnight,Blood,Tank,Temple of Sethraliss,138,138,103,160810,161534,218209,0.57,63.8,331.1
 all,DeathKnight,Blood,Tank,The Blinding Vale,188,188,145,174615,176580,236065,0.74,61.7,330.5
 all,DeathKnight,Blood,Tank,Voidscar Arena,187,187,149,150282,149948,209289,0.93,52.4,330.4
 all,DeathKnight,Frost,DPS,Altar of Fangs,193,188,127,281603,287940,373598,2.2,23.8,324.6
 all,DeathKnight,Frost,DPS,Den of Nalorakk,69,67,58,226895,231246,295540,2.14,24.6,329.1
-all,DeathKnight,Frost,DPS,Kings' Rest,74,72,60,166371,161190,225011,2.27,23.0,330.1
+all,DeathKnight,Frost,DPS,Kings' Rest,75,73,61,165869,160989,224908,2.27,22.7,330.2
 all,DeathKnight,Frost,DPS,Murder Row,75,69,68,244041,253238,302637,1.8,20.0,328.2
 all,DeathKnight,Frost,DPS,Ruby Life Pools,103,103,76,271984,272401,345623,1.09,40.8,332.4
 all,DeathKnight,Frost,DPS,Temple of Sethraliss,53,52,48,248465,245549,320574,1.51,32.1,332.8
@@ -28,7 +28,7 @@ all,DemonHunter,Devourer,DPS,Den of Nalorakk,97,97,78,227444,233589,304842,2.34,
 all,DemonHunter,Devourer,DPS,Kings' Rest,129,125,98,189176,194382,246743,2.88,13.2,330.9
 all,DemonHunter,Devourer,DPS,Murder Row,111,110,82,244095,247503,323584,2.2,26.1,330.5
 all,DemonHunter,Devourer,DPS,Ruby Life Pools,213,208,139,293516,298860,385647,1.31,32.4,331.7
-all,DemonHunter,Devourer,DPS,Temple of Sethraliss,119,117,101,245387,247707,316352,2.63,9.2,331.4
+all,DemonHunter,Devourer,DPS,Temple of Sethraliss,120,118,101,244949,246735,315941,2.62,9.2,331.4
 all,DemonHunter,Devourer,DPS,The Blinding Vale,127,123,100,268179,276790,355062,2.72,15.0,330.5
 all,DemonHunter,Devourer,DPS,Voidscar Arena,108,106,78,246739,247244,326127,2.42,19.4,330.3
 all,DemonHunter,Havoc,DPS,Altar of Fangs,62,62,48,226864,222922,307471,2.76,16.1,324.6
@@ -52,8 +52,8 @@ all,Druid,Balance,DPS,Den of Nalorakk,99,99,78,243606,250457,315506,2.24,17.2,33
 all,Druid,Balance,DPS,Kings' Rest,177,175,143,201588,206008,250040,2.1,23.7,331.9
 all,Druid,Balance,DPS,Murder Row,117,117,95,250776,250887,333840,2.02,27.4,331.2
 all,Druid,Balance,DPS,Ruby Life Pools,204,204,158,267686,265106,352727,1.79,23.5,331.4
-all,Druid,Balance,DPS,Temple of Sethraliss,122,121,100,248269,252536,320387,2.93,14.8,332.0
-all,Druid,Balance,DPS,The Blinding Vale,102,101,86,263478,259538,324322,2.69,13.7,330.9
+all,Druid,Balance,DPS,Temple of Sethraliss,123,122,101,248125,252165,320185,2.93,14.6,332.0
+all,Druid,Balance,DPS,The Blinding Vale,103,102,87,263628,260781,323483,2.66,14.6,331.0
 all,Druid,Balance,DPS,Voidscar Arena,87,87,75,247558,249776,316586,2.75,14.9,330.3
 all,Druid,Feral,DPS,Altar of Fangs,34,34,25,261178,253843,365560,2.68,11.8,325.1
 all,Druid,Feral,DPS,Den of Nalorakk,18,18,12,227651,232482,288410,2.17,22.2,329.2
@@ -87,21 +87,21 @@ all,Evoker,Augmentation,DPS,Ruby Life Pools,62,62,34,225347,224119,281662,1.21,3
 all,Evoker,Augmentation,DPS,Temple of Sethraliss,22,22,18,186164,186106,234219,2.09,27.3,329.9
 all,Evoker,Augmentation,DPS,The Blinding Vale,38,38,23,220157,210340,302889,2.21,23.7,324.6
 all,Evoker,Augmentation,DPS,Voidscar Arena,28,28,21,187218,168570,271484,2.82,10.7,323.6
-all,Evoker,Devastation,DPS,Altar of Fangs,37,34,24,215123,198940,313187,4.49,8.1,324.9
+all,Evoker,Devastation,DPS,Altar of Fangs,38,35,24,219576,200580,316608,4.37,10.5,325.2
 all,Evoker,Devastation,DPS,Den of Nalorakk,14,13,11,222797,233032,262029,2.0,28.6,329.9
 all,Evoker,Devastation,DPS,Kings' Rest,15,15,12,159893,155403,198994,2.6,13.3,326.2
 all,Evoker,Devastation,DPS,Murder Row,20,18,12,205754,204572,261108,3.0,10.0,328.0
 all,Evoker,Devastation,DPS,Ruby Life Pools,31,31,21,231398,231559,302838,1.77,25.8,328.1
-all,Evoker,Devastation,DPS,Temple of Sethraliss,17,16,12,220275,227099,270873,2.53,5.9,329.4
+all,Evoker,Devastation,DPS,Temple of Sethraliss,18,17,12,224242,229154,279018,2.44,5.6,329.7
 all,Evoker,Devastation,DPS,The Blinding Vale,17,17,13,216472,216632,276451,3.24,11.8,325.4
 all,Evoker,Devastation,DPS,Voidscar Arena,21,17,10,220990,233240,290120,2.52,19.0,327.3
-all,Evoker,Preservation,Healer,Altar of Fangs,99,99,59,62038,65526,94886,3.01,16.2,328.8
+all,Evoker,Preservation,Healer,Altar of Fangs,100,100,60,62317,65569,94780,2.99,16.0,328.8
 all,Evoker,Preservation,Healer,Den of Nalorakk,41,41,31,56897,57793,83894,2.54,26.8,329.2
-all,Evoker,Preservation,Healer,Kings' Rest,61,61,46,56748,55269,85702,2.43,9.8,332.1
+all,Evoker,Preservation,Healer,Kings' Rest,62,62,46,56758,55600,85327,2.42,9.7,332.1
 all,Evoker,Preservation,Healer,Murder Row,37,37,29,55198,53430,91390,2.22,13.5,329.9
 all,Evoker,Preservation,Healer,Ruby Life Pools,92,92,63,62048,60362,95142,2.34,20.7,333.5
-all,Evoker,Preservation,Healer,Temple of Sethraliss,35,35,30,57239,57509,79967,3.46,2.9,331.0
-all,Evoker,Preservation,Healer,The Blinding Vale,48,48,34,64322,66064,92103,2.6,12.5,329.4
+all,Evoker,Preservation,Healer,Temple of Sethraliss,37,37,31,58018,57822,82220,3.32,5.4,331.2
+all,Evoker,Preservation,Healer,The Blinding Vale,49,49,35,64949,66212,93137,2.55,14.3,329.4
 all,Evoker,Preservation,Healer,Voidscar Arena,46,46,38,55590,58918,88994,2.5,13.0,328.3
 all,Hunter,BeastMastery,DPS,Altar of Fangs,76,75,44,214432,210316,299559,3.79,11.8,320.5
 all,Hunter,BeastMastery,DPS,Den of Nalorakk,19,19,14,179643,179832,231195,3.05,10.5,325.2
@@ -111,7 +111,7 @@ all,Hunter,BeastMastery,DPS,Ruby Life Pools,36,36,27,235229,234564,338662,2.39,2
 all,Hunter,BeastMastery,DPS,Temple of Sethraliss,23,23,18,223761,231790,294504,2.26,21.7,329.5
 all,Hunter,BeastMastery,DPS,The Blinding Vale,27,27,24,238660,236430,311005,2.89,14.8,328.0
 all,Hunter,BeastMastery,DPS,Voidscar Arena,21,21,16,185166,187859,244195,3.62,9.5,326.1
-all,Hunter,Marksmanship,DPS,Altar of Fangs,111,110,80,296477,298387,404546,2.74,16.2,330.8
+all,Hunter,Marksmanship,DPS,Altar of Fangs,112,111,80,296690,300630,404430,2.72,16.1,330.9
 all,Hunter,Marksmanship,DPS,Den of Nalorakk,73,73,59,242971,251701,316364,2.33,17.8,332.2
 all,Hunter,Marksmanship,DPS,Kings' Rest,73,72,59,193074,191402,263057,2.16,15.1,331.7
 all,Hunter,Marksmanship,DPS,Murder Row,75,74,57,260145,264980,332391,2.04,26.7,332.4
@@ -125,15 +125,15 @@ all,Hunter,Survival,DPS,Kings' Rest,27,27,19,188229,197406,234686,2.19,18.5,331.
 all,Hunter,Survival,DPS,Murder Row,20,20,16,206446,203065,254025,2.35,15.0,325.8
 all,Hunter,Survival,DPS,Ruby Life Pools,39,39,30,246055,240876,315841,1.92,23.1,330.7
 all,Hunter,Survival,DPS,Temple of Sethraliss,19,19,18,198604,210089,253234,4.89,10.5,330.6
-all,Hunter,Survival,DPS,The Blinding Vale,20,20,14,261209,267553,345843,1.75,35.0,328.4
+all,Hunter,Survival,DPS,The Blinding Vale,21,21,15,263247,269448,343372,1.67,38.1,328.6
 all,Hunter,Survival,DPS,Voidscar Arena,26,26,20,210258,195760,285774,1.81,15.4,326.5
-all,Mage,Arcane,DPS,Altar of Fangs,417,409,269,263714,266786,363513,2.82,16.3,328.3
-all,Mage,Arcane,DPS,Den of Nalorakk,275,266,214,234769,234266,306994,2.29,20.4,330.3
-all,Mage,Arcane,DPS,Kings' Rest,295,287,215,208372,208772,264937,1.94,27.8,331.6
-all,Mage,Arcane,DPS,Murder Row,305,294,235,253577,248146,339702,1.76,25.6,330.2
+all,Mage,Arcane,DPS,Altar of Fangs,420,412,271,264165,267398,363842,2.83,16.4,328.3
+all,Mage,Arcane,DPS,Den of Nalorakk,276,267,215,235100,234447,308041,2.28,20.7,330.3
+all,Mage,Arcane,DPS,Kings' Rest,296,288,216,208308,208335,264838,1.94,27.7,331.6
+all,Mage,Arcane,DPS,Murder Row,307,296,236,253922,248323,341646,1.78,25.7,330.2
 all,Mage,Arcane,DPS,Ruby Life Pools,458,446,327,284986,279712,387318,1.53,29.9,331.2
-all,Mage,Arcane,DPS,Temple of Sethraliss,244,238,192,257918,262394,343516,2.19,16.4,331.1
-all,Mage,Arcane,DPS,The Blinding Vale,321,311,236,286870,282557,377973,2.59,18.7,329.7
+all,Mage,Arcane,DPS,Temple of Sethraliss,245,239,193,258141,262423,343488,2.18,16.3,331.2
+all,Mage,Arcane,DPS,The Blinding Vale,322,312,237,287109,282628,377932,2.58,18.9,329.8
 all,Mage,Arcane,DPS,Voidscar Arena,299,288,231,245287,244672,335563,2.32,21.7,329.2
 all,Mage,Fire,DPS,Altar of Fangs,14,14,8,244521,245304,345042,2.43,14.3,327.2
 all,Mage,Fire,DPS,Den of Nalorakk,3,3,3,226640,214931,273521,1.0,33.3,329.7
@@ -175,21 +175,21 @@ all,Monk,Windwalker,DPS,Ruby Life Pools,65,65,45,281817,269926,397517,2.37,13.8,
 all,Monk,Windwalker,DPS,Temple of Sethraliss,28,28,21,265136,267044,337136,2.14,21.4,332.1
 all,Monk,Windwalker,DPS,The Blinding Vale,48,47,38,279471,297013,368166,3.21,16.7,331.2
 all,Monk,Windwalker,DPS,Voidscar Arena,39,39,31,258789,278338,344636,2.62,12.8,330.9
-all,Paladin,Holy,Healer,Altar of Fangs,215,215,154,38296,35247,65637,2.2,20.9,329.2
-all,Paladin,Holy,Healer,Den of Nalorakk,109,109,98,39171,34239,71733,1.47,34.9,331.5
+all,Paladin,Holy,Healer,Altar of Fangs,217,217,155,38289,35273,65602,2.22,20.7,329.2
+all,Paladin,Holy,Healer,Den of Nalorakk,110,110,99,39254,34347,71731,1.46,34.5,331.6
 all,Paladin,Holy,Healer,Kings' Rest,125,125,94,35156,33745,60410,1.37,36.0,331.8
-all,Paladin,Holy,Healer,Murder Row,148,148,106,37097,35187,57515,1.6,31.1,331.3
+all,Paladin,Holy,Healer,Murder Row,150,150,107,37177,35303,57164,1.65,31.3,331.4
 all,Paladin,Holy,Healer,Ruby Life Pools,228,228,166,39583,34766,68055,1.44,29.8,331.3
 all,Paladin,Holy,Healer,Temple of Sethraliss,139,139,102,40873,39725,68536,1.68,25.2,332.3
-all,Paladin,Holy,Healer,The Blinding Vale,148,148,106,39477,36702,69726,2.27,20.3,331.9
+all,Paladin,Holy,Healer,The Blinding Vale,149,149,107,39364,36274,69627,2.29,20.1,331.9
 all,Paladin,Holy,Healer,Voidscar Arena,143,143,106,37803,34975,62396,1.52,34.3,330.9
-all,Paladin,Protection,Tank,Altar of Fangs,378,378,234,157933,159224,212131,1.26,45.0,327.5
+all,Paladin,Protection,Tank,Altar of Fangs,379,379,235,157939,159261,212110,1.26,45.1,327.5
 all,Paladin,Protection,Tank,Den of Nalorakk,205,205,148,132966,132536,172208,1.04,53.2,330.3
 all,Paladin,Protection,Tank,Kings' Rest,269,269,186,123032,118272,166670,0.86,54.3,331.1
 all,Paladin,Protection,Tank,Murder Row,212,212,161,141914,138970,192849,0.75,57.1,329.9
 all,Paladin,Protection,Tank,Ruby Life Pools,377,377,256,170640,165910,232095,0.81,51.7,331.8
-all,Paladin,Protection,Tank,Temple of Sethraliss,223,223,174,156413,149127,219912,0.96,58.7,331.8
-all,Paladin,Protection,Tank,The Blinding Vale,245,245,169,156617,158457,200793,0.85,56.7,329.4
+all,Paladin,Protection,Tank,Temple of Sethraliss,224,224,175,156267,148992,219350,0.96,58.9,331.8
+all,Paladin,Protection,Tank,The Blinding Vale,247,247,170,156524,158158,200386,0.86,56.7,329.4
 all,Paladin,Protection,Tank,Voidscar Arena,194,194,140,141498,141106,184329,0.94,50.5,329.8
 all,Paladin,Retribution,DPS,Altar of Fangs,132,131,95,234636,229246,328189,3.2,13.6,323.7
 all,Paladin,Retribution,DPS,Den of Nalorakk,48,47,41,212929,211793,275954,2.33,14.6,329.8
@@ -237,7 +237,7 @@ all,Rogue,Outlaw,DPS,Kings' Rest,35,34,27,190482,182266,242070,2.77,11.4,332.7
 all,Rogue,Outlaw,DPS,Murder Row,22,22,16,234557,232940,328315,1.91,18.2,331.7
 all,Rogue,Outlaw,DPS,Ruby Life Pools,59,58,42,277255,265631,375258,1.49,33.9,331.4
 all,Rogue,Outlaw,DPS,Temple of Sethraliss,34,34,22,262732,249601,341994,1.79,23.5,330.6
-all,Rogue,Outlaw,DPS,The Blinding Vale,35,34,26,253497,260022,328006,2.71,11.4,330.0
+all,Rogue,Outlaw,DPS,The Blinding Vale,36,35,27,255288,262479,326627,2.75,11.1,330.1
 all,Rogue,Outlaw,DPS,Voidscar Arena,29,27,21,261671,263299,332544,2.41,20.7,331.6
 all,Rogue,Subtlety,DPS,Altar of Fangs,23,23,21,254273,266890,336337,2.91,17.4,326.7
 all,Rogue,Subtlety,DPS,Den of Nalorakk,12,12,11,200476,191198,308135,2.5,25.0,326.5
@@ -247,13 +247,13 @@ all,Rogue,Subtlety,DPS,Ruby Life Pools,15,15,14,246490,224780,314845,2.33,26.7,3
 all,Rogue,Subtlety,DPS,Temple of Sethraliss,4,4,4,180043,188674,200957,1.25,50.0,327.5
 all,Rogue,Subtlety,DPS,The Blinding Vale,14,14,13,242258,237222,308858,1.64,28.6,327.0
 all,Rogue,Subtlety,DPS,Voidscar Arena,17,17,17,196777,206413,277094,3.88,5.9,325.2
-all,Shaman,Elemental,DPS,Altar of Fangs,231,229,154,293989,291381,408038,2.45,20.8,328.9
-all,Shaman,Elemental,DPS,Den of Nalorakk,96,95,84,238447,242967,319745,2.47,17.7,330.7
+all,Shaman,Elemental,DPS,Altar of Fangs,233,231,155,293889,291381,407837,2.48,20.6,328.9
+all,Shaman,Elemental,DPS,Den of Nalorakk,97,96,85,238386,242021,319684,2.45,17.5,330.7
 all,Shaman,Elemental,DPS,Kings' Rest,129,129,104,197220,199320,246215,2.29,22.5,332.3
-all,Shaman,Elemental,DPS,Murder Row,121,121,99,258957,257767,319848,1.97,26.4,331.2
+all,Shaman,Elemental,DPS,Murder Row,123,123,100,258779,257767,319622,2.05,26.0,331.2
 all,Shaman,Elemental,DPS,Ruby Life Pools,211,209,151,298576,294761,392780,1.88,29.9,332.3
-all,Shaman,Elemental,DPS,Temple of Sethraliss,126,125,96,260443,266350,342969,3.24,11.9,331.9
-all,Shaman,Elemental,DPS,The Blinding Vale,117,116,96,286265,288175,360768,2.52,21.4,330.3
+all,Shaman,Elemental,DPS,Temple of Sethraliss,127,126,97,260559,266674,342881,3.22,11.8,331.9
+all,Shaman,Elemental,DPS,The Blinding Vale,118,117,97,285962,288170,360707,2.54,21.2,330.3
 all,Shaman,Elemental,DPS,Voidscar Arena,131,130,104,256419,248632,350377,2.49,19.8,330.8
 all,Shaman,Enhancement,DPS,Altar of Fangs,81,81,52,234934,236662,296428,3.69,14.8,323.8
 all,Shaman,Enhancement,DPS,Den of Nalorakk,29,29,24,192350,192513,262829,3.17,6.9,325.7
@@ -295,13 +295,13 @@ all,Warlock,Destruction,DPS,Ruby Life Pools,47,47,35,273364,271144,346338,1.85,2
 all,Warlock,Destruction,DPS,Temple of Sethraliss,25,25,21,237890,237121,275810,1.52,28.0,330.9
 all,Warlock,Destruction,DPS,The Blinding Vale,21,21,20,254850,241378,347619,3.48,4.8,330.9
 all,Warlock,Destruction,DPS,Voidscar Arena,19,19,18,226537,213313,310324,3.32,5.3,331.3
-all,Warrior,Arms,DPS,Altar of Fangs,287,284,194,293677,298803,380833,2.37,20.6,330.3
-all,Warrior,Arms,DPS,Den of Nalorakk,143,135,117,243404,249245,314144,2.23,14.7,331.7
-all,Warrior,Arms,DPS,Kings' Rest,189,186,142,208444,205193,263004,2.21,21.2,332.5
-all,Warrior,Arms,DPS,Murder Row,170,167,136,244110,245285,311982,2.89,10.6,331.1
+all,Warrior,Arms,DPS,Altar of Fangs,289,286,194,293611,298803,380823,2.38,20.4,330.4
+all,Warrior,Arms,DPS,Den of Nalorakk,144,136,118,243633,249594,313997,2.22,15.3,331.7
+all,Warrior,Arms,DPS,Kings' Rest,190,187,143,208640,205299,262851,2.21,21.1,332.5
+all,Warrior,Arms,DPS,Murder Row,172,169,137,244182,245285,311964,2.93,10.5,331.1
 all,Warrior,Arms,DPS,Ruby Life Pools,313,310,217,311860,311919,401454,2.07,21.7,332.4
-all,Warrior,Arms,DPS,Temple of Sethraliss,162,160,114,270733,272328,337373,2.66,17.3,332.5
-all,Warrior,Arms,DPS,The Blinding Vale,179,176,138,289491,290689,367183,2.77,17.3,331.3
+all,Warrior,Arms,DPS,Temple of Sethraliss,163,161,114,270938,272359,337114,2.66,17.2,332.5
+all,Warrior,Arms,DPS,The Blinding Vale,180,177,139,289415,290362,366973,2.79,17.2,331.3
 all,Warrior,Arms,DPS,Voidscar Arena,144,144,110,265970,267954,335428,2.38,18.1,331.9
 all,Warrior,Fury,DPS,Altar of Fangs,34,34,24,216674,207305,286450,3.18,17.6,323.9
 all,Warrior,Fury,DPS,Den of Nalorakk,14,14,14,190922,192484,230581,3.36,7.1,327.3
@@ -320,16 +320,16 @@ all,Warrior,Protection,Tank,Temple of Sethraliss,21,21,19,129109,128526,158621,0
 all,Warrior,Protection,Tank,The Blinding Vale,34,34,22,126517,123726,159819,1.15,52.9,328.6
 all,Warrior,Protection,Tank,Voidscar Arena,30,30,24,104368,100904,133192,2.17,23.3,325.9
 timed,DeathKnight,Blood,Tank,Altar of Fangs,106,106,88,198842,194782,262145,0.18,84.0,331.0
-timed,DeathKnight,Blood,Tank,Den of Nalorakk,73,73,64,162824,161052,218296,0.23,78.1,331.4
-timed,DeathKnight,Blood,Tank,Kings' Rest,93,93,77,127908,130725,160812,0.27,76.3,331.5
-timed,DeathKnight,Blood,Tank,Murder Row,91,91,81,171723,171342,224480,0.2,83.5,331.7
+timed,DeathKnight,Blood,Tank,Den of Nalorakk,74,74,65,162773,160214,218024,0.23,78.4,331.5
+timed,DeathKnight,Blood,Tank,Kings' Rest,94,94,78,127575,129818,160804,0.28,75.5,331.5
+timed,DeathKnight,Blood,Tank,Murder Row,92,92,82,171847,171463,224379,0.2,83.7,331.8
 timed,DeathKnight,Blood,Tank,Ruby Life Pools,176,176,144,200114,194532,282210,0.15,86.9,331.5
 timed,DeathKnight,Blood,Tank,Temple of Sethraliss,82,82,77,163987,164166,221450,0.24,79.3,331.3
 timed,DeathKnight,Blood,Tank,The Blinding Vale,104,104,87,185374,186996,241718,0.2,82.7,331.0
 timed,DeathKnight,Blood,Tank,Voidscar Arena,115,115,98,158309,154963,211241,0.37,70.4,330.8
 timed,DeathKnight,Frost,DPS,Altar of Fangs,20,20,19,305748,317598,370331,0.55,55.0,329.4
 timed,DeathKnight,Frost,DPS,Den of Nalorakk,17,17,16,226962,223523,294380,0.71,47.1,331.7
-timed,DeathKnight,Frost,DPS,Kings' Rest,13,13,12,176140,179731,212525,0.62,61.5,331.0
+timed,DeathKnight,Frost,DPS,Kings' Rest,14,14,13,172751,176356,211958,0.71,57.1,331.2
 timed,DeathKnight,Frost,DPS,Murder Row,15,15,15,238107,255892,291180,1.13,26.7,331.4
 timed,DeathKnight,Frost,DPS,Ruby Life Pools,25,25,24,279344,258876,343291,0.44,60.0,331.9
 timed,DeathKnight,Frost,DPS,Temple of Sethraliss,10,10,10,254322,243766,324998,1.1,40.0,332.7
@@ -373,7 +373,7 @@ timed,Druid,Balance,DPS,Kings' Rest,72,72,65,204317,209116,249710,1.12,36.1,331.
 timed,Druid,Balance,DPS,Murder Row,69,69,60,264134,261575,341033,0.96,39.1,331.2
 timed,Druid,Balance,DPS,Ruby Life Pools,80,80,73,267888,264165,353795,1.25,33.8,331.6
 timed,Druid,Balance,DPS,Temple of Sethraliss,38,37,36,260664,256084,335598,1.45,28.9,331.7
-timed,Druid,Balance,DPS,The Blinding Vale,56,55,53,275092,279469,346131,1.54,23.2,331.4
+timed,Druid,Balance,DPS,The Blinding Vale,57,56,54,275158,278880,345823,1.51,24.6,331.5
 timed,Druid,Balance,DPS,Voidscar Arena,50,50,49,259946,271563,327562,1.72,22.0,329.9
 timed,Druid,Feral,DPS,Altar of Fangs,6,6,5,339700,342862,385338,1.0,33.3,334.0
 timed,Druid,Feral,DPS,Den of Nalorakk,6,6,5,258008,287531,328332,0.83,50.0,331.8
@@ -407,21 +407,21 @@ timed,Evoker,Augmentation,DPS,Ruby Life Pools,21,21,11,228569,233967,307675,0.81
 timed,Evoker,Augmentation,DPS,Temple of Sethraliss,6,6,6,208553,214468,274612,0.67,66.7,329.7
 timed,Evoker,Augmentation,DPS,The Blinding Vale,10,10,9,222769,203346,309929,1.2,50.0,328.8
 timed,Evoker,Augmentation,DPS,Voidscar Arena,8,8,6,184824,175044,215054,2.38,0.0,327.5
-timed,Evoker,Devastation,DPS,Altar of Fangs,6,4,4,297293,303315,343710,1.67,33.3,331.8
+timed,Evoker,Devastation,DPS,Altar of Fangs,7,5,5,309728,311957,361203,1.43,42.9,332.1
 timed,Evoker,Devastation,DPS,Den of Nalorakk,7,6,7,235693,243705,275965,1.14,57.1,332.1
 timed,Evoker,Devastation,DPS,Kings' Rest,4,4,4,176912,177682,211051,1.25,25.0,327.5
 timed,Evoker,Devastation,DPS,Murder Row,1,1,1,190779,190779,190779,0.0,100.0,321.0
 timed,Evoker,Devastation,DPS,Ruby Life Pools,14,14,10,239258,240556,312068,1.36,21.4,328.4
-timed,Evoker,Devastation,DPS,Temple of Sethraliss,7,7,7,248028,251605,281894,1.57,14.3,330.3
+timed,Evoker,Devastation,DPS,Temple of Sethraliss,8,8,7,253485,258420,292484,1.5,12.5,330.8
 timed,Evoker,Devastation,DPS,The Blinding Vale,6,6,6,252092,249283,309576,1.33,16.7,329.7
 timed,Evoker,Devastation,DPS,Voidscar Arena,9,7,5,262915,265532,304928,1.22,33.3,329.7
-timed,Evoker,Preservation,Healer,Altar of Fangs,27,27,22,71561,71997,91941,1.15,29.6,332.6
+timed,Evoker,Preservation,Healer,Altar of Fangs,28,28,23,72215,74893,91808,1.14,28.6,332.6
 timed,Evoker,Preservation,Healer,Den of Nalorakk,19,19,17,60639,61530,84181,0.79,52.6,329.2
-timed,Evoker,Preservation,Healer,Kings' Rest,19,19,16,64688,63356,95455,1.11,15.8,334.0
+timed,Evoker,Preservation,Healer,Kings' Rest,20,20,17,64319,62666,95389,1.15,15.0,334.0
 timed,Evoker,Preservation,Healer,Murder Row,14,14,14,58235,59875,82985,0.93,28.6,330.3
 timed,Evoker,Preservation,Healer,Ruby Life Pools,34,34,31,68119,69526,97581,1.21,29.4,331.3
-timed,Evoker,Preservation,Healer,Temple of Sethraliss,11,11,11,60900,68923,75345,1.82,9.1,331.6
-timed,Evoker,Preservation,Healer,The Blinding Vale,23,23,19,66941,71488,90898,1.74,17.4,331.2
+timed,Evoker,Preservation,Healer,Temple of Sethraliss,12,12,12,62778,69418,80804,1.67,16.7,331.8
+timed,Evoker,Preservation,Healer,The Blinding Vale,24,24,20,68112,71632,92623,1.67,20.8,331.3
 timed,Evoker,Preservation,Healer,Voidscar Arena,27,27,22,62558,63826,92485,1.3,22.2,330.1
 timed,Hunter,BeastMastery,DPS,Altar of Fangs,5,5,5,312854,340495,359634,0.6,40.0,331.4
 timed,Hunter,BeastMastery,DPS,Den of Nalorakk,4,4,4,204736,206391,256788,1.0,25.0,330.8
@@ -431,7 +431,7 @@ timed,Hunter,BeastMastery,DPS,Ruby Life Pools,10,10,7,265174,250319,359501,1.5,3
 timed,Hunter,BeastMastery,DPS,Temple of Sethraliss,7,7,5,246607,259676,299620,1.86,14.3,332.1
 timed,Hunter,BeastMastery,DPS,The Blinding Vale,6,6,6,281320,293542,339480,1.83,16.7,334.0
 timed,Hunter,BeastMastery,DPS,Voidscar Arena,4,4,4,174848,149740,228974,1.75,25.0,324.2
-timed,Hunter,Marksmanship,DPS,Altar of Fangs,46,45,36,344128,361956,419382,1.48,34.8,332.0
+timed,Hunter,Marksmanship,DPS,Altar of Fangs,47,46,36,343622,361602,419248,1.47,34.0,332.1
 timed,Hunter,Marksmanship,DPS,Den of Nalorakk,42,42,35,265520,270490,324094,1.19,31.0,333.1
 timed,Hunter,Marksmanship,DPS,Kings' Rest,35,35,32,214283,211526,271822,1.14,28.6,331.8
 timed,Hunter,Marksmanship,DPS,Murder Row,35,35,30,279618,271019,362130,1.11,45.7,332.9
@@ -445,15 +445,15 @@ timed,Hunter,Survival,DPS,Kings' Rest,12,12,10,200746,207514,234839,1.17,33.3,33
 timed,Hunter,Survival,DPS,Murder Row,5,5,5,218190,203970,246304,0.4,60.0,323.6
 timed,Hunter,Survival,DPS,Ruby Life Pools,15,15,13,244920,240726,328488,1.33,26.7,328.8
 timed,Hunter,Survival,DPS,Temple of Sethraliss,2,2,2,193626,193626,207977,0.0,100.0,327.5
-timed,Hunter,Survival,DPS,The Blinding Vale,9,9,7,289388,276262,368083,1.78,44.4,331.1
+timed,Hunter,Survival,DPS,The Blinding Vale,10,10,8,290850,290132,368081,1.6,50.0,331.4
 timed,Hunter,Survival,DPS,Voidscar Arena,12,12,11,221735,214476,281488,1.67,16.7,329.7
-timed,Mage,Arcane,DPS,Altar of Fangs,129,128,107,309158,313725,388042,1.08,33.3,331.5
-timed,Mage,Arcane,DPS,Den of Nalorakk,130,129,113,259707,259670,323168,1.06,34.6,331.3
-timed,Mage,Arcane,DPS,Kings' Rest,131,130,111,220037,220950,272123,1.13,37.4,331.5
-timed,Mage,Arcane,DPS,Murder Row,150,144,131,267412,258378,353056,0.95,38.7,331.3
+timed,Mage,Arcane,DPS,Altar of Fangs,130,129,108,309592,313828,387292,1.07,33.8,331.5
+timed,Mage,Arcane,DPS,Den of Nalorakk,131,130,114,260213,261084,325990,1.05,35.1,331.3
+timed,Mage,Arcane,DPS,Kings' Rest,132,131,112,219804,220716,272024,1.14,37.1,331.5
+timed,Mage,Arcane,DPS,Murder Row,151,145,132,267931,259043,352543,0.94,39.1,331.3
 timed,Mage,Arcane,DPS,Ruby Life Pools,206,200,171,301658,294219,411695,0.99,40.8,330.9
-timed,Mage,Arcane,DPS,Temple of Sethraliss,114,111,103,270846,270516,365322,1.42,27.2,330.8
-timed,Mage,Arcane,DPS,The Blinding Vale,162,159,134,304809,303363,384606,1.41,25.9,331.1
+timed,Mage,Arcane,DPS,Temple of Sethraliss,115,112,104,271209,270859,364759,1.42,27.0,330.9
+timed,Mage,Arcane,DPS,The Blinding Vale,163,160,135,305171,303664,384550,1.4,26.4,331.1
 timed,Mage,Arcane,DPS,Voidscar Arena,151,145,131,273947,278189,357182,1.19,35.1,331.5
 timed,Mage,Fire,DPS,Altar of Fangs,4,4,2,287026,273562,344271,0.5,50.0,327.5
 timed,Mage,Fire,DPS,Den of Nalorakk,3,3,3,226640,214931,273521,1.0,33.3,329.7
@@ -496,20 +496,20 @@ timed,Monk,Windwalker,DPS,Temple of Sethraliss,15,15,14,271545,273068,337186,1.6
 timed,Monk,Windwalker,DPS,The Blinding Vale,24,24,23,271298,297013,357769,1.33,33.3,329.1
 timed,Monk,Windwalker,DPS,Voidscar Arena,16,16,15,280979,296122,354728,1.25,31.2,331.6
 timed,Paladin,Holy,Healer,Altar of Fangs,72,72,61,45583,46072,75363,1.01,40.3,331.5
-timed,Paladin,Holy,Healer,Den of Nalorakk,61,61,56,45556,45219,74008,0.64,54.1,332.1
+timed,Paladin,Holy,Healer,Den of Nalorakk,62,62,57,45601,46226,73844,0.65,53.2,332.1
 timed,Paladin,Holy,Healer,Kings' Rest,68,68,60,39649,38825,62005,0.85,51.5,332.1
-timed,Paladin,Holy,Healer,Murder Row,71,71,63,41334,38713,65078,0.58,53.5,331.8
+timed,Paladin,Holy,Healer,Murder Row,72,72,64,41465,38862,64779,0.57,54.2,331.8
 timed,Paladin,Holy,Healer,Ruby Life Pools,119,119,104,39868,35492,67698,1.03,32.8,331.4
 timed,Paladin,Holy,Healer,Temple of Sethraliss,70,70,59,43825,44102,70341,0.93,42.9,332.5
 timed,Paladin,Holy,Healer,The Blinding Vale,89,89,75,44095,41398,76899,1.17,30.3,332.2
 timed,Paladin,Holy,Healer,Voidscar Arena,85,85,76,38675,35490,64823,0.79,49.4,331.9
-timed,Paladin,Protection,Tank,Altar of Fangs,91,91,74,178702,181314,217374,0.29,75.8,331.9
+timed,Paladin,Protection,Tank,Altar of Fangs,92,92,75,178499,181202,217188,0.28,76.1,332.0
 timed,Paladin,Protection,Tank,Den of Nalorakk,89,89,72,143498,141174,188847,0.2,82.0,332.4
 timed,Paladin,Protection,Tank,Kings' Rest,92,92,75,120351,117991,153012,0.35,72.8,331.2
 timed,Paladin,Protection,Tank,Murder Row,94,94,79,146312,140324,203323,0.29,75.5,331.4
 timed,Paladin,Protection,Tank,Ruby Life Pools,145,145,114,170979,170649,220818,0.3,73.1,331.6
-timed,Paladin,Protection,Tank,Temple of Sethraliss,61,61,57,146940,142254,183226,0.26,75.4,331.9
-timed,Paladin,Protection,Tank,The Blinding Vale,111,111,90,163136,161358,224751,0.32,73.9,331.5
+timed,Paladin,Protection,Tank,Temple of Sethraliss,62,62,58,146565,141221,182954,0.26,75.8,331.9
+timed,Paladin,Protection,Tank,The Blinding Vale,112,112,90,163081,160633,224415,0.32,74.1,331.6
 timed,Paladin,Protection,Tank,Voidscar Arena,96,96,82,148982,148080,193494,0.43,66.7,331.4
 timed,Paladin,Retribution,DPS,Altar of Fangs,21,21,21,267686,255104,371998,1.38,23.8,329.0
 timed,Paladin,Retribution,DPS,Den of Nalorakk,19,19,16,221086,220044,289084,1.37,21.1,330.6
@@ -568,9 +568,9 @@ timed,Rogue,Subtlety,DPS,Temple of Sethraliss,2,2,2,159498,159498,174045,1.0,50.
 timed,Rogue,Subtlety,DPS,The Blinding Vale,4,4,4,289228,277478,370659,1.0,50.0,330.8
 timed,Rogue,Subtlety,DPS,Voidscar Arena,7,7,7,250083,244532,294152,2.0,14.3,330.9
 timed,Shaman,Elemental,DPS,Altar of Fangs,85,83,68,326229,332363,419355,1.0,37.6,331.3
-timed,Shaman,Elemental,DPS,Den of Nalorakk,49,48,47,255934,263184,320528,1.27,24.5,331.6
+timed,Shaman,Elemental,DPS,Den of Nalorakk,50,49,48,255466,263120,320288,1.26,24.0,331.7
 timed,Shaman,Elemental,DPS,Kings' Rest,52,52,48,210860,214906,254506,1.0,34.6,332.0
-timed,Shaman,Elemental,DPS,Murder Row,59,59,51,278296,273988,347704,1.07,39.0,333.3
+timed,Shaman,Elemental,DPS,Murder Row,60,60,52,278391,274259,347033,1.07,38.3,333.4
 timed,Shaman,Elemental,DPS,Ruby Life Pools,102,101,79,321234,328283,412388,0.98,42.2,332.7
 timed,Shaman,Elemental,DPS,Temple of Sethraliss,41,41,35,293530,293910,354538,1.59,19.5,332.7
 timed,Shaman,Elemental,DPS,The Blinding Vale,63,62,54,301494,301625,379593,1.6,31.7,331.3
@@ -616,11 +616,11 @@ timed,Warlock,Destruction,DPS,Temple of Sethraliss,13,13,13,224961,232694,269154
 timed,Warlock,Destruction,DPS,The Blinding Vale,14,14,13,259738,244557,357572,1.86,7.1,329.4
 timed,Warlock,Destruction,DPS,Voidscar Arena,7,7,7,267965,232115,351315,1.14,14.3,332.1
 timed,Warrior,Arms,DPS,Altar of Fangs,123,123,96,319804,326004,390123,1.12,34.1,331.8
-timed,Warrior,Arms,DPS,Den of Nalorakk,81,79,67,263804,264492,317440,1.3,22.2,332.6
-timed,Warrior,Arms,DPS,Kings' Rest,96,94,82,217937,215885,271996,1.61,25.0,332.6
-timed,Warrior,Arms,DPS,Murder Row,90,88,80,253789,255094,329015,1.88,17.8,330.8
+timed,Warrior,Arms,DPS,Den of Nalorakk,82,80,68,263957,265392,317309,1.28,23.2,332.6
+timed,Warrior,Arms,DPS,Kings' Rest,97,95,83,218224,216198,271922,1.63,24.7,332.7
+timed,Warrior,Arms,DPS,Murder Row,91,89,81,254194,255528,328934,1.87,17.6,330.9
 timed,Warrior,Arms,DPS,Ruby Life Pools,169,168,148,321411,323512,407284,1.51,21.9,332.5
-timed,Warrior,Arms,DPS,Temple of Sethraliss,73,71,64,282812,283029,351446,1.74,21.9,332.4
+timed,Warrior,Arms,DPS,Temple of Sethraliss,74,72,64,283098,284394,351112,1.74,21.6,332.4
 timed,Warrior,Arms,DPS,The Blinding Vale,113,112,92,301412,301375,378372,1.5,24.8,331.6
 timed,Warrior,Arms,DPS,Voidscar Arena,93,93,77,278700,285132,338719,1.54,21.5,332.2
 timed,Warrior,Fury,DPS,Altar of Fangs,3,3,3,266372,254000,306366,0.67,66.7,325.3
@@ -639,17 +639,17 @@ timed,Warrior,Protection,Tank,Ruby Life Pools,14,14,12,157124,135022,228951,0.71
 timed,Warrior,Protection,Tank,Temple of Sethraliss,8,8,8,139117,140092,168794,0.38,62.5,327.5
 timed,Warrior,Protection,Tank,The Blinding Vale,11,11,11,144768,142376,183678,0.09,90.9,331.6
 timed,Warrior,Protection,Tank,Voidscar Arena,7,7,7,121347,112788,169159,1.14,57.1,322.6
-post_tuning,DeathKnight,Blood,Tank,Altar of Fangs,146,146,112,188112,188544,256251,0.73,64.4,330.9
-post_tuning,DeathKnight,Blood,Tank,Den of Nalorakk,74,74,68,150730,151112,199524,0.61,63.5,331.5
-post_tuning,DeathKnight,Blood,Tank,Kings' Rest,86,86,75,123608,124231,158264,0.94,50.0,331.7
-post_tuning,DeathKnight,Blood,Tank,Murder Row,98,98,85,169480,168278,223586,0.61,59.2,332.1
+post_tuning,DeathKnight,Blood,Tank,Altar of Fangs,148,148,113,187930,188544,255914,0.74,64.2,330.9
+post_tuning,DeathKnight,Blood,Tank,Den of Nalorakk,75,75,69,150841,151413,199492,0.6,64.0,331.6
+post_tuning,DeathKnight,Blood,Tank,Kings' Rest,87,87,76,123297,123621,158131,0.94,49.4,331.8
+post_tuning,DeathKnight,Blood,Tank,Murder Row,100,100,86,169310,168278,223511,0.68,59.0,332.2
 post_tuning,DeathKnight,Blood,Tank,Ruby Life Pools,150,150,119,202346,196846,284723,0.59,70.0,331.5
-post_tuning,DeathKnight,Blood,Tank,Temple of Sethraliss,71,71,60,162046,165811,224269,0.44,70.4,330.6
+post_tuning,DeathKnight,Blood,Tank,Temple of Sethraliss,72,72,61,162389,166290,224235,0.43,70.8,330.6
 post_tuning,DeathKnight,Blood,Tank,The Blinding Vale,113,113,96,176597,176359,238043,0.84,56.6,331.1
 post_tuning,DeathKnight,Blood,Tank,Voidscar Arena,103,103,85,155580,154963,216499,0.83,55.3,331.0
 post_tuning,DeathKnight,Frost,DPS,Altar of Fangs,19,19,16,245388,245176,363396,2.68,10.5,326.3
 post_tuning,DeathKnight,Frost,DPS,Den of Nalorakk,14,14,13,218096,205338,285599,0.93,35.7,332.1
-post_tuning,DeathKnight,Frost,DPS,Kings' Rest,5,5,5,160256,153107,194698,3.2,0.0,331.4
+post_tuning,DeathKnight,Frost,DPS,Kings' Rest,6,6,6,154996,150632,194432,3.0,0.0,331.8
 post_tuning,DeathKnight,Frost,DPS,Murder Row,12,12,12,232980,252640,299911,1.33,16.7,331.8
 post_tuning,DeathKnight,Frost,DPS,Ruby Life Pools,18,18,17,276755,293921,337618,1.5,33.3,331.8
 post_tuning,DeathKnight,Frost,DPS,Temple of Sethraliss,9,9,9,251058,237186,331444,2.11,22.2,332.6
@@ -668,7 +668,7 @@ post_tuning,DemonHunter,Devourer,DPS,Den of Nalorakk,34,34,32,215497,213812,2785
 post_tuning,DemonHunter,Devourer,DPS,Kings' Rest,25,25,22,201060,209004,253402,2.48,24.0,332.4
 post_tuning,DemonHunter,Devourer,DPS,Murder Row,31,31,29,235787,244435,304454,2.03,38.7,331.1
 post_tuning,DemonHunter,Devourer,DPS,Ruby Life Pools,62,60,46,302792,319194,379859,1.55,32.3,331.4
-post_tuning,DemonHunter,Devourer,DPS,Temple of Sethraliss,27,26,25,243577,249235,297640,2.33,11.1,332.6
+post_tuning,DemonHunter,Devourer,DPS,Temple of Sethraliss,28,27,25,241763,244920,297048,2.32,10.7,332.6
 post_tuning,DemonHunter,Devourer,DPS,The Blinding Vale,45,43,42,270554,279675,347194,2.96,11.1,331.1
 post_tuning,DemonHunter,Devourer,DPS,Voidscar Arena,40,40,31,254045,253353,325582,2.2,20.0,331.4
 post_tuning,DemonHunter,Havoc,DPS,Altar of Fangs,13,13,11,268339,284306,328453,1.85,7.7,331.0
@@ -692,8 +692,8 @@ post_tuning,Druid,Balance,DPS,Den of Nalorakk,27,27,26,237698,249656,312880,2.04
 post_tuning,Druid,Balance,DPS,Kings' Rest,35,35,33,186800,192523,234995,2.29,20.0,330.3
 post_tuning,Druid,Balance,DPS,Murder Row,36,36,31,265865,259759,345313,1.14,41.7,331.1
 post_tuning,Druid,Balance,DPS,Ruby Life Pools,41,41,40,260127,261300,343704,1.46,39.0,329.2
-post_tuning,Druid,Balance,DPS,Temple of Sethraliss,23,23,22,247387,241894,326215,1.65,30.4,331.9
-post_tuning,Druid,Balance,DPS,The Blinding Vale,39,39,35,248541,249772,312055,2.69,10.3,331.0
+post_tuning,Druid,Balance,DPS,Temple of Sethraliss,24,24,23,246685,241343,325105,1.75,29.2,332.0
+post_tuning,Druid,Balance,DPS,The Blinding Vale,40,40,36,249299,250110,312039,2.62,12.5,331.1
 post_tuning,Druid,Balance,DPS,Voidscar Arena,29,29,27,241032,249776,315505,3.21,6.9,330.4
 post_tuning,Druid,Feral,DPS,Altar of Fangs,9,9,7,313065,340706,420446,1.33,22.2,329.7
 post_tuning,Druid,Feral,DPS,Den of Nalorakk,6,6,5,224276,237485,328332,1.83,33.3,329.7
@@ -727,21 +727,21 @@ post_tuning,Evoker,Augmentation,DPS,Ruby Life Pools,21,21,8,239049,247500,281980
 post_tuning,Evoker,Augmentation,DPS,Temple of Sethraliss,5,5,3,202779,215696,240768,1.0,40.0,328.8
 post_tuning,Evoker,Augmentation,DPS,The Blinding Vale,3,3,2,192275,201975,231525,1.67,33.3,325.3
 post_tuning,Evoker,Augmentation,DPS,Voidscar Arena,4,4,2,174256,182253,187279,2.5,0.0,322.5
-post_tuning,Evoker,Devastation,DPS,Altar of Fangs,17,14,9,269116,285597,328827,3.35,17.6,330.9
+post_tuning,Evoker,Devastation,DPS,Altar of Fangs,18,15,9,275517,286542,342882,3.17,22.2,331.1
 post_tuning,Evoker,Devastation,DPS,Den of Nalorakk,11,10,9,232622,243705,264360,1.82,27.3,331.6
 post_tuning,Evoker,Devastation,DPS,Kings' Rest,4,4,4,169324,170428,197586,1.75,0.0,327.5
 post_tuning,Evoker,Devastation,DPS,Murder Row,8,7,8,232739,235066,274505,3.75,0.0,332.4
 post_tuning,Evoker,Devastation,DPS,Ruby Life Pools,11,11,6,262140,250554,323556,2.09,9.1,330.5
-post_tuning,Evoker,Devastation,DPS,Temple of Sethraliss,9,8,8,249042,251605,277742,2.33,11.1,332.6
+post_tuning,Evoker,Devastation,DPS,Temple of Sethraliss,10,9,8,253306,258420,291951,2.2,10.0,332.7
 post_tuning,Evoker,Devastation,DPS,The Blinding Vale,5,5,5,263078,259617,311151,3.2,20.0,331.4
 post_tuning,Evoker,Devastation,DPS,Voidscar Arena,12,9,6,261466,256318,295401,2.5,25.0,331.8
-post_tuning,Evoker,Preservation,Healer,Altar of Fangs,38,38,27,72825,74774,93295,2.26,21.1,333.3
+post_tuning,Evoker,Preservation,Healer,Altar of Fangs,39,39,28,73263,77552,93110,2.23,20.5,333.3
 post_tuning,Evoker,Preservation,Healer,Den of Nalorakk,19,19,18,62200,60158,84144,1.37,36.8,331.3
-post_tuning,Evoker,Preservation,Healer,Kings' Rest,24,24,20,57590,55600,77069,2.62,8.3,332.9
+post_tuning,Evoker,Preservation,Healer,Kings' Rest,25,25,20,57580,55930,76994,2.6,8.0,333.0
 post_tuning,Evoker,Preservation,Healer,Murder Row,19,19,18,54238,54410,80074,2.42,15.8,332.6
 post_tuning,Evoker,Preservation,Healer,Ruby Life Pools,46,46,36,64282,65273,87754,2.7,13.0,331.5
-post_tuning,Evoker,Preservation,Healer,Temple of Sethraliss,12,12,11,55188,58554,72414,2.25,8.3,331.8
-post_tuning,Evoker,Preservation,Healer,The Blinding Vale,21,21,17,73246,71777,93630,2.0,14.3,332.1
+post_tuning,Evoker,Preservation,Healer,Temple of Sethraliss,14,14,12,57540,59582,78789,2.07,14.3,332.1
+post_tuning,Evoker,Preservation,Healer,The Blinding Vale,22,22,18,74237,71830,94899,1.91,18.2,332.2
 post_tuning,Evoker,Preservation,Healer,Voidscar Arena,26,26,25,55227,54528,86772,2.88,15.4,331.0
 post_tuning,Hunter,BeastMastery,DPS,Altar of Fangs,6,6,6,277838,318092,342780,1.67,16.7,329.7
 post_tuning,Hunter,BeastMastery,DPS,Den of Nalorakk,2,2,2,246972,246972,266605,0.5,50.0,334.0
@@ -751,7 +751,7 @@ post_tuning,Hunter,BeastMastery,DPS,Ruby Life Pools,5,5,5,249970,254418,322508,2
 post_tuning,Hunter,BeastMastery,DPS,Temple of Sethraliss,4,4,4,256808,273649,308618,2.25,25.0,330.8
 post_tuning,Hunter,BeastMastery,DPS,The Blinding Vale,6,6,6,291075,307142,353846,2.67,16.7,334.0
 post_tuning,Hunter,BeastMastery,DPS,Voidscar Arena,4,4,4,196803,193650,255102,2.75,25.0,327.5
-post_tuning,Hunter,Marksmanship,DPS,Altar of Fangs,18,18,18,258305,259750,364830,2.22,27.8,329.7
+post_tuning,Hunter,Marksmanship,DPS,Altar of Fangs,19,19,18,261570,274983,364561,2.16,26.3,329.9
 post_tuning,Hunter,Marksmanship,DPS,Den of Nalorakk,11,11,10,209647,209547,284116,2.64,18.2,331.6
 post_tuning,Hunter,Marksmanship,DPS,Kings' Rest,10,10,10,148944,143626,181896,1.6,10.0,328.8
 post_tuning,Hunter,Marksmanship,DPS,Murder Row,14,13,12,239285,239643,293376,2.14,14.3,333.1
@@ -765,15 +765,15 @@ post_tuning,Hunter,Survival,DPS,Kings' Rest,2,2,2,143534,143534,154565,5.0,0.0,3
 post_tuning,Hunter,Survival,DPS,Murder Row,2,2,2,244881,244881,277610,3.0,0.0,327.5
 post_tuning,Hunter,Survival,DPS,Ruby Life Pools,8,8,8,241394,223404,314015,1.88,25.0,332.4
 post_tuning,Hunter,Survival,DPS,Temple of Sethraliss,1,1,1,211565,211565,211565,0.0,100.0,334.0
-post_tuning,Hunter,Survival,DPS,The Blinding Vale,2,2,2,209112,209112,257381,4.0,0.0,327.5
+post_tuning,Hunter,Survival,DPS,The Blinding Vale,3,3,3,240742,269448,297091,2.67,33.3,329.7
 post_tuning,Hunter,Survival,DPS,Voidscar Arena,3,3,3,230504,238729,273276,1.67,33.3,329.7
-post_tuning,Mage,Arcane,DPS,Altar of Fangs,168,165,128,291322,296267,392546,2.49,15.5,330.0
-post_tuning,Mage,Arcane,DPS,Den of Nalorakk,110,107,99,255230,261894,317541,1.74,22.7,331.0
-post_tuning,Mage,Arcane,DPS,Kings' Rest,102,99,88,219543,226011,272394,2.04,24.5,331.6
-post_tuning,Mage,Arcane,DPS,Murder Row,132,128,119,273741,266184,361627,1.48,30.3,331.6
+post_tuning,Mage,Arcane,DPS,Altar of Fangs,171,168,130,291946,297110,391763,2.52,15.8,330.1
+post_tuning,Mage,Arcane,DPS,Den of Nalorakk,111,108,100,255867,262073,322502,1.72,23.4,331.1
+post_tuning,Mage,Arcane,DPS,Kings' Rest,103,100,89,219249,225918,272364,2.04,24.3,331.6
+post_tuning,Mage,Arcane,DPS,Murder Row,134,130,120,274229,267211,361424,1.53,30.6,331.7
 post_tuning,Mage,Arcane,DPS,Ruby Life Pools,178,171,146,306562,306640,415517,1.63,27.5,330.9
-post_tuning,Mage,Arcane,DPS,Temple of Sethraliss,102,97,88,266418,269891,368178,1.89,18.6,330.9
-post_tuning,Mage,Arcane,DPS,The Blinding Vale,142,135,121,299869,307060,392254,2.47,18.3,331.0
+post_tuning,Mage,Arcane,DPS,Temple of Sethraliss,103,98,89,266866,269980,368049,1.88,18.4,331.0
+post_tuning,Mage,Arcane,DPS,The Blinding Vale,143,136,122,300316,308566,391410,2.45,18.9,331.0
 post_tuning,Mage,Arcane,DPS,Voidscar Arena,123,120,105,270394,273664,356662,2.31,26.8,331.1
 post_tuning,Mage,Fire,DPS,Altar of Fangs,3,3,3,264949,233423,340729,2.0,33.3,329.7
 post_tuning,Mage,Fire,DPS,Den of Nalorakk,1,1,1,214931,214931,214931,1.0,0.0,334.0
@@ -811,21 +811,21 @@ post_tuning,Monk,Windwalker,DPS,Ruby Life Pools,30,30,25,295354,279526,414774,2.
 post_tuning,Monk,Windwalker,DPS,Temple of Sethraliss,15,15,15,268019,273068,337186,2.33,13.3,332.3
 post_tuning,Monk,Windwalker,DPS,The Blinding Vale,32,32,29,277170,285116,356946,3.44,12.5,331.2
 post_tuning,Monk,Windwalker,DPS,Voidscar Arena,20,20,18,269383,270006,358362,2.4,20.0,332.0
-post_tuning,Paladin,Holy,Healer,Altar of Fangs,112,112,93,40986,36308,70001,2.06,21.4,330.5
-post_tuning,Paladin,Holy,Healer,Den of Nalorakk,58,58,55,42532,39274,75094,1.43,29.3,332.4
+post_tuning,Paladin,Holy,Healer,Altar of Fangs,114,114,94,40926,36308,69774,2.1,21.1,330.6
+post_tuning,Paladin,Holy,Healer,Den of Nalorakk,59,59,56,42630,41841,75034,1.42,28.8,332.5
 post_tuning,Paladin,Holy,Healer,Kings' Rest,51,51,45,39477,40245,62219,1.47,33.3,333.2
-post_tuning,Paladin,Holy,Healer,Murder Row,83,83,65,41229,41262,62043,1.51,31.3,332.2
+post_tuning,Paladin,Holy,Healer,Murder Row,85,85,66,41273,41262,61996,1.59,31.8,332.2
 post_tuning,Paladin,Holy,Healer,Ruby Life Pools,108,108,93,40994,36753,70642,1.44,30.6,331.4
 post_tuning,Paladin,Holy,Healer,Temple of Sethraliss,61,61,53,41277,39711,70446,1.2,34.4,333.1
-post_tuning,Paladin,Holy,Healer,The Blinding Vale,84,84,65,39566,36253,70642,2.4,16.7,332.3
+post_tuning,Paladin,Holy,Healer,The Blinding Vale,85,85,66,39368,36232,70609,2.44,16.5,332.3
 post_tuning,Paladin,Holy,Healer,Voidscar Arena,79,79,66,37186,33561,67762,1.47,39.2,331.7
-post_tuning,Paladin,Protection,Tank,Altar of Fangs,62,62,51,145938,143352,206001,1.15,45.2,329.8
+post_tuning,Paladin,Protection,Tank,Altar of Fangs,63,63,52,146161,144208,205880,1.13,46.0,329.8
 post_tuning,Paladin,Protection,Tank,Den of Nalorakk,36,36,33,128959,126516,165706,0.44,72.2,331.5
 post_tuning,Paladin,Protection,Tank,Kings' Rest,33,33,29,106443,108125,137138,0.67,51.5,331.2
 post_tuning,Paladin,Protection,Tank,Murder Row,38,38,35,132116,135077,171631,0.82,44.7,330.9
 post_tuning,Paladin,Protection,Tank,Ruby Life Pools,67,67,57,152551,150262,206679,0.61,58.2,331.0
-post_tuning,Paladin,Protection,Tank,Temple of Sethraliss,33,33,33,130041,129869,157565,0.97,48.5,332.0
-post_tuning,Paladin,Protection,Tank,The Blinding Vale,39,39,34,142982,149307,181824,0.95,48.7,331.0
+post_tuning,Paladin,Protection,Tank,Temple of Sethraliss,34,34,34,129854,129137,157040,0.94,50.0,332.1
+post_tuning,Paladin,Protection,Tank,The Blinding Vale,41,41,35,143087,149307,180643,1.0,48.8,331.1
 post_tuning,Paladin,Protection,Tank,Voidscar Arena,33,33,30,135691,124345,172535,0.91,63.6,331.7
 post_tuning,Paladin,Retribution,DPS,Altar of Fangs,24,24,23,232990,219684,336309,3.75,8.3,329.1
 post_tuning,Paladin,Retribution,DPS,Den of Nalorakk,10,10,10,209694,202764,275603,2.1,0.0,328.8
@@ -873,7 +873,7 @@ post_tuning,Rogue,Outlaw,DPS,Kings' Rest,12,11,11,203842,201736,248190,2.25,8.3,
 post_tuning,Rogue,Outlaw,DPS,Murder Row,11,11,10,264377,262373,357549,1.09,27.3,332.8
 post_tuning,Rogue,Outlaw,DPS,Ruby Life Pools,24,23,19,299135,295613,407619,1.83,25.0,332.4
 post_tuning,Rogue,Outlaw,DPS,Temple of Sethraliss,17,17,15,290102,268510,371196,1.18,29.4,332.5
-post_tuning,Rogue,Outlaw,DPS,The Blinding Vale,12,12,12,265929,263550,337258,2.75,8.3,332.9
+post_tuning,Rogue,Outlaw,DPS,The Blinding Vale,13,13,13,269934,267078,335224,2.85,7.7,333.0
 post_tuning,Rogue,Outlaw,DPS,Voidscar Arena,12,10,11,275418,291800,365731,2.42,25.0,330.8
 post_tuning,Rogue,Subtlety,DPS,Altar of Fangs,6,6,6,337771,336117,360572,2.5,16.7,334.0
 post_tuning,Rogue,Subtlety,DPS,Den of Nalorakk,8,8,7,227477,221873,318920,1.62,37.5,329.1
@@ -883,13 +883,13 @@ post_tuning,Rogue,Subtlety,DPS,Ruby Life Pools,10,10,10,262346,267060,328709,2.6
 post_tuning,Rogue,Subtlety,DPS,Temple of Sethraliss,2,2,2,159498,159498,174045,1.0,50.0,321.0
 post_tuning,Rogue,Subtlety,DPS,The Blinding Vale,6,6,6,311828,301302,356703,1.83,16.7,332.3
 post_tuning,Rogue,Subtlety,DPS,Voidscar Arena,8,8,8,245216,241575,292269,4.25,12.5,330.0
-post_tuning,Shaman,Elemental,DPS,Altar of Fangs,78,77,60,327483,340720,424493,2.18,26.9,331.7
-post_tuning,Shaman,Elemental,DPS,Den of Nalorakk,33,32,30,246684,251853,322651,2.03,18.2,331.6
+post_tuning,Shaman,Elemental,DPS,Altar of Fangs,80,79,61,326352,336623,424486,2.28,26.2,331.8
+post_tuning,Shaman,Elemental,DPS,Den of Nalorakk,34,33,31,246267,251185,322326,2.0,17.6,331.7
 post_tuning,Shaman,Elemental,DPS,Kings' Rest,37,37,31,207383,203972,249494,2.35,10.8,333.3
-post_tuning,Shaman,Elemental,DPS,Murder Row,51,51,44,269229,259543,346362,1.47,37.3,332.2
+post_tuning,Shaman,Elemental,DPS,Murder Row,53,53,45,268427,259543,345422,1.68,35.8,332.3
 post_tuning,Shaman,Elemental,DPS,Ruby Life Pools,72,71,53,308268,304414,411486,2.1,31.9,333.1
-post_tuning,Shaman,Elemental,DPS,Temple of Sethraliss,36,36,31,271954,267216,345443,2.44,16.7,332.6
-post_tuning,Shaman,Elemental,DPS,The Blinding Vale,45,44,38,300068,296147,378987,2.69,24.4,331.7
+post_tuning,Shaman,Elemental,DPS,Temple of Sethraliss,37,37,32,272040,268405,345036,2.41,16.2,332.6
+post_tuning,Shaman,Elemental,DPS,The Blinding Vale,46,45,39,298992,292626,378684,2.74,23.9,331.7
 post_tuning,Shaman,Elemental,DPS,Voidscar Arena,56,55,49,266208,258375,362646,2.34,26.8,331.7
 post_tuning,Shaman,Enhancement,DPS,Altar of Fangs,10,10,10,244872,244290,288050,3.1,30.0,327.5
 post_tuning,Shaman,Enhancement,DPS,Den of Nalorakk,5,5,5,192996,197853,245670,3.0,0.0,323.6
@@ -931,13 +931,13 @@ post_tuning,Warlock,Destruction,DPS,Ruby Life Pools,12,12,12,280789,283432,37826
 post_tuning,Warlock,Destruction,DPS,Temple of Sethraliss,11,11,10,236947,243894,271462,1.27,45.5,330.5
 post_tuning,Warlock,Destruction,DPS,The Blinding Vale,12,12,11,275115,263346,360416,2.67,8.3,331.8
 post_tuning,Warlock,Destruction,DPS,Voidscar Arena,10,10,9,208490,202928,251974,3.6,10.0,330.1
-post_tuning,Warrior,Arms,DPS,Altar of Fangs,125,123,102,298508,305103,379470,2.57,19.2,331.3
-post_tuning,Warrior,Arms,DPS,Den of Nalorakk,54,52,50,251839,261244,313997,1.72,16.7,331.8
-post_tuning,Warrior,Arms,DPS,Kings' Rest,58,57,54,213897,214394,271072,2.33,19.0,332.2
-post_tuning,Warrior,Arms,DPS,Murder Row,71,69,61,254876,262076,330012,2.97,9.9,332.0
+post_tuning,Warrior,Arms,DPS,Altar of Fangs,127,125,102,298282,305103,379453,2.59,18.9,331.3
+post_tuning,Warrior,Arms,DPS,Den of Nalorakk,55,53,51,252284,262466,313850,1.69,18.2,331.9
+post_tuning,Warrior,Arms,DPS,Kings' Rest,59,58,55,214437,214763,270887,2.34,18.6,332.2
+post_tuning,Warrior,Arms,DPS,Murder Row,73,71,62,254750,262076,329958,3.07,9.6,332.0
 post_tuning,Warrior,Arms,DPS,Ruby Life Pools,100,98,90,316635,315920,412701,2.62,15.0,332.3
-post_tuning,Warrior,Arms,DPS,Temple of Sethraliss,57,56,49,281151,282117,352829,2.35,19.3,332.4
-post_tuning,Warrior,Arms,DPS,The Blinding Vale,71,68,66,287721,290689,366762,2.92,11.3,331.4
+post_tuning,Warrior,Arms,DPS,Temple of Sethraliss,58,57,49,281545,283938,351814,2.34,19.0,332.4
+post_tuning,Warrior,Arms,DPS,The Blinding Vale,72,69,67,287556,288014,366642,2.97,11.1,331.5
 post_tuning,Warrior,Arms,DPS,Voidscar Arena,63,63,55,266121,268042,338719,2.75,9.5,332.1
 post_tuning,Warrior,Fury,DPS,Altar of Fangs,2,2,2,249837,249837,269180,0.5,50.0,321.0
 post_tuning,Warrior,Fury,DPS,Den of Nalorakk,3,3,3,236485,231895,260681,1.33,33.3,334.0
@@ -955,16 +955,16 @@ post_tuning,Warrior,Protection,Tank,Temple of Sethraliss,7,7,7,139445,135172,168
 post_tuning,Warrior,Protection,Tank,The Blinding Vale,4,4,4,142865,148184,159819,0.25,75.0,330.8
 post_tuning,Warrior,Protection,Tank,Voidscar Arena,7,7,6,103190,100949,117172,3.57,14.3,324.7
 post_tuning_timed,DeathKnight,Blood,Tank,Altar of Fangs,73,73,61,197494,199670,259657,0.16,84.9,331.2
-post_tuning_timed,DeathKnight,Blood,Tank,Den of Nalorakk,45,45,44,158745,157514,203912,0.29,73.3,331.4
-post_tuning_timed,DeathKnight,Blood,Tank,Kings' Rest,47,47,43,125116,126012,160323,0.21,80.9,331.2
-post_tuning_timed,DeathKnight,Blood,Tank,Murder Row,57,57,55,177204,174941,231211,0.23,80.7,332.4
+post_tuning_timed,DeathKnight,Blood,Tank,Den of Nalorakk,46,46,45,158752,158280,203856,0.28,73.9,331.5
+post_tuning_timed,DeathKnight,Blood,Tank,Kings' Rest,48,48,44,124521,125998,159974,0.23,79.2,331.3
+post_tuning_timed,DeathKnight,Blood,Tank,Murder Row,58,58,56,177307,176907,230568,0.22,81.0,332.4
 post_tuning_timed,DeathKnight,Blood,Tank,Ruby Life Pools,100,100,89,199301,189599,282999,0.17,84.0,331.1
 post_tuning_timed,DeathKnight,Blood,Tank,Temple of Sethraliss,53,53,50,163341,165188,224201,0.15,84.9,330.8
 post_tuning_timed,DeathKnight,Blood,Tank,The Blinding Vale,65,65,59,183184,186288,242915,0.26,78.5,330.8
 post_tuning_timed,DeathKnight,Blood,Tank,Voidscar Arena,71,71,62,156421,157333,211587,0.37,70.4,330.7
 post_tuning_timed,DeathKnight,Frost,DPS,Altar of Fangs,6,6,5,301276,283159,381644,0.67,33.3,327.5
 post_tuning_timed,DeathKnight,Frost,DPS,Den of Nalorakk,11,11,10,214874,204218,275066,0.91,36.4,331.6
-post_tuning_timed,DeathKnight,Frost,DPS,Kings' Rest,1,1,1,193097,193097,193097,2.0,0.0,334.0
+post_tuning_timed,DeathKnight,Frost,DPS,Kings' Rest,2,2,2,160896,160896,186657,2.0,0.0,334.0
 post_tuning_timed,DeathKnight,Frost,DPS,Murder Row,8,8,8,238572,259834,297512,1.12,25.0,332.4
 post_tuning_timed,DeathKnight,Frost,DPS,Ruby Life Pools,8,8,7,284358,278626,339256,0.38,62.5,330.8
 post_tuning_timed,DeathKnight,Frost,DPS,Temple of Sethraliss,7,7,7,254566,237186,344334,1.29,28.6,332.1
@@ -1008,7 +1008,7 @@ post_tuning_timed,Druid,Balance,DPS,Kings' Rest,26,26,24,190990,194736,234713,1.
 post_tuning_timed,Druid,Balance,DPS,Murder Row,30,30,26,269492,261812,342893,0.73,50.0,331.0
 post_tuning_timed,Druid,Balance,DPS,Ruby Life Pools,26,26,25,247945,252424,318464,0.88,53.8,329.5
 post_tuning_timed,Druid,Balance,DPS,Temple of Sethraliss,18,18,17,267048,259780,331680,1.22,33.3,332.7
-post_tuning_timed,Druid,Balance,DPS,The Blinding Vale,24,24,23,257809,263232,312139,1.75,16.7,331.3
+post_tuning_timed,Druid,Balance,DPS,The Blinding Vale,25,25,24,258652,269101,312122,1.68,20.0,331.4
 post_tuning_timed,Druid,Balance,DPS,Voidscar Arena,17,17,17,250783,249776,319239,2.0,11.8,330.9
 post_tuning_timed,Druid,Feral,DPS,Altar of Fangs,3,3,2,364702,345018,395708,1.0,33.3,334.0
 post_tuning_timed,Druid,Feral,DPS,Den of Nalorakk,4,4,4,243247,266694,343798,1.0,50.0,330.8
@@ -1042,20 +1042,20 @@ post_tuning_timed,Evoker,Augmentation,DPS,Ruby Life Pools,14,14,6,227259,240278,
 post_tuning_timed,Evoker,Augmentation,DPS,Temple of Sethraliss,3,3,3,205002,235231,242614,1.33,33.3,329.7
 post_tuning_timed,Evoker,Augmentation,DPS,The Blinding Vale,2,2,2,187424,187424,228614,1.0,50.0,327.5
 post_tuning_timed,Evoker,Augmentation,DPS,Voidscar Arena,3,3,2,184178,185535,187529,2.67,0.0,329.7
-post_tuning_timed,Evoker,Devastation,DPS,Altar of Fangs,6,4,4,297293,303315,343710,1.67,33.3,331.8
+post_tuning_timed,Evoker,Devastation,DPS,Altar of Fangs,7,5,5,309728,311957,361203,1.43,42.9,332.1
 post_tuning_timed,Evoker,Devastation,DPS,Den of Nalorakk,6,5,6,240031,247014,280809,1.33,50.0,331.8
 post_tuning_timed,Evoker,Devastation,DPS,Kings' Rest,2,2,2,168220,168220,193612,1.5,0.0,327.5
 post_tuning_timed,Evoker,Devastation,DPS,Ruby Life Pools,7,7,4,259226,250554,319037,1.57,14.3,330.3
-post_tuning_timed,Evoker,Devastation,DPS,Temple of Sethraliss,5,5,5,263197,265234,286046,1.8,20.0,331.4
+post_tuning_timed,Evoker,Devastation,DPS,Temple of Sethraliss,6,6,5,267945,269412,293017,1.67,16.7,331.8
 post_tuning_timed,Evoker,Devastation,DPS,The Blinding Vale,3,3,3,292923,301702,314301,1.0,33.3,334.0
 post_tuning_timed,Evoker,Devastation,DPS,Voidscar Arena,8,6,4,274340,272339,309397,1.25,37.5,330.8
-post_tuning_timed,Evoker,Preservation,Healer,Altar of Fangs,19,19,15,75076,77789,87450,1.26,26.3,333.3
+post_tuning_timed,Evoker,Preservation,Healer,Altar of Fangs,20,20,16,75817,78848,90180,1.25,25.0,333.4
 post_tuning_timed,Evoker,Preservation,Healer,Den of Nalorakk,13,13,12,62507,61530,81011,0.62,53.8,330.0
-post_tuning_timed,Evoker,Preservation,Healer,Kings' Rest,10,10,10,59560,58954,79652,0.8,20.0,334.0
+post_tuning_timed,Evoker,Preservation,Healer,Kings' Rest,11,11,11,59357,57326,77294,0.91,18.2,334.0
 post_tuning_timed,Evoker,Preservation,Healer,Murder Row,9,9,9,60328,61732,81219,1.0,33.3,331.1
 post_tuning_timed,Evoker,Preservation,Healer,Ruby Life Pools,24,24,21,70248,70384,97929,1.46,16.7,330.8
-post_tuning_timed,Evoker,Preservation,Healer,Temple of Sethraliss,7,7,7,60534,69913,76168,1.57,14.3,332.1
-post_tuning_timed,Evoker,Preservation,Healer,The Blinding Vale,13,13,12,68289,71777,85981,1.69,15.4,331.0
+post_tuning_timed,Evoker,Preservation,Healer,Temple of Sethraliss,8,8,8,63397,69996,82018,1.38,25.0,332.4
+post_tuning_timed,Evoker,Preservation,Healer,The Blinding Vale,14,14,13,70200,71830,92820,1.57,21.4,331.2
 post_tuning_timed,Evoker,Preservation,Healer,Voidscar Arena,18,18,17,58529,61374,90118,1.44,22.2,330.4
 post_tuning_timed,Hunter,BeastMastery,DPS,Altar of Fangs,4,4,4,298731,332134,343694,0.75,25.0,330.8
 post_tuning_timed,Hunter,BeastMastery,DPS,Den of Nalorakk,2,2,2,246972,246972,266605,0.5,50.0,334.0
@@ -1064,7 +1064,7 @@ post_tuning_timed,Hunter,BeastMastery,DPS,Ruby Life Pools,3,3,3,242733,199241,32
 post_tuning_timed,Hunter,BeastMastery,DPS,Temple of Sethraliss,3,3,3,288305,287622,311617,1.67,33.3,334.0
 post_tuning_timed,Hunter,BeastMastery,DPS,The Blinding Vale,3,3,3,288851,310823,356312,2.33,0.0,334.0
 post_tuning_timed,Hunter,BeastMastery,DPS,Voidscar Arena,3,3,3,183339,150104,240242,1.67,33.3,325.3
-post_tuning_timed,Hunter,Marksmanship,DPS,Altar of Fangs,9,9,9,295499,323138,366758,1.22,55.6,329.7
+post_tuning_timed,Hunter,Marksmanship,DPS,Altar of Fangs,10,10,9,297983,321738,366737,1.2,50.0,330.1
 post_tuning_timed,Hunter,Marksmanship,DPS,Den of Nalorakk,8,8,7,223373,228395,291595,1.38,25.0,332.4
 post_tuning_timed,Hunter,Marksmanship,DPS,Kings' Rest,5,5,5,152093,144344,183718,1.2,20.0,326.2
 post_tuning_timed,Hunter,Marksmanship,DPS,Murder Row,5,5,5,238564,242787,298387,1.0,40.0,331.4
@@ -1077,14 +1077,15 @@ post_tuning_timed,Hunter,Survival,DPS,Den of Nalorakk,2,2,2,205564,205564,207173
 post_tuning_timed,Hunter,Survival,DPS,Murder Row,1,1,1,203970,203970,203970,1.0,0.0,321.0
 post_tuning_timed,Hunter,Survival,DPS,Ruby Life Pools,5,5,5,239070,224294,314756,1.4,40.0,331.4
 post_tuning_timed,Hunter,Survival,DPS,Temple of Sethraliss,1,1,1,211565,211565,211565,0.0,100.0,334.0
+post_tuning_timed,Hunter,Survival,DPS,The Blinding Vale,1,1,1,304002,304002,304002,0.0,100.0,334.0
 post_tuning_timed,Hunter,Survival,DPS,Voidscar Arena,2,2,2,260321,260321,277595,0.5,50.0,334.0
-post_tuning_timed,Mage,Arcane,DPS,Altar of Fangs,63,63,52,321619,327629,429145,1.14,30.2,330.7
-post_tuning_timed,Mage,Arcane,DPS,Den of Nalorakk,71,71,68,268804,277670,333838,1.1,33.8,331.1
-post_tuning_timed,Mage,Arcane,DPS,Kings' Rest,65,64,57,230888,237416,285765,1.15,38.5,331.0
-post_tuning_timed,Mage,Arcane,DPS,Murder Row,83,79,78,284124,280546,366248,0.82,45.8,331.7
+post_tuning_timed,Mage,Arcane,DPS,Altar of Fangs,64,64,53,322305,328616,428232,1.12,31.2,330.8
+post_tuning_timed,Mage,Arcane,DPS,Den of Nalorakk,72,72,69,269598,278639,333370,1.08,34.7,331.1
+post_tuning_timed,Mage,Arcane,DPS,Kings' Rest,66,65,58,230258,237110,284676,1.17,37.9,331.0
+post_tuning_timed,Mage,Arcane,DPS,Murder Row,84,80,79,284857,282378,366167,0.81,46.4,331.7
 post_tuning_timed,Mage,Arcane,DPS,Ruby Life Pools,118,114,102,313741,308362,419275,1.04,38.1,330.5
-post_tuning_timed,Mage,Arcane,DPS,Temple of Sethraliss,72,69,64,280893,278791,377212,1.28,26.4,330.9
-post_tuning_timed,Mage,Arcane,DPS,The Blinding Vale,88,86,79,316871,329404,398889,1.3,27.3,331.2
+post_tuning_timed,Mage,Arcane,DPS,Temple of Sethraliss,73,70,65,281326,279551,376533,1.27,26.0,331.0
+post_tuning_timed,Mage,Arcane,DPS,The Blinding Vale,89,87,80,317398,329806,398625,1.28,28.1,331.2
 post_tuning_timed,Mage,Arcane,DPS,Voidscar Arena,85,82,77,285563,293186,361391,1.11,37.6,331.2
 post_tuning_timed,Mage,Fire,DPS,Altar of Fangs,2,2,2,300490,300490,354143,0.5,50.0,327.5
 post_tuning_timed,Mage,Fire,DPS,Den of Nalorakk,1,1,1,214931,214931,214931,1.0,0.0,334.0
@@ -1120,20 +1121,20 @@ post_tuning_timed,Monk,Windwalker,DPS,Temple of Sethraliss,11,11,11,258309,27306
 post_tuning_timed,Monk,Windwalker,DPS,The Blinding Vale,18,18,18,282896,302756,354994,1.56,22.2,329.7
 post_tuning_timed,Monk,Windwalker,DPS,Voidscar Arena,10,10,9,284264,292550,366711,1.0,40.0,332.7
 post_tuning_timed,Paladin,Holy,Healer,Altar of Fangs,49,49,42,46069,46040,78472,0.96,40.8,331.1
-post_tuning_timed,Paladin,Holy,Healer,Den of Nalorakk,37,37,36,47569,49675,75154,0.81,43.2,332.2
+post_tuning_timed,Paladin,Holy,Healer,Den of Nalorakk,38,38,37,47588,49276,75094,0.82,42.1,332.3
 post_tuning_timed,Paladin,Holy,Healer,Kings' Rest,37,37,35,40380,40880,62570,0.97,43.2,332.9
-post_tuning_timed,Paladin,Holy,Healer,Murder Row,43,43,39,44892,41262,73852,0.53,53.5,332.5
+post_tuning_timed,Paladin,Holy,Healer,Murder Row,44,44,40,45027,42961,73334,0.52,54.5,332.5
 post_tuning_timed,Paladin,Holy,Healer,Ruby Life Pools,69,69,64,39585,36277,67783,0.91,36.2,331.4
 post_tuning_timed,Paladin,Holy,Healer,Temple of Sethraliss,45,45,41,42186,40202,69712,0.71,46.7,332.8
 post_tuning_timed,Paladin,Holy,Healer,The Blinding Vale,52,52,47,45218,43012,76366,1.29,25.0,332.5
 post_tuning_timed,Paladin,Holy,Healer,Voidscar Arena,56,56,50,38191,34322,68639,0.71,53.6,331.7
-post_tuning_timed,Paladin,Protection,Tank,Altar of Fangs,22,22,19,163357,172232,209590,0.23,77.3,329.9
+post_tuning_timed,Paladin,Protection,Tank,Altar of Fangs,23,23,20,163210,163372,209501,0.22,78.3,330.0
 post_tuning_timed,Paladin,Protection,Tank,Den of Nalorakk,25,25,24,135974,142370,170281,0.16,88.0,332.4
 post_tuning_timed,Paladin,Protection,Tank,Kings' Rest,22,22,20,109646,113096,138899,0.36,72.7,331.0
 post_tuning_timed,Paladin,Protection,Tank,Murder Row,21,21,21,134442,140266,172285,0.38,66.7,330.3
 post_tuning_timed,Paladin,Protection,Tank,Ruby Life Pools,41,41,37,156960,154070,208497,0.24,78.0,330.8
-post_tuning_timed,Paladin,Protection,Tank,Temple of Sethraliss,22,22,22,136410,135242,168910,0.32,68.2,332.2
-post_tuning_timed,Paladin,Protection,Tank,The Blinding Vale,22,22,21,143063,142780,178675,0.36,68.2,331.0
+post_tuning_timed,Paladin,Protection,Tank,Temple of Sethraliss,23,23,23,135856,134947,167183,0.3,69.6,332.3
+post_tuning_timed,Paladin,Protection,Tank,The Blinding Vale,23,23,21,143667,142803,178487,0.35,69.6,331.2
 post_tuning_timed,Paladin,Protection,Tank,Voidscar Arena,22,22,20,142498,147579,172857,0.32,77.3,332.2
 post_tuning_timed,Paladin,Retribution,DPS,Altar of Fangs,6,6,6,285159,279927,360556,1.17,33.3,329.7
 post_tuning_timed,Paladin,Retribution,DPS,Den of Nalorakk,8,8,8,201459,194346,275954,2.0,0.0,327.5
@@ -1191,9 +1192,9 @@ post_tuning_timed,Rogue,Subtlety,DPS,Temple of Sethraliss,2,2,2,159498,159498,17
 post_tuning_timed,Rogue,Subtlety,DPS,The Blinding Vale,3,3,3,319070,296936,381190,1.33,33.3,334.0
 post_tuning_timed,Rogue,Subtlety,DPS,Voidscar Arena,5,5,5,259642,270744,297917,2.2,20.0,329.6
 post_tuning_timed,Shaman,Elemental,DPS,Altar of Fangs,38,37,31,339747,342323,424770,1.11,36.8,331.6
-post_tuning_timed,Shaman,Elemental,DPS,Den of Nalorakk,18,17,17,247308,256850,324117,1.33,22.2,330.4
+post_tuning_timed,Shaman,Elemental,DPS,Den of Nalorakk,19,18,18,246530,250517,322760,1.32,21.1,330.6
 post_tuning_timed,Shaman,Elemental,DPS,Kings' Rest,19,19,18,225226,222311,255079,1.05,21.1,333.3
-post_tuning_timed,Shaman,Elemental,DPS,Murder Row,29,29,27,293977,299213,354196,0.76,48.3,334.0
+post_tuning_timed,Shaman,Elemental,DPS,Murder Row,30,30,28,293645,295271,354101,0.77,46.7,334.0
 post_tuning_timed,Shaman,Elemental,DPS,Ruby Life Pools,41,41,32,321514,310662,415762,0.8,43.9,332.4
 post_tuning_timed,Shaman,Elemental,DPS,Temple of Sethraliss,22,22,19,296768,310530,351395,1.36,27.3,332.2
 post_tuning_timed,Shaman,Elemental,DPS,The Blinding Vale,28,27,25,318224,321364,387069,1.54,35.7,331.7
@@ -1238,11 +1239,11 @@ post_tuning_timed,Warlock,Destruction,DPS,Temple of Sethraliss,8,8,8,236876,2463
 post_tuning_timed,Warlock,Destruction,DPS,The Blinding Vale,8,8,7,289541,297382,369461,1.38,12.5,330.8
 post_tuning_timed,Warlock,Destruction,DPS,Voidscar Arena,4,4,4,236274,214092,291520,1.25,25.0,330.8
 post_tuning_timed,Warrior,Arms,DPS,Altar of Fangs,60,60,49,317796,327256,373259,1.32,28.3,331.6
-post_tuning_timed,Warrior,Arms,DPS,Den of Nalorakk,38,37,37,268540,281643,316522,1.21,23.7,332.3
-post_tuning_timed,Warrior,Arms,DPS,Kings' Rest,41,40,41,218047,218976,272369,1.59,24.4,332.1
-post_tuning_timed,Warrior,Arms,DPS,Murder Row,41,39,38,265690,274402,333074,2.1,14.6,331.8
+post_tuning_timed,Warrior,Arms,DPS,Den of Nalorakk,39,38,38,268740,281432,316390,1.18,25.6,332.3
+post_tuning_timed,Warrior,Arms,DPS,Kings' Rest,42,41,42,218706,219393,272184,1.62,23.8,332.1
+post_tuning_timed,Warrior,Arms,DPS,Murder Row,42,40,39,266285,275020,332975,2.07,14.3,331.8
 post_tuning_timed,Warrior,Arms,DPS,Ruby Life Pools,68,67,66,318753,322383,409051,1.62,19.1,331.7
-post_tuning_timed,Warrior,Arms,DPS,Temple of Sethraliss,44,43,40,288366,291576,364156,1.86,22.7,332.2
+post_tuning_timed,Warrior,Arms,DPS,Temple of Sethraliss,45,44,40,288714,291613,363408,1.87,22.2,332.3
 post_tuning_timed,Warrior,Arms,DPS,The Blinding Vale,44,43,43,295138,305976,369698,1.5,18.2,331.0
 post_tuning_timed,Warrior,Arms,DPS,Voidscar Arena,45,45,42,273419,273086,338167,1.67,13.3,332.3
 post_tuning_timed,Warrior,Fury,DPS,Altar of Fangs,1,1,1,225658,225658,225658,0.0,100.0,321.0
