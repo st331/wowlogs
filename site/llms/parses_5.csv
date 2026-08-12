@@ -1,9 +1,9 @@
 run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,duration_s,dps,deaths,item_level,date,reset_bucket,post_tuning,keystone_s,pct_under_timer
-4802,8806,Paladin,Protection,Lightsmith,Tank,US,Murder Row,10,1,1706.9,76192,1,321,2026-08-10,0,1,1714.0,16.0
-4802,9391,Shaman,Restoration,Totemic,Healer,US,Murder Row,10,1,1706.9,19291,0,321,2026-08-10,0,1,1714.0,16.0
-4802,9354,Warrior,Arms,Slayer,DPS,US,Murder Row,10,1,1706.9,179097,0,321,2026-08-10,0,1,1714.0,16.0
-4802,6446,Mage,Arcane,Spellslinger,DPS,US,Murder Row,10,1,1706.9,138796,1,321,2026-08-10,0,1,1714.0,16.0
-4802,9392,Druid,Balance,Elune's Chosen,DPS,US,Murder Row,10,1,1706.9,169187,1,321,2026-08-10,0,1,1714.0,16.0
+4802,8806,Paladin,Protection,Lightsmith,Tank,US,Murder Row,10,1,1706.9,76192,1,321,2026-08-10,1,1,1714.0,16.0
+4802,9391,Shaman,Restoration,Totemic,Healer,US,Murder Row,10,1,1706.9,19291,0,321,2026-08-10,1,1,1714.0,16.0
+4802,9354,Warrior,Arms,Slayer,DPS,US,Murder Row,10,1,1706.9,179097,0,321,2026-08-10,1,1,1714.0,16.0
+4802,6446,Mage,Arcane,Spellslinger,DPS,US,Murder Row,10,1,1706.9,138796,1,321,2026-08-10,1,1,1714.0,16.0
+4802,9392,Druid,Balance,Elune's Chosen,DPS,US,Murder Row,10,1,1706.9,169187,1,321,2026-08-10,1,1,1714.0,16.0
 4803,7312,DeathKnight,Blood,San'layn,Tank,EU,Temple of Sethraliss,18,1,1808.7,201195,0,334,2026-08-10,0,1,1876.0,2.3
 4803,4486,Shaman,Restoration,Totemic,Healer,EU,Temple of Sethraliss,18,1,1808.7,50580,0,334,2026-08-10,0,1,1876.0,2.3
 4803,8417,Warrior,Arms,Slayer,DPS,EU,Temple of Sethraliss,18,1,1808.7,317005,2,334,2026-08-10,0,1,1876.0,2.3
@@ -189,3 +189,28 @@ run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,durati
 4839,9403,Shaman,Elemental,Farseer,DPS,CN,The Blinding Vale,19,1,1617.9,336592,3,334,2026-08-11,0,1,1670.0,10.2
 4839,9402,Mage,Arcane,Sunfury,DPS,CN,The Blinding Vale,19,1,1617.9,392522,0,334,2026-08-11,0,1,1670.0,10.2
 4839,8214,Warrior,Arms,Slayer,DPS,CN,The Blinding Vale,19,1,1617.9,342209,1,334,2026-08-11,0,1,1670.0,10.2
+4840,8382,DeathKnight,Blood,Deathbringer,Tank,CN,Kings' Rest,19,1,1834.9,154930,0,334,2026-08-08,0,1,1886.0,4.7
+4840,8797,Paladin,Holy,Lightsmith,Healer,CN,Kings' Rest,19,1,1834.9,72476,0,334,2026-08-08,0,1,1886.0,4.7
+4840,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Kings' Rest,19,1,1834.9,215692,2,334,2026-08-08,0,1,1886.0,4.7
+4840,4144,Mage,Arcane,Sunfury,DPS,CN,Kings' Rest,19,1,1834.9,285434,0,334,2026-08-08,0,1,1886.0,4.7
+4840,9427,Warrior,Arms,Slayer,DPS,CN,Kings' Rest,19,1,1834.9,210711,2,334,2026-08-08,0,1,1886.0,4.7
+4841,8382,DeathKnight,Blood,Deathbringer,Tank,CN,Voidscar Arena,18,1,1613.0,202054,0,334,2026-08-08,0,1,1664.0,7.5
+4841,8797,Paladin,Holy,Lightsmith,Healer,CN,Voidscar Arena,18,1,1613.0,76867,0,334,2026-08-08,0,1,1664.0,7.5
+4841,9428,Monk,Windwalker,Conduit of the Celestials,DPS,CN,Voidscar Arena,18,1,1613.0,306072,1,334,2026-08-08,0,1,1664.0,7.5
+4841,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Voidscar Arena,18,1,1613.0,293904,3,334,2026-08-08,0,1,1664.0,7.5
+4841,4144,Mage,Arcane,Sunfury,DPS,CN,Voidscar Arena,18,1,1613.0,343698,0,334,2026-08-08,0,1,1664.0,7.5
+4842,8382,DeathKnight,Blood,Deathbringer,Tank,CN,Kings' Rest,19,-1,2555.9,125282,5,334,2026-08-08,0,1,2773.0,-40.0
+4842,8797,Paladin,Holy,Lightsmith,Healer,CN,Kings' Rest,19,-1,2555.9,60317,4,334,2026-08-08,0,1,2773.0,-40.0
+4842,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Kings' Rest,19,-1,2555.9,180004,5,334,2026-08-08,0,1,2773.0,-40.0
+4842,4144,Mage,Arcane,Sunfury,DPS,CN,Kings' Rest,19,-1,2555.9,240703,4,334,2026-08-08,0,1,2773.0,-40.0
+4842,9427,Warrior,Arms,Slayer,DPS,CN,Kings' Rest,19,-1,2555.9,174409,8,334,2026-08-08,0,1,2773.0,-40.0
+4843,8382,DeathKnight,Blood,Deathbringer,Tank,CN,The Blinding Vale,19,-1,2514.9,184516,3,334,2026-08-08,0,1,2762.0,-48.5
+4843,8797,Paladin,Holy,Lightsmith,Healer,CN,The Blinding Vale,19,-1,2514.9,59481,4,334,2026-08-08,0,1,2762.0,-48.5
+4843,8545,DemonHunter,Devourer,Annihilator,DPS,CN,The Blinding Vale,19,-1,2514.9,249838,6,334,2026-08-08,0,1,2762.0,-48.5
+4843,4144,Mage,Arcane,Sunfury,DPS,CN,The Blinding Vale,19,-1,2514.9,316095,3,334,2026-08-08,0,1,2762.0,-48.5
+4843,9427,Warrior,Arms,Slayer,DPS,CN,The Blinding Vale,19,-1,2514.9,214162,12,334,2026-08-08,0,1,2762.0,-48.5
+4844,353,Paladin,Protection,Lightsmith,Tank,CN,Den of Nalorakk,19,1,1796.3,153961,0,334,2026-08-11,0,1,1848.0,3.8
+4844,9101,Evoker,Preservation,Flameshaper,Healer,CN,Den of Nalorakk,19,1,1796.3,80426,0,334,2026-08-11,0,1,1848.0,3.8
+4844,9429,Mage,Arcane,Sunfury,DPS,CN,Den of Nalorakk,19,1,1796.3,298221,1,334,2026-08-11,0,1,1848.0,3.8
+4844,2672,Priest,Shadow,Voidweaver,DPS,CN,Den of Nalorakk,19,1,1796.3,302988,1,334,2026-08-11,0,1,1848.0,3.8
+4844,1026,Hunter,Marksmanship,Sentinel,DPS,CN,Den of Nalorakk,19,1,1796.3,304460,2,334,2026-08-11,0,1,1848.0,3.8
