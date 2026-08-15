@@ -96,6 +96,61 @@ def derive_pars(df, dungeons):
     return out
 
 
+_ABIL_CACHE = {}
+HERO_FILLED = [0]
+
+
+def ability_records():
+    """The per-ability damage journal, loaded once per process."""
+    if "rows" not in _ABIL_CACHE:
+        try:
+            import project_tuning as pt
+        except ImportError:
+            _ABIL_CACHE["rows"] = []
+            return []
+        _ABIL_CACHE["rows"] = ([json.loads(l) for l in pt.ABIL.open()
+                                if l.strip()] if pt.ABIL.exists() else [])
+    return _ABIL_CACHE["rows"]
+
+
+def resolve_hero_talents(df):
+    """Fill in hero_talent="Unknown" from the abilities the parse actually cast.
+
+    Some logs carry no combatantInfo, so WCL can report no talent tree and the
+    parse arrives labelled Unknown. Those rows are not random: they cluster by
+    report, and any hero-gated view silently reads them as "not that hero".
+    Hero trees grant abilities no sibling tree has, so the tree can be read off
+    the damage breakdown instead. Markers are learned from the parses whose
+    hero IS known, and ambiguous parses are left Unknown rather than guessed.
+
+    Returns the number of rows filled in. Only parses with a breakdown can be
+    recovered, so on PTR this covers the post-tuning window.
+    """
+    rows = ability_records()
+    if not rows or "Unknown" not in set(df["hero_talent"]):
+        return 0
+    from hero_from_abilities import HeroResolver
+    abil = {(r["report_code"], r["fight_id"], r["name"]):
+            frozenset(a["name"] for a in r["abilities"])
+            for r in rows if r["abilities"]}
+    spec = df["spec"] + " " + df["class"]
+    keys = list(zip(df["report_code"], df["fight_id"], df["character"]))
+    hr = HeroResolver.learn(
+        (sp, h, abil[k]) for sp, h, k in zip(spec, df["hero_talent"], keys)
+        if k in abil)
+    filled, out = 0, list(df["hero_talent"])
+    for i, (sp, h, k) in enumerate(zip(spec, df["hero_talent"], keys)):
+        if h != "Unknown":
+            continue
+        hero, _ = hr.classify(sp, abil.get(k))
+        if hero:
+            out[i] = hero
+            filled += 1
+    df["hero_talent"] = out
+    HERO_FILLED[0] = max(HERO_FILLED[0], filled)
+    return filled
+
+
 def tuning_multipliers(df, post):
     """Per-parse projected/current damage ratio for an upcoming tuning pass.
 
@@ -114,7 +169,7 @@ def tuning_multipliers(df, post):
         return None, None
     if not pt.ABIL.exists():
         return None, None
-    rows = [json.loads(l) for l in pt.ABIL.open() if l.strip()]
+    rows = ability_records()
     work = df.copy()
     work["specname"] = work["spec"] + " " + work["class"]
     mult = pt.project(work[post == 1], rows, pt.B_CENTRAL)["mult"]
@@ -136,6 +191,7 @@ def tuning_multipliers(df, post):
             {"label": pt.PROJECTION_LABEL, "url": pt.PROJECTION_URL,
              "date": pt.PROJECTION_DATE, "parses": covered,
              "unprojectable": int(unprojectable.sum()),
+             "hero_recovered": int(HERO_FILLED[0]),
              "specs": sorted(pt.RULES),
              "exact": sorted(s for s, r in pt.RULES.items()
                              if not r.get("set_bonus")
@@ -155,6 +211,11 @@ def build(name: str, cfg: dict) -> None:
     df = pd.read_csv(csv)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
+    unknown_before = int((df["hero_talent"] == "Unknown").sum())
+    hero_filled = resolve_hero_talents(df) if name == "ptr" else 0
+    if hero_filled:
+        print(f"[{name}] hero talent recovered from abilities for "
+              f"{hero_filled:,} of {unknown_before:,} Unknown parses")
 
     started = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
                              unit="ms", errors="coerce")
@@ -290,6 +351,7 @@ def build_llms() -> None:
     df = pd.read_csv(csv)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
+    resolve_hero_talents(df)
     df["timed"] = df["medal"].map({"timed": 1, "none": 0}).fillna(-1).astype(int)
     started = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
                              unit="ms", errors="coerce")
