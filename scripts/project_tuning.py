@@ -147,7 +147,7 @@ def load():
     df = pd.read_csv(CSV)
     df = df[df["started_at"] >= cut].copy()
     df["specname"] = df["spec"] + " " + df["class"]
-    rows = [json.loads(l) for l in ABIL.open()]
+    rows = [json.loads(l) for l in ABIL.open() if l.strip()]
     return df, rows
 
 
@@ -161,14 +161,19 @@ def tier_sets(rows):
     return {c: s.most_common(1)[0][0] for c, s in cnt.items() if s}
 
 
-def multiplier(abilities, rule, items, B):
+def _needs(label):
+    """Pieces a bonus requires, read off its '2pc ...' / '4pc ...' label."""
+    return 4 if label.startswith("4pc") else 2
+
+
+def multiplier(abilities, rule, items, B, pieces=99):
     """Projected/current damage ratio for one parse."""
     aura, scope = rule.get("aura", 1.0), rule.get("aura_scope", "all")
     named = rule.get("abilities", {})
     sb = {}
     for label, names, old, new in rule.get("set_bonus", []):
         b = B.get(label)
-        if b is None:
+        if b is None or pieces < _needs(label):
             continue
         # bonus was adding fraction b of the line; it scales by new/old
         ratio = (1 + b * (new / old)) / (1 + b)
@@ -176,7 +181,7 @@ def multiplier(abilities, rule, items, B):
             sb[n] = sb.get(n, 1.0) * ratio
     for label, names, new_over_old in rule.get("share_scale", []):
         f = B.get(label)
-        if f is None:
+        if f is None or pieces < _needs(label):
             continue
         for n in names:                       # only share f of the line moves
             sb[n] = sb.get(n, 1.0) * (1 - f * (1 - new_over_old))
@@ -224,12 +229,17 @@ def project(df, rows, B):
             continue
         if rule.get("hero_only") and t.hero_talent != rule["hero_only"]:
             continue
+        # Missing gear is NOT evidence of a missing tier set. Some logs carry
+        # no combatantInfo at all (the same parses show hero_talent="Unknown"),
+        # and among parses that DO report gear, 99.5% wear 4pc+. Treating an
+        # empty gear list as "no tier" silently skipped the set-bonus nerfs and
+        # handed those parses a bare aura buff, so assume the dominant state.
         pieces = rec["sets"].get(tier.get(rec["class"], ""), 0)
-        r = rule if pieces >= 2 else {k: v for k, v in rule.items()
-                                      if k not in ("set_bonus", "share_scale")}
+        eff = pieces if rec["sets"] else 4
         idx.append(i)
         out.append({"specname": t.specname, "dps": t.dps, "pieces": pieces,
-                    "mult": multiplier(rec["abilities"], r, items, B)})
+                    "gear_known": bool(rec["sets"]),
+                    "mult": multiplier(rec["abilities"], rule, items, B, eff)})
     return pd.DataFrame(out, index=idx)
 
 

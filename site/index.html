@@ -349,6 +349,9 @@ let hasScore=false, hasTimed=false, hasTune=false, hasProj=false;
 // A parse's projected damage multiplier, from ITS OWN ability breakdown.
 // Applying it per row means every aggregate stays exact under any filter.
 const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
+// tmul 0 marks a parse whose WCL report is gone, so it has no breakdown to
+// re-score. Excluded from both sides while projecting, never silently kept.
+const projSkip=i=>hasProj&&state.proj&&R.tmul[i]===0;
 const dpsAt=i=>R.dps[i]*projMul(i);
 
 const $=id=>document.getElementById(id);
@@ -888,6 +891,7 @@ function aggregate(weeks){
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     if(!periodPass(i,weeks,cut)) continue;
+    if(projSkip(i)) continue;
     parses++;
     if(!runSeen[R.run[i]]){runSeen[R.run[i]]=1; runs++}
     if(R.day[i]>=0){if(R.day[i]<dmin)dmin=R.day[i]; if(R.day[i]>dmax)dmax=R.day[i];}

@@ -161,6 +161,8 @@ def main() -> None:
                     "ilvl": p["ilvl"], "sets": p["sets"],
                     "abilities": abil.get((c, f, p["id"]), []),
                 }, ensure_ascii=False))
+        if not lines:                 # every fight in the batch came back
+            return                    # empty (deleted/private report)
         with lock:
             with OUT.open("a") as fh:
                 fh.write("\n".join(lines) + "\n")

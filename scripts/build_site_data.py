@@ -114,15 +114,28 @@ def tuning_multipliers(df, post):
         return None, None
     if not pt.ABIL.exists():
         return None, None
-    rows = [json.loads(l) for l in pt.ABIL.open()]
+    rows = [json.loads(l) for l in pt.ABIL.open() if l.strip()]
     work = df.copy()
     work["specname"] = work["spec"] + " " + work["class"]
     mult = pt.project(work[post == 1], rows, pt.B_CENTRAL)["mult"]
-    mult = mult.reindex(df.index).fillna(1.0)          # untouched -> unchanged
-    covered = int((mult != 1.0).sum())
+    mult = mult.reindex(df.index)
+    # A tuned-spec parse with no ability record cannot be projected: a few WCL
+    # reports have been deleted since collection, so the breakdown is gone for
+    # good. Mark those 0 rather than 1.0 — claiming "unchanged" would be a
+    # fabricated result. The client drops them from BOTH sides of the
+    # comparison, keeping the populations identical.
+    tuned = work["specname"].isin(pt.RULES) & (post == 1)
+    for sname, rule in pt.RULES.items():
+        if rule.get("hero_only"):                      # e.g. San'layn only
+            tuned &= ~(work["specname"].eq(sname)
+                       & work["hero_talent"].ne(rule["hero_only"]))
+    unprojectable = tuned & mult.isna()
+    mult = mult.fillna(1.0).mask(unprojectable, 0.0)
+    covered = int(((mult != 1.0) & (mult != 0.0)).sum())
     return (mult.mul(10000).round().astype(int).tolist(),
             {"label": pt.PROJECTION_LABEL, "url": pt.PROJECTION_URL,
              "date": pt.PROJECTION_DATE, "parses": covered,
+             "unprojectable": int(unprojectable.sum()),
              "specs": sorted(pt.RULES),
              "exact": sorted(s for s, r in pt.RULES.items()
                              if not r.get("set_bonus")
