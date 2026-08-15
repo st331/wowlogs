@@ -124,6 +124,17 @@ around getting the maximum data per point:
   start instant against that cutoff, powering the dashboard's "Since latest
   tuning" checkbox and the `post_tuning` subsets in the LLM export. Add a new
   entry at the top of `patches` after each pass; nothing else needs changing.
+* **Projected tuning.** `scripts/fetch_abilities.py` collects a per-ability
+  damage breakdown (plus equipped tier pieces) for every post-tuning PTR run,
+  and `scripts/project_tuning.py` re-scores each parse line by line against an
+  announced-but-unreleased tuning pass. The resulting per-parse multiplier
+  ships in the site payload as `tmul` and in the LLM export as `tuning_mult` /
+  `projected_dps`, so the dashboard's "🔮 Project upcoming tuning" toggle
+  recomputes exactly under any filter combination rather than applying a
+  spec-level average. Spec-wide auras and named-ability changes are exact; set
+  bonuses that ride on top of an ability the log reports as one number are
+  parameterised, and `project_tuning.py --help`-free `main()` prints a
+  sensitivity sweep over those parameters.
 * **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries
   are Blizzard-leaderboard imports or anonymized logs with **no report
   attached** (`report.code == ""`, `deaths == 300000000` sentinel) — there is

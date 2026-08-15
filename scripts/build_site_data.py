@@ -16,8 +16,12 @@ import json
 import pathlib
 import re
 
+import sys
+
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # site/ is canonical; docs/ mirrors it because GitHub Pages can only serve
@@ -92,6 +96,42 @@ def derive_pars(df, dungeons):
     return out
 
 
+def tuning_multipliers(df, post):
+    """Per-parse projected/current damage ratio for an upcoming tuning pass.
+
+    Each parse's own ability breakdown (data/raw/abilities_ptr.jsonl) is
+    re-scored line by line against the announced changes, so the number
+    shipped here is that specific player's projected damage in that specific
+    run — never a spec-level average. The client can therefore apply it row by
+    row and any aggregate, under any filter combination, stays exact.
+
+    Returns (per-10k ints, metadata) or (None, None) when the projection
+    source is absent — the dashboard simply hides the toggle in that case.
+    """
+    try:
+        import project_tuning as pt
+    except ImportError:
+        return None, None
+    if not pt.ABIL.exists():
+        return None, None
+    rows = [json.loads(l) for l in pt.ABIL.open()]
+    work = df.copy()
+    work["specname"] = work["spec"] + " " + work["class"]
+    mult = pt.project(work[post == 1], rows, pt.B_CENTRAL)["mult"]
+    mult = mult.reindex(df.index).fillna(1.0)          # untouched -> unchanged
+    covered = int((mult != 1.0).sum())
+    return (mult.mul(10000).round().astype(int).tolist(),
+            {"label": pt.PROJECTION_LABEL, "url": pt.PROJECTION_URL,
+             "date": pt.PROJECTION_DATE, "parses": covered,
+             "specs": sorted(pt.RULES),
+             "exact": sorted(s for s, r in pt.RULES.items()
+                             if not r.get("set_bonus")
+                             and not r.get("share_scale")
+                             and not r.get("caveats")),
+             "caveats": {s: r["caveats"] for s, r in pt.RULES.items()
+                         if r.get("caveats")}})
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
     if not csv.exists():                       # tolerate an un-gzipped copy
@@ -134,6 +174,10 @@ def build(name: str, cfg: dict) -> None:
                              "none": 0}).fillna(-1).astype(int)
     patch = latest_tuning() if name == "ptr" else None
     post = post_tuning_flag(started, df["region"], patch)
+    # per-parse projected-tuning multiplier. This is a property of the parse
+    # itself — derived from that player's own ability breakdown — so the client
+    # can apply it row by row and every aggregate stays exact under any filter.
+    tmul, proj = tuning_multipliers(df, post) if name == "ptr" else (None, None)
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
@@ -165,8 +209,11 @@ def build(name: str, cfg: dict) -> None:
             "day": day.tolist(),
             "run": run_arr,
             "char": char_arr,
+            **({"tmul": tmul} if tmul is not None else {}),
         },
     }
+    if proj:
+        payload["projection"] = proj
     blob = json.dumps(payload, separators=(",", ":"))
     # Big datasets ship pre-compressed: GitHub Pages' deploy step has a hard
     # 10-minute publish budget and a multi-tens-of-MB artifact blows it. The
@@ -253,6 +300,15 @@ def build_llms() -> None:
         if b >= 0 else "" for b in df["reset_bucket"]]
     patch = latest_tuning()
     df["post_tuning"] = post_tuning_flag(started, df["region"], patch)
+    # per-parse projected-tuning multiplier, identical to the dashboard's.
+    # Publishing it per row is what lets a reader reproduce the projection for
+    # ANY subset exactly, instead of applying a spec-level average.
+    tmul, proj_meta = tuning_multipliers(df, df["post_tuning"])
+    if tmul is not None:
+        df["tuning_mult"] = [t / 10000 for t in tmul]
+        df["projected_dps"] = (df["dps"] * df["tuning_mult"]).round(0).astype(int)
+    else:
+        proj_meta = None
     # keystone clock and how far under the dungeon timer each run finished —
     # the only fair way to compare runs across dungeons and key levels
     pars = dict(zip(sorted(df["dungeon"].unique()),
@@ -417,7 +473,40 @@ def build_llms() -> None:
                       comps[["subset"] + [c for c in comps.columns
                                           if c != "subset"]]))
 
-    raw_cols = ["run_id", "char_id", "class", "spec", "hero_talent", "role",
+    # ---- projected tuning: recorded vs projected, per spec x subset ----
+    if proj_meta:
+        pt_parts = []
+        base = df[(df["post_tuning"] == 1) & (df["role"] == "DPS")]
+        for label, frame in (("post_tuning", base),
+                             ("post_tuning_timed", base[base["timed"] == 1])):
+            if frame.empty:
+                continue
+            g = frame.groupby(["class", "spec"]).agg(
+                characters=("char_id", "nunique"), parses=("dps", "size"),
+                median_dps=("dps", "median"),
+                projected_median_dps=("projected_dps", "median"),
+                avg_dps=("dps", "mean"),
+                projected_avg_dps=("projected_dps", "mean"),
+            ).reset_index()
+            g["median_change_pct"] = (100 * (g["projected_median_dps"]
+                                             / g["median_dps"] - 1)).round(2)
+            g["avg_change_pct"] = (100 * (g["projected_avg_dps"]
+                                          / g["avg_dps"] - 1)).round(2)
+            g["tuned"] = (g["spec"] + " " + g["class"]).isin(proj_meta["specs"])
+            for c in ("median_dps", "projected_median_dps",
+                      "avg_dps", "projected_avg_dps"):
+                g[c] = g[c].round(0).astype(int)
+            pt_parts.append(g.assign(subset=label))
+        if pt_parts:
+            pj = pd.concat(pt_parts, ignore_index=True)
+            files.append(("tuning_projection.csv",
+                          pj[["subset"] + [c for c in pj.columns
+                                           if c != "subset"]]
+                          .sort_values(["subset", "median_change_pct"],
+                                       ascending=[True, False])))
+
+    raw_cols = (["tuning_mult", "projected_dps"] if proj_meta else []) + [
+                "run_id", "char_id", "class", "spec", "hero_talent", "role",
                 "region", "dungeon", "key_level", "timed", "duration_s",
                 "dps", "deaths", "item_level", "date", "reset_bucket",
                 "post_tuning", "keystone_s", "pct_under_timer"]
@@ -492,6 +581,12 @@ def build_llms() -> None:
         f"- {BASE_URL}/llms/dungeon_summary.csv — per-dungeon runs, players, "
         "timed %, average duration/key/deaths, and `timer_s`: that dungeon's "
         "keystone timer.",
+        f"- {BASE_URL}/llms/tuning_projection.csv — recorded vs **projected** "
+        "median/average DPS per class+spec under the next announced class "
+        "tuning, for the post_tuning and post_tuning_timed subsets. Columns: "
+        "subset, class, spec, characters, parses, median_dps, "
+        "projected_median_dps, avg_dps, projected_avg_dps, "
+        "median_change_pct, avg_change_pct, tuned.",
         f"- {BASE_URL}/llms/comps.csv — one row per distinct 5-player "
         "composition, ranked by `strength`. Columns: subset, composition, "
         "runs, strength, avg_key, avg_pct_under, best_pct_under, "
@@ -559,6 +654,27 @@ def build_llms() -> None:
         "D:Arcane Mage | ...\"; the raw chunks carry keystone_s and "
         "pct_under_timer per row so any other cut can be rebuilt by grouping "
         "on run_id.",
+        "",
+        "**Projected tuning.** " + (
+            f"The next announced tuning pass is {proj_meta['label']} "
+            f"({proj_meta['date']}), and {proj_meta['parses']:,} post-tuning "
+            "parses are affected by it. Every parse in the raw chunks carries "
+            "`tuning_mult` (its projected/current damage ratio) and "
+            "`projected_dps` = dps * tuning_mult. The multiplier is derived "
+            "from THAT parse's own per-ability damage breakdown, re-scored "
+            "line by line against the announced changes — it is not a "
+            "spec-level average. So to project any cut you like, filter the "
+            "raw chunks however you want and take the median of "
+            "`projected_dps`; the result is exact for that subset, which is "
+            "what the dashboard's projection toggle does. tuning_mult is 1.0 "
+            "for pre-tuning runs and for specs the pass does not touch. "
+            "Spec-wide aura changes and named-ability changes are computed "
+            "exactly; set bonuses that ride on top of an ability the log "
+            "reports as a single number are parameterised at a central "
+            "estimate, so treat those specs as approximate. Specs modelled "
+            "exactly: " + ", ".join(proj_meta["exact"]) + ". Specs with a "
+            "modelling caveat: " + ", ".join(sorted(proj_meta["caveats"]))
+            + ".") if proj_meta else "",
         "",
         "**Combining rows — read this before adding anything up.** These "
         "files deliberately contain overlapping views of the same data, so "

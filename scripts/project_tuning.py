@@ -40,6 +40,11 @@ CSV = ROOT / "data" / "mythic_runs_ptr.csv.gz"
 ABIL = ROOT / "data" / "raw" / "abilities_ptr.jsonl"
 TUNING = ROOT / "data" / "tuning_patches.json"
 
+PROJECTION_LABEL = "Aug 18 class tuning"
+PROJECTION_DATE = "2026-08-18"
+PROJECTION_URL = ("https://us.forums.blizzard.com/en/wow/t/"
+                  "class-tuning-incoming-%E2%80%93-august-18/2336820")
+
 # ---------------------------------------------------------------- ability kind
 # An ability that shows up under many different classes is gear (a trinket,
 # embellishment or enchant proc), not something a class aura scales.  Deciding

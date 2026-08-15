@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><title>Midnight M+ Season 2 (PTR) — data for LLMs</title><style>body{font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#111}table{border-collapse:collapse;font-size:.85rem}th,td{border:1px solid #ccc;padding:.2rem .45rem;text-align:right}th{background:#f2f2f2}td:nth-child(-n+5),th:nth-child(-n+5){text-align:left}code{background:#f2f2f2;padding:0 .2rem}</style></head><body><h1>Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis</h1>
 <ul>
-<li>Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 4,845 runs / 24,215 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-11. Generated 2026-08-12 02:35 UTC.</li>
+<li>Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 4,845 runs / 24,215 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-11. Generated 2026-08-15 10:01 UTC.</li>
 </ul>
 <p>The interactive dashboard at <a href="https://st331.github.io/wowlogs/#ptr">https://st331.github.io/wowlogs/#ptr</a> is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.</p>
 <p>If your fetcher only handles HTML, everything here is mirrored as pages: <a href="https://st331.github.io/wowlogs/llms/">https://st331.github.io/wowlogs/llms/</a> carries this same documentation, and each CSV below has an .html twin at the same path (for example <a href="https://st331.github.io/wowlogs/llms/spec_summary.html">https://st331.github.io/wowlogs/llms/spec_summary.html</a>). The content is identical.</p>
@@ -13,6 +13,7 @@
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_reset.csv">https://st331.github.io/wowlogs/llms/spec_by_reset.csv</a> — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_day.csv">https://st331.github.io/wowlogs/llms/spec_by_day.csv</a> — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".</li>
 <li><a href="https://st331.github.io/wowlogs/llms/dungeon_summary.csv">https://st331.github.io/wowlogs/llms/dungeon_summary.csv</a> — per-dungeon runs, players, timed %, average duration/key/deaths, and <code>timer_s</code>: that dungeon's keystone timer.</li>
+<li><a href="https://st331.github.io/wowlogs/llms/tuning_projection.csv">https://st331.github.io/wowlogs/llms/tuning_projection.csv</a> — recorded vs <b>projected</b> median/average DPS per class+spec under the next announced class tuning, for the post_tuning and post_tuning_timed subsets. Columns: subset, class, spec, characters, parses, median_dps, projected_median_dps, avg_dps, projected_avg_dps, median_change_pct, avg_change_pct, tuned.</li>
 <li><a href="https://st331.github.io/wowlogs/llms/comps.csv">https://st331.github.io/wowlogs/llms/comps.csv</a> — one row per distinct 5-player composition, ranked by <code>strength</code>. Columns: subset, composition, runs, strength, avg_key, avg_pct_under, best_pct_under, median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.</li>
 </ul>
 <p>The <code>subset</code> column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.</p>
@@ -25,6 +26,7 @@
 <p>  3. *Shrink thin evidence.* Each comp's strength is the SUM of its run scores divided by (runs + 5), i.e. its mean pulled toward 0 by however few runs support it. Ranking on the single best run rewards one lucky pull, so a comp seen twice would outrank one proven over twenty; this pulls thin evidence back toward typical while leaving well-sampled comps near their own mean.</p>
 <p>Read strength as points of margin relative to a typical run at a typical key: 0 is par, +5 is five points better than expected for its difficulty, negative is worse. <code>key_slope</code> and <code>ref_key</code> are published per subset so the figure is reproducible, and <code>avg_key</code>, <code>avg_pct_under</code>, <code>best_pct_under</code> and <code>median_pct_under</code> are the raw unadjusted numbers if you want to rank differently. Note that because of step 1 you no longer need <code>key15plus</code> to keep trivial keys off the top — a +2 that merely beats the timer by the usual huge margin for a +2 scores near 0.</p>
 <p>The <code>composition</code> string is role-ordered and pipe-separated, e.g. "T:Blood DeathKnight | H:Holy Paladin | D:Arcane Mage | ..."; the raw chunks carry keystone_s and pct_under_timer per row so any other cut can be rebuilt by grouping on run_id.</p>
+<p><b>Projected tuning.</b> The next announced tuning pass is Aug 18 class tuning (2026-08-18), and 2,606 post-tuning parses are affected by it. Every parse in the raw chunks carries <code>tuning_mult</code> (its projected/current damage ratio) and <code>projected_dps</code> = dps * tuning_mult. The multiplier is derived from THAT parse's own per-ability damage breakdown, re-scored line by line against the announced changes — it is not a spec-level average. So to project any cut you like, filter the raw chunks however you want and take the median of <code>projected_dps</code>; the result is exact for that subset, which is what the dashboard's projection toggle does. tuning_mult is 1.0 for pre-tuning runs and for specs the pass does not touch. Spec-wide aura changes and named-ability changes are computed exactly; set bonuses that ride on top of an ability the log reports as a single number are parameterised at a central estimate, so treat those specs as approximate. Specs modelled exactly: Assassination Rogue, Discipline Priest, Enhancement Shaman, Restoration Druid. Specs with a modelling caveat: Blood DeathKnight, Demonology Warlock, Devourer DemonHunter, Frost DeathKnight, Fury Warrior, Subtlety Rogue.</p>
 <p><b>Combining rows — read this before adding anything up.</b> These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:</p>
 <ul>
 <li>*Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 92,008 parses against a true 24,215. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 24,215. "timed" is a subset of "all", never a separate population to add on.</li>
@@ -40,7 +42,7 @@
 <li><a href="https://st331.github.io/wowlogs/llms/parses_4.csv">https://st331.github.io/wowlogs/llms/parses_4.csv</a> — rows 18,001-24,000</li>
 <li><a href="https://st331.github.io/wowlogs/llms/parses_5.csv">https://st331.github.io/wowlogs/llms/parses_5.csv</a> — rows 24,001-24,215</li>
 </ul>
-<p>One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.</p>
+<p>One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: tuning_mult, projected_dps, run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.</p>
 <h2>Column dictionary</h2>
 <ul>
 <li>run_id / char_id: stable anonymous integer ids within this dataset version.</li>
@@ -54,7 +56,7 @@
 </ul>
 <h2>Time periods and the current reset</h2>
 <p>Resets are regional: US rolls over Tuesday 15:00 UTC, EU Wednesday 04:00 UTC, other regions ~Wednesday 22:00 UTC. Each row's reset_bucket is measured against its OWN region's reset, so bucket 0 always means "the reset that region is currently in". Buckets present: 0, 1, 2, 3, 4, 5, 6, 7, 8.</p>
-<p>The reset now in progress (bucket 0) started 2026-08-11 and covers 7 day(s) of data so far — 2026-08-05 to 2026-08-11. For "the last N days" questions use spec_by_day.csv, or filter the raw chunks on <code>date</code>; for "this reset vs last reset" use spec_by_reset.csv.</p>
+<p>The reset now in progress (bucket 0) started 2026-08-11 and covers 1 day(s) of data so far — 2026-08-11 to 2026-08-11. For "the last N days" questions use spec_by_day.csv, or filter the raw chunks on <code>date</code>; for "this reset vs last reset" use spec_by_reset.csv.</p>
 <h2>Reproducing what the dashboard shows</h2>
 <ul>
 <li>Its default view is DPS-role only, hero talents merged into the spec — that is the hero_talent="(all merged)" rows of spec_summary.csv filtered to role=DPS.</li>
@@ -91,8 +93,9 @@
 <li><a href="https://st331.github.io/wowlogs/llms/spec_summary.html">spec_summary.html</a> — 612 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_key.html">spec_by_key.html</a> — 1,592 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_dungeon.html">spec_by_dungeon.html</a> — 1,262 rows</li>
-<li><a href="https://st331.github.io/wowlogs/llms/spec_by_reset.html">spec_by_reset.html</a> — 532 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_reset.html">spec_by_reset.html</a> — 505 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_day.html">spec_by_day.html</a> — 2,786 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/dungeon_summary.html">dungeon_summary.html</a> — 8 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/comps.html">comps.html</a> — 7,147 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/tuning_projection.html">tuning_projection.html</a> — 54 rows</li>
 </ul></body></html>

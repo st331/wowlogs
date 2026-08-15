@@ -223,6 +223,10 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       <input type="checkbox" id="posttune"> Since latest tuning
       <span class="hint" id="tunehint"></span>
     </label>
+    <label class="small" id="projbox" style="display:none; margin-left:10px">
+      <input type="checkbox" id="projcb"> 🔮 Project upcoming tuning
+      <span class="hint" id="projhint"></span>
+    </label>
   </div>
   <div class="hero-rule"></div>
 
@@ -337,10 +341,15 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:2, csort:{col:"strength", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
+             proj:false,       // re-score every parse under the upcoming tuning
              minchars:125, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
              tsort:{col:"a_v", dir:-1}};
-let hasScore=false, hasTimed=false, hasTune=false;
+let hasScore=false, hasTimed=false, hasTune=false, hasProj=false;
+// A parse's projected damage multiplier, from ITS OWN ability breakdown.
+// Applying it per row means every aggregate stays exact under any filter.
+const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
+const dpsAt=i=>R.dps[i]*projMul(i);
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
@@ -422,6 +431,16 @@ function initData(d,cfg){
       +"on that run's own region. "+(t.note||"");
   }
   $("posttune").checked=state.postTune;
+  hasProj=!!(D.projection&&R.tmul);
+  $("projbox").style.display=hasProj?"":"none";
+  if(!hasProj){state.proj=false; $("projcb").checked=false}
+  else{
+    const P=D.projection;
+    $("projhint").textContent=P.label+" · "+P.parses.toLocaleString("en-US")
+      +" parses affected";
+    $("projcb").checked=state.proj;
+    $("posttune").disabled=state.proj;
+  }
   hasTimed=false;
   if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
   $("timedseg").style.display=hasTimed?"":"none";
@@ -471,6 +490,15 @@ $("srcseg").querySelectorAll("button").forEach(b=>{
   };
 });
 $("posttune").onchange=e=>{state.postTune=e.target.checked; render()};
+$("projcb").onchange=e=>{
+  state.proj=e.target.checked;
+  // the projection is only defined for runs after the last tuning pass, so
+  // turning it on pins the period filter there
+  if(state.proj){state.postTune=true; $("posttune").checked=true}
+  $("posttune").disabled=state.proj;
+  $("tunebox").style.opacity=state.proj?.55:1;
+  render();
+};
 $("compmin").oninput=e=>{state.compMin=+e.target.value;
   $("compmin-v").textContent=state.compMin; render()};
 $("timedseg").querySelectorAll("button").forEach(b=>{
@@ -866,11 +894,14 @@ function aggregate(weeks){
     const key=groupKey(i);
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,dps:[],chars:new Set()};
+             n:0,sum:0,dsum:0,dzero:0,dps:[],rsum:0,rdps:[],chars:new Set()};
            groups.set(key,g)}
-    g.n++; g.sum+=R.dps[i]; g.dsum+=R.deaths[i];
+    const dv=dpsAt(i);
+    g.n++; g.sum+=dv; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
-    g.dps.push(R.dps[i]);
+    g.dps.push(dv);
+    // recorded (un-projected) figures, so the toggle can show a delta
+    g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
     g.chars.add(R.char[i]); charSeen.add(R.char[i]);
     if(charBest&&R.score[i]>=0){
       const ck=(R.char[i]*GS+key)*16+R.dun[i];
@@ -895,6 +926,8 @@ function aggregate(weeks){
   for(const [key,g] of groups){
     g.dps.sort((a,b)=>a-b);
     const med=q50(g.dps);
+    let ravg=null, rmed=null;
+    if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n; rmed=q50(g.rdps)}
     let ascore=NaN, mscore=NaN, tscore=NaN, cn=0;
     const tl=gtotals&&gtotals.get(key);
     if(tl&&tl.length){
@@ -906,6 +939,7 @@ function aggregate(weeks){
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
       avg:g.sum/g.n, med, diff:g.sum/g.n-med,
+      ravg, rmed, rdiff:(ravg==null?null:ravg-rmed),
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
       chars:g.chars.size,
@@ -933,6 +967,14 @@ function deltaHTML(a,b,tab){
   const s=(d>=0?"+":"")+(d*100).toFixed(1)+"%";
   return `<span class="delta ${cls}">${s}</span>`;
 }
+// projected-vs-recorded chip; `up` is green because more DPS is better
+function projDelta(now,was){
+  if(was==null||!isFinite(was)||Math.abs(was)<1e-9) return "";
+  const d=(now-was)/Math.abs(was);
+  if(Math.abs(d)<5e-5) return '<span class="delta na">0.0%</span>';
+  return '<span class="delta '+(d>=0?"up":"down")+'">'
+    +(d>=0?"+":"")+(d*100).toFixed(1)+'%</span>';
+}
 function tipHTML(r,compare){
   const row=(k,va,vb)=>"<tr><td>"+k+"</td><td>"+va+"</td>"+(compare?"<td>"+vb+"</td>":"")+"</tr>";
   const f=(o,k,fmt)=>o?fmt(o[k]):"–";
@@ -940,8 +982,15 @@ function tipHTML(r,compare){
   if(compare) h+=row("", "<b>A</b>", "<b>B</b>");
   h+=row("Total runs", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
   h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
-  h+=row("Average DPS", f(r.a,"avg",fmtInt), f(r.b,"avg",fmtInt));
-  h+=row("Median DPS", f(r.a,"med",fmtInt), f(r.b,"med",fmtInt));
+  const pj=(o,k,rk,fmt)=>o?fmt(o[k])+(state.proj?projDelta(o[k],o[rk]):""):"–";
+  h+=row(state.proj?"Average DPS (proj.)":"Average DPS",
+         pj(r.a,"avg","ravg",fmtInt), f(r.b,"avg",fmtInt));
+  h+=row(state.proj?"Median DPS (proj.)":"Median DPS",
+         pj(r.a,"med","rmed",fmtInt), f(r.b,"med",fmtInt));
+  if(state.proj&&r.a.ravg!=null){
+    h+=row("Recorded average", fmtInt(r.a.ravg), "–");
+    h+=row("Recorded median", fmtInt(r.a.rmed), "–");
+  }
   h+=row("Mean − median", f(r.a,"diff",fmtSigned), f(r.b,"diff",fmtSigned));
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
@@ -996,7 +1045,14 @@ function render(){
   $("k-parses").textContent=fmtInt(A.parses);
   $("k-groups").textContent=fmtInt(rows.length);
   $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
-  $("period-note").innerHTML = (state.postTune?"<b>Post-tuning runs only.</b> ":"")
+  $("period-note").innerHTML = (state.proj&&D.projection
+      ? '<b class="delta up" style="font-size:.95em">🔮 Projected: '
+        +esc(D.projection.label)+'.</b> Every DPS figure is that parse\'s own '
+        +'ability breakdown re-scored under the announced changes, so the '
+        +'projection tracks whatever filters are set. Badges show the change '
+        +'against the recorded number. '
+      : "")
+    +(state.postTune?"<b>Post-tuning runs only.</b> ":"")
     +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
     +(state.compare
     ? "Period <b>A</b>: "+describePeriod(state.weeksA)+" (solid, class colors) &nbsp;·&nbsp; "
@@ -1066,7 +1122,9 @@ function render(){
       inl.style.color=ink(color);
       inl.textContent=tab.inlay==="deaths"
         ? r.a.adeaths.toFixed(2)+" avg deaths · "+r.a.deathless.toFixed(0)+"% deathless"
-        : fmtInt(r.a.avg)+" avg · "+fmtInt(r.a.med)+" median DPS";
+        : fmtInt(r.a.avg)+" avg · "+fmtInt(r.a.med)+" median DPS"
+          +(state.proj&&r.a.rmed!=null
+            ? " (was "+fmtInt(r.a.ravg)+" / "+fmtInt(r.a.rmed)+")" : "");
       bar.appendChild(inl);
     }
     track.appendChild(bar);
@@ -1088,8 +1146,11 @@ function render(){
     const anchor=Math.max(br, ghostEnd,
       tab.tick&&!state.compare?X(r.a[tab.tick]||0):0);
     valEl.style.left=anchor+"%";
+    const rbase=state.proj?r.a[col==="avg"?"ravg"
+                              :col==="med"?"rmed":null]:null;
     valEl.innerHTML=esc(tab.fmt(v))
-      +(state.compare?deltaHTML(r.a[col], r.b?r.b[col]:null, tab):"");
+      +(state.compare?deltaHTML(r.a[col], r.b?r.b[col]:null, tab)
+        :(rbase==null?"":projDelta(v,rbase)));
     track.appendChild(valEl);
     row.appendChild(lbl); row.appendChild(track);
     attachTip(row,tipHTML(r,state.compare));
@@ -1246,7 +1307,7 @@ function renderTrend(){
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     const w=R.rbucket[i]; if(w>=999) continue;
-    const v=useChars?R.char[i]:useDeaths?R.deaths[i]:R.dps[i];
+    const v=useChars?R.char[i]:useDeaths?R.deaths[i]:dpsAt(i);
     const key=groupKey(i);
     let t=tot.get(key);
     if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
@@ -1497,11 +1558,17 @@ function renderTable(rows,tab){
     if(k==="spec"||k==="hero") return esc(v);
     if(k==="a_n"||k==="chars") return fmtInt(v);
     if(k==="b_n") return v<0?"–":fmtInt(v);
-    if(k==="a_v") return isFinite(v)?fmt(v):"–";
+    if(k==="a_v"){
+      if(!isFinite(v)) return "–";
+      const base=state.proj?r.a[metricCol==="avg"?"ravg"
+                             :metricCol==="med"?"rmed":null]:null;
+      return fmt(v)+(base==null?"":projDelta(v,base));
+    }
     if(k==="b_v") return isFinite(v)?fmt(v):"–";
     if(k==="d") return isFinite(v)
       ?`<span class="delta ${ (v>=0)===tab.betterUp?"up":"down" }">${(v>=0?"+":"")+(v*100).toFixed(1)}%</span>`:"–";
-    if(k==="avg"||k==="med") return fmtInt(v);
+    if(k==="avg") return fmtInt(v)+(state.proj?projDelta(v,r.a.ravg):"");
+    if(k==="med") return fmtInt(v)+(state.proj?projDelta(v,r.a.rmed):"");
     if(k==="diff") return fmtSigned(v);
     if(k==="adeaths") return v.toFixed(2);
     if(k==="deathless") return v.toFixed(1)+"%";

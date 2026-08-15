@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis
 
-> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 4,845 runs / 24,215 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-11. Generated 2026-08-12 02:35 UTC.
+> Per-player performance data for every completed Mythic+ keystone run logged to Warcraft Logs' PTR zone (zone 56). 4,845 runs / 24,215 player parses, keystone levels +2-+21, 2026-06-18 to 2026-08-11. Generated 2026-08-15 10:01 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/#ptr is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -16,6 +16,7 @@ Every file below carries the same metric block: parses, runs, **characters** (di
 - https://st331.github.io/wowlogs/llms/spec_by_reset.csv — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).
 - https://st331.github.io/wowlogs/llms/spec_by_day.csv — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".
 - https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon runs, players, timed %, average duration/key/deaths, and `timer_s`: that dungeon's keystone timer.
+- https://st331.github.io/wowlogs/llms/tuning_projection.csv — recorded vs **projected** median/average DPS per class+spec under the next announced class tuning, for the post_tuning and post_tuning_timed subsets. Columns: subset, class, spec, characters, parses, median_dps, projected_median_dps, avg_dps, projected_avg_dps, median_change_pct, avg_change_pct, tuned.
 - https://st331.github.io/wowlogs/llms/comps.csv — one row per distinct 5-player composition, ranked by `strength`. Columns: subset, composition, runs, strength, avg_key, avg_pct_under, best_pct_under, median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.
 
 The `subset` column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.
@@ -36,6 +37,8 @@ Read strength as points of margin relative to a typical run at a typical key: 0 
 
 The `composition` string is role-ordered and pipe-separated, e.g. "T:Blood DeathKnight | H:Holy Paladin | D:Arcane Mage | ..."; the raw chunks carry keystone_s and pct_under_timer per row so any other cut can be rebuilt by grouping on run_id.
 
+**Projected tuning.** The next announced tuning pass is Aug 18 class tuning (2026-08-18), and 2,606 post-tuning parses are affected by it. Every parse in the raw chunks carries `tuning_mult` (its projected/current damage ratio) and `projected_dps` = dps * tuning_mult. The multiplier is derived from THAT parse's own per-ability damage breakdown, re-scored line by line against the announced changes — it is not a spec-level average. So to project any cut you like, filter the raw chunks however you want and take the median of `projected_dps`; the result is exact for that subset, which is what the dashboard's projection toggle does. tuning_mult is 1.0 for pre-tuning runs and for specs the pass does not touch. Spec-wide aura changes and named-ability changes are computed exactly; set bonuses that ride on top of an ability the log reports as a single number are parameterised at a central estimate, so treat those specs as approximate. Specs modelled exactly: Assassination Rogue, Discipline Priest, Enhancement Shaman, Restoration Druid. Specs with a modelling caveat: Blood DeathKnight, Demonology Warlock, Devourer DemonHunter, Frost DeathKnight, Fury Warrior, Subtlety Rogue.
+
 **Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
 
 1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 92,008 parses against a true 24,215. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 24,215. "timed" is a subset of "all", never a separate population to add on.
@@ -52,7 +55,7 @@ When a question spans rows, recompute from the raw chunks (distinct run_id / cha
 - https://st331.github.io/wowlogs/llms/parses_4.csv — rows 18,001-24,000
 - https://st331.github.io/wowlogs/llms/parses_5.csv — rows 24,001-24,215
 
-One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.
+One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: tuning_mult, projected_dps, run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.
 
 ## Column dictionary
 
@@ -69,7 +72,7 @@ One row per player per run; a run's 5 players share a run_id, so team compositio
 
 Resets are regional: US rolls over Tuesday 15:00 UTC, EU Wednesday 04:00 UTC, other regions ~Wednesday 22:00 UTC. Each row's reset_bucket is measured against its OWN region's reset, so bucket 0 always means "the reset that region is currently in". Buckets present: 0, 1, 2, 3, 4, 5, 6, 7, 8.
 
-The reset now in progress (bucket 0) started 2026-08-11 and covers 7 day(s) of data so far — 2026-08-05 to 2026-08-11. For "the last N days" questions use spec_by_day.csv, or filter the raw chunks on `date`; for "this reset vs last reset" use spec_by_reset.csv.
+The reset now in progress (bucket 0) started 2026-08-11 and covers 1 day(s) of data so far — 2026-08-11 to 2026-08-11. For "the last N days" questions use spec_by_day.csv, or filter the raw chunks on `date`; for "this reset vs last reset" use spec_by_reset.csv.
 
 ## Reproducing what the dashboard shows
 
