@@ -8,7 +8,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 1.0,50580,4803,4486,Shaman,Restoration,Totemic,Healer,EU,Temple of Sethraliss,18,1,1808.7,50580,0,334,2026-08-10,1,1,1876.0,2.3
 0.9801,310697,4803,8417,Warrior,Arms,Slayer,DPS,EU,Temple of Sethraliss,18,1,1808.7,317005,2,334,2026-08-10,1,1,1876.0,2.3
 1.0,287642,4803,3752,Monk,Windwalker,Shado-Pan,DPS,EU,Temple of Sethraliss,18,1,1808.7,287642,2,334,2026-08-10,1,1,1876.0,2.3
-1.0836,319956,4803,3068,DemonHunter,Devourer,Void-Scarred,DPS,EU,Temple of Sethraliss,18,1,1808.7,295271,1,334,2026-08-10,1,1,1876.0,2.3
+0.9509,280773,4803,3068,DemonHunter,Devourer,Void-Scarred,DPS,EU,Temple of Sethraliss,18,1,1808.7,295271,1,334,2026-08-10,1,1,1876.0,2.3
 0.9589,92626,4804,9393,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,15,1,1724.5,96597,1,334,2026-08-11,0,1,1866.0,5.8
 1.0,57326,4804,8807,Evoker,Preservation,Flameshaper,Healer,US,Kings' Rest,15,1,1724.5,57326,2,334,2026-08-11,0,1,1866.0,5.8
 0.9725,238977,4804,9230,Warrior,Arms,Slayer,DPS,US,Kings' Rest,15,1,1724.5,245734,3,334,2026-08-11,0,1,1866.0,5.8
@@ -17,7 +17,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 0.9561,178561,4805,9396,DeathKnight,Blood,San'layn,Tank,US,Temple of Sethraliss,16,0,1802.7,186759,0,334,2026-08-11,0,1,1929.0,-0.5
 1.0,59877,4805,8807,Evoker,Preservation,Flameshaper,Healer,US,Temple of Sethraliss,16,0,1802.7,59877,2,334,2026-08-11,0,1,1929.0,-0.5
 1.0,275121,4805,886,Shaman,Elemental,Farseer,DPS,US,Temple of Sethraliss,16,0,1802.7,275121,1,334,2026-08-11,0,1,1929.0,-0.5
-1.0928,210675,4805,888,DemonHunter,Devourer,Annihilator,DPS,US,Temple of Sethraliss,16,0,1802.7,192785,2,334,2026-08-11,0,1,1929.0,-0.5
+0.959,184880,4805,888,DemonHunter,Devourer,Annihilator,DPS,US,Temple of Sethraliss,16,0,1802.7,192785,2,334,2026-08-11,0,1,1929.0,-0.5
 1.0,230549,4805,9397,Druid,Balance,Elune's Chosen,DPS,US,Temple of Sethraliss,16,0,1802.7,230549,4,334,2026-08-11,0,1,1929.0,-0.5
 1.0,133294,4806,8501,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,18,0,2311.7,133294,4,334,2026-08-11,0,1,2512.0,-35.1
 1.0,22753,4806,9120,Paladin,Holy,Herald of the Sun,Healer,US,The Blinding Vale,18,0,2311.7,22753,5,334,2026-08-11,0,1,2512.0,-35.1
@@ -77,7 +77,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 1.0,149072,4817,9405,DeathKnight,Blood,Deathbringer,Tank,CN,Den of Nalorakk,15,1,1603.4,149072,0,334,2026-08-11,1,1,1610.0,16.2
 1.0,50155,4817,9406,Shaman,Restoration,Totemic,Healer,CN,Den of Nalorakk,15,1,1603.4,50155,1,334,2026-08-11,1,1,1610.0,16.2
 0.9779,259177,4817,8506,Warrior,Arms,Slayer,DPS,CN,Den of Nalorakk,15,1,1603.4,265034,0,334,2026-08-11,1,1,1610.0,16.2
-1.0906,201386,4817,9407,DemonHunter,Devourer,Void-Scarred,DPS,CN,Den of Nalorakk,15,1,1603.4,184656,0,334,2026-08-11,1,1,1610.0,16.2
+0.9574,176790,4817,9407,DemonHunter,Devourer,Void-Scarred,DPS,CN,Den of Nalorakk,15,1,1603.4,184656,0,334,2026-08-11,1,1,1610.0,16.2
 0.9681,234816,4817,9408,Mage,Arcane,Sunfury,DPS,CN,Den of Nalorakk,15,1,1603.4,242553,0,334,2026-08-11,1,1,1610.0,16.2
 0.954,203018,4818,9409,DeathKnight,Blood,San'layn,Tank,CN,The Blinding Vale,17,1,1517.4,212807,0,334,2026-08-11,1,1,1539.0,17.3
 1.0,50488,4818,8579,Paladin,Holy,Lightsmith,Healer,CN,The Blinding Vale,17,1,1517.4,50488,0,334,2026-08-11,1,1,1539.0,17.3
@@ -168,7 +168,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 1.0,13128,4835,9423,Paladin,Holy,Herald of the Sun,Healer,CN,Temple of Sethraliss,15,0,1876.5,13128,4,334,2026-08-10,1,1,2078.0,-8.2
 0.9663,237620,4835,9424,Mage,Arcane,Sunfury,DPS,CN,Temple of Sethraliss,15,0,1876.5,245907,4,334,2026-08-10,1,1,2078.0,-8.2
 0.9778,211759,4835,9425,Warrior,Arms,Slayer,DPS,CN,Temple of Sethraliss,15,0,1876.5,216567,2,334,2026-08-10,1,1,2078.0,-8.2
-1.0893,238085,4835,9426,DemonHunter,Devourer,Annihilator,DPS,CN,Temple of Sethraliss,15,0,1876.5,218567,2,334,2026-08-10,1,1,2078.0,-8.2
+0.9561,208972,4835,9426,DemonHunter,Devourer,Annihilator,DPS,CN,Temple of Sethraliss,15,0,1876.5,218567,2,334,2026-08-10,1,1,2078.0,-8.2
 0.953,187921,4836,9409,DeathKnight,Blood,San'layn,Tank,CN,Voidscar Arena,18,0,1781.0,197188,1,334,2026-08-11,1,1,1907.0,-5.9
 1.0,37049,4836,8579,Paladin,Holy,Lightsmith,Healer,CN,Voidscar Arena,18,0,1781.0,37049,4,334,2026-08-11,1,1,1907.0,-5.9
 0.9741,246824,4836,8506,Warrior,Arms,Slayer,DPS,CN,Voidscar Arena,18,0,1781.0,253387,1,334,2026-08-11,1,1,1907.0,-5.9
@@ -191,22 +191,22 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 0.9734,333106,4839,8214,Warrior,Arms,Slayer,DPS,CN,The Blinding Vale,19,1,1617.9,342209,1,334,2026-08-11,1,1,1670.0,10.2
 1.0,154930,4840,8382,DeathKnight,Blood,Deathbringer,Tank,CN,Kings' Rest,19,1,1834.9,154930,0,334,2026-08-08,1,1,1886.0,4.7
 1.0,72476,4840,8797,Paladin,Holy,Lightsmith,Healer,CN,Kings' Rest,19,1,1834.9,72476,0,334,2026-08-08,1,1,1886.0,4.7
-1.0907,235255,4840,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Kings' Rest,19,1,1834.9,215692,2,334,2026-08-08,1,1,1886.0,4.7
+0.9572,206460,4840,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Kings' Rest,19,1,1834.9,215692,2,334,2026-08-08,1,1,1886.0,4.7
 0.969,276585,4840,4144,Mage,Arcane,Sunfury,DPS,CN,Kings' Rest,19,1,1834.9,285434,0,334,2026-08-08,1,1,1886.0,4.7
 0.9735,205127,4840,9427,Warrior,Arms,Slayer,DPS,CN,Kings' Rest,19,1,1834.9,210711,2,334,2026-08-08,1,1,1886.0,4.7
 1.0,202054,4841,8382,DeathKnight,Blood,Deathbringer,Tank,CN,Voidscar Arena,18,1,1613.0,202054,0,334,2026-08-08,1,1,1664.0,7.5
 1.0,76867,4841,8797,Paladin,Holy,Lightsmith,Healer,CN,Voidscar Arena,18,1,1613.0,76867,0,334,2026-08-08,1,1,1664.0,7.5
 1.0,306072,4841,9428,Monk,Windwalker,Conduit of the Celestials,DPS,CN,Voidscar Arena,18,1,1613.0,306072,1,334,2026-08-08,1,1,1664.0,7.5
-1.0922,321002,4841,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Voidscar Arena,18,1,1613.0,293904,3,334,2026-08-08,1,1,1664.0,7.5
+0.9585,281707,4841,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Voidscar Arena,18,1,1613.0,293904,3,334,2026-08-08,1,1,1664.0,7.5
 0.9699,333353,4841,4144,Mage,Arcane,Sunfury,DPS,CN,Voidscar Arena,18,1,1613.0,343698,0,334,2026-08-08,1,1,1664.0,7.5
 1.0,125282,4842,8382,DeathKnight,Blood,Deathbringer,Tank,CN,Kings' Rest,19,-1,2555.9,125282,5,334,2026-08-08,1,1,2773.0,-40.0
 1.0,60317,4842,8797,Paladin,Holy,Lightsmith,Healer,CN,Kings' Rest,19,-1,2555.9,60317,4,334,2026-08-08,1,1,2773.0,-40.0
-1.091,196385,4842,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Kings' Rest,19,-1,2555.9,180004,5,334,2026-08-08,1,1,2773.0,-40.0
+0.9577,172390,4842,8545,DemonHunter,Devourer,Annihilator,DPS,CN,Kings' Rest,19,-1,2555.9,180004,5,334,2026-08-08,1,1,2773.0,-40.0
 0.9682,233048,4842,4144,Mage,Arcane,Sunfury,DPS,CN,Kings' Rest,19,-1,2555.9,240703,4,334,2026-08-08,1,1,2773.0,-40.0
 0.9714,169421,4842,9427,Warrior,Arms,Slayer,DPS,CN,Kings' Rest,19,-1,2555.9,174409,8,334,2026-08-08,1,1,2773.0,-40.0
 1.0,184516,4843,8382,DeathKnight,Blood,Deathbringer,Tank,CN,The Blinding Vale,19,-1,2514.9,184516,3,334,2026-08-08,1,1,2762.0,-48.5
 1.0,59481,4843,8797,Paladin,Holy,Lightsmith,Healer,CN,The Blinding Vale,19,-1,2514.9,59481,4,334,2026-08-08,1,1,2762.0,-48.5
-1.0904,272424,4843,8545,DemonHunter,Devourer,Annihilator,DPS,CN,The Blinding Vale,19,-1,2514.9,249838,6,334,2026-08-08,1,1,2762.0,-48.5
+0.957,239095,4843,8545,DemonHunter,Devourer,Annihilator,DPS,CN,The Blinding Vale,19,-1,2514.9,249838,6,334,2026-08-08,1,1,2762.0,-48.5
 0.9703,306707,4843,4144,Mage,Arcane,Sunfury,DPS,CN,The Blinding Vale,19,-1,2514.9,316095,3,334,2026-08-08,1,1,2762.0,-48.5
 0.9776,209364,4843,9427,Warrior,Arms,Slayer,DPS,CN,The Blinding Vale,19,-1,2514.9,214162,12,334,2026-08-08,1,1,2762.0,-48.5
 1.0,153961,4844,353,Paladin,Protection,Lightsmith,Tank,CN,Den of Nalorakk,19,1,1796.3,153961,0,334,2026-08-11,1,1,1848.0,3.8
@@ -223,7 +223,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 1.0,33682,4846,9163,Paladin,Holy,Herald of the Sun,Healer,US,Ruby Life Pools,18,0,1748.5,33682,3,334,2026-08-12,0,1,1950.0,-16.1
 0.9696,322156,4846,9164,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,18,0,1748.5,332257,2,334,2026-08-12,0,1,1950.0,-16.1
 1.0,298386,4846,9431,Warlock,Affliction,Soul Harvester,DPS,US,Ruby Life Pools,18,0,1748.5,298386,6,334,2026-08-12,0,1,1950.0,-16.1
-1.1014,329052,4846,9432,DemonHunter,Devourer,Annihilator,DPS,US,Ruby Life Pools,18,0,1748.5,298758,3,334,2026-08-12,0,1,1950.0,-16.1
+0.9666,288779,4846,9432,DemonHunter,Devourer,Annihilator,DPS,US,Ruby Life Pools,18,0,1748.5,298758,3,334,2026-08-12,0,1,1950.0,-16.1
 1.0,196733,4847,9433,DeathKnight,Blood,Deathbringer,Tank,CN,Murder Row,18,0,1968.7,196733,2,334,2026-08-13,0,1,2156.0,-5.7
 1.0,56342,4847,9434,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Murder Row,18,0,1968.7,56342,3,334,2026-08-13,0,1,2156.0,-5.7
 1.0,262027,4847,1080,Druid,Balance,Elune's Chosen,DPS,CN,Murder Row,18,0,1968.7,262027,3,334,2026-08-13,0,1,2156.0,-5.7
@@ -287,7 +287,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 0.9566,216251,4859,9055,DeathKnight,Blood,San'layn,Tank,CN,Ruby Life Pools,19,0,1764.3,226062,0,334,2026-08-14,0,1,1801.0,-7.2
 1.0,58025,4859,7965,Paladin,Holy,Lightsmith,Healer,CN,Ruby Life Pools,19,0,1764.3,58025,1,334,2026-08-14,0,1,1801.0,-7.2
 1.0,330622,4859,9058,Shaman,Elemental,Farseer,DPS,CN,Ruby Life Pools,19,0,1764.3,330622,1,334,2026-08-14,0,1,1801.0,-7.2
-1.0953,356228,4859,9444,DemonHunter,Devourer,Annihilator,DPS,CN,Ruby Life Pools,19,0,1764.3,325233,1,325,2026-08-14,0,1,1801.0,-7.2
+0.9611,312582,4859,9444,DemonHunter,Devourer,Annihilator,DPS,CN,Ruby Life Pools,19,0,1764.3,325233,1,325,2026-08-14,0,1,1801.0,-7.2
 0.9693,356103,4859,9057,Mage,Arcane,Sunfury,DPS,CN,Ruby Life Pools,19,0,1764.3,367381,1,334,2026-08-14,0,1,1801.0,-7.2
 1.0,209522,4860,353,Paladin,Protection,Lightsmith,Tank,CN,Altar of Fangs,19,0,1773.8,209522,0,334,2026-08-15,0,1,1811.0,-0.6
 1.0,93699,4860,9101,Evoker,Preservation,Flameshaper,Healer,CN,Altar of Fangs,19,0,1773.8,93699,0,334,2026-08-15,0,1,1811.0,-0.6
@@ -313,7 +313,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 1.0,21762,4864,9163,Paladin,Holy,Herald of the Sun,Healer,US,Murder Row,17,0,1999.9,21762,1,334,2026-08-12,0,1,2097.0,-2.8
 1.0,235191,4864,1349,Shaman,Elemental,Farseer,DPS,US,Murder Row,17,0,1999.9,235191,4,334,2026-08-12,0,1,2097.0,-2.8
 0.972,297655,4864,9164,Mage,Arcane,Sunfury,DPS,US,Murder Row,17,0,1999.9,306230,2,334,2026-08-12,0,1,2097.0,-2.8
-1.103,297853,4864,9432,DemonHunter,Devourer,Annihilator,DPS,US,Murder Row,17,0,1999.9,270039,1,334,2026-08-12,0,1,2097.0,-2.8
+0.9679,261371,4864,9432,DemonHunter,Devourer,Annihilator,DPS,US,Murder Row,17,0,1999.9,270039,1,334,2026-08-12,0,1,2097.0,-2.8
 1.0,167250,4865,9455,DeathKnight,Blood,Deathbringer,Tank,EU,Temple of Sethraliss,15,1,1687.6,167250,0,334,2026-08-15,0,1,1874.0,2.4
 0.7091,16647,4865,4635,Priest,Discipline,Oracle,Healer,EU,Temple of Sethraliss,15,1,1687.6,23476,2,334,2026-08-15,0,1,1874.0,2.4
 0.9694,244367,4865,9456,Mage,Arcane,Sunfury,DPS,EU,Temple of Sethraliss,15,1,1687.6,252081,4,334,2026-08-15,0,1,1874.0,2.4
@@ -336,7 +336,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 0.9674,267784,4868,6854,Mage,Arcane,Sunfury,DPS,CN,Kings' Rest,18,1,1607.4,276808,0,334,2026-08-14,0,1,1613.0,18.5
 0.953,214160,4869,8224,DeathKnight,Blood,San'layn,Tank,CN,Murder Row,18,1,1712.1,224722,0,334,2026-08-15,0,1,1764.0,13.5
 1.0,55191,4869,1180,Shaman,Restoration,Unknown,Healer,CN,Murder Row,18,1,1712.1,55191,2,334,2026-08-15,0,1,1764.0,13.5
-1.0836,322841,4869,2248,DemonHunter,Devourer,Void-Scarred,DPS,CN,Murder Row,18,1,1712.1,297934,0,334,2026-08-15,0,1,1764.0,13.5
+0.9514,283454,4869,2248,DemonHunter,Devourer,Void-Scarred,DPS,CN,Murder Row,18,1,1712.1,297934,0,334,2026-08-15,0,1,1764.0,13.5
 1.0,343891,4869,700,Shaman,Elemental,Farseer,DPS,CN,Murder Row,18,1,1712.1,343891,0,334,2026-08-15,0,1,1764.0,13.5
 1.0,352912,4869,9042,Paladin,Retribution,Herald of the Sun,DPS,CN,Murder Row,18,1,1712.1,352912,2,334,2026-08-15,0,1,1764.0,13.5
 0.954,156861,4870,8224,DeathKnight,Blood,San'layn,Tank,CN,Kings' Rest,18,1,1638.4,164425,0,334,2026-08-15,0,1,1645.0,16.9
@@ -386,7 +386,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 1.0,251887,4878,8583,Shaman,Elemental,Farseer,DPS,CN,Kings' Rest,20,1,1843.8,251887,3,334,2026-08-14,0,1,1910.0,3.5
 0.9537,169217,4879,8224,DeathKnight,Blood,San'layn,Tank,CN,Kings' Rest,18,1,1680.6,177432,0,334,2026-08-15,0,1,1732.0,12.5
 1.0,51763,4879,1180,Shaman,Restoration,Totemic,Healer,CN,Kings' Rest,18,1,1680.6,51763,1,334,2026-08-15,0,1,1732.0,12.5
-1.0785,241263,4879,2248,DemonHunter,Devourer,Void-Scarred,DPS,CN,Kings' Rest,18,1,1680.6,223702,2,334,2026-08-15,0,1,1732.0,12.5
+0.9473,211913,4879,2248,DemonHunter,Devourer,Void-Scarred,DPS,CN,Kings' Rest,18,1,1680.6,223702,2,334,2026-08-15,0,1,1732.0,12.5
 1.0,259471,4879,700,Shaman,Elemental,Farseer,DPS,CN,Kings' Rest,18,1,1680.6,259471,1,334,2026-08-15,0,1,1732.0,12.5
 1.0,269241,4879,9042,Paladin,Retribution,Herald of the Sun,DPS,CN,Kings' Rest,18,1,1680.6,269241,0,334,2026-08-15,0,1,1732.0,12.5
 0.9546,246198,4880,1470,DeathKnight,Blood,San'layn,Tank,CN,Ruby Life Pools,20,0,1941.4,257907,1,334,2026-08-12,0,1,2053.0,-22.2
@@ -403,12 +403,12 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 1.0,65035,4882,7965,Paladin,Holy,Lightsmith,Healer,CN,The Blinding Vale,19,1,1653.3,65035,1,334,2026-08-13,0,1,1705.0,8.3
 1.0,360768,4882,9058,Shaman,Elemental,Farseer,DPS,CN,The Blinding Vale,19,1,1653.3,360768,1,334,2026-08-13,0,1,1705.0,8.3
 0.9685,365459,4882,9057,Mage,Arcane,Sunfury,DPS,CN,The Blinding Vale,19,1,1653.3,377346,1,334,2026-08-13,0,1,1705.0,8.3
-1.0878,380569,4882,9472,DemonHunter,Devourer,Annihilator,DPS,CN,The Blinding Vale,19,1,1653.3,349852,1,334,2026-08-13,0,1,1705.0,8.3
+0.9546,333968,4882,9472,DemonHunter,Devourer,Annihilator,DPS,CN,The Blinding Vale,19,1,1653.3,349852,1,334,2026-08-13,0,1,1705.0,8.3
 0.9522,166685,4883,9473,DeathKnight,Blood,San'layn,Tank,US,Voidscar Arena,18,0,2012.5,175052,2,334,2026-08-12,0,1,2169.0,-20.5
 1.0,52256,4883,7720,Paladin,Holy,Lightsmith,Healer,US,Voidscar Arena,18,0,2012.5,52256,2,334,2026-08-12,0,1,2169.0,-20.5
 1.0,254368,4883,3023,Hunter,Marksmanship,Sentinel,DPS,US,Voidscar Arena,18,0,2012.5,254368,2,334,2026-08-12,0,1,2169.0,-20.5
 0.9695,294074,4883,9474,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,18,0,2012.5,303325,4,334,2026-08-12,0,1,2169.0,-20.5
-1.0866,281797,4883,8674,DemonHunter,Devourer,Annihilator,DPS,US,Voidscar Arena,18,0,2012.5,259338,4,334,2026-08-12,0,1,2169.0,-20.5
+0.9536,247305,4883,8674,DemonHunter,Devourer,Annihilator,DPS,US,Voidscar Arena,18,0,2012.5,259338,4,334,2026-08-12,0,1,2169.0,-20.5
 1.0,135838,4884,9433,DeathKnight,Blood,Deathbringer,Tank,CN,Kings' Rest,18,1,1768.1,135838,0,334,2026-08-14,0,1,1834.0,7.4
 1.0,64379,4884,9459,Paladin,Holy,Lightsmith,Healer,CN,Kings' Rest,18,1,1768.1,64379,1,334,2026-08-14,0,1,1834.0,7.4
 1.0,233296,4884,9435,Shaman,Elemental,Farseer,DPS,CN,Kings' Rest,18,1,1768.1,233296,1,334,2026-08-14,0,1,1834.0,7.4
@@ -466,7 +466,7 @@ tuning_mult,projected_dps,run_id,char_id,class,spec,hero_talent,role,region,dung
 0.983,248559,4894,6066,Warrior,Arms,Slayer,DPS,CN,Temple of Sethraliss,18,0,1932.6,252858,3,334,2026-08-12,0,1,2149.0,-11.9
 0.9551,145342,4895,9482,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,19,1,1735.5,152175,0,334,2026-08-12,0,1,1772.0,10.5
 1.0,49925,4895,9483,Paladin,Holy,Lightsmith,Healer,US,Kings' Rest,19,1,1735.5,49925,0,334,2026-08-12,0,1,1772.0,10.5
-1.0825,277859,4895,9484,DemonHunter,Devourer,Void-Scarred,DPS,US,Kings' Rest,19,1,1735.5,256683,1,334,2026-08-12,0,1,1772.0,10.5
+0.95,243849,4895,9484,DemonHunter,Devourer,Void-Scarred,DPS,US,Kings' Rest,19,1,1735.5,256683,1,334,2026-08-12,0,1,1772.0,10.5
 0.9667,294964,4895,4797,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,19,1,1735.5,305124,2,334,2026-08-12,0,1,1772.0,10.5
 1.0,236552,4895,7439,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Kings' Rest,19,1,1735.5,236552,0,334,2026-08-12,0,1,1772.0,10.5
 0.9561,225353,4896,9422,DeathKnight,Blood,San'layn,Tank,CN,Voidscar Arena,20,1,1506.9,235700,0,334,2026-08-13,0,1,1544.0,14.2

@@ -1,5 +1,4 @@
 subset,class,spec,characters,parses,median_dps,projected_median_dps,avg_dps,projected_avg_dps,median_change_pct,avg_change_pct,tuned
-post_tuning,DemonHunter,Devourer,185,332,256758,279469,258010,280612,8.85,8.76,True
 post_tuning,DeathKnight,Frost,67,98,234870,250602,239637,254617,6.7,6.25,True
 post_tuning,Warrior,Fury,16,20,225093,236345,225348,236124,5.0,4.78,True
 post_tuning,Shaman,Enhancement,40,58,237644,248824,244126,255782,4.7,4.77,True
@@ -26,7 +25,7 @@ post_tuning,Warlock,Destruction,55,91,255546,255546,258408,258408,0.0,0.0,False
 post_tuning,Hunter,BeastMastery,24,37,254418,249012,244623,239226,-2.12,-2.21,True
 post_tuning,Warrior,Arms,343,681,280588,273757,280466,272408,-2.43,-2.87,True
 post_tuning,Mage,Arcane,557,1150,278612,269708,281064,271666,-3.2,-3.34,True
-post_tuning_timed,DemonHunter,Devourer,115,173,263014,287553,267386,290187,9.33,8.53,True
+post_tuning,DemonHunter,Devourer,185,332,256758,245262,258010,246296,-4.48,-4.54,True
 post_tuning_timed,DeathKnight,Frost,39,51,245176,259347,252994,268459,5.78,6.11,True
 post_tuning_timed,Warrior,Fury,11,11,224528,235745,225168,236346,5.0,4.96,True
 post_tuning_timed,Shaman,Enhancement,26,33,262800,275204,258247,270579,4.72,4.78,True
@@ -53,3 +52,4 @@ post_tuning_timed,Warlock,Affliction,26,49,249043,249043,245887,245887,0.0,0.0,F
 post_tuning_timed,Warlock,Destruction,38,55,270940,270940,272219,272219,0.0,0.0,False
 post_tuning_timed,Warrior,Arms,254,433,290798,284512,289702,281857,-2.16,-2.71,True
 post_tuning_timed,Mage,Arcane,390,706,293480,283947,294593,284963,-3.25,-3.27,True
+post_tuning_timed,DemonHunter,Devourer,115,173,263014,252362,267386,254690,-4.05,-4.75,True

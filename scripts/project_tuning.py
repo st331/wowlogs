@@ -25,6 +25,12 @@ Three kinds of tuning line, handled differently:
                    reports as one number, so the split is not observable.  The
                    bonus is parameterised by B (how much of that ability's
                    damage the bonus was adding) and reported as a band.
+  compensating aura  an aura buff Blizzard states is there to OFFSET a set-bonus
+                   reduction that a damage table cannot see - a resource-
+                   generation cut, say.  Applying the compensation without the
+                   thing it compensates counts the buff twice and turns a
+                   designed-neutral change into a large fake buff, so the pair
+                   is modelled as designed: net neutral, swept as a band.
 """
 from __future__ import annotations
 
@@ -81,13 +87,26 @@ RULES = {
     ),
     "Devourer DemonHunter": dict(
         aura=1.14, aura_scope="ability",
+        # "Devourer's 4-piece set bonus is performing significantly above
+        # expectations, so we are reducing its power. To compensate for this
+        # set bonus reduction, we are increasing all ability damage."
+        # The reduction is soul-fragment generation (8 -> 2 per Soulburst),
+        # which no damage table can show. Banking the +14% while ignoring what
+        # it pays for turns a designed-neutral swap into a fake +9% buff, so
+        # the pair is treated as Blizzard describes it.
+        compensates=("4pc power reduction (soul fragments 8 -> 2)",
+                     "Devourer compensation offset"),
         abilities={"Reap": 0.88, "Cull": 0.88, "Eradicate": 0.88},
         set_bonus=[("4pc Reap bonus", ["Reap"], 0.20, 0.10)],
-        caveats=["Eradicate's AoE component goes 85%->90% of base damage; the "
+        caveats=["The +14% aura is stated compensation for the 4pc reduction, "
+                 "so the two are modelled as cancelling. What remains is the "
+                 "separately-announced -12% on Reap/Cull/Eradicate, i.e. a "
+                 "small net nerf. How exactly the compensation lands is swept "
+                 "as a band.",
+                 "Eradicate's AoE component goes 85%->90% of base damage; the "
                  "log reports one Eradicate line, so the ST/AoE split is not "
-                 "observable. Modelled as no change (conservative).",
-                 "4pc soul-fragment generation drops 8->2, which slows the "
-                 "Consume/Soulburst loop. Rotational, not modelled."],
+                 "observable. Modelled as no change, which makes this the "
+                 "pessimistic end for AoE-heavy play."],
     ),
     "Arcane Mage": dict(
         aura=1.03, aura_scope="ability",
@@ -234,6 +253,11 @@ def multiplier(abilities, rule, items, B, pieces=99, extra=None):
             continue
         for n in names:                       # only share f of the line moves
             sb[n] = sb.get(n, 1.0) * (1 - f * (1 - new_over_old))
+    comp = rule.get("compensates")
+    if comp:
+        off = B.get(comp[1])
+        if off is not None:
+            aura = 1.0 + (aura - 1.0) * (1 - off)
     if rule.get("strength"):
         old_s, new_s = rule["strength"]
         aura *= (1 + new_s) / (1 + old_s)
@@ -256,6 +280,9 @@ def multiplier(abilities, rule, items, B, pieces=99, extra=None):
 # was contributing, i.e. line damage = base * (1 + B).
 B_CENTRAL = {
     **HOTFIX_CALIBRATION,
+    # 1.0 = the aura exactly offsets the unobservable set-bonus reduction, as
+    # the developer note says it is meant to. Swept 0.7-1.3 for the band.
+    "Devourer compensation offset": 1.00,
     "2pc Freezing Tempest": 0.30,
     "4pc Reap bonus": 0.20,
     "2pc Arcane Missiles bonus": 0.20,
@@ -267,6 +294,7 @@ B_CENTRAL = {
 }
 B_BAND = {k: (v * 0.5, v * 1.5) for k, v in B_CENTRAL.items()}
 B_BAND.update(HOTFIX_BAND)          # this one has a measured interval
+B_BAND["Devourer compensation offset"] = (0.70, 1.30)
 
 
 def project(df, rows, B):
