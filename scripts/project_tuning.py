@@ -129,13 +129,24 @@ RULES = {
     ),
     "Fury Warrior": dict(
         aura=1.06, aura_scope="all",
-        caveats=["Slayer Fury also carries the Aug 14 Executioner fix; the "
-                 "+6% baseline was granted partly to compensate for it, so "
-                 "the two are shown together.",
-                 "4pc Recklessness crit bonus 5%->3% per stack (cap 10%->6%). "
-                 "That is a crit-damage buff on everything during Recklessness "
-                 "windows; uptime and crit share are not observable from a "
-                 "damage table. Modelled separately as a band."],
+        # The 4pc's Bloodthirst +10% is UNCHANGED; only the Recklessness crit
+        # bonus moves, 5%->3% per stack and 10%->6% at cap. That is 4pp of crit
+        # across everything, but only inside Recklessness windows (~90s
+        # cooldown, ~12s duration), so it is small - roughly 0.5% of total
+        # damage, not the several percent a compensating aura would imply.
+        flat=("4pc Recklessness crit bonus",),
+        caveats=["Slayer Fury also carries the Aug 14 Executioner fix, worth "
+                 "about -1.0% here (Execute is 5.0% of the spec versus 12.0% "
+                 "for Arms), so the two are shown together.",
+                 "Blizzard say the +6% baseline compensates the Executioner "
+                 "fix and the set-bonus change and that they are 'happy with "
+                 "where Fury has been', which implies net-neutral. The changes "
+                 "as written do not sum to that: the Executioner fix and the "
+                 "4pc crit change together measure about -1.5%, well short of "
+                 "the +6%. Unlike Devourer, whose hidden nerf is a resource "
+                 "cut plausibly worth the whole aura, nothing here supports "
+                 "cancelling it, so the aura stands and the gap is flagged "
+                 "rather than assumed away."],
     ),
     "Subtlety Rogue": dict(
         aura=1.06, aura_scope="all",
@@ -276,6 +287,11 @@ def multiplier(abilities, rule, items, B, pieces=99, extra=None):
             continue
         for n in names:                       # only share f of the line moves
             sb[n] = sb.get(n, 1.0) * (1 - f * (1 - new_over_old))
+    flat = rule.get("flat")
+    if flat:
+        f = B.get(flat[0])
+        if f is not None and pieces >= _needs(flat[0]):
+            aura *= f
     comp = rule.get("compensates")
     if comp:
         off = B.get(comp[1])
@@ -311,6 +327,8 @@ B_CENTRAL = {
     "2pc Freezing Tempest": 0.28,
     # how much of the Eradicate line is AoE (it is a frontal cone)
     "Eradicate AoE share": 0.77,
+    # 4pp of crit lost across ~13% Recklessness uptime
+    "4pc Recklessness crit bonus": 0.9948,
     "4pc Reap bonus": 0.20,
     "2pc Arcane Missiles bonus": 0.20,
     "4pc Cumulative Power": 0.25,
@@ -324,6 +342,7 @@ B_BAND.update(HOTFIX_BAND)          # this one has a measured interval
 B_BAND["Devourer compensation offset"] = (0.20, 1.30)   # log floor .. designed
 B_BAND["2pc Freezing Tempest"] = (0.27, 0.60)           # floor .. Gathering Storm
 B_BAND["Eradicate AoE share"] = (0.35, 1.00)
+B_BAND["4pc Recklessness crit bonus"] = (0.9928, 0.9960)
 
 
 def project(df, rows, B):
