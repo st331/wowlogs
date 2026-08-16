@@ -170,6 +170,18 @@ def tuning_multipliers(df, post):
     if not pt.ABIL.exists():
         return None, None
     rows = ability_records()
+    # A rule that names an ability no parse ever reports is inert. That is not
+    # always a bug (Disc's Entropic Rift genuinely has no line here) but it
+    # must never be presented as an exact projection, so surface it loudly.
+    seen_names = {a["name"] for r in rows for a in r["abilities"]}
+    for sname, rule in pt.RULES.items():
+        named = set(rule.get("abilities", {}))
+        for e in rule.get("set_bonus", []) + rule.get("share_scale", []):
+            named |= set(e[1])
+        missing = sorted(n for n in named if n not in seen_names)
+        if missing:
+            print(f"[ptr] WARNING {sname}: rule names {missing} which appear in "
+                  f"no parse - that part of the rule does nothing", flush=True)
     work = df.copy()
     work["specname"] = work["spec"] + " " + work["class"]
     mult = pt.project(work[post == 1], rows, pt.B_CENTRAL)["mult"]

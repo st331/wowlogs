@@ -4,7 +4,6 @@ post_tuning,Shaman,Enhancement,40,58,237644,248824,244126,255782,4.7,4.77,True
 post_tuning,Warrior,Fury,16,20,225093,235197,225348,235094,4.49,4.33,True
 post_tuning,Rogue,Assassination,44,68,267914,278349,265433,275954,3.89,3.96,True
 post_tuning,Warlock,Demonology,33,59,201464,206299,216618,221556,2.4,2.28,True
-post_tuning,Rogue,Subtlety,35,54,258316,264218,258379,266423,2.28,3.11,True
 post_tuning,DeathKnight,Unholy,96,165,257752,257752,265548,265548,0.0,0.0,False
 post_tuning,DemonHunter,Havoc,69,129,246853,246853,245843,245843,0.0,0.0,False
 post_tuning,Druid,Balance,163,292,246222,246222,247232,247232,0.0,0.0,False
@@ -22,7 +21,8 @@ post_tuning,Rogue,Outlaw,69,124,261656,261656,269641,269641,0.0,0.0,False
 post_tuning,Shaman,Elemental,217,477,283178,283178,286641,286641,0.0,0.0,False
 post_tuning,Warlock,Affliction,42,83,240876,240876,238654,238654,0.0,0.0,False
 post_tuning,Warlock,Destruction,55,91,255546,255546,258408,258408,0.0,0.0,False
-post_tuning,Hunter,BeastMastery,24,37,254418,249012,244623,239226,-2.12,-2.21,True
+post_tuning,Hunter,BeastMastery,24,37,254418,253684,244623,244696,-0.29,0.03,True
+post_tuning,Rogue,Subtlety,35,54,258316,255796,258379,259904,-0.98,0.59,True
 post_tuning,Warrior,Arms,343,681,280588,273757,280466,272408,-2.43,-2.87,True
 post_tuning,Mage,Arcane,557,1150,278612,269708,281064,271666,-3.2,-3.34,True
 post_tuning,DemonHunter,Devourer,185,332,256758,248183,258010,249367,-3.34,-3.35,True
@@ -30,9 +30,9 @@ post_tuning_timed,Shaman,Enhancement,26,33,262800,275204,258247,270579,4.72,4.78
 post_tuning_timed,DeathKnight,Frost,39,51,245176,256233,252994,265365,4.51,4.89,True
 post_tuning_timed,Warrior,Fury,11,11,224528,234594,225168,235194,4.48,4.45,True
 post_tuning_timed,Rogue,Assassination,25,34,291267,302860,281441,292610,3.98,3.97,True
-post_tuning_timed,Rogue,Subtlety,23,33,275509,286061,272133,280865,3.83,3.21,True
+post_tuning_timed,Hunter,BeastMastery,14,21,262776,269818,258776,266620,2.68,3.03,True
 post_tuning_timed,Warlock,Demonology,21,38,196819,202014,211085,215834,2.64,2.25,True
-post_tuning_timed,Hunter,BeastMastery,14,21,262776,264589,258776,260428,0.69,0.64,True
+post_tuning_timed,Rogue,Subtlety,23,33,275509,280799,272133,274220,1.92,0.77,True
 post_tuning_timed,DeathKnight,Unholy,59,96,272525,272525,280971,280971,0.0,0.0,False
 post_tuning_timed,DemonHunter,Havoc,51,81,246302,246302,249611,249611,0.0,0.0,False
 post_tuning_timed,Druid,Balance,117,191,249772,249772,252628,252628,0.0,0.0,False

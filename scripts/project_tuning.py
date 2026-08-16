@@ -160,12 +160,34 @@ RULES = {
     # No announced tuning line; Arms moves purely because of the Aug 14
     # Executioner hotfix, which every parse before that date predates.
     "Arms Warrior": dict(aura=1.0, aura_scope="all"),
+    # Mistweaver's healing buff does not touch DPS, but its 4pc does: the
+    # bonus resets Rising Sun Kick, so a 33% higher activation rate means more
+    # RSK casts. A damage table shows that only as a bigger line, never as the
+    # proc it came from. Measured: RSK is 6.94 casts/min below the set versus
+    # 10.38 at 4pc, so ~33% of casts are set-driven.
+    "Mistweaver Monk": dict(
+        aura=1.0, aura_scope="all",
+        share_scale=[("4pc RSK reset share", ["Rising Sun Kick"], 1.33)],
+        caveats=["4pc 'Activation rate increased by 33%' is a proc-rate "
+                 "change on a cooldown reset, not a damage change. Modelled "
+                 "from the observed cast-rate gap between set and non-set "
+                 "parses.",
+                 "The sub-4pc control group is 6 parses at a lower item level, "
+                 "so part of that cast-rate gap is haste rather than the set. "
+                 "The band runs down to half the measured share."],
+    ),
     "Assassination Rogue": dict(aura=1.04, aura_scope="all"),
     "Enhancement Shaman": dict(aura=1.05, aura_scope="all"),
     "Restoration Druid": dict(aura=1.20, aura_scope="all"),
     "Discipline Priest": dict(
         aura=0.70, aura_scope="all",
         abilities={"Entropic Rift": 1.20},
+        caveats=["The bulleted 'Entropic Rift damage increased by 20%' maps to "
+                 "no ability line in this data - no Disc parse reports one - "
+                 "so that rule is inert and the projection is the bare -30% "
+                 "aura. The true figure is slightly less negative for the ~32% "
+                 "of Disc players on Voidweaver, by an amount this data cannot "
+                 "measure."],
     ),
     "Demonology Warlock": dict(
         aura=1.0, aura_scope="all",
@@ -177,6 +199,17 @@ RULES = {
     "BeastMastery Hunter": dict(
         aura=1.0, aura_scope="all",
         set_bonus=[("4pc Cobra Shot bonus", ["Cobra Shot"], 0.15, 0.20)],
+        # The 4pc bullet contains TWO changes and the cleave half is logged
+        # under its own name. "Cobra Cleave" is 0.00% at 3pc, 4.8% at 4pc, and
+        # absent from all 107 Marksmanship and 29 Survival parses, so the whole
+        # line is set-created; 20% -> 30% effectiveness scales all of it.
+        share_scale=[("4pc Cobra Cleave", ["Cobra Cleave"], 30 / 20)],
+        caveats=["The 4pc changes both halves of its bonus. The single-target "
+                 "half rides the Cobra Shot line; the cleave half is a "
+                 "separate 'Cobra Cleave' line, which the data shows exists "
+                 "only with the set.",
+                 "If cleave effectiveness caps at 100%, four stacks at 30% "
+                 "would overflow and the gain is smaller - the band covers it."],
     ),
     "Blood DeathKnight": dict(
         aura=1.0, aura_scope="all",
@@ -335,13 +368,20 @@ B_CENTRAL = {
     "2pc Implode effectiveness": 1.50,
     "4pc Cobra Shot bonus": 0.45,
     # share of the Lingering Shadow line that comes from the 4pc extension
-    "4pc Lingering Shadow extension": 0.50,
+    # measured: the Lingering Shadow line is 0.7% of damage without the set
+    # and 13.9% with it, so the 4pc supplies ~95% of it
+    "4pc Lingering Shadow extension": 0.95,
+    "4pc Cobra Cleave": 1.00,          # the whole line is set-created
+    "4pc RSK reset share": 0.331,      # 4pc adds 3.44 of 10.38 casts/min
 }
 B_BAND = {k: (v * 0.5, v * 1.5) for k, v in B_CENTRAL.items()}
 B_BAND.update(HOTFIX_BAND)          # this one has a measured interval
 B_BAND["Devourer compensation offset"] = (0.20, 1.30)   # log floor .. designed
 B_BAND["2pc Freezing Tempest"] = (0.27, 0.60)           # floor .. Gathering Storm
 B_BAND["Eradicate AoE share"] = (0.35, 1.00)
+B_BAND["4pc Lingering Shadow extension"] = (0.85, 1.00)   # measured, tight
+B_BAND["4pc Cobra Cleave"] = (0.66, 1.00)                 # 100%-cap floor
+B_BAND["4pc RSK reset share"] = (0.165, 0.40)             # haste confound
 B_BAND["4pc Recklessness crit bonus"] = (0.9928, 0.9960)
 
 
