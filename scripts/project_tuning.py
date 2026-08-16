@@ -80,10 +80,20 @@ RULES = {
     "Frost DeathKnight": dict(
         aura=1.09, aura_scope="ability",
         set_bonus=[("2pc Freezing Tempest", ["Icy Death Torrent"], 0.04, 0.02)],
-        caveats=["2pc also halves the attack-speed buff (2%->1% per stack), "
-                 "which raises auto-attack and rotational throughput; not "
-                 "observable from a damage table, so excluded (makes this "
-                 "projection mildly optimistic)."],
+        # The 2pc's other half halves the attack-speed buff. That is not just
+        # auto-attack damage: Icy Death Torrent procs off auto-attack CRITS, so
+        # slower swings cut its proc count too, and IDT is ~17% of the spec.
+        # Swings scale by (1+0.01*S)/(1+0.02*S) for S Freezing Tempest stacks.
+        attack_speed=("2pc Freezing Tempest", 0.02, 0.01,
+                      ["Icy Death Torrent"]),
+        caveats=["Attack speed is the melee-swing aura only - it does not "
+                 "touch the GCD or rune regeneration - so the modelled cost is "
+                 "auto-attack damage plus the Icy Death Torrent proc rate.",
+                 "Freezing Tempest has no documented stack cap. Stacks are "
+                 "modelled at 6.8, the floor from Remorseless Winter pressed "
+                 "on its 20s cooldown (8s duration, 0.8s ticks with the 4pc, "
+                 "10s buff). Gathering Storm extending RW past ~10.4s lets "
+                 "stacks run higher, which the band covers."],
     ),
     "Devourer DemonHunter": dict(
         aura=1.14, aura_scope="ability",
@@ -98,15 +108,18 @@ RULES = {
                      "Devourer compensation offset"),
         abilities={"Reap": 0.88, "Cull": 0.88, "Eradicate": 0.88},
         set_bonus=[("4pc Reap bonus", ["Reap"], 0.20, 0.10)],
+        # Eradicate's AoE portion goes 85% -> 90% of base, worth up to +5.88%
+        # on the line. Parameterised by how much of the line is AoE.
+        share_scale=[("Eradicate AoE share", ["Eradicate"], 90 / 85)],
         caveats=["The +14% aura is stated compensation for the 4pc reduction, "
                  "so the two are modelled as cancelling. What remains is the "
                  "separately-announced -12% on Reap/Cull/Eradicate, i.e. a "
                  "small net nerf. How exactly the compensation lands is swept "
                  "as a band.",
-                 "Eradicate's AoE component goes 85%->90% of base damage; the "
+                 "Eradicate's AoE component goes 85%->90% of base damage. The "
                  "log reports one Eradicate line, so the ST/AoE split is not "
-                 "observable. Modelled as no change, which makes this the "
-                 "pessimistic end for AoE-heavy play."],
+                 "observable and is parameterised; Eradicate is 29.9% of the "
+                 "spec, so this is worth +0.4 to +1.4pp overall."],
     ),
     "Arcane Mage": dict(
         aura=1.03, aura_scope="ability",
@@ -237,6 +250,16 @@ def hotfix_factors(specname, hero, started_ms, B):
 def multiplier(abilities, rule, items, B, pieces=99, extra=None):
     """Projected/current damage ratio for one parse."""
     aura, scope = rule.get("aura", 1.0), rule.get("aura_scope", "all")
+    swing = {}
+    asp = rule.get("attack_speed")
+    if asp and pieces >= 2:
+        label, old_pc, new_pc, procs = asp
+        b = B.get(label)
+        if b is not None:
+            stacks = b / 0.04                     # B is 4% per stack
+            ratio = ((1 + new_pc * stacks) / (1 + old_pc * stacks))
+            for n in list(AUTO_ATTACK) + list(procs):
+                swing[n] = swing.get(n, 1.0) * ratio
     named = rule.get("abilities", {})
     sb = {}
     for label, names, old, new in rule.get("set_bonus", []):
@@ -268,6 +291,7 @@ def multiplier(abilities, rule, items, B, pieces=99, extra=None):
         if n not in items and not (scope == "ability" and n in AUTO_ATTACK):
             m *= aura
         m *= named.get(n, 1.0) * sb.get(n, 1.0)
+        m *= swing.get(n, 1.0)
         if extra:
             m *= extra.get(n, 1.0)
         cur += d
@@ -283,7 +307,10 @@ B_CENTRAL = {
     # 1.0 = the aura exactly offsets the unobservable set-bonus reduction, as
     # the developer note says it is meant to. Swept 0.7-1.3 for the band.
     "Devourer compensation offset": 1.00,
-    "2pc Freezing Tempest": 0.30,
+    # 6.8 average stacks x 4%/stack - the mechanical floor, see the caveat
+    "2pc Freezing Tempest": 0.28,
+    # how much of the Eradicate line is AoE (it is a frontal cone)
+    "Eradicate AoE share": 0.77,
     "4pc Reap bonus": 0.20,
     "2pc Arcane Missiles bonus": 0.20,
     "4pc Cumulative Power": 0.25,
@@ -294,7 +321,9 @@ B_CENTRAL = {
 }
 B_BAND = {k: (v * 0.5, v * 1.5) for k, v in B_CENTRAL.items()}
 B_BAND.update(HOTFIX_BAND)          # this one has a measured interval
-B_BAND["Devourer compensation offset"] = (0.70, 1.30)
+B_BAND["Devourer compensation offset"] = (0.20, 1.30)   # log floor .. designed
+B_BAND["2pc Freezing Tempest"] = (0.27, 0.60)           # floor .. Gathering Storm
+B_BAND["Eradicate AoE share"] = (0.35, 1.00)
 
 
 def project(df, rows, B):
