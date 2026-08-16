@@ -40,7 +40,7 @@ CSV = ROOT / "data" / "mythic_runs_ptr.csv.gz"
 ABIL = ROOT / "data" / "raw" / "abilities_ptr.jsonl"
 TUNING = ROOT / "data" / "tuning_patches.json"
 
-PROJECTION_LABEL = "Aug 18 class tuning"
+PROJECTION_LABEL = "Aug 14 hotfix + Aug 18 class tuning"
 PROJECTION_DATE = "2026-08-18"
 PROJECTION_URL = ("https://us.forums.blizzard.com/en/wow/t/"
                   "class-tuning-incoming-%E2%80%93-august-18/2336820")
@@ -97,7 +97,10 @@ RULES = {
     ),
     "Fury Warrior": dict(
         aura=1.06, aura_scope="all",
-        caveats=["4pc Recklessness crit bonus 5%->3% per stack (cap 10%->6%). "
+        caveats=["Slayer Fury also carries the Aug 14 Executioner fix; the "
+                 "+6% baseline was granted partly to compensate for it, so "
+                 "the two are shown together.",
+                 "4pc Recklessness crit bonus 5%->3% per stack (cap 10%->6%). "
                  "That is a crit-damage buff on everything during Recklessness "
                  "windows; uptime and crit share are not observable from a "
                  "damage table. Modelled separately as a band."],
@@ -111,6 +114,9 @@ RULES = {
                  "reported inside the Lingering Shadow line, so the share "
                  "coming from the 4pc is not separable. Modelled as a band."],
     ),
+    # No announced tuning line; Arms moves purely because of the Aug 14
+    # Executioner hotfix, which every parse before that date predates.
+    "Arms Warrior": dict(aura=1.0, aura_scope="all"),
     "Assassination Rogue": dict(aura=1.04, aura_scope="all"),
     "Enhancement Shaman": dict(aura=1.05, aura_scope="all"),
     "Restoration Druid": dict(aura=1.20, aura_scope="all"),
@@ -161,12 +167,55 @@ def tier_sets(rows):
     return {c: s.most_common(1)[0][0] for c, s in cnt.items() if s}
 
 
+# Changes that are ALREADY live but post-date some of the data. A parse
+# recorded before one of these still contains the old behaviour, so the
+# projection has to correct it; a parse recorded after already reflects it and
+# must be left alone. Unlike the announced tuning, the size of these is
+# measured from the data either side of the cutoff rather than read off a
+# patch note - see HOTFIX_CALIBRATION.
+HOTFIXES = {
+    "Slayer Executioner double-value fix": dict(
+        instant="2026-08-14T00:00:00Z", hero="Slayer",
+        specs=["Arms Warrior", "Fury Warrior"], abilities=["Execute"],
+        note="Executioner grants 3% Execute damage/crit per stack; a bug "
+             "doubled it to 6%. Blizzard's Aug 18 notes describe the fix as "
+             "already hotfixed, and it is the reason Arms was brought down "
+             "and Fury's baseline raised to compensate.",
+    ),
+}
+# Measured, not assumed: Arms Slayer Execute share fell 11.99% -> 9.94% across
+# the cutoff (Mann-Whitney p=4.4e-4) while Slayer's Strike and Bladestorm held
+# steady, which pins the bugged bonus at +62% of the Execute line.
+HOTFIX_CALIBRATION = {"Slayer Executioner double-value fix": 0.621}
+HOTFIX_BAND = {"Slayer Executioner double-value fix": (0.40, 0.95)}
+
+
 def _needs(label):
     """Pieces a bonus requires, read off its '2pc ...' / '4pc ...' label."""
     return 4 if label.startswith("4pc") else 2
 
 
-def multiplier(abilities, rule, items, B, pieces=99):
+def hotfix_factors(specname, hero, started_ms, B):
+    """{ability: multiplier} for live hotfixes this parse predates."""
+    out = {}
+    for label, h in HOTFIXES.items():
+        if specname not in h["specs"]:
+            continue
+        if h.get("hero") and hero != h["hero"]:
+            continue
+        cut = pd.Timestamp(h["instant"]).value // 10 ** 6
+        if started_ms is None or started_ms >= cut:
+            continue                      # already reflects the fix
+        b = B.get(label)
+        if b is None:
+            continue
+        ratio = (1 + b / 2) / (1 + b)     # the bonus is halved
+        for a in h["abilities"]:
+            out[a] = out.get(a, 1.0) * ratio
+    return out
+
+
+def multiplier(abilities, rule, items, B, pieces=99, extra=None):
     """Projected/current damage ratio for one parse."""
     aura, scope = rule.get("aura", 1.0), rule.get("aura_scope", "all")
     named = rule.get("abilities", {})
@@ -195,6 +244,8 @@ def multiplier(abilities, rule, items, B, pieces=99):
         if n not in items and not (scope == "ability" and n in AUTO_ATTACK):
             m *= aura
         m *= named.get(n, 1.0) * sb.get(n, 1.0)
+        if extra:
+            m *= extra.get(n, 1.0)
         cur += d
         new += d * m
     return (new / cur) if cur else 1.0
@@ -204,6 +255,7 @@ def multiplier(abilities, rule, items, B, pieces=99):
 # for the sensitivity table.  B = how much of the ability's damage the bonus
 # was contributing, i.e. line damage = base * (1 + B).
 B_CENTRAL = {
+    **HOTFIX_CALIBRATION,
     "2pc Freezing Tempest": 0.30,
     "4pc Reap bonus": 0.20,
     "2pc Arcane Missiles bonus": 0.20,
@@ -214,6 +266,7 @@ B_CENTRAL = {
     "4pc Lingering Shadow extension": 0.50,
 }
 B_BAND = {k: (v * 0.5, v * 1.5) for k, v in B_CENTRAL.items()}
+B_BAND.update(HOTFIX_BAND)          # this one has a measured interval
 
 
 def project(df, rows, B):
@@ -236,10 +289,13 @@ def project(df, rows, B):
         # handed those parses a bare aura buff, so assume the dominant state.
         pieces = rec["sets"].get(tier.get(rec["class"], ""), 0)
         eff = pieces if rec["sets"] else 4
+        hx = hotfix_factors(t.specname, t.hero_talent,
+                            getattr(t, "started_at", None), B)
         idx.append(i)
         out.append({"specname": t.specname, "dps": t.dps, "pieces": pieces,
                     "gear_known": bool(rec["sets"]),
-                    "mult": multiplier(rec["abilities"], rule, items, B, eff)})
+                    "mult": multiplier(rec["abilities"], rule, items, B, eff,
+                                       hx)})
     return pd.DataFrame(out, index=idx)
 
 
