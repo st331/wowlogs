@@ -76,10 +76,20 @@ ENCOUNTERS = {
     12859: "The Blinding Vale",
     12923: "Voidscar Arena",
 }
-# WCL bracket N == keystone level N+1 (bracket 9 -> +10). The top bracket
-# catches everything at or above its level, so 24 covers +25 and up.
-BRACKETS = list(range(9, 25))     # keys 10 .. 25+
+# WCL bracket N == keystone level N+1 (bracket 9 -> +10). Zone 55 advertises
+# brackets for keys 2..30, and every one of them is swept: the dashboard opens
+# on +10 and up, but the whole range stays selectable.
+BRACKETS = list(range(1, 30))     # keys 2 .. 30
 MAX_PAGE = 20  # the API 404s past page 20 (hasMorePages stays true)
+# Keys below +10 are levelling/gearing content with effectively bottomless
+# leaderboards - a full 20-page sweep there would be 5x the whole dataset for
+# a range the default view does not even show. They get a shallower slice of
+# the same leaderboard instead.
+LOW_KEY_MAX_PAGE = 4              # 200 runs per dungeon x key below +10
+
+
+def page_cap(bracket: int) -> int:
+    return MAX_PAGE if bracket_to_key(bracket) >= 10 else LOW_KEY_MAX_PAGE
 
 RANK_BATCH = 10       # aliased fightRankings sub-queries per HTTP request
 RANK_WORKERS = 8      # concurrent sweep workers, each walking its own cursors
@@ -208,7 +218,7 @@ def _sweep_shard(cursors: dict, out, out_lock, label: str) -> None:
                 "enc": enc, "bracket": br, "page": page, "more": more,
                 "rankings": fr["rankings"],
             }))
-            if more and page < MAX_PAGE:
+            if more and page < page_cap(br):
                 cursors[(enc, br)] = page + 1
             else:
                 del cursors[(enc, br)]
@@ -228,9 +238,9 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
             cur = state.get((enc, br))
             if cur is None:
                 cursors[(enc, br)] = 1
-            elif cur["more"] and cur["last_page"] < MAX_PAGE:
+            elif cur["more"] and cur["last_page"] < page_cap(br):
                 cursors[(enc, br)] = cur["last_page"] + 1
-    total = len(ENCOUNTERS) * len(brackets) * MAX_PAGE
+    total = len(ENCOUNTERS) * sum(page_cap(b) for b in brackets)
     print(f"[sweep] {len(cursors)} open cursors (max {total} pages total), "
           f"{RANK_WORKERS} parallel shards", flush=True)
     if not cursors:
@@ -596,8 +606,8 @@ def status(regions: set[str] | None) -> None:
     fights = load_fights(regions)
     done = load_done()
     state = load_sweep_state()
-    open_cursors = sum(1 for v in state.values()
-                       if v["more"] and v["last_page"] < MAX_PAGE)
+    open_cursors = sum(1 for (_, br), v in state.items()
+                       if v["more"] and v["last_page"] < page_cap(br))
     print(f"sweep:     {len(state)} cursors touched, "
           f"{len(ENCOUNTERS) * len(BRACKETS) - len(state)} untouched, "
           f"{open_cursors} open")
@@ -616,7 +626,7 @@ def main() -> None:
     ap.add_argument("--regions", default="ALL",
                     help='ALL (default) or a comma-separated allow-list, '
                          'e.g. US,EU')
-    ap.add_argument("--brackets", default="9-24",
+    ap.add_argument("--brackets", default="1-29",
                     help="bracket range lo-hi (bracket = key level - 1)")
     ap.add_argument("--limit-fights", type=int, default=None,
                     help="stop after N summary fetches (for testing)")

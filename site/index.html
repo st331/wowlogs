@@ -264,8 +264,8 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     <footer>
       DPS is per-player overall damage ÷ run duration; deaths are parsed from each report's
       death events. <span id="foot-src">Data is the top ~1,000 runs per dungeon × key level
-      from Warcraft Logs fight rankings — read it as "what strong runs pull", not a
-      population census.</span>
+      from Warcraft Logs fight rankings (~200 below +10, where the leaderboards are
+      bottomless) — read it as "what strong runs pull", not a population census.</span>
       Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC).
       <span id="built"></span>
       <br>Machine-readable data for AI agents:
@@ -363,7 +363,8 @@ function fmtDay(d){const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*8
 const SEASON={file:"data.json",
   sub:"Midnight Season 2 · built from Warcraft Logs fight rankings",
   foot:'Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs fight '
-      +'rankings — read it as "what strong runs pull", not a population census.',
+      +'rankings (~200 below +10, where the leaderboards are bottomless) — read it as '
+      +'"what strong runs pull", not a population census.',
   // thresholds scale to the period, so these are season-wide starting points
   minchars:100, maxchars:1200};
 

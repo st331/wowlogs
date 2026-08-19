@@ -65,9 +65,11 @@ per point:
 ## Scope and caveats
 
 * **Population:** every run WCL serves through fight rankings for zone 55
-  (Midnight M+ Season 2), keystone brackets 9–24 = key levels 10–25+
-  (bracket = key − 1; the top bracket includes 25+). WCL caps each
-  dungeon × bracket leaderboard at 20 pages × 50 runs.
+  (Midnight M+ Season 2), keystone brackets 1–29 = key levels 2–30
+  (bracket = key − 1). WCL caps each dungeon × bracket leaderboard at 20
+  pages × 50 runs; below +10 the collector takes only the first 4 pages,
+  since those leaderboards are effectively bottomless and the dashboard
+  opens on +10 and up anyway.
 * **This is a top-of-leaderboard sample, not a census.** The API serves the
   top runs *by score* per dungeon × key, so the dataset skews toward faster,
   higher-DPS runs. Read it as "what strong runs pull," not "the average run."
