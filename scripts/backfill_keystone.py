@@ -21,12 +21,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 BATCH = 15
 
 
-def main(source="ptr"):
-    sfx = "" if source == "live" else f"_{source}"
-    csv = ROOT / "data" / f"mythic_runs{sfx}.csv.gz"
+def main():
+    csv = ROOT / "data" / "mythic_runs.csv.gz"
     if not csv.exists():
         csv = csv.with_suffix("")
-    ks_file = ROOT / "data" / f"keystone_times{sfx}.json"
+    ks_file = ROOT / "data" / "keystone_times.json"
     ks = json.loads(ks_file.read_text()) if ks_file.exists() else {}
 
     df = pd.read_csv(csv).drop_duplicates(["report_code", "fight_id"])
@@ -76,4 +75,4 @@ def main(source="ptr"):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "ptr")
+    main()

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Project the August 18 class tuning onto the post-tuning PTR population.
+"""Project an announced-but-unreleased class tuning onto recorded runs.
 
 Method
 ------
@@ -42,8 +42,8 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
-CSV = ROOT / "data" / "mythic_runs_ptr.csv.gz"
-ABIL = ROOT / "data" / "raw" / "abilities_ptr.jsonl"
+CSV = ROOT / "data" / "mythic_runs.csv.gz"
+ABIL = ROOT / "data" / "raw" / "abilities.jsonl"
 TUNING = ROOT / "data" / "tuning_patches.json"
 
 PROJECTION_LABEL = "Aug 14 hotfix + Aug 18 class tuning"
@@ -76,7 +76,13 @@ def classify_abilities(rows) -> set[str]:
 # abilities  : {ability name: multiplier} applied on top of the aura
 # set_bonus  : (ability names, old_per_stack, new_per_stack) - reported as a
 #              band over B, the fraction of that line the bonus was providing
-RULES = {
+# The Aug 18 2026 pass, kept as a worked reference for the rule vocabulary.
+# It is NOT active: that tuning shipped with Season 2, so every recorded run
+# already contains it. To project a future pass, add its cutoff to
+# data/tuning_patches.json, write its rules here and assign them to RULES.
+RULES: dict = {}
+
+RULES_AUG18_2026 = {
     "Frost DeathKnight": dict(
         aura=1.09, aura_scope="ability",
         set_bonus=[("2pc Freezing Tempest", ["Icy Death Torrent"], 0.04, 0.02)],
@@ -416,7 +422,7 @@ def project(df, rows, B):
 
 
 def spec_table(df, rows, B):
-    """Median DPS now vs projected, per spec, over all post-tuning PTR keys."""
+    """Median DPS now vs projected, per spec, over all post-tuning keys."""
     per = project(df, rows, B)
     pop = df[df["specname"].isin(RULES)]
     out = []
@@ -449,7 +455,7 @@ def main():
           f"tuned-spec parses {len(pop):,}")
     r = spec_table(df, rows, B_CENTRAL)
     pd.set_option("display.width", 220)
-    print("\n=== projected median DPS, all post-tuning PTR keys ===")
+    print("\n=== projected median DPS, all post-tuning keys ===")
     print(r[["spec", "kind", "chars", "parses", "covered", "cur", "new",
              "pct", "mult_med", "mult_p10", "mult_p90"]]
           .to_string(index=False,

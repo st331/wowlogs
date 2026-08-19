@@ -209,13 +209,9 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 
 <main>
   <div class="hero-title">⚔️ Mythic+ <span class="gold">Performance</span></div>
-  <div class="hero-sub" id="hero-sub">Midnight Season 1 · Keystones +12 – 25 · built from Warcraft Logs fight rankings</div>
+  <div class="hero-sub" id="hero-sub">Midnight Season 2 · built from Warcraft Logs fight rankings</div>
   <div style="margin-top:12px">
-    <div class="seg" id="srcseg" style="margin:0">
-      <button data-src="live" class="on">Live · Season 1</button>
-      <button data-src="ptr">PTR · Season 2</button>
-    </div>
-    <div class="seg" id="timedseg" style="margin:0 0 0 8px">
+    <div class="seg" id="timedseg" style="margin:0">
       <button data-t="0" class="on">All completed</button>
       <button data-t="1">⏱ Timed only</button>
     </div>
@@ -270,7 +266,7 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       population census.</span>
       Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC).
       <span id="built"></span>
-      <br>Machine-readable PTR data for AI agents:
+      <br>Machine-readable data for AI agents:
       <a href="llms.txt">llms.txt</a> · <a href="llms/">HTML tables</a>.
     </footer>
   </div>
@@ -361,22 +357,13 @@ function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function fmtDay(d){const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*864e5);
   return t.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"})}
 
-/* ---------------- data sources (Live vs PTR) ---------------- */
-const SOURCES={
-  live:{file:"data.json",
-    sub:"Midnight Season 1 · Keystones +12 – 25 · built from Warcraft Logs fight rankings",
-    foot:'Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs fight '
-        +'rankings — read it as "what strong runs pull", not a population census.',
-    minchars:125, maxchars:1200, keydef:[18,22]},
-  ptr:{file:"data_ptr.json",
-    sub:"Midnight Season 2 (PTR) · every logged completed key · built from Warcraft Logs PTR reports",
-    foot:"Data is every completed keystone run logged to the PTR zone on Warcraft Logs — "
-        +"a small, self-selected tester population, so expect noisy numbers. Timed status "
-        +"is inferred from the in-game rating (depleted keys cap at 320 rating); keys "
-        +"below +10 can't be told apart and are excluded from the timed-only view.",
-    minchars:20, maxchars:200, keydef:null},   // keydef null = default to the full key range
-};
-let SRC="live"; const DATA_CACHE={};
+/* ---------------- season data source ---------------- */
+const SEASON={file:"data.json",
+  sub:"Midnight Season 2 · built from Warcraft Logs fight rankings",
+  foot:'Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs fight '
+      +'rankings — read it as "what strong runs pull", not a population census.',
+  // thresholds scale to the period, so these are season-wide starting points
+  minchars:20, maxchars:1200, keydef:null};   // keydef null = full key range
 
 // Large datasets are published pre-gzipped (the deploy artifact has to stay
 // small); inflate them in the browser, else fall back to the plain file.
@@ -391,16 +378,13 @@ async function loadJSON(file){
   return r.json();
 }
 
-function loadSource(src){
-  SRC=src; const cfg=SOURCES[src];
+function loadSeason(){
+  const cfg=SEASON;
   $("loading").textContent="Loading data…";
   $("loading").style.display=""; $("app").style.display="none";
-  const got=DATA_CACHE[src]?Promise.resolve(DATA_CACHE[src])
-    :loadJSON(cfg.file).then(d=>(DATA_CACHE[src]=d));
+  const got=loadJSON(cfg.file);
   got.then(d=>initData(d,cfg)).catch(e=>{
-    $("loading").textContent = src==="ptr"
-      ? "PTR data isn't available yet — run the collector with --source ptr and rebuild."
-      : "Failed to load data: "+e;
+    $("loading").textContent="Failed to load data: "+e;
   });
 }
 
@@ -421,7 +405,7 @@ function initData(d,cfg){
   }
   buildRuns();
   computeResetBuckets();
-  // score tabs only make sense where the source has rankings (never on PTR)
+  // score tabs only make sense when the source carries ranking scores
   hasScore=false;
   if(R.score) for(let i=0;i<N;i++) if(R.score[i]>=0){hasScore=true; break}
   hasTune=!!(d.tuning&&R.post);
@@ -470,7 +454,7 @@ function initData(d,cfg){
   const kd=cfg.keydef||[keys[0],keys[keys.length-1]];
   state.klo=kd[0]; state.khi=kd[1];
   state.minchars=cfg.minchars;
-  $("minchars").max=cfg.maxchars;   // PTR's population is ~6x smaller
+  $("minchars").max=cfg.maxchars;
   $("minchars").value=state.minchars;
   $("minchars-v").textContent=state.minchars;
   state.compare=false; $("cmp").checked=false;
@@ -484,14 +468,6 @@ function initData(d,cfg){
   setCompare(false);   // also resets gain/loss sort state, then renders
 }
 
-$("srcseg").querySelectorAll("button").forEach(b=>{
-  b.onclick=()=>{
-    if(SRC===b.dataset.src) return;
-    $("srcseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
-    history.replaceState(null,"","#"+b.dataset.src);  // survives ↺ Reset filters
-    loadSource(b.dataset.src);
-  };
-});
 $("posttune").onchange=e=>{state.postTune=e.target.checked; render()};
 $("projcb").onchange=e=>{
   state.proj=e.target.checked;
@@ -514,10 +490,7 @@ $("timedseg").querySelectorAll("button").forEach(b=>{
   };
 });
 window.addEventListener("resize",()=>{ if(state.tab==="trend"&&D) render(); });
-const initSrc=location.hash==="#ptr"?"ptr":"live";
-$("srcseg").querySelectorAll("button").forEach(x=>
-  x.classList.toggle("on",x.dataset.src===initSrc));
-loadSource(initSrc);
+loadSeason();
 
 // One entry per run: its duration, where/when it happened, and the full
 // 5-player composition. Built once per dataset because none of it depends on

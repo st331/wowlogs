@@ -1,41 +1,20 @@
-# WoW Mythic+ Performance Dashboard — Midnight Season 1
+# WoW Mythic+ Performance Dashboard — Midnight Season 2
 
-A data-collection pipeline and interactive Streamlit dashboard that tracks,
-aggregates and visualizes Mythic+ performance for **Midnight Season 1**
-(high keys, +12 → +25 and above), built on the
+A data-collection pipeline and interactive dashboard that tracks, aggregates
+and visualizes Mythic+ performance for **Midnight Season 2**, built on the
 [Warcraft Logs v2 GraphQL API](https://www.warcraftlogs.com/api/docs).
 
-**Current dataset:** 60,235 dungeon runs / 301,185 player parses across all 8
-dungeons and keys 12–25+ (runs dated 2026-03-28 → 2026-07-02), all regions
-(CN 117.8k, EU 110.8k, US 57.6k, KR 14.9k player rows). 14 classes, 36
-specs, 42 hero talents. Of 94,613 ranked leaderboard entries, 34,325 were
-unlogged/anonymous (no report exists — nothing to fetch); every public run
-was collected. Total API cost: ~170k points across ~9 hourly quota windows.
-
 ```
-scripts/wcl_client.py       quota-aware WCL GraphQL client
-scripts/build_hero_map.py   trait-node → hero-talent mapping from SimC data
-scripts/fetch_data.py       checkpointed collection pipeline → data/mythic_runs.csv
-scripts/build_site_data.py  packs the CSV into site/data.json for the static site
-site/                       static dashboard (recommended) — index.html + data.json
-dashboard.py                Streamlit dashboard (same features, server-based)
+scripts/wcl_client.py        quota-aware WCL GraphQL client
+scripts/build_hero_map.py    trait-node → hero-talent mapping from SimC data
+scripts/fetch_data.py        checkpointed collection pipeline → data/mythic_runs.csv.gz
+scripts/build_site_data.py   packs the CSV into site/data.json + the /llms export
+scripts/fetch_abilities.py   per-ability damage breakdown (tuning projection)
+scripts/project_tuning.py    re-scores parses under an announced tuning pass
+scripts/hero_from_abilities.py  recovers hero talents from the abilities cast
+scripts/backfill_keystone.py    tops up keystone clock times for aged-out reports
+site/                        static dashboard — index.html + data.json (docs/ mirrors it)
 ```
-
-## Static dashboard (recommended)
-
-`site/` is a dependency-free, single-page dashboard: all filtering and
-aggregation runs client-side over a compact columnar `data.json` (~1.8 MB
-gzipped), so it loads in under a second and never needs a server reboot.
-Rebuild the data file after collecting new data:
-
-```bash
-python3 scripts/build_site_data.py
-```
-
-Host it anywhere that serves static files. **Cloudflare Pages** deploys free
-from a private GitHub repo (build command: none, output directory: `site`),
-auto-redeploys on every push, and can be gated with Cloudflare Access if the
-URL should not be public. Netlify and Vercel work identically.
 
 ## Quick start
 
@@ -50,129 +29,99 @@ export WCL_CLIENT_SECRET="..."               #   used when no token is given
 # 2. build the hero-talent lookup (one-off; downloads SimC game data)
 python3 scripts/build_hero_map.py
 
-# 3. collect data (checkpointed — kill/re-run any time, it resumes)
+# 3. collect (checkpointed — kill/re-run any time, it resumes)
 python3 scripts/fetch_data.py                # sweep → summaries → export
 python3 scripts/fetch_data.py --stage status # progress at a glance
-python3 scripts/fetch_data.py --source ptr   # next season's PTR zone
-                                             #   → data/mythic_runs_ptr.csv
 
-# 4. dashboard
-streamlit run dashboard.py
+# 4. pack for the site
+python3 scripts/build_site_data.py
 ```
+
+`site/` is a dependency-free single-page dashboard: all filtering and
+aggregation runs client-side over a compact columnar `data.json`, so it loads
+fast and needs no server. `docs/` is a byte-identical mirror because GitHub
+Pages serves only from the repo root or `/docs`.
 
 ## How the pipeline stays inside the API budget
 
-The WCL client API allows **18,000 points/hour**. The pipeline is designed
-around getting the maximum data per point:
+The WCL client API allows **18,000 points/hour**. The pipeline maximises data
+per point:
 
 1. **`fightRankings`, not `characterRankings`.** Fight rankings return one
-   entry per *run* (with report code, fight ID, keystone level, duration,
-   score and the 5-player roster), while character rankings repeat every run
-   once per ranked player. One sweep of 8 dungeons × 14 keystone brackets
-   (keys 12–25+; WCL serves at most 20 pages × 50 runs per bracket) costs
-   ≈ 2,000 points.
-2. **One `Summary` table query per run.** A single ~1–3 point report query
+   entry per *run* (report code, fight ID, keystone level, duration, medal,
+   score and the 5-player roster); character rankings repeat every run once
+   per ranked player.
+2. **One `Summary` table query per run.** A single ~1-point report query
    returns, for all five players at once: total damage done, the raw death
-   events, and the full combatant talent trees. That is every per-player fact
-   we need for ≈ 0.5 points per player-row; fetching deaths/talents as
-   separate event queries would triple the cost.
+   events and the full combatant talent trees.
 3. **GraphQL alias batching.** Rankings pages and report tables are batched
-   ~10–12 sub-queries per HTTP request, so the quota — not round-trip
-   latency — is the only limiter.
+   ~10–12 sub-queries per HTTP request, so quota — not latency — is the limit.
 4. **Live budget tracking.** Every response piggybacks `rateLimitData`; when
-   the spend approaches the hourly cap the pipeline sleeps until the window
-   resets, then continues. HTTP 429s and GraphQL quota errors are handled the
-   same way, transient network failures with exponential backoff.
+   spend approaches the cap the pipeline sleeps until the window resets.
 5. **Checkpoint everything.** Rankings pages, fetched summaries and parsed
-   player rows are journaled to disk (`data/raw/`, `data/processed/`);
-   re-running skips all completed work.
+   player rows are journaled to `data/raw/` and `data/processed/`; re-running
+   skips completed work.
 
-### Scope and caveats
+## Scope and caveats
 
-* **Population:** every run WCL serves through fight rankings for zone 47
-  (Midnight M+ Season 1), keystone brackets 11–24 = key levels 12–25+
+* **Population:** every run WCL serves through fight rankings for zone 55
+  (Midnight M+ Season 2), keystone brackets 9–24 = key levels 10–25+
   (bracket = key − 1; the top bracket includes 25+). WCL caps each
   dungeon × bracket leaderboard at 20 pages × 50 runs.
-* **This is a top-of-leaderboard sample, not a census.** Because the API only
-  serves the top ~1,000 runs *by score* per dungeon × key, the dataset skews
-  toward high-scoring (faster, higher-DPS) runs. Aggregate DPS here therefore
-  runs a bit **higher** than sites that average the full logged population
-  (e.g. mythicstats / WCL's own statistics), by roughly 8–12 % — the ranking
-  order matches, the absolute numbers sit above a full-population mean. Read
-  it as "what strong runs pull," not "the average run."
-* **PTR data uses a different sweep.** WCL computes no rankings for PTR
-  zones, so `--source ptr` enumerates the zone's reports directly
-  (`reportData.reports`), pulls each report's fight list, and keeps every
-  *completed* keystone fight (`kill == true`). That makes the PTR dataset a
-  census of what testers actually logged — a small, self-selected population
-  with no score floor — rather than a top-of-leaderboard sample. PTR run
-  scores come from the fight's `rating` field (the in-game M+ rating captured
-  in the combat log) rather than WCL's ranking score. WCL also lacks PTR
-  par-time data (`keystoneBonus` is always 0 there), so PTR timed/depleted
-  status is inferred from that rating: depleted keys are rating-capped at 320
-  regardless of key level, timed keys +10 and up land above the cap, and keys
-  below +10 stay unknown. The dashboard's "⏱ Timed only" toggle uses this
-  flag (on live it uses the ranking medal). The dashboard's score tabs
-  aggregate per-character season-style totals — each character's best run per
-  dungeon (on that spec, under the active filters) summed across dungeons —
-  not single-run scores. It lands in
-  per-source files (`mythic_runs_ptr.csv`, `data_ptr.json`) and the dashboard's
-  Live / PTR toggle switches between the two.
-* **Tuning cutoff.** `data/tuning_patches.json` records each PTR class-tuning
-  pass with the UTC instant it went live (per region if that ever differs).
-  The build stamps every run with a `post_tuning` flag by comparing its exact
-  start instant against that cutoff, powering the dashboard's "Since latest
-  tuning" checkbox and the `post_tuning` subsets in the LLM export. Add a new
-  entry at the top of `patches` after each pass; nothing else needs changing.
-* **Projected tuning.** `scripts/fetch_abilities.py` collects a per-ability
-  damage breakdown (plus equipped tier pieces) for every post-tuning PTR run,
-  and `scripts/project_tuning.py` re-scores each parse line by line against an
-  announced-but-unreleased tuning pass. The resulting per-parse multiplier
-  ships in the site payload as `tmul` and in the LLM export as `tuning_mult` /
-  `projected_dps`, so the dashboard's "🔮 Project upcoming tuning" toggle
-  recomputes exactly under any filter combination rather than applying a
-  spec-level average. Spec-wide auras and named-ability changes are exact; set
-  bonuses that ride on top of an ability the log reports as one number are
-  parameterised, and `project_tuning.py --help`-free `main()` prints a
-  sensitivity sweep over those parameters.
-* **Unlogged runs are skipped by necessity.** Roughly 70 % of ranked entries
-  are Blizzard-leaderboard imports or anonymized logs with **no report
-  attached** (`report.code == ""`, `deaths == 300000000` sentinel) — there is
-  no per-player data to fetch for them, via API or website alike.
-* **Regions:** all regions are collected by default (`--regions US,EU`-style
-  allow-lists are available for restricted runs). About two-thirds of public
-  entries carry no server tag on the leaderboard — each player's true region
-  (from the report itself) lands in the CSV's `region` column, and the
-  dashboard's Region filter works off that.
+* **This is a top-of-leaderboard sample, not a census.** The API serves the
+  top runs *by score* per dungeon × key, so the dataset skews toward faster,
+  higher-DPS runs. Read it as "what strong runs pull," not "the average run."
+* **Unlogged runs are skipped by necessity.** A large share of ranked entries
+  are Blizzard-leaderboard imports or anonymized logs with no report attached
+  — there is no per-player data to fetch for them, via API or website alike.
+* **Duplicate uploads are collapsed.** Several members of a group often each
+  upload the same fight, so one real run arrives under multiple report codes.
+  A run is identified by dungeon + key + keystone clock + exact roster.
+  Start timestamps cannot be used: each uploader's report begins at a
+  different moment, tens of seconds apart for the same fight.
+* **Keystone timers are derived, not published.** WCL exposes no par time, so
+  each dungeon's timer is inferred as the threshold separating timed from
+  depleted runs on the keystone clock, snapped to the nearest 30s. Every
+  derived value landing on an exact round minute is the check that it worked.
 * **DPS** = per-player total damage done ÷ fight duration (the report's own
   `totalTime`), matching WCL's "Overall DPS" for dungeon runs.
-* **Deaths** are counted per player from the report's raw death events
-  (`deathEvents` in the summary table).
+* **Deaths** are counted per player from the report's raw death events.
+* **Hero talents** come from an offline SimulationCraft trait-tree mapping
+  (`build_hero_map.py`). Parses whose log carries no combatant info arrive
+  labelled `Unknown`; `hero_from_abilities.py` recovers most of them from the
+  abilities they cast, since each tree grants abilities its siblings do not.
 
-## Hero talents
+## Tuning projection
 
-WCL only exposes combatant talents as raw trait-tree node IDs; there is no
-string-translation endpoint. `scripts/build_hero_map.py` derives an offline
-mapping from **SimulationCraft's** open-source DBC dumps
-(`engine/dbc/generated/trait_data.inc`, `midnight` branch): every trait node
-carries a sub-tree ID, and `__trait_sub_tree_data` names all 41 hero trees
-("Diabolist", "Rider of the Apocalypse", …). A player's hero talent is
-resolved by majority vote over their equipped talent nodes, which is robust
-to the shared selection node that SimC attributes to a sibling tree.
+`data/tuning_patches.json` records each class-tuning pass with the UTC instant
+it went live, powering the "Since latest tuning" filter. **It is empty at the
+Season 2 launch** — the Aug 18 pass shipped with the season, so every recorded
+run already postdates it and there is nothing to split on. Add an entry at the
+top of `patches` after each future pass.
+
+The dashboard can also project an *announced but unreleased* pass onto recorded
+runs. `fetch_abilities.py` collects a per-ability damage breakdown, and
+`project_tuning.py` re-scores each parse line by line against the announced
+changes, shipping a per-parse multiplier so any aggregate stays exact under any
+filter. Both are dormant until rules are configured: `RULES` is empty, with the
+Aug 18 2026 pass kept as `RULES_AUG18_2026` for reference on the rule
+vocabulary (spec auras, named abilities, set-bonus scalars, compensating auras,
+time- and hero-gated hotfixes). The dashboard hides the toggle when there is
+nothing to project.
 
 ## Dashboard
 
-* Groups by **Class / Spec / Hero Talent** with **Total Runs, Average DPS,
-  Median DPS, Average Deaths**; DPS and run counts use comma separators.
-* Sidebar filters: Class, Spec and Hero Talent multiselects, a Key Level
-  range slider, a Minimum Characters threshold slider (how many distinct
-  players must have parsed a spec, scaled per period) that hides
-  statistical outliers, plus an optional Role filter.
-* Data is cached with `st.cache_data`; the **🔄 Refresh Data** button clears
-  the cache and re-reads `data/mythic_runs.csv` from disk without restarting
-  the server.
+* Groups by **Class / Spec / Hero Talent**, with tabs for Average and Median
+  DPS, Mean − Median, Average Deaths, Deathless %, Unique Characters, Score,
+  and a Trend view whose metric is selectable.
+* Filters: class, spec and hero-talent multiselects, key-level range, region,
+  role, a **minimum unique characters** threshold that scales with the period,
+  weekly-reset and day-granularity pickers, timed-only and compare-periods.
+* A **Top Comps** table ranks 5-player compositions by a key-normalised
+  Strength score, sortable on every column.
+* `/llms.txt` and `/llms/*.csv` expose the whole dataset for LLM analysis.
 
-## Data dictionary (`data/mythic_runs.csv`)
+## Data dictionary (`data/mythic_runs.csv.gz`)
 
 One row per player per run.
 
@@ -181,7 +130,7 @@ One row per player per run.
 | `character`, `server`, `region` | player identity |
 | `class`, `spec`, `hero_talent`, `role` | e.g. `Warlock`, `Demonology`, `Diabolist`, `DPS` |
 | `dungeon`, `key_level`, `affixes` | encounter, keystone level, affix IDs (`\|`-separated) |
-| `duration_s` | fight duration in seconds |
+| `duration_s`, `keystone_s` | fight (combat) duration and the keystone clock |
 | `damage_done`, `dps` | total damage and overall DPS for the run |
 | `deaths` | this player's deaths in the run |
 | `item_level` | player max item level during the run |

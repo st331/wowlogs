@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Per-ability damage breakdown for PTR runs, for tuning-impact projection.
+"""Per-ability damage breakdown, for tuning-impact projection.
 
 The main pipeline stores only each player's *total* damage, which is enough
 for DPS but not for asking "what happens if Blizzard changes one ability by
@@ -12,7 +12,7 @@ for DPS but not for asking "what happens if Blizzard changes one ability by
           filtering by sourceID returns every ability and the totals then
           reconcile exactly to the player's damage done.
 
-Journalled to data/raw/abilities_ptr.jsonl, one line per player per fight, so
+Journalled to data/raw/abilities.jsonl, one line per player per fight, so
 re-running resumes.  Restricted to runs at or after the newest tuning patch.
 """
 from __future__ import annotations
@@ -29,8 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from wcl_client import WCLClient  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-CSV = ROOT / "data" / "mythic_runs_ptr.csv.gz"
-OUT = ROOT / "data" / "raw" / "abilities_ptr.jsonl"
+CSV = ROOT / "data" / "mythic_runs.csv.gz"
+OUT = ROOT / "data" / "raw" / "abilities.jsonl"
 TUNING = ROOT / "data" / "tuning_patches.json"
 
 FIGHT_BATCH = 6     # unfiltered tables aliased per HTTP request

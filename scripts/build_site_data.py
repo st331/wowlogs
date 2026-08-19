@@ -6,9 +6,8 @@ it needs per-parse rows, not pre-aggregates (medians can't be merged). Columns
 are dictionary-encoded ints; the whole file compresses to a few MB over the
 wire and parses in ~100 ms.
 
-One JSON per data source: data.json (live season) and data_ptr.json (PTR),
-each self-describing via its "season" label. Sources whose CSV is missing are
-skipped, so the live build never blocks on PTR data existing.
+Emits data.json for the current season, self-describing via its "season"
+label.
 """
 import argparse
 import gzip
@@ -28,15 +27,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # from the repo root or /docs on branch-based deploys
 SITE_DIRS = [ROOT / "site", ROOT / "docs"]
 
-SOURCES = {
-    "live": {"csv": "mythic_runs.csv.gz", "out": "data.json",
-             "season": "Midnight Season 1"},
-    # score suppressed on PTR: the tiny tester population makes per-character
-    # totals meaningless there, so the dashboard hides all score UI (the run
-    # ratings still live in the CSV — the timed flag is derived from them)
-    "ptr": {"csv": "mythic_runs_ptr.csv.gz", "out": "data_ptr.json",
-            "season": "Midnight Season 2 (PTR)", "score": False},
-}
+SEASON = {"csv": "mythic_runs.csv.gz", "out": "data.json",
+          "season": "Midnight Season 2"}
 
 EPOCH = pd.Timestamp("2026-01-01")
 TUNING_FILE = ROOT / "data" / "tuning_patches.json"
@@ -124,7 +116,7 @@ def resolve_hero_talents(df):
     hero IS known, and ambiguous parses are left Unknown rather than guessed.
 
     Returns the number of rows filled in. Only parses with a breakdown can be
-    recovered, so on PTR this covers the post-tuning window.
+    recovered, so this covers whatever window fetch_abilities.py has collected.
     """
     rows = ability_records()
     if not rows or "Unknown" not in set(df["hero_talent"]):
@@ -154,7 +146,7 @@ def resolve_hero_talents(df):
 def tuning_multipliers(df, post):
     """Per-parse projected/current damage ratio for an upcoming tuning pass.
 
-    Each parse's own ability breakdown (data/raw/abilities_ptr.jsonl) is
+    Each parse's own ability breakdown (data/raw/abilities.jsonl) is
     re-scored line by line against the announced changes, so the number
     shipped here is that specific player's projected damage in that specific
     run — never a spec-level average. The client can therefore apply it row by
@@ -180,7 +172,7 @@ def tuning_multipliers(df, post):
             named |= set(e[1])
         missing = sorted(n for n in named if n not in seen_names)
         if missing:
-            print(f"[ptr] WARNING {sname}: rule names {missing} which appear in "
+            print(f"[build] WARNING {sname}: rule names {missing} in "
                   f"no parse - that part of the rule does nothing", flush=True)
     work = df.copy()
     work["specname"] = work["spec"] + " " + work["class"]
@@ -199,6 +191,11 @@ def tuning_multipliers(df, post):
     unprojectable = tuned & mult.isna()
     mult = mult.fillna(1.0).mask(unprojectable, 0.0)
     covered = int(((mult != 1.0) & (mult != 0.0)).sum())
+    if not covered:
+        # nothing to project: no rules configured, or no run predates the
+        # pending pass. Returning None hides the toggle rather than shipping a
+        # column of 1.0s that pretends a projection exists.
+        return None, None
     return (mult.mul(10000).round().astype(int).tolist(),
             {"label": pt.PROJECTION_LABEL, "url": pt.PROJECTION_URL,
              "date": pt.PROJECTION_DATE, "parses": covered,
@@ -224,7 +221,7 @@ def build(name: str, cfg: dict) -> None:
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
     unknown_before = int((df["hero_talent"] == "Unknown").sum())
-    hero_filled = resolve_hero_talents(df) if name == "ptr" else 0
+    hero_filled = resolve_hero_talents(df)
     if hero_filled:
         print(f"[{name}] hero talent recovered from abilities for "
               f"{hero_filled:,} of {unknown_before:,} Unknown parses")
@@ -255,15 +252,15 @@ def build(name: str, cfg: dict) -> None:
     if not cfg.get("score", True):
         score = pd.Series(-1.0, index=df.index)
     # beat-the-timer flag from the run's medal: 1 = timed (any chest count;
-    # "timed" is the PTR rating-derived value), 0 = over timer, -1 = unknown
+    # from the ranking medal), 0 = over timer, -1 = unknown
     timed = df["medal"].map({"gold": 1, "silver": 1, "bronze": 1, "timed": 1,
                              "none": 0}).fillna(-1).astype(int)
-    patch = latest_tuning() if name == "ptr" else None
+    patch = latest_tuning()
     post = post_tuning_flag(started, df["region"], patch)
     # per-parse projected-tuning multiplier. This is a property of the parse
     # itself — derived from that player's own ability breakdown — so the client
     # can apply it row by row and every aggregate stays exact under any filter.
-    tmul, proj = tuning_multipliers(df, post) if name == "ptr" else (None, None)
+    tmul, proj = tuning_multipliers(df, post)
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
@@ -324,10 +321,10 @@ def build(name: str, cfg: dict) -> None:
 
 
 # --------------------------------------------------------------------------
-# LLM-accessible PTR export (/llms.txt + /llms/*.csv)
+# LLM-accessible export (/llms.txt + /llms/*.csv)
 # --------------------------------------------------------------------------
 # The dashboard aggregates in JavaScript, which LLM web-fetch tools cannot
-# execute — they read static text. This emits the PTR dataset as a
+# execute — they read static text. This emits the season dataset as a
 # self-describing llms.txt index plus pre-aggregated CSVs and chunked raw
 # per-parse rows, so an LLM given ONE url can pull any cut of the data.
 
@@ -354,11 +351,11 @@ def reset_bounds(now, regions):
 
 
 def build_llms() -> None:
-    csv = ROOT / "data" / SOURCES["ptr"]["csv"]
+    csv = ROOT / "data" / SEASON["csv"]
     if not csv.exists():
         csv = csv.with_suffix("")
     if not csv.exists():
-        print("[llms] PTR csv missing — skipped")
+        print("[llms] season csv missing — skipped")
         return
     df = pd.read_csv(csv)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
@@ -631,16 +628,16 @@ def build_llms() -> None:
     region_line = ", ".join(f"{r} {n:,}" for r, n
                             in df["region"].value_counts().items())
     lines = [
-        "# Midnight Mythic+ Season 2 (PTR) — dataset for LLM analysis",
+        "# Midnight Mythic+ Season 2 — dataset for LLM analysis",
         "",
-        f"> Per-player performance data for every completed Mythic+ keystone "
-        f"run logged to Warcraft Logs' PTR zone (zone 56). "
+        f"> Per-player performance data for Mythic+ keystone runs from "
+        f"Warcraft Logs' Season 2 fight rankings (zone 55). "
         f"{n_runs:,} runs / {len(df):,} player parses, keystone levels "
         f"+{df.key_level.min()}-+{df.key_level.max()}, "
         f"{df['date'].min()} to {df['date'].max()}. Generated {built}.",
         "",
         "The interactive dashboard at "
-        f"{BASE_URL}/#ptr is JavaScript-only and not machine-readable; "
+        f"{BASE_URL}/ is JavaScript-only and not machine-readable; "
         "use the static files below instead. All URLs are absolute — fetch "
         "any of them directly. CSVs are comma-separated with a header row.",
         "",
@@ -868,8 +865,8 @@ def build_llms() -> None:
         f"- {df.dungeon.nunique()} dungeons, keystone levels "
         f"+{df.key_level.min()}-+{df.key_level.max()}, median +"
         f"{int(df.key_level.median())}.",
-        "- Sample size: this is a PTR tester population, so many "
-        "class/spec/dungeon cells are thin. Treat a row with fewer than ~30 "
+        "- Sample size: early in a season many class/spec/dungeon cells are "
+        "thin. Treat a row with fewer than ~30 "
         "characters as indicative only, and prefer `characters` over "
         "`parses` when judging whether a number is broadly based.",
         "",
@@ -884,32 +881,24 @@ def build_llms() -> None:
         "",
         "## What is not in this export",
         "",
-        "- Live Season 1 data. The dashboard carries it (a much larger, "
-        "leaderboard-sampled dataset) but only the PTR season is exported "
-        "here.",
-        "- M+ score/rating. WCL computes no ranking score for PTR zones; the "
-        "in-game rating is collected but only used to derive the `timed` "
-        "flag, and is deliberately not published as a metric because the "
-        "tester population makes per-character totals meaningless.",
+        "- Any season before Midnight Season 2. Earlier seasons are not "
+        "collected or exported.",
         "- Player names and realms: characters are exposed only as opaque "
         "char_id integers.",
         "",
         "## Provenance and caveats",
         "",
-        "- Source: Warcraft Logs API v2 report data for the PTR Mythic+ "
-        "zone; every *completed* keystone fight (kill == true) is included "
-        "— wipes and abandoned keys are not. This is a census of what "
-        "testers logged, not a leaderboard sample.",
-        "- The PTR population is small and self-selected; expect noisy "
-        "numbers, especially for rare specs — check the `characters` column "
-        "before trusting a row.",
-        "- Timed status is inferred from Blizzard's in-game rating "
-        "(depleted keys are rating-capped at 320 regardless of level).",
+        "- Source: Warcraft Logs API v2 fight rankings for the Season 2 "
+        "Mythic+ zone, swept per dungeon x keystone bracket. WCL serves at "
+        "most 20 pages x 50 runs per bracket, so this is a top-of-"
+        "leaderboard sample rather than a census: aggregate DPS here runs "
+        "above a full-population mean.",
+        "- Timed status comes from the ranking medal.",
         "- Duplicate uploads are collapsed. Several members of a group often "
         "each upload the same fight, so one real run arrives under multiple "
         "report codes; a run is identified by dungeon + key level + keystone "
         "clock + exact roster, and only one copy is kept. This removed about "
-        "27% of apparent PTR runs, so run counts here are lower — and "
+        "a quarter of apparent runs, so run counts here are lower — and "
         "correct — versus anything computed before the fix. Start timestamps "
         "cannot be used for this: each uploader's report begins at a "
         "different moment, tens of seconds apart for the same fight.",
@@ -970,7 +959,7 @@ def build_llms() -> None:
         tables_html.append(f'<li><a href="{BASE_URL}/llms/{stem}.html">'
                            f'{stem}.html</a> — {len(frame):,} rows</li>')
     tables_html.append("</ul>")
-    doc_html = html_doc("Midnight M+ Season 2 (PTR) — data for LLMs",
+    doc_html = html_doc("Midnight M+ Season 2 — data for LLMs",
                         md_to_html(lines) + "\n".join(tables_html))
     # Explicitly welcome AI crawlers. NOTE: crawlers only honour robots.txt at
     # the DOMAIN root (st331.github.io/robots.txt), which a project page cannot
@@ -1014,7 +1003,7 @@ def build_llms() -> None:
             frame.to_csv(d / "llms" / name, index=False)
             (d / "llms" / f"{name[:-4]}.html").write_text(html_doc(
                 name[:-4],
-                f"<h1>{name[:-4]}</h1><p>Midnight M+ Season 2 (PTR), generated "
+                f"<h1>{name[:-4]}</h1><p>Midnight M+ Season 2, generated "
                 f"{built}. CSV: <a href=\"{BASE_URL}/llms/{name}\">{name}</a> · "
                 f"docs: <a href=\"{BASE_URL}/llms.txt\">llms.txt</a></p>"
                 + frame.to_html(index=False, border=0, na_rep="")))
@@ -1027,15 +1016,9 @@ def build_llms() -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--source", choices=[*SOURCES, "all"], default="all",
-                    help="rebuild one source's JSON only (default: all); the "
-                         "other file keeps its committed build untouched")
-    args = ap.parse_args()
-    for name, cfg in SOURCES.items():
-        if args.source in ("all", name):
-            build(name, cfg)
-    if args.source in ("all", "ptr"):
-        build_llms()
+    ap.parse_args()
+    build("season", SEASON)
+    build_llms()
     index = ROOT / "site" / "index.html"
     docs_index = ROOT / "docs" / "index.html"
     docs_index.write_text(index.read_text())
