@@ -31,6 +31,9 @@ SEASON = {"csv": "mythic_runs.csv.gz", "out": "data.json",
           "season": "Midnight Season 2"}
 
 EPOCH = pd.Timestamp("2026-01-01")
+# 1 = beat the timer (any chest count), 0 = over timer, anything else unknown.
+# Both the site payload and the LLM export read this, so they cannot drift.
+MEDAL_TIMED = {"gold": 1, "silver": 1, "bronze": 1, "timed": 1, "none": 0}
 TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 
 
@@ -253,8 +256,7 @@ def build(name: str, cfg: dict) -> None:
         score = pd.Series(-1.0, index=df.index)
     # beat-the-timer flag from the run's medal: 1 = timed (any chest count;
     # from the ranking medal), 0 = over timer, -1 = unknown
-    timed = df["medal"].map({"gold": 1, "silver": 1, "bronze": 1, "timed": 1,
-                             "none": 0}).fillna(-1).astype(int)
+    timed = df["medal"].map(MEDAL_TIMED).fillna(-1).astype(int)
     patch = latest_tuning()
     post = post_tuning_flag(started, df["region"], patch)
     # per-parse projected-tuning multiplier. This is a property of the parse
@@ -361,7 +363,7 @@ def build_llms() -> None:
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
     resolve_hero_talents(df)
-    df["timed"] = df["medal"].map({"timed": 1, "none": 0}).fillna(-1).astype(int)
+    df["timed"] = df["medal"].map(MEDAL_TIMED).fillna(-1).astype(int)
     started = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
                              unit="ms", errors="coerce")
     df["date"] = started.dt.strftime("%Y-%m-%d")
