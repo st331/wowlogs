@@ -977,8 +977,8 @@ def main() -> None:
             since = int(pd.read_csv(CSV_FILE, usecols=["started_at"])
                         ["started_at"].min())
         else:
-            since = int(pd.Timestamp.utcnow().value // 10 ** 6) - 7 * 86400_000
-        until = int(pd.Timestamp.utcnow().value // 10 ** 6)
+            since = int(pd.Timestamp.now('UTC').value // 10 ** 6) - 7 * 86400_000
+        until = int(pd.Timestamp.now('UTC').value // 10 ** 6)
         print(f"[enum] enumerating {pd.Timestamp(since, unit='ms')} -> "
               f"{pd.Timestamp(until, unit='ms')} UTC", flush=True)
         enumerate_reports(since, until)
