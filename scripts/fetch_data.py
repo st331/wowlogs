@@ -49,6 +49,9 @@ RAW = ROOT / "data" / "raw"
 PROCESSED = ROOT / "data" / "processed"
 CHECKPOINTS = ROOT / "data" / "checkpoints"
 RANKINGS_FILE = RAW / "rankings.jsonl"
+ENUM_FILE = RAW / "reports.jsonl"          # full-population report enumeration
+ENUM_WINDOWS = RAW / "reports_windows.txt"  # time windows already enumerated
+PARS_FILE = ROOT / "data" / "keystone_pars.json"
 SUMMARIES_DONE = PROCESSED / "summaries_done.txt"
 PLAYERS_FILE = PROCESSED / "players.jsonl"
 # stored gzipped: the live CSV crossed GitHub's hard 100 MB blob limit,
@@ -90,6 +93,18 @@ LOW_KEY_MAX_PAGE = 4              # 200 runs per dungeon x key below +10
 
 def page_cap(bracket: int) -> int:
     return MAX_PAGE if bracket_to_key(bracket) >= 10 else LOW_KEY_MAX_PAGE
+
+# Report enumeration. `reports` is billed per page, not per run, so this is
+# nearly free next to the summaries: a full hour of the live zone is ~26 pages
+# of 50 (~1,300 points) and yields ~6,400 completed keys.
+ENUM_WINDOW_S = 1800   # seconds of game time per enumeration window
+ENUM_PAGE_LIMIT = 50   # 100 blows the 50,000 query-complexity ceiling
+ENUM_WORKERS = 6
+# Two uploads of one run agree on dungeon, key level and keystone clock, and
+# their absolute start times land within a couple of seconds of each other
+# (measured: median 0.0s, p90 2.1s). Runs that merely share the first three
+# are a real 5% of matches, so the start time has to break them apart.
+DEDUPE_START_GAP_MS = 120_000
 
 RANK_BATCH = 10       # aliased fightRankings sub-queries per HTTP request
 RANK_WORKERS = 8      # concurrent sweep workers, each walking its own cursors
@@ -296,6 +311,229 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
 
 
 ## --------------------------------------------------------------------------
+# Stage 1b: full-population report enumeration
+#
+# fightRankings only serves runs the leaderboard ranked, and it does not even
+# fill its own 20-page cap: at +10 the deepest dungeon returns ~936 of a
+# possible 1,000, and the whole sweep finds under a tenth of what was actually
+# played. `reportData.reports` walks every upload in the zone instead, which is
+# the only way to see the real population.
+## --------------------------------------------------------------------------
+
+
+def _enum_done_windows() -> set:
+    if not ENUM_WINDOWS.exists():
+        return set()
+    out = set()
+    for line in ENUM_WINDOWS.read_text().splitlines():
+        line = line.strip()
+        if line.isdigit():
+            out.add(int(line))
+    return out
+
+
+def _enum_window(client: WCLClient, start_ms: int, end_ms: int) -> list[dict]:
+    """Every completed keystone fight uploaded in one time window."""
+    out, page = [], 1
+    while page <= 200 and not STOP:
+        q = (f'{{ reportData {{ reports(zoneID: {ZONE_ID}, '
+             f'startTime: {start_ms}, endTime: {end_ms}, '
+             f'page: {page}, limit: {ENUM_PAGE_LIMIT}) {{ has_more_pages '
+             f'data {{ code startTime region {{ compactName }} '
+             f'fights(translate: true) {{ id encounterID keystoneLevel '
+             f'keystoneAffixes keystoneTime kill startTime }} }} }} }} }}')
+        data = client.query(q, est_cost=2.0)
+        rep_page = (data.get("reportData") or {}).get("reports") or {}
+        rows = rep_page.get("data") or []
+        for rep in rows:
+            base = rep.get("startTime") or 0
+            region = ((rep.get("region") or {}).get("compactName") or "").upper()
+            for f in rep.get("fights") or []:
+                kl = f.get("keystoneLevel")
+                if not kl or not f.get("kill"):
+                    continue                 # depleted or abandoned key
+                enc = f.get("encounterID")
+                if enc not in ENCOUNTERS:
+                    continue
+                out.append({
+                    "code": rep["code"], "fid": f["id"], "enc": enc,
+                    "key": kl,
+                    "ks": f.get("keystoneTime") or 0,
+                    "start": base + (f.get("startTime") or 0),
+                    "region": region,
+                    "affixes": f.get("keystoneAffixes") or [],
+                })
+        if not rep_page.get("has_more_pages") or not rows:
+            break
+        page += 1
+    return out
+
+
+def enumerate_reports(since_ms: int, until_ms: int) -> None:
+    """Walk the zone's whole upload history in windows, journalling as we go.
+
+    Windows are the resume unit: a window is only marked done once its pages
+    are fully written, so a kill mid-window costs at most that window.
+    """
+    done = _enum_done_windows()
+    windows = []
+    w = (since_ms // (ENUM_WINDOW_S * 1000)) * (ENUM_WINDOW_S * 1000)
+    while w < until_ms:
+        if w not in done:
+            windows.append(w)
+        w += ENUM_WINDOW_S * 1000
+    print(f"[enum] {len(windows)} windows of {ENUM_WINDOW_S}s to walk "
+          f"({len(done)} already done), {ENUM_WORKERS} workers", flush=True)
+    if not windows:
+        return
+
+    RAW.mkdir(parents=True, exist_ok=True)
+    _repair_tail(ENUM_FILE)
+    out = ENUM_FILE.open("a")
+    marks = ENUM_WINDOWS.open("a")
+    lock = threading.Lock()
+    tally = [0, 0]      # windows finished, runs journalled
+
+    def work(w0):
+        if STOP:
+            return
+        client = _worker_client()
+        try:
+            rows = _enum_window(client, w0, w0 + ENUM_WINDOW_S * 1000 - 1)
+        except RuntimeError as e:                          # noqa: BLE001
+            print(f"[enum] window {w0} failed (re-run to retry): {e}", flush=True)
+            return
+        with lock:
+            for r in rows:
+                out.write(json.dumps(r) + "\n")
+            out.flush()
+            marks.write(f"{w0}\n")
+            marks.flush()
+            tally[0] += 1
+            tally[1] += len(rows)
+            if tally[0] % 10 == 0:
+                print(f"[enum] {tally[0]}/{len(windows)} windows | "
+                      f"{tally[1]} runs found | {client.spent:.0f} pts this window",
+                      flush=True)
+
+    with ThreadPoolExecutor(max_workers=ENUM_WORKERS) as pool:
+        list(pool.map(work, windows))
+    out.close()
+    marks.close()
+    print(f"[enum] done: {tally[0]} windows, {tally[1]} completed keys journalled",
+          flush=True)
+
+
+def load_enumerated() -> dict:
+    """Enumeration journal -> the same fight shape load_fights() produces."""
+    fights = {}
+    for r in _iter_journal(ENUM_FILE):
+        key = f"{r['code']}:{r['fid']}"
+        if key in fights:
+            continue
+        fights[key] = {
+            "code": r["code"], "fid": r["fid"], "enc": r["enc"],
+            "dungeon": ENCOUNTERS.get(r["enc"], str(r["enc"])),
+            "key_level": r["key"],
+            "rank_duration_ms": r.get("ks") or None,
+            "score": None, "medal": None,
+            "affixes": r.get("affixes") or [],
+            "region": r.get("region") or "",
+            "start_time": r.get("start"),
+        }
+    return fights
+
+
+def dedupe_fights(fights: dict) -> dict:
+    """Drop re-uploads of the same run BEFORE paying for their summaries.
+
+    Every member of a group can upload the same key, and each upload is a
+    separate report the summary stage would fetch in full. Collapsing them
+    here rather than at export time is worth ~20% of the entire summary spend.
+    """
+    groups = {}
+    for k, f in fights.items():
+        ks = f.get("rank_duration_ms") or 0
+        if not ks:                      # no clock -> weak signature, never merge
+            groups[("solo", k)] = [(k, f)]
+            continue
+        groups.setdefault((f["enc"], f["key_level"], round(ks / 100)),
+                          []).append((k, f))
+    keep = {}
+    dropped = 0
+    for members in groups.values():
+        if len(members) == 1:
+            keep[members[0][0]] = members[0][1]
+            continue
+        # same dungeon/key/clock is not proof on its own; split on start time
+        members.sort(key=lambda kv: kv[1].get("start_time") or 0)
+        cluster = [members[0]]
+        for k, f in members[1:]:
+            prev = cluster[-1][1].get("start_time") or 0
+            if (f.get("start_time") or 0) - prev <= DEDUPE_START_GAP_MS:
+                cluster.append((k, f))
+            else:
+                dropped += len(cluster) - 1
+                keep.update([_pick(cluster)])
+                cluster = [(k, f)]
+        dropped += len(cluster) - 1
+        keep.update([_pick(cluster)])
+    dedupe_fights.dropped = dropped
+    return keep
+
+
+def _pick(cluster):
+    """One representative per run: prefer a copy the leaderboard scored, then
+    one already fetched, then the lowest code so the choice is stable."""
+    done = load_done.cache if hasattr(load_done, "cache") else set()
+    return min(cluster, key=lambda kv: (kv[1].get("score") is None,
+                                        kv[0] not in done, kv[0]))
+
+
+def derive_pars() -> dict:
+    """Per-dungeon keystone par time, fitted from runs the leaderboard did
+    label. Enumerated runs carry a clock but no medal, and the fit is exact
+    (100% agreement on every dungeon) because par times are round minutes --
+    the snap to 30s is a validation as much as a cleanup."""
+    if not CSV_FILE.exists():
+        return {}
+    import pandas as pd
+    df = pd.read_csv(CSV_FILE)
+    r = df.drop_duplicates(["report_code", "fight_id"])
+    r = r.assign(t=pd.to_numeric(r["keystone_s"], errors="coerce"))
+    r = r[r["t"].notna() & (r["t"] > 0)]
+    pars = {}
+    for dun, g in r.groupby("dungeon"):
+        timed = g.loc[g["medal"].isin(["gold", "silver", "bronze"]), "t"]
+        none = g.loc[g["medal"] == "none", "t"]
+        if len(timed) < 20 or len(none) < 5:
+            continue
+        lo, hi = float(g["t"].min()), float(g["t"].max())
+        best, best_err = None, None
+        c = lo
+        while c <= hi:
+            err = int((timed > c).sum() + (none <= c).sum())
+            if best_err is None or err < best_err:
+                best, best_err = c, err
+            c += 1.0
+        pars[dun] = round(best / 30) * 30
+    if pars:
+        PARS_FILE.write_text(json.dumps(pars, indent=1, sort_keys=True))
+    return pars
+
+
+def medal_from_clock(seconds, par):
+    """Blizzard's tiers: bronze on the timer, silver at 20% under, gold 40%."""
+    if not par or not seconds or seconds <= 0:
+        return None
+    if seconds <= par * 0.6:
+        return "gold"
+    if seconds <= par * 0.8:
+        return "silver"
+    return "bronze" if seconds <= par else "none"
+
+
+## --------------------------------------------------------------------------
 # Stage 2: report Summary tables
 # --------------------------------------------------------------------------
 
@@ -308,7 +546,10 @@ def load_fights(regions: set[str] | None) -> dict:
     the ranking) are KEPT — their true per-player regions are only knowable
     from the report itself and end up in the CSV's `region` column.
     """
-    fights = {}
+    # Enumeration is the base population; rankings are layered on top because
+    # they carry the two things a report cannot give us -- the run's M+ score
+    # and its medal.
+    fights = load_enumerated()
     anon = 0
     for rec in _iter_journal(RANKINGS_FILE):
         for r in rec["rankings"]:
@@ -321,8 +562,9 @@ def load_fights(regions: set[str] | None) -> dict:
             if regions and region and region not in regions:
                 continue
             key = f"{code}:{fid}"
-            if key in fights:
-                continue
+            prev = fights.get(key)
+            if prev is not None and prev.get("score") is not None:
+                continue                      # already have the ranked copy
             fights[key] = {
                 "code": code, "fid": fid, "enc": rec["enc"],
                 "dungeon": ENCOUNTERS.get(rec["enc"], str(rec["enc"])),
@@ -330,10 +572,13 @@ def load_fights(regions: set[str] | None) -> dict:
                 "rank_duration_ms": r.get("duration"),
                 "score": r.get("score"), "medal": r.get("medal"),
                 "affixes": r.get("affixes") or [],
-                "region": region,
-                "start_time": r.get("startTime"),
+                "region": region or (prev or {}).get("region", ""),
+                "start_time": r.get("startTime") or (prev or {}).get("start_time"),
             }
     load_fights.anon_skipped = anon
+    if regions:
+        fights = {k: f for k, f in fights.items()
+                  if not f["region"] or f["region"] in regions}
     return fights
 
 
@@ -459,6 +704,14 @@ def _fetch_batch(batch: list[dict]):
 def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
     fights = load_fights(regions)
     done = load_done()
+    load_done.cache = done          # lets _pick() prefer an already-fetched copy
+    raw_n = len(fights)
+    fights = dedupe_fights(fights)
+    if raw_n != len(fights):
+        print(f"[summaries] {raw_n} uploads -> {len(fights)} distinct runs "
+              f"({dedupe_fights.dropped} re-uploads skipped before fetching, "
+              f"{100 * dedupe_fights.dropped / raw_n:.0f}% of the spend saved)",
+              flush=True)
     pending = [f for k, f in fights.items() if k not in done]
     # US/EU-tagged runs first, unknown-region after; shuffled within each
     # group so partial datasets stay balanced across dungeons/brackets.
@@ -621,6 +874,19 @@ def export() -> None:
                  for c, f in zip(df["report_code"], df["fight_id"])]]
         print(f"[export] collapsed {len(per_run) - len(canon)} duplicate "
               f"uploads of the same fight", flush=True)
+    # Enumerated runs have a clock but no medal (only the leaderboard grades
+    # runs), so grade them here from the fitted par time.
+    pars = derive_pars()
+    if pars:
+        need = df["medal"].isna() | (df["medal"] == "")
+        if need.any():
+            df.loc[need, "medal"] = [
+                medal_from_clock(pd.to_numeric(t, errors="coerce"),
+                                 pars.get(dun))
+                for t, dun in zip(df.loc[need, "keystone_s"],
+                                  df.loc[need, "dungeon"])]
+            print(f"[export] graded {int(need.sum())} enumerated player-rows "
+                  f"from the fitted keystone par times", flush=True)
     if jmap:
         for col in ("score", "medal"):
             df[col] = [
@@ -644,8 +910,13 @@ def status(regions: set[str] | None) -> None:
     print(f"sweep:     {len(state)} cursors touched, "
           f"{len(ENCOUNTERS) * len(BRACKETS) - len(state)} untouched, "
           f"{open_cursors} open")
+    print(f"enum:      {len(_enum_done_windows())} windows walked, "
+          f"{len(load_enumerated())} completed keys found")
     print(f"fights:    {len(fights)} unique public runs "
           f"({getattr(load_fights, 'anon_skipped', '?')} anonymous skipped)")
+    ded = dedupe_fights(dict(fights))
+    print(f"deduped:   {len(ded)} distinct runs "
+          f"({getattr(dedupe_fights, 'dropped', 0)} re-uploads collapsed)")
     print(f"summaries: {len(done)} fetched ({len(fights) - len(done & set(fights))} remaining)")
     if PLAYERS_FILE.exists():
         n = sum(1 for _ in PLAYERS_FILE.open())
@@ -654,8 +925,14 @@ def status(regions: set[str] | None) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--stage", choices=["all", "sweep", "summaries", "export", "status"],
+    ap.add_argument("--stage",
+                    choices=["all", "enum", "sweep", "summaries", "export", "status"],
                     default="all")
+    ap.add_argument("--since", default=None,
+                    help="enumerate from this UTC timestamp (default: the "
+                         "start of the data we already have)")
+    ap.add_argument("--no-enum", action="store_true",
+                    help="skip full-population enumeration (leaderboard only)")
     ap.add_argument("--regions", default="ALL",
                     help='ALL (default) or a comma-separated allow-list, '
                          'e.g. US,EU')
@@ -692,6 +969,22 @@ def main() -> None:
     fetch_summaries.hero = HeroResolver()
     client = WCLClient()
 
+    if args.stage in ("all", "enum") and not args.no_enum:
+        import pandas as pd
+        if args.since:
+            since = int(pd.Timestamp(args.since, tz="UTC").value // 10 ** 6)
+        elif CSV_FILE.exists():
+            since = int(pd.read_csv(CSV_FILE, usecols=["started_at"])
+                        ["started_at"].min())
+        else:
+            since = int(pd.Timestamp.utcnow().value // 10 ** 6) - 7 * 86400_000
+        until = int(pd.Timestamp.utcnow().value // 10 ** 6)
+        print(f"[enum] enumerating {pd.Timestamp(since, unit='ms')} -> "
+              f"{pd.Timestamp(until, unit='ms')} UTC", flush=True)
+        enumerate_reports(since, until)
+    if args.stage == "enum":
+        export()
+        return
     if args.stage in ("all", "sweep"):
         sweep(client, brackets)
     if args.stage in ("all", "summaries") and not STOP:
