@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 — dataset for LLM analysis
 
-> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 23,692 runs / 118,460 player parses, keystone levels +2-+16, 2026-08-18 to 2026-08-20. Generated 2026-08-20 07:46 UTC.
+> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 42,784 runs / 213,920 player parses, keystone levels +2-+16, 2026-08-18 to 2026-08-20. Generated 2026-08-20 09:56 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/ is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -17,13 +17,13 @@ Every file below carries the same metric block: parses, runs, **characters** (di
 - https://st331.github.io/wowlogs/llms/spec_by_day.csv — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".
 - https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon runs, players, timed %, average duration/key/deaths, and `timer_s`: that dungeon's keystone timer.
 - https://st331.github.io/wowlogs/llms/tuning_projection.csv — recorded vs **projected** median/average DPS per class+spec under the next announced class tuning, for the post_tuning and post_tuning_timed subsets. Columns: subset, class, spec, characters, parses, median_dps, projected_median_dps, avg_dps, projected_avg_dps, median_change_pct, avg_change_pct, tuned.
-- https://st331.github.io/wowlogs/llms/comps.csv — one row per distinct 5-player composition, ranked by `strength`. Columns: subset, composition, runs, strength, avg_key, avg_pct_under, best_pct_under, median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.
+- https://st331.github.io/wowlogs/llms/comps.csv — the 2,000 best-sampled per subset, one row per distinct 5-player composition, ranked by `strength`. Columns: subset, composition, runs, strength, avg_key, avg_pct_under, best_pct_under, median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.
 
 The `subset` column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.
 
 No class-tuning pass is currently recorded, so no post_tuning subsets are published.
 
-**Compositions.** comps.csv has one row per distinct 5-player comp, ranked by `strength` (see below). The underlying measure is how far under that dungeon's keystone timer a run finished (negative means the key was depleted). Dungeon timers differ, so the margin is what makes runs in different dungeons comparable; the timers themselves are in dungeon_summary.csv and are derived from where timed and depleted runs separate on the clock, not published by the API.
+**Compositions.** comps.csv holds the best-sampled comps per subset (top 2,000 by run count; the tail is almost entirely one-run comps, which cannot be ranked). It is a ranking, not a census: do not count distinct comps from it. One row per comp, ranked by `strength` (see below). The underlying measure is how far under that dungeon's keystone timer a run finished (negative means the key was depleted). Dungeon timers differ, so the margin is what makes runs in different dungeons comparable; the timers themselves are in dungeon_summary.csv and are derived from where timed and depleted runs separate on the clock, not published by the API.
 
 Subsets: all / timed / post_tuning / post_tuning_timed / key15plus. `post_tuning_timed` is what the dashboard shows by default, so use that to reproduce the site; `key15plus` (timed, +15 and above) narrows to serious keys if you want that on top of the key normalisation described next.
 
@@ -41,13 +41,15 @@ The `composition` string is role-ordered and pipe-separated, e.g. "T:Blood Death
 
 **Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
 
-1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 456,050 parses against a true 118,460. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 118,460. "timed" is a subset of "all", never a separate population to add on.
-2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x — in this dataset the 23,692 real runs sum to 117,103 across spec_summary rows. `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
+1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 812,770 parses against a true 213,920. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 213,920. "timed" is a subset of "all", never a separate population to add on.
+2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x — in this dataset the 42,784 real runs sum to 211,430 across spec_summary rows. `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
 3. *Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.
 
 When a question spans rows, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) rather than summing aggregates.
 
-## Raw per-parse data (118,460 rows, complete)
+## Raw per-parse data (120,125 of 213,920 rows, a uniform sample)
+
+These chunks are a uniform random sample of 120,125 parses drawn from all 213,920, selected by whole run so every sampled run still shows its complete 5-player roster. Use them for distributions, medians and per-parse reasoning, which the sample preserves. Do NOT use them for totals or counts -- "how many runs happened" or "how many players parsed" must come from the aggregate CSVs above, which are computed on every row. Scaling a count off these chunks will understate it by roughly 1.8x.
 
 - https://st331.github.io/wowlogs/llms/parses_1.csv — rows 1-6,000
 - https://st331.github.io/wowlogs/llms/parses_2.csv — rows 6,001-12,000
@@ -68,7 +70,8 @@ When a question spans rows, recompute from the raw chunks (distinct run_id / cha
 - https://st331.github.io/wowlogs/llms/parses_17.csv — rows 96,001-102,000
 - https://st331.github.io/wowlogs/llms/parses_18.csv — rows 102,001-108,000
 - https://st331.github.io/wowlogs/llms/parses_19.csv — rows 108,001-114,000
-- https://st331.github.io/wowlogs/llms/parses_20.csv — rows 114,001-118,460
+- https://st331.github.io/wowlogs/llms/parses_20.csv — rows 114,001-120,000
+- https://st331.github.io/wowlogs/llms/parses_21.csv — rows 120,001-120,125
 
 One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.
 
@@ -100,9 +103,9 @@ These recipes are checked on every build: the exported rows are compared against
 
 ## Dataset shape at a glance
 
-- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 23,692 runs, 118,460 parses.
-- Regions by parses: US 66,205, EU 49,605, CN 2,065, KR 585.
-- Timed split: 109,565 timed, 8,895 over timer, 0 unknown (keys under +10).
+- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 42,784 runs, 213,920 parses.
+- Regions by parses: US 108,215, EU 99,300, CN 5,135, KR 1,270.
+- Timed split: 192,465 timed, 21,455 over timer, 0 unknown (keys under +10).
 - 8 dungeons, keystone levels +2-+16, median +10.
 - Sample size: early in a season many class/spec/dungeon cells are thin. Treat a row with fewer than ~30 characters as indicative only, and prefer `characters` over `parses` when judging whether a number is broadly based.
 

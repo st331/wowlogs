@@ -366,6 +366,12 @@ def build(name: str, cfg: dict) -> None:
 
 BASE_URL = "https://st331.github.io/wowlogs"
 CHUNK = 6000  # raw parse rows per file (~500 KB — safely inside fetch limits)
+# The raw chunks are the only llms/ output that scales with the dataset: the
+# aggregates are fixed-size no matter how many parses back them. Chunking the
+# whole population would be ~209 files and ~140 MB per copy, so the raw dump is
+# a bounded sample while every aggregate stays computed on everything.
+LLM_MAX_PARSE_ROWS = 120_000
+COMPS_PER_SUBSET = 2_000   # ranked by runs; the long tail is all singletons
 
 # Weekly reset schedule, mirroring the dashboard's client-side rules so the
 # exported reset buckets line up exactly with what the site shows.
@@ -589,6 +595,21 @@ def build_llms() -> None:
             comp_parts.append(got.assign(subset=label))
     if comp_parts:
         comps = pd.concat(comp_parts, ignore_index=True)
+        # Most distinct comps are one-offs -- the median comp has a single run
+        # -- and they are both unrankable and the bulk of the file. Keep the
+        # best-sampled ones per subset so the table stays a ranking rather than
+        # a census that grows without bound as the dataset does.
+        before = len(comps)
+        comps = (comps.sort_values(["subset", "runs", "strength"],
+                                   ascending=[True, False, False])
+                      .groupby("subset", sort=False)
+                      .head(COMPS_PER_SUBSET)
+                      .reset_index(drop=True))
+        if len(comps) < before:
+            print(f"[llms] comps trimmed to the {COMPS_PER_SUBSET:,} "
+                  f"best-sampled per subset: {before:,} -> {len(comps):,} rows",
+                  flush=True)
+        comps_trimmed = before - len(comps)
         files.append(("comps.csv",
                       comps[["subset"] + [c for c in comps.columns
                                           if c != "subset"]]))
@@ -631,6 +652,18 @@ def build_llms() -> None:
                 "dps", "deaths", "item_level", "date", "reset_bucket",
                 "post_tuning", "keystone_s", "pct_under_timer"]
     raw = df[raw_cols].sort_values(["run_id"]).reset_index(drop=True)
+    raw_total = len(raw)
+    if raw_total > LLM_MAX_PARSE_ROWS:
+        # whole runs, so a chunk still shows complete 5-player rosters, and by
+        # a hash of the run id so the published rows are stable across builds
+        cut = int((LLM_MAX_PARSE_ROWS / raw_total) * (1 << 32))
+        keep = raw["run_id"].map(
+            lambda r: int(hashlib.md5(str(r).encode()).hexdigest()[:8], 16) < cut)
+        raw = raw[keep].reset_index(drop=True)
+        print(f"[llms] raw parse dump sampled to {len(raw):,} of "
+              f"{raw_total:,} rows ({raw['run_id'].nunique():,} whole runs); "
+              f"aggregates still use every row", flush=True)
+    raw_sampled = len(raw) < raw_total
     chunks = [(f"parses_{i // CHUNK + 1}.csv", raw.iloc[i:i + CHUNK])
               for i in range(0, len(raw), CHUNK)]
 
@@ -707,7 +740,8 @@ def build_llms() -> None:
         "subset, class, spec, characters, parses, median_dps, "
         "projected_median_dps, avg_dps, projected_avg_dps, "
         "median_change_pct, avg_change_pct, tuned.",
-        f"- {BASE_URL}/llms/comps.csv — one row per distinct 5-player "
+        f"- {BASE_URL}/llms/comps.csv — the {COMPS_PER_SUBSET:,} "
+        f"best-sampled per subset, one row per distinct 5-player "
         "composition, ranked by `strength`. Columns: subset, composition, "
         "runs, strength, avg_key, avg_pct_under, best_pct_under, "
         "median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, "
@@ -720,7 +754,10 @@ def build_llms() -> None:
         "",
         tuning_para,
         "",
-        "**Compositions.** comps.csv has one row per distinct 5-player comp, "
+        "**Compositions.** comps.csv holds the best-sampled comps per subset "
+        f"(top {COMPS_PER_SUBSET:,} by run count; the tail is almost entirely "
+        "one-run comps, which cannot be ranked). It is a ranking, not a "
+        "census: do not count distinct comps from it. One row per comp, "
         "ranked by `strength` (see below). The underlying measure is how far "
         "under that dungeon's keystone timer a run finished (negative means "
         "the key was depleted). Dungeon timers differ, so the "
@@ -829,9 +866,24 @@ def build_llms() -> None:
         "(distinct run_id / char_id, or the raw dps values) rather than "
         "summing aggregates.",
         "",
-        f"## Raw per-parse data ({len(df):,} rows, complete)",
+        (f"## Raw per-parse data ({len(raw):,} of {raw_total:,} rows, "
+         f"a uniform sample)" if raw_sampled else
+         f"## Raw per-parse data ({len(df):,} rows, complete)"),
         "",
     ]
+    if raw_sampled:
+        lines += [
+            f"These chunks are a uniform random sample of {len(raw):,} parses "
+            f"drawn from all {raw_total:,}, selected by whole run so every "
+            f"sampled run still shows its complete 5-player roster. Use them "
+            f"for distributions, medians and per-parse reasoning, which the "
+            f"sample preserves. Do NOT use them for totals or counts -- "
+            f"\"how many runs happened\" or \"how many players parsed\" must "
+            f"come from the aggregate CSVs above, which are computed on every "
+            f"row. Scaling a count off these chunks will understate it by "
+            f"roughly {raw_total / max(len(raw), 1):.1f}x.",
+            "",
+        ]
     for i, (name, chunk) in enumerate(chunks):
         lines.append(f"- {BASE_URL}/llms/{name} — rows "
                      f"{i * CHUNK + 1:,}-{i * CHUNK + len(chunk):,}")
