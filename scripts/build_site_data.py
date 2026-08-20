@@ -1102,15 +1102,51 @@ def build_llms() -> None:
           f"{len(files) + 1} HTML pages + robots/sitemap ({total:.1f} MB)")
 
 
+STAMP_FILE = ROOT / "data" / ".build_stamp"
+
+
+def inputs_fingerprint() -> str:
+    """Hash of everything a build's output depends on.
+
+    Every output embeds a "generated at" timestamp, so rebuilding unchanged
+    data still rewrites ~45 MB of files that differ only by that line. During
+    a long backfill the build runs often, and committing that churn is worse
+    than useless. Fingerprinting the inputs makes a rebuild a no-op when
+    nothing that matters moved.
+    """
+    h = hashlib.md5()
+    for f in (ROOT / "data" / SEASON["csv"],
+              ROOT / "data" / "tuning_patches.json",
+              ROOT / "data" / "raw" / "abilities.jsonl",
+              ROOT / "site" / "index.html",
+              pathlib.Path(__file__)):
+        h.update(f.name.encode())
+        h.update(str(f.stat().st_size if f.exists() else 0).encode())
+        if f.exists() and f.stat().st_size < 4_000_000:
+            h.update(f.read_bytes())              # small inputs: hash content
+        elif f.exists():
+            h.update(str(int(f.stat().st_mtime)).encode())
+    return h.hexdigest()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.parse_args()
+    ap.add_argument("--force", action="store_true",
+                    help="rebuild even when no input has changed")
+    args = ap.parse_args()
+    fp = inputs_fingerprint()
+    if not args.force and STAMP_FILE.exists() and \
+            STAMP_FILE.read_text().strip() == fp:
+        print("[build] inputs unchanged since the last build; nothing to do "
+              "(--force to rebuild anyway)")
+        return
     build("season", SEASON)
     build_llms()
     index = ROOT / "site" / "index.html"
     docs_index = ROOT / "docs" / "index.html"
     docs_index.write_text(index.read_text())
     print(f"mirrored {index} -> {docs_index}")
+    STAMP_FILE.write_text(inputs_fingerprint())
 
 
 if __name__ == "__main__":
