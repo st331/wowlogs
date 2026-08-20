@@ -11,6 +11,7 @@ label.
 """
 import argparse
 import gzip
+import hashlib
 import json
 import pathlib
 import re
@@ -213,6 +214,38 @@ def tuning_multipliers(df, post):
                          if r.get("caveats")}})
 
 
+# The browser gets every parse as a row, so the payload scales with the run
+# count. Collecting the whole population (~10x a leaderboard sweep, and still
+# growing) would put data.json past 70 MB, which no page should ask for.
+MAX_RUNS = 45_000
+
+
+def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    """Cap the published payload at MAX_RUNS whole runs.
+
+    Whole runs, not rows, so a sampled run keeps all five of its players and
+    the comps table still sees complete rosters. Selection is by a hash of the
+    run id rather than a shuffle, which makes it deterministic across rebuilds
+    -- the same runs are published every time, so the numbers do not jitter
+    when nothing changed. Sampling a population uniformly leaves it unbiased,
+    which is the entire reason for collecting it in full: the local dataset
+    stays complete for analysis, only the payload is thinned.
+    """
+    if MAX_RUNS <= 0:
+        return df
+    ids = df["report_code"].astype(str) + ":" + df["fight_id"].astype(str)
+    total = ids.nunique()
+    if total <= MAX_RUNS:
+        return df
+    cut = int((MAX_RUNS / total) * (1 << 32))
+    keep = ids.map(lambda r: int(hashlib.md5(r.encode()).hexdigest()[:8], 16) < cut)
+    out = df[keep]
+    print(f"[{name}] {total:,} runs collected -> {out['report_code'].nunique():,} "
+          f"published ({len(out):,} of {len(df):,} rows); uniform sample, "
+          f"full data kept locally", flush=True)
+    return out
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
     if not csv.exists():                       # tolerate an un-gzipped copy
@@ -221,6 +254,7 @@ def build(name: str, cfg: dict) -> None:
         print(f"[{name}] {cfg['csv']} missing — skipped")
         return
     df = pd.read_csv(csv)
+    df = sample_runs(df, name)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
     unknown_before = int((df["hero_talent"] == "Unknown").sum())
