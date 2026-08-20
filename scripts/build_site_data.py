@@ -240,7 +240,9 @@ def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
     cut = int((MAX_RUNS / total) * (1 << 32))
     keep = ids.map(lambda r: int(hashlib.md5(r.encode()).hexdigest()[:8], 16) < cut)
     out = df[keep]
-    print(f"[{name}] {total:,} runs collected -> {out['report_code'].nunique():,} "
+    # ids[keep], not out.report_code: one report can hold several keys, so
+    # counting report codes understates the runs published by about half
+    print(f"[{name}] {total:,} runs collected -> {ids[keep].nunique():,} "
           f"published ({len(out):,} of {len(df):,} rows); uniform sample, "
           f"full data kept locally", flush=True)
     return out
