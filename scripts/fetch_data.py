@@ -157,6 +157,39 @@ def restore_checkpoints() -> None:
             with gzip.open(gz, "rb") as src, dst.open("wb") as out:
                 shutil.copyfileobj(src, out)
             print(f"[restore] {dst.name} restored from {gz}", flush=True)
+    seed_from_csv()
+
+
+def seed_from_csv() -> None:
+    """Rebuild the player journal from the committed CSV export.
+
+    data/raw and data/processed are gitignored, so a fresh clone - or an
+    hourly CI run whose journal cache was evicted - starts with no memory of
+    which summaries were already fetched, and would re-fetch every run in the
+    season. The committed CSV is a faithful copy of the journal (identical
+    columns, plus the derived keystone clock), so it can seed both the player
+    rows and the fetched-set and the next sweep only pays for what is new.
+    """
+    if PLAYERS_FILE.exists() or not CSV_FILE.exists():
+        return
+    import pandas as pd
+    df = pd.read_csv(CSV_FILE)
+    cols = [c for c in df.columns if c != "keystone_s"]
+    PLAYERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with PLAYERS_FILE.open("w") as fh:
+        for rec in df[cols].to_dict("records"):
+            fh.write(json.dumps({k: (None if pd.isna(v) else v)
+                                 for k, v in rec.items()},
+                                ensure_ascii=False) + "\n")
+    if not SUMMARIES_DONE.exists():
+        pairs = df[["report_code", "fight_id"]].drop_duplicates()
+        with SUMMARIES_DONE.open("w") as fh:
+            for c, f in zip(pairs["report_code"], pairs["fight_id"]):
+                fh.write(f"{c}:{f}\tOK\n")
+        print(f"[restore] {len(pairs)} fetched runs seeded from {CSV_FILE.name}",
+              flush=True)
+    print(f"[restore] {len(df)} player rows seeded from {CSV_FILE.name}",
+          flush=True)
 
 
 def alias_error_map(errors: list) -> dict:
