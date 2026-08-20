@@ -917,7 +917,12 @@ def status(regions: set[str] | None) -> None:
     ded = dedupe_fights(dict(fights))
     print(f"deduped:   {len(ded)} distinct runs "
           f"({getattr(dedupe_fights, 'dropped', 0)} re-uploads collapsed)")
-    print(f"summaries: {len(done)} fetched ({len(fights) - len(done & set(fights))} remaining)")
+    # against the DEDUPED set, which is what the summary stage will actually
+    # fetch. Counting raw uploads never reaches zero -- the re-uploads are
+    # skipped rather than fetched, so they are never marked done -- and any
+    # caller watching for "0 remaining" would wait forever.
+    print(f"summaries: {len(done)} fetched "
+          f"({len(set(ded) - done)} remaining)")
     if PLAYERS_FILE.exists():
         n = sum(1 for _ in PLAYERS_FILE.open())
         print(f"rows:      {n} player rows in {PLAYERS_FILE}")

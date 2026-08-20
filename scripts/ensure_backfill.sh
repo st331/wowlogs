@@ -20,7 +20,10 @@ if pgrep -f 'backfill_loop[.]sh' >/dev/null; then
   exit 0
 fi
 
-rm -f /tmp/wowlogs-backfill.lock
+# Deliberately NOT removing the lock file. flock releases on process death, so
+# a leftover file is harmless -- but deleting it and letting the new loop
+# create a fresh one points the two processes at different inodes, and the
+# mutual exclusion silently stops working. A stale path is not a stale lock.
 nohup "$(dirname "$0")/backfill_loop.sh" "$LOG" >/dev/null 2>&1 &
 sleep 3
 if pgrep -f 'backfill_loop[.]sh' >/dev/null; then
