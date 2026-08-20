@@ -201,8 +201,8 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     the threshold scales down with it and roughly the same number of specs
     stays visible. Drag to show more or fewer.</div>
   <div style="margin-top:.7rem">Min runs per comp:
-    <b id="compmin-v" style="color:var(--gold)">2</b></div>
-  <input type="range" id="compmin" min="1" max="20" value="2">
+    <b id="compmin-v" style="color:var(--gold)">20</b></div>
+  <input type="range" id="compmin" min="1" max="100" value="20">
   <div class="hint">A composition needs this many runs to appear in Top Comps —
     raise it to filter out one-off groups.</div>
   <details style="margin-top:.6rem"><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
@@ -337,7 +337,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
-             compMin:2, csort:{col:"strength", dir:-1},
+             compMin:20, csort:{col:"strength", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
              proj:false,       // re-score every parse under the upcoming tuning
              minchars:100, sort:"desc", tab:"med", trendMetric:"avg",
@@ -1256,7 +1256,8 @@ function renderComps(A){
       renderComps(A);
     };
   });
-  $("comps-sub").textContent=fmtInt(rows.length)+" comps with "
+  $("comps-sub").textContent=fmtInt(rows.length)
+    +(rows.length===1?" comp with ":" comps with ")
     +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
     +" distinct — ranked by strength, click a column to sort";
   $("comps-caption").textContent="Strength scores each run against what is "
