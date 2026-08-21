@@ -993,7 +993,11 @@ def main() -> None:
               f"{pd.Timestamp(until, unit='ms')} UTC", flush=True)
         enumerate_reports(since, until)
     if args.stage == "enum":
-        export()
+        # No export here: enumeration only appends to the reports journal, and
+        # export() reads the PLAYER journal, which this stage never touches.
+        # Rewriting a 20 MB CSV with byte-identical content every loop cycle
+        # cost real time and made "the CSV changed" useless as a signal that a
+        # refresh had actually fetched anything.
         return
     if args.stage in ("all", "sweep"):
         sweep(client, brackets)
