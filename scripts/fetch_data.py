@@ -904,6 +904,11 @@ def export() -> None:
 def status(regions: set[str] | None) -> None:
     fights = load_fights(regions)
     done = load_done()
+    # _pick() prefers a copy we already fetched, but only if it can see the
+    # fetched set. Without this, status picks different representatives than
+    # the summary stage does and reports runs as outstanding whose data we
+    # already hold -- a phantom backlog that never drains.
+    load_done.cache = done
     state = load_sweep_state()
     open_cursors = sum(1 for (_, br), v in state.items()
                        if v["more"] and v["last_page"] < page_cap(br))
