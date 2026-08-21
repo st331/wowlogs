@@ -90,9 +90,15 @@ MAX_PAGE = 20  # the API 404s past page 20 (hasMorePages stays true)
 # the same leaderboard instead.
 LOW_KEY_MAX_PAGE = 4              # 200 runs per dungeon x key below +10
 # How long after a window closes before a walk of it can be trusted as final.
-# Re-walks of settled windows still surfaced ~10% new runs at 48h, so this is
-# a floor rather than a guarantee; the loop re-walks anything unsettled.
-ENUM_SETTLE_S = 48 * 3600
+# Measured fill-in: a re-walk at 30h still found 50% new, at 48h only 10%, so
+# nearly all of the catch-up happens in the first day and a half.
+ENUM_SETTLE_S = 36 * 3600
+# Minimum gap between two walks of the SAME window. Without this every window
+# younger than the settle threshold is re-walked on every loop cycle -- 90 of
+# them at ~519 points each, 2.6 quota-hours per cycle, which starved the
+# summary stage completely and froze the fetch count. With it a window is
+# walked roughly at 0h, 12h, 24h and 36h and then never again.
+ENUM_REWALK_S = 12 * 3600
 
 
 def page_cap(bracket: int) -> int:
@@ -410,13 +416,21 @@ def enumerate_reports(since_ms: int, until_ms: int) -> None:
     are fully written, so a kill mid-window costs at most that window.
     """
     marks = _enum_window_marks()
-    windows = []
+    now_ms = int(time.time() * 1000)
+    windows, backed_off = [], 0
     w = (since_ms // (ENUM_WINDOW_S * 1000)) * (ENUM_WINDOW_S * 1000)
     while w < until_ms:
-        if not _enum_settled(w, marks.get(w)):
-            windows.append(w)
+        mk = marks.get(w)
+        if not _enum_settled(w, mk):
+            if mk and now_ms - mk[0] < ENUM_REWALK_S * 1000:
+                backed_off += 1          # walked recently, let it age first
+            else:
+                windows.append(w)
         w += ENUM_WINDOW_S * 1000
     revisits = sum(1 for x in windows if x in marks)
+    if backed_off:
+        print(f"[enum] {backed_off} unsettled windows walked too recently to "
+              f"re-check yet", flush=True)
     print(f"[enum] {len(windows)} windows of {ENUM_WINDOW_S}s to walk "
           f"({revisits} of them re-walks of unsettled windows), "
           f"{ENUM_WORKERS} workers", flush=True)
