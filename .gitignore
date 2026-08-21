@@ -11,6 +11,10 @@ __pycache__/
 *.pyc
 .venv/
 data/mythic_runs*.csv
+# transient: export() writes here then os.replace()s it into place, so a run
+# that happens to be mid-export leaves this behind for a moment
+data/*.csv.gz.tmp
+data/*.json.tmp
 node_modules/
 package-lock.json
 package.json
