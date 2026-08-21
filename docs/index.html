@@ -461,11 +461,13 @@ function initData(d,cfg){
   if(wb!==undefined) state.weeksB.add(wb);
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
   const kmin=keys[0], kmax=keys[keys.length-1];
-  // Every key level stays selectable; the default opens on +10 up to one below
-  // the highest key anyone has logged, since the very top bracket is usually a
-  // handful of runs that swamp nothing but add noise.
-  state.klo=Math.min(Math.max(10,kmin),kmax);
-  state.khi=Math.max(kmax-1,state.klo);
+  // Every key level stays selectable; the default opens on a six-wide band
+  // ending one below the highest key anyone has logged. Anchoring to the top
+  // rather than a fixed floor keeps the default view on current content as the
+  // season climbs, and the very top bracket is dropped because it is usually a
+  // handful of runs that add noise without adding signal.
+  state.khi=Math.max(kmax-1,kmin);
+  state.klo=Math.max(state.khi-5,kmin);
   state.minchars=cfg.minchars;
   $("minchars").max=cfg.maxchars;
   $("minchars").value=state.minchars;
