@@ -220,6 +220,35 @@ def tuning_multipliers(df, post):
 MAX_RUNS = 150_000
 
 
+def use_keystone_clock(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    """Recompute DPS against the keystone timer rather than the fight duration.
+
+    The collector stores `duration_s` from the Summary table's totalTime, which
+    runs a median 27s shorter than the run's actual keystone clock -- it drops
+    some of the time between pulls. Warcraft Logs defines overall M+ DPS as
+    total damage over the ENTIRE dungeon time, non-combat included, so the
+    keystone clock is the denominator that matches the definition, and using
+    the shorter one inflated every figure on the page by ~2.3%.
+
+    Rows with no usable clock keep their original value rather than being
+    dropped; there are very few and losing them would bias the sample.
+    """
+    ks = pd.to_numeric(df.get("keystone_s"), errors="coerce")
+    if ks is None or not ks.notna().any():
+        return df
+    ok = ks.notna() & (ks > 0) & df["damage_done"].notna()
+    if not ok.any():
+        return df
+    before = df.loc[ok, "dps"].mean()
+    df.loc[ok, "dps"] = (df.loc[ok, "damage_done"] / ks[ok]).round(1)
+    df.loc[ok, "duration_s"] = ks[ok].round(1)
+    after = df.loc[ok, "dps"].mean()
+    print(f"[{name}] DPS recomputed on the keystone clock for {int(ok.sum()):,} "
+          f"of {len(df):,} rows ({100 * (after / before - 1):+.1f}% mean)",
+          flush=True)
+    return df
+
+
 def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
     """Cap the published payload at MAX_RUNS whole runs.
 
@@ -256,6 +285,7 @@ def build(name: str, cfg: dict) -> None:
         print(f"[{name}] {cfg['csv']} missing — skipped")
         return
     df = pd.read_csv(csv)
+    df = use_keystone_clock(df, name)
     df = sample_runs(df, name)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
