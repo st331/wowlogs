@@ -1,77 +1,1160 @@
 run_id,char_id,class,spec,hero_talent,role,region,dungeon,key_level,timed,duration_s,dps,deaths,item_level,date,reset_bucket,post_tuning,keystone_s,pct_under_timer
-49114,13334,Rogue,Assassination,Deathstalker,DPS,EU,The Blinding Vale,7,1,1220.9,187664,0,293.0,2026-08-19,0,-1,1222.0,32.1
-49119,107908,Paladin,Protection,Templar,Tank,EU,Ruby Life Pools,6,1,1093.4,97486,0,287.0,2026-08-19,0,-1,1100.0,34.5
-49119,107909,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,6,1,1093.4,26667,0,297.0,2026-08-19,0,-1,1100.0,34.5
-49119,35734,Warrior,Arms,Slayer,DPS,EU,Ruby Life Pools,6,1,1093.4,185134,0,294.0,2026-08-19,0,-1,1100.0,34.5
-49119,107910,Hunter,Marksmanship,Sentinel,DPS,EU,Ruby Life Pools,6,1,1093.4,90208,2,279.0,2026-08-19,0,-1,1100.0,34.5
-49119,107911,Evoker,Augmentation,Chronowarden,DPS,EU,Ruby Life Pools,6,1,1093.4,103692,1,295.0,2026-08-19,0,-1,1100.0,34.5
-49120,106145,Warrior,Protection,Mountain Thane,Tank,EU,Ruby Life Pools,10,1,1479.0,110417,0,293.0,2026-08-19,0,-1,1501.0,10.7
-49120,73165,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,10,1,1479.0,30954,1,292.0,2026-08-19,0,-1,1501.0,10.7
-49120,107912,Warrior,Fury,Mountain Thane,DPS,EU,Ruby Life Pools,10,1,1479.0,142381,3,293.0,2026-08-19,0,-1,1501.0,10.7
-49120,107913,Shaman,Elemental,Farseer,DPS,EU,Ruby Life Pools,10,1,1479.0,161940,1,289.0,2026-08-19,0,-1,1501.0,10.7
-49120,107914,Hunter,BeastMastery,Pack Leader,DPS,EU,Ruby Life Pools,10,1,1479.0,121200,1,293.0,2026-08-19,0,-1,1501.0,10.7
-49121,34355,DeathKnight,Blood,Deathbringer,Tank,EU,Kings' Rest,2,1,1255.0,79828,0,294.0,2026-08-19,0,-1,1247.0,37.0
-49121,107915,Shaman,Restoration,Totemic,Healer,EU,Kings' Rest,2,1,1255.0,11422,2,292.0,2026-08-19,0,-1,1247.0,37.0
-49121,34357,Warlock,Demonology,Diabolist,DPS,EU,Kings' Rest,2,1,1255.0,81620,2,290.0,2026-08-19,0,-1,1247.0,37.0
-49121,45919,Warrior,Arms,Slayer,DPS,EU,Kings' Rest,2,1,1255.0,65571,2,284.0,2026-08-19,0,-1,1247.0,37.0
-49121,55494,Mage,Arcane,Sunfury,DPS,EU,Kings' Rest,2,1,1255.0,46856,1,291.0,2026-08-19,0,-1,1247.0,37.0
-49122,17151,Warrior,Protection,Mountain Thane,Tank,EU,Den of Nalorakk,2,1,909.8,86543,0,294.0,2026-08-19,0,-1,901.0,53.1
-49122,107916,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,2,1,909.8,15567,0,290.0,2026-08-19,0,-1,901.0,53.1
-49122,17153,Hunter,BeastMastery,Pack Leader,DPS,EU,Den of Nalorakk,2,1,909.8,92198,0,299.0,2026-08-19,0,-1,901.0,53.1
-49122,17155,Warrior,Fury,Slayer,DPS,EU,Den of Nalorakk,2,1,909.8,161288,0,294.0,2026-08-19,0,-1,901.0,53.1
-49122,17154,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,2,1,909.8,119560,0,293.0,2026-08-19,0,-1,901.0,53.1
-49125,107920,DeathKnight,Blood,Deathbringer,Tank,US,Voidscar Arena,5,1,1098.7,64575,0,293.0,2026-08-19,0,-1,1090.0,39.4
-49125,107921,Priest,Discipline,Oracle,Healer,US,Voidscar Arena,5,1,1098.7,10392,1,289.0,2026-08-19,0,-1,1090.0,39.4
-49125,107922,DemonHunter,Devourer,Void-Scarred,DPS,US,Voidscar Arena,5,1,1098.7,97669,1,294.0,2026-08-19,0,-1,1090.0,39.4
-49125,107923,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Voidscar Arena,5,1,1098.7,99718,1,290.0,2026-08-19,0,-1,1090.0,39.4
-49125,107924,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,5,1,1098.7,138570,0,293.0,2026-08-19,0,-1,1090.0,39.4
-49126,107925,Paladin,Protection,Templar,Tank,US,Ruby Life Pools,8,1,1456.0,61131,1,290.0,2026-08-19,0,-1,1467.0,12.7
-49126,107926,Evoker,Preservation,Flameshaper,Healer,US,Ruby Life Pools,8,1,1456.0,24579,1,285.0,2026-08-19,0,-1,1467.0,12.7
-49126,68912,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,8,1,1456.0,112858,2,297.0,2026-08-19,0,-1,1467.0,12.7
-49126,107927,Rogue,Assassination,Deathstalker,DPS,US,Ruby Life Pools,8,1,1456.0,151240,0,292.0,2026-08-19,0,-1,1467.0,12.7
-49126,68910,Druid,Balance,Elune's Chosen,DPS,US,Ruby Life Pools,8,1,1456.0,150285,0,295.0,2026-08-19,0,-1,1467.0,12.7
-49127,69019,Monk,Brewmaster,Master of Harmony,Tank,US,Murder Row,5,1,1239.5,60690,0,292.0,2026-08-19,0,-1,1231.0,39.6
-49127,77261,Priest,Discipline,Voidweaver,Healer,US,Murder Row,5,1,1239.5,23360,0,292.0,2026-08-19,0,-1,1231.0,39.6
-49127,77264,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,5,1,1239.5,100618,0,291.0,2026-08-19,0,-1,1231.0,39.6
-49127,77262,Warrior,Arms,Slayer,DPS,US,Murder Row,5,1,1239.5,150723,1,289.0,2026-08-19,0,-1,1231.0,39.6
-49127,7346,Warlock,Destruction,Diabolist,DPS,US,Murder Row,5,1,1239.5,119497,0,294.0,2026-08-19,0,-1,1231.0,39.6
-49130,1913,Warrior,Protection,Unknown,Tank,US,Den of Nalorakk,10,1,1753.2,119694,3,294.0,2026-08-18,0,-1,1834.0,4.5
-49130,95855,Shaman,Restoration,Unknown,Healer,US,Den of Nalorakk,10,1,1753.2,23494,3,290.0,2026-08-18,0,-1,1834.0,4.5
-49130,1917,Mage,Arcane,Unknown,DPS,US,Den of Nalorakk,10,1,1753.2,154108,4,295.0,2026-08-18,0,-1,1834.0,4.5
-49130,3233,Warlock,Demonology,Unknown,DPS,US,Den of Nalorakk,10,1,1753.2,128785,4,291.0,2026-08-18,0,-1,1834.0,4.5
-49130,1916,DemonHunter,Devourer,Unknown,DPS,US,Den of Nalorakk,10,1,1753.2,162498,4,291.0,2026-08-18,0,-1,1834.0,4.5
-49132,68451,DeathKnight,Blood,Deathbringer,Tank,EU,The Blinding Vale,5,1,1138.3,56448,0,288.0,2026-08-19,0,-1,1129.0,37.3
-49132,61196,Paladin,Holy,Herald of the Sun,Healer,EU,The Blinding Vale,5,1,1138.3,8906,0,291.0,2026-08-19,0,-1,1129.0,37.3
-49132,107932,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,5,1,1138.3,122750,2,287.0,2026-08-19,0,-1,1129.0,37.3
-49132,25323,Shaman,Elemental,Farseer,DPS,EU,The Blinding Vale,5,1,1138.3,170492,1,296.0,2026-08-19,0,-1,1129.0,37.3
-49132,71734,Druid,Balance,Elune's Chosen,DPS,EU,The Blinding Vale,5,1,1138.3,113650,0,292.0,2026-08-19,0,-1,1129.0,37.3
-49133,95403,Druid,Guardian,Druid of the Claw,Tank,US,Temple of Sethraliss,6,1,1491.2,70496,0,294.0,2026-08-20,0,-1,1493.0,22.2
-49133,29448,Paladin,Holy,Herald of the Sun,Healer,US,Temple of Sethraliss,6,1,1491.2,8972,0,298.0,2026-08-20,0,-1,1493.0,22.2
-49133,107933,Warrior,Arms,Slayer,DPS,US,Temple of Sethraliss,6,1,1491.2,81064,1,297.0,2026-08-20,0,-1,1493.0,22.2
-49133,107934,Priest,Shadow,Voidweaver,DPS,US,Temple of Sethraliss,6,1,1491.2,108457,1,297.0,2026-08-20,0,-1,1493.0,22.2
-49133,107935,Mage,Arcane,Sunfury,DPS,US,Temple of Sethraliss,6,1,1491.2,128682,0,297.0,2026-08-20,0,-1,1493.0,22.2
-49134,12955,Warrior,Protection,Mountain Thane,Tank,EU,Altar of Fangs,11,1,1636.4,131158,0,297.0,2026-08-19,0,-1,1653.0,8.2
-49134,17258,Paladin,Holy,Herald of the Sun,Healer,EU,Altar of Fangs,11,1,1636.4,9695,1,292.0,2026-08-19,0,-1,1653.0,8.2
-49134,12959,Warlock,Demonology,Diabolist,DPS,EU,Altar of Fangs,11,1,1636.4,185981,2,293.0,2026-08-19,0,-1,1653.0,8.2
-49134,17259,Warlock,Demonology,Diabolist,DPS,EU,Altar of Fangs,11,1,1636.4,196028,2,293.0,2026-08-19,0,-1,1653.0,8.2
-49134,12957,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,11,1,1636.4,187850,0,297.0,2026-08-19,0,-1,1653.0,8.2
-49136,89522,DeathKnight,Blood,San'layn,Tank,US,Ruby Life Pools,10,1,1681.5,73646,0,289.0,2026-08-18,0,-1,1673.0,0.4
-49136,70615,Paladin,Holy,Herald of the Sun,Healer,US,Ruby Life Pools,10,1,1681.5,11823,0,293.0,2026-08-18,0,-1,1673.0,0.4
-49136,70616,Monk,Windwalker,Shado-Pan,DPS,US,Ruby Life Pools,10,1,1681.5,121728,0,292.0,2026-08-18,0,-1,1673.0,0.4
-49136,70617,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,10,1,1681.5,155002,0,290.0,2026-08-18,0,-1,1673.0,0.4
-49136,70618,Warlock,Demonology,Diabolist,DPS,US,Ruby Life Pools,10,1,1681.5,118648,0,290.0,2026-08-18,0,-1,1673.0,0.4
-49137,107939,DeathKnight,Blood,San'layn,Tank,EU,Temple of Sethraliss,7,1,1894.0,84539,0,293.0,2026-08-19,0,-1,1896.0,1.3
-49137,107940,Shaman,Restoration,Totemic,Healer,EU,Temple of Sethraliss,7,1,1894.0,10172,0,282.0,2026-08-19,0,-1,1896.0,1.3
-49137,107941,Paladin,Retribution,Templar,DPS,EU,Temple of Sethraliss,7,1,1894.0,133598,1,292.0,2026-08-19,0,-1,1896.0,1.3
-49137,107942,Paladin,Retribution,Templar,DPS,EU,Temple of Sethraliss,7,1,1894.0,94461,0,291.0,2026-08-19,0,-1,1896.0,1.3
-49137,107943,Warlock,Demonology,Diabolist,DPS,EU,Temple of Sethraliss,7,1,1894.0,92576,1,291.0,2026-08-19,0,-1,1896.0,1.3
-49138,105795,Paladin,Protection,Lightsmith,Tank,EU,Voidscar Arena,7,1,1588.7,74176,1,294.0,2026-08-19,0,-1,1650.0,8.3
-49138,105796,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Voidscar Arena,7,1,1588.7,20767,1,292.0,2026-08-19,0,-1,1650.0,8.3
-49138,85904,Druid,Balance,Elune's Chosen,DPS,EU,Voidscar Arena,7,1,1588.7,114715,5,293.0,2026-08-19,0,-1,1650.0,8.3
-49138,75923,Warrior,Fury,Slayer,DPS,EU,Voidscar Arena,7,1,1588.7,108227,4,292.0,2026-08-19,0,-1,1650.0,8.3
-49138,75925,Shaman,Elemental,Farseer,DPS,EU,Voidscar Arena,7,1,1588.7,141844,3,297.0,2026-08-19,0,-1,1650.0,8.3
-49140,107944,DeathKnight,Blood,San'layn,Tank,US,Altar of Fangs,4,1,1115.7,104096,0,293.0,2026-08-19,0,-1,1107.0,38.5
-49140,107945,Druid,Restoration,Wildstalker,Healer,US,Altar of Fangs,4,1,1115.7,1792,0,292.0,2026-08-19,0,-1,1107.0,38.5
-49140,107946,Paladin,Retribution,Templar,DPS,US,Altar of Fangs,4,1,1115.7,117217,0,298.0,2026-08-19,0,-1,1107.0,38.5
-49140,107947,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Altar of Fangs,4,1,1115.7,121737,0,293.0,2026-08-19,0,-1,1107.0,38.5
-49140,107948,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,4,1,1115.7,118482,0,292.0,2026-08-19,0,-1,1107.0,38.5
+182106,166595,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Altar of Fangs,10,1,1512.7,43786,0,290.0,2026-08-20,0,-1,1534.0,14.8
+182106,184522,Priest,Shadow,Voidweaver,DPS,EU,Altar of Fangs,10,1,1512.7,169800,3,303.0,2026-08-20,0,-1,1534.0,14.8
+182106,40860,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,10,1,1512.7,203337,0,297.0,2026-08-20,0,-1,1534.0,14.8
+182106,23647,Warrior,Arms,Slayer,DPS,EU,Altar of Fangs,10,1,1512.7,207650,2,300.0,2026-08-20,0,-1,1534.0,14.8
+182122,238694,Druid,Guardian,Elune's Chosen,Tank,CN,Den of Nalorakk,10,0,2043.2,48439,2,299.0,2026-08-20,0,-1,2120.0,-10.4
+182122,238695,Evoker,Preservation,Chronowarden,Healer,CN,Den of Nalorakk,10,0,2043.2,14545,4,294.0,2026-08-20,0,-1,2120.0,-10.4
+182122,228935,Warrior,Arms,Slayer,DPS,CN,Den of Nalorakk,10,0,2043.2,161277,3,304.0,2026-08-20,0,-1,2120.0,-10.4
+182122,238696,Warlock,Demonology,Diabolist,DPS,CN,Den of Nalorakk,10,0,2043.2,101751,4,294.0,2026-08-20,0,-1,2120.0,-10.4
+182122,238697,Mage,Arcane,Sunfury,DPS,CN,Den of Nalorakk,10,0,2043.2,136283,6,301.0,2026-08-20,0,-1,2120.0,-10.4
+182133,128082,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,8,1,1531.8,55570,1,290.0,2026-08-21,0,-1,1553.0,21.5
+182133,32065,Shaman,Restoration,Totemic,Healer,US,Kings' Rest,8,1,1531.8,29358,1,295.0,2026-08-21,0,-1,1553.0,21.5
+182133,238704,Rogue,Subtlety,Deathstalker,DPS,US,Kings' Rest,8,1,1531.8,116012,2,297.0,2026-08-21,0,-1,1553.0,21.5
+182133,238705,Priest,Shadow,Voidweaver,DPS,US,Kings' Rest,8,1,1531.8,122831,1,300.0,2026-08-21,0,-1,1553.0,21.5
+182133,128083,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,8,1,1531.8,86730,1,286.0,2026-08-21,0,-1,1553.0,21.5
+182134,24201,Druid,Guardian,Elune's Chosen,Tank,EU,Murder Row,11,1,1258.5,109874,0,292.0,2026-08-21,0,-1,1265.0,38.0
+182134,24876,Shaman,Restoration,Totemic,Healer,EU,Murder Row,11,1,1258.5,28491,1,291.0,2026-08-21,0,-1,1265.0,38.0
+182134,234859,Monk,Windwalker,Shado-Pan,DPS,EU,Murder Row,11,1,1258.5,227977,1,298.0,2026-08-21,0,-1,1265.0,38.0
+182134,238706,Rogue,Outlaw,Trickster,DPS,EU,Murder Row,11,1,1258.5,241734,1,294.0,2026-08-21,0,-1,1265.0,38.0
+182134,238707,Warrior,Arms,Slayer,DPS,EU,Murder Row,11,1,1258.5,264368,0,307.0,2026-08-21,0,-1,1265.0,38.0
+182149,121020,Druid,Guardian,Elune's Chosen,Tank,US,Voidscar Arena,7,1,1574.3,50038,0,292.0,2026-08-21,0,-1,1586.0,11.9
+182149,129772,Paladin,Holy,Herald of the Sun,Healer,US,Voidscar Arena,7,1,1574.3,12298,1,272.0,2026-08-21,0,-1,1586.0,11.9
+182149,238729,Paladin,Retribution,Templar,DPS,US,Voidscar Arena,7,1,1574.3,87163,1,285.0,2026-08-21,0,-1,1586.0,11.9
+182149,60328,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Voidscar Arena,7,1,1574.3,131356,1,296.0,2026-08-21,0,-1,1586.0,11.9
+182149,60325,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,7,1,1574.3,131356,1,293.0,2026-08-21,0,-1,1586.0,11.9
+182167,238744,DeathKnight,Blood,Deathbringer,Tank,EU,Temple of Sethraliss,2,1,1485.7,61959,0,293.0,2026-08-20,0,-1,1477.0,23.1
+182167,238745,Druid,Restoration,Wildstalker,Healer,EU,Temple of Sethraliss,2,1,1485.7,12590,0,281.0,2026-08-20,0,-1,1477.0,23.1
+182167,225494,Mage,Arcane,Sunfury,DPS,EU,Temple of Sethraliss,2,1,1485.7,101830,0,286.0,2026-08-20,0,-1,1477.0,23.1
+182167,238746,Warlock,Demonology,Soul Harvester,DPS,EU,Temple of Sethraliss,2,1,1485.7,61326,0,285.0,2026-08-20,0,-1,1477.0,23.1
+182167,238747,Druid,Balance,Elune's Chosen,DPS,EU,Temple of Sethraliss,2,1,1485.7,47017,2,264.0,2026-08-20,0,-1,1477.0,23.1
+182180,4450,Paladin,Protection,Templar,Tank,US,Altar of Fangs,7,1,1219.9,103343,0,294.0,2026-08-21,0,-1,1211.0,32.7
+182180,232916,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,7,1,1219.9,12536,0,284.0,2026-08-21,0,-1,1211.0,32.7
+182180,238760,Warlock,Affliction,Soul Harvester,DPS,US,Altar of Fangs,7,1,1219.9,181067,0,291.0,2026-08-21,0,-1,1211.0,32.7
+182180,238761,Priest,Shadow,Archon,DPS,US,Altar of Fangs,7,1,1219.9,168368,0,279.0,2026-08-21,0,-1,1211.0,32.7
+182180,139327,DemonHunter,Devourer,Void-Scarred,DPS,US,Altar of Fangs,7,1,1219.9,214461,0,308.0,2026-08-21,0,-1,1211.0,32.7
+182189,150538,DeathKnight,Blood,San'layn,Tank,EU,The Blinding Vale,10,1,1531.3,125505,1,300.0,2026-08-20,0,-1,1567.0,12.9
+182189,238770,Shaman,Restoration,Totemic,Healer,EU,The Blinding Vale,10,1,1531.3,19277,2,294.0,2026-08-20,0,-1,1567.0,12.9
+182189,238771,Monk,Windwalker,Shado-Pan,DPS,EU,The Blinding Vale,10,1,1531.3,176101,3,288.0,2026-08-20,0,-1,1567.0,12.9
+182189,238772,Warrior,Arms,Slayer,DPS,EU,The Blinding Vale,10,1,1531.3,147793,2,296.0,2026-08-20,0,-1,1567.0,12.9
+182189,227603,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,The Blinding Vale,10,1,1531.3,166220,1,294.0,2026-08-20,0,-1,1567.0,12.9
+182199,238612,DeathKnight,Blood,Deathbringer,Tank,US,Ruby Life Pools,4,1,1004.7,79583,0,295.0,2026-08-20,0,-1,996.0,40.7
+182199,231368,Priest,Holy,Oracle,Healer,US,Ruby Life Pools,4,1,1004.7,14468,0,281.0,2026-08-20,0,-1,996.0,40.7
+182199,93429,Rogue,Outlaw,Trickster,DPS,US,Ruby Life Pools,4,1,1004.7,96123,0,283.0,2026-08-20,0,-1,996.0,40.7
+182199,238786,Paladin,Retribution,Templar,DPS,US,Ruby Life Pools,4,1,1004.7,122388,0,295.0,2026-08-20,0,-1,996.0,40.7
+182199,238787,Shaman,Elemental,Farseer,DPS,US,Ruby Life Pools,4,1,1004.7,143141,0,306.0,2026-08-20,0,-1,996.0,40.7
+182202,230976,DeathKnight,Blood,Deathbringer,Tank,EU,Altar of Fangs,4,0,2031.4,74807,3,293.0,2026-08-20,0,-1,2023.0,-12.4
+182202,171749,Druid,Restoration,Wildstalker,Healer,EU,Altar of Fangs,4,0,2031.4,5404,6,295.0,2026-08-20,0,-1,2023.0,-12.4
+182202,230978,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,4,0,2031.4,77094,8,287.0,2026-08-20,0,-1,2023.0,-12.4
+182202,230979,Druid,Balance,Elune's Chosen,DPS,EU,Altar of Fangs,4,0,2031.4,81625,7,283.0,2026-08-20,0,-1,2023.0,-12.4
+182202,230977,DeathKnight,Frost,Rider of the Apocalypse,DPS,EU,Altar of Fangs,4,0,2031.4,35388,5,285.0,2026-08-20,0,-1,2023.0,-12.4
+182207,9419,DeathKnight,Blood,San'layn,Tank,US,Altar of Fangs,10,1,1520.7,135681,0,303.0,2026-08-20,0,-1,1522.0,15.4
+182207,97108,Paladin,Holy,Herald of the Sun,Healer,US,Altar of Fangs,10,1,1520.7,13306,1,298.0,2026-08-20,0,-1,1522.0,15.4
+182207,7866,Warlock,Demonology,Diabolist,DPS,US,Altar of Fangs,10,1,1520.7,176883,1,303.0,2026-08-20,0,-1,1522.0,15.4
+182207,7867,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,10,1,1520.7,211531,0,304.0,2026-08-20,0,-1,1522.0,15.4
+182207,9423,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,10,1,1520.7,186339,0,303.0,2026-08-20,0,-1,1522.0,15.4
+182210,123573,DeathKnight,Blood,San'layn,Tank,US,The Blinding Vale,12,1,1440.6,100800,0,309.0,2026-08-20,0,-1,1462.0,18.8
+182210,10139,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,12,1,1440.6,33317,0,302.0,2026-08-20,0,-1,1462.0,18.8
+182210,48340,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,12,1,1440.6,214708,1,300.0,2026-08-20,0,-1,1462.0,18.8
+182210,10140,Paladin,Retribution,Templar,DPS,US,The Blinding Vale,12,1,1440.6,211197,1,298.0,2026-08-20,0,-1,1462.0,18.8
+182210,758,Warlock,Destruction,Diabolist,DPS,US,The Blinding Vale,12,1,1440.6,205997,0,303.0,2026-08-20,0,-1,1462.0,18.8
+182211,60809,Paladin,Protection,Templar,Tank,EU,Ruby Life Pools,10,1,1426.7,101937,0,299.0,2026-08-20,0,-1,1428.0,15.0
+182211,45557,Paladin,Holy,Herald of the Sun,Healer,EU,Ruby Life Pools,10,1,1426.7,20734,0,300.0,2026-08-20,0,-1,1428.0,15.0
+182211,231870,Druid,Feral,Druid of the Claw,DPS,EU,Ruby Life Pools,10,1,1426.7,123997,1,283.0,2026-08-20,0,-1,1428.0,15.0
+182211,231871,DeathKnight,Unholy,San'layn,DPS,EU,Ruby Life Pools,10,1,1426.7,158092,0,294.0,2026-08-20,0,-1,1428.0,15.0
+182211,45558,Warrior,Fury,Slayer,DPS,EU,Ruby Life Pools,10,1,1426.7,238193,1,306.0,2026-08-20,0,-1,1428.0,15.0
+182248,25779,DeathKnight,Blood,San'layn,Tank,EU,Murder Row,11,1,1721.1,113388,0,302.0,2026-08-20,0,-1,1717.0,15.8
+182248,201900,Paladin,Holy,Herald of the Sun,Healer,EU,Murder Row,11,1,1721.1,14870,0,296.0,2026-08-20,0,-1,1717.0,15.8
+182248,25782,DemonHunter,Devourer,Annihilator,DPS,EU,Murder Row,11,1,1721.1,185113,0,297.0,2026-08-20,0,-1,1717.0,15.8
+182248,18293,Druid,Balance,Elune's Chosen,DPS,EU,Murder Row,11,1,1721.1,165442,0,300.0,2026-08-20,0,-1,1717.0,15.8
+182248,224299,Warrior,Arms,Slayer,DPS,EU,Murder Row,11,1,1721.1,151123,1,290.0,2026-08-20,0,-1,1717.0,15.8
+182252,88911,DeathKnight,Blood,Unknown,Tank,EU,Temple of Sethraliss,8,1,1601.1,91948,0,295.0,2026-08-21,0,-1,1633.0,15.0
+182252,238820,Shaman,Restoration,Unknown,Healer,EU,Temple of Sethraliss,8,1,1601.1,32742,1,292.0,2026-08-21,0,-1,1633.0,15.0
+182252,238821,Mage,Arcane,Unknown,DPS,EU,Temple of Sethraliss,8,1,1601.1,104171,4,294.0,2026-08-21,0,-1,1633.0,15.0
+182252,108093,DemonHunter,Devourer,Unknown,DPS,EU,Temple of Sethraliss,8,1,1601.1,146184,2,298.0,2026-08-21,0,-1,1633.0,15.0
+182252,153631,Shaman,Elemental,Unknown,DPS,EU,Temple of Sethraliss,8,1,1601.1,130194,1,299.0,2026-08-21,0,-1,1633.0,15.0
+182257,129451,Monk,Brewmaster,Unknown,Tank,US,Den of Nalorakk,10,1,1654.9,79973,1,297.0,2026-08-20,0,-1,1682.0,12.4
+182257,199311,Priest,Holy,Unknown,Healer,US,Den of Nalorakk,10,1,1654.9,26840,0,293.0,2026-08-20,0,-1,1682.0,12.4
+182257,129454,Warlock,Affliction,Unknown,DPS,US,Den of Nalorakk,10,1,1654.9,151760,2,304.0,2026-08-20,0,-1,1682.0,12.4
+182257,7209,Mage,Arcane,Unknown,DPS,US,Den of Nalorakk,10,1,1654.9,157990,1,293.0,2026-08-20,0,-1,1682.0,12.4
+182257,87328,Warrior,Arms,Unknown,DPS,US,Den of Nalorakk,10,1,1654.9,117853,1,298.0,2026-08-20,0,-1,1682.0,12.4
+182267,221709,Warrior,Protection,Mountain Thane,Tank,EU,Temple of Sethraliss,5,1,1369.7,72801,0,281.0,2026-08-20,0,-1,1362.0,29.1
+182267,221710,Priest,Holy,Oracle,Healer,EU,Temple of Sethraliss,5,1,1369.7,1,0,289.0,2026-08-20,0,-1,1362.0,29.1
+182267,77124,Monk,Windwalker,Shado-Pan,DPS,EU,Temple of Sethraliss,5,1,1369.7,117678,2,289.0,2026-08-20,0,-1,1362.0,29.1
+182267,221711,Hunter,BeastMastery,Pack Leader,DPS,EU,Temple of Sethraliss,5,1,1369.7,99561,0,287.0,2026-08-20,0,-1,1362.0,29.1
+182267,30513,DeathKnight,Frost,Deathbringer,DPS,EU,Temple of Sethraliss,5,1,1369.7,105932,0,297.0,2026-08-20,0,-1,1362.0,29.1
+182276,238858,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,10,1,1765.6,65935,5,296.0,2026-08-21,0,-1,1887.0,4.7
+182276,129053,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Kings' Rest,10,1,1765.6,29490,6,303.0,2026-08-21,0,-1,1887.0,4.7
+182276,8845,Warrior,Arms,Slayer,DPS,US,Kings' Rest,10,1,1765.6,151458,5,300.0,2026-08-21,0,-1,1887.0,4.7
+182276,129052,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,10,1,1765.6,114850,6,294.0,2026-08-21,0,-1,1887.0,4.7
+182276,8844,Hunter,BeastMastery,Pack Leader,DPS,US,Kings' Rest,10,1,1765.6,108862,4,299.0,2026-08-21,0,-1,1887.0,4.7
+182280,238863,DeathKnight,Blood,Unknown,Tank,EU,The Blinding Vale,5,1,1124.4,54233,0,287.0,2026-08-20,0,-1,1116.0,38.0
+182280,238864,Shaman,Restoration,Unknown,Healer,EU,The Blinding Vale,5,1,1124.4,19712,0,283.0,2026-08-20,0,-1,1116.0,38.0
+182280,238865,Paladin,Retribution,Unknown,DPS,EU,The Blinding Vale,5,1,1124.4,143129,0,287.0,2026-08-20,0,-1,1116.0,38.0
+182280,35806,Mage,Arcane,Unknown,DPS,EU,The Blinding Vale,5,1,1124.4,171094,0,294.0,2026-08-20,0,-1,1116.0,38.0
+182280,238866,Warrior,Fury,Unknown,DPS,EU,The Blinding Vale,5,1,1124.4,100204,0,280.0,2026-08-20,0,-1,1116.0,38.0
+182294,1441,DeathKnight,Blood,San'layn,Tank,US,Murder Row,11,1,1729.2,118415,1,312.0,2026-08-21,0,-1,1766.0,13.5
+182294,238882,Paladin,Holy,Herald of the Sun,Healer,US,Murder Row,11,1,1729.2,9914,2,299.0,2026-08-21,0,-1,1766.0,13.5
+182294,235774,Warlock,Demonology,Diabolist,DPS,US,Murder Row,11,1,1729.2,186569,2,302.0,2026-08-21,0,-1,1766.0,13.5
+182294,1445,Warlock,Demonology,Diabolist,DPS,US,Murder Row,11,1,1729.2,183227,2,303.0,2026-08-21,0,-1,1766.0,13.5
+182294,55672,Evoker,Augmentation,Chronowarden,DPS,US,Murder Row,11,1,1729.2,129403,2,300.0,2026-08-21,0,-1,1766.0,13.5
+182298,238884,DeathKnight,Blood,San'layn,Tank,CN,Kings' Rest,10,1,1439.2,95170,1,304.0,2026-08-21,0,-1,1451.0,26.7
+182298,238885,Paladin,Holy,Herald of the Sun,Healer,CN,Kings' Rest,10,1,1439.2,23515,0,298.0,2026-08-21,0,-1,1451.0,26.7
+182298,238886,DemonHunter,Havoc,Fel-Scarred,DPS,CN,Kings' Rest,10,1,1439.2,119250,2,302.0,2026-08-21,0,-1,1451.0,26.7
+182298,238887,Mage,Arcane,Sunfury,DPS,CN,Kings' Rest,10,1,1439.2,131935,0,292.0,2026-08-21,0,-1,1451.0,26.7
+182298,238888,Warrior,Arms,Slayer,DPS,CN,Kings' Rest,10,1,1439.2,165310,1,299.0,2026-08-21,0,-1,1451.0,26.7
+182301,3986,Monk,Brewmaster,Shado-Pan,Tank,US,The Blinding Vale,12,1,1666.5,89443,1,296.0,2026-08-20,0,-1,1794.0,0.4
+182301,154178,Priest,Discipline,Oracle,Healer,US,The Blinding Vale,12,1,1666.5,16229,2,298.0,2026-08-20,0,-1,1794.0,0.4
+182301,215971,Hunter,BeastMastery,Pack Leader,DPS,US,The Blinding Vale,12,1,1666.5,178723,2,297.0,2026-08-20,0,-1,1794.0,0.4
+182301,4411,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,12,1,1666.5,192711,1,301.0,2026-08-20,0,-1,1794.0,0.4
+182301,2132,Shaman,Elemental,Farseer,DPS,US,The Blinding Vale,12,1,1666.5,171324,3,301.0,2026-08-20,0,-1,1794.0,0.4
+182312,227809,DeathKnight,Blood,Deathbringer,Tank,EU,The Blinding Vale,10,1,1426.1,80118,0,296.0,2026-08-20,0,-1,1428.0,20.7
+182312,238900,Evoker,Preservation,Flameshaper,Healer,EU,The Blinding Vale,10,1,1426.1,33466,0,296.0,2026-08-20,0,-1,1428.0,20.7
+182312,20879,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,The Blinding Vale,10,1,1426.1,173003,1,306.0,2026-08-20,0,-1,1428.0,20.7
+182312,19465,Shaman,Elemental,Farseer,DPS,EU,The Blinding Vale,10,1,1426.1,240778,0,303.0,2026-08-20,0,-1,1428.0,20.7
+182312,227812,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,10,1,1426.1,135437,1,300.0,2026-08-20,0,-1,1428.0,20.7
+182315,204438,Paladin,Protection,Lightsmith,Tank,EU,Voidscar Arena,10,1,1252.2,105004,2,292.0,2026-08-20,0,-1,1274.0,29.2
+182315,20084,Shaman,Restoration,Farseer,Healer,EU,Voidscar Arena,10,1,1252.2,21797,1,301.0,2026-08-20,0,-1,1274.0,29.2
+182315,20085,Druid,Feral,Druid of the Claw,DPS,EU,Voidscar Arena,10,1,1252.2,228459,1,297.0,2026-08-20,0,-1,1274.0,29.2
+182315,212022,Mage,Arcane,Sunfury,DPS,EU,Voidscar Arena,10,1,1252.2,211475,1,305.0,2026-08-20,0,-1,1274.0,29.2
+182315,22352,Warrior,Arms,Slayer,DPS,EU,Voidscar Arena,10,1,1252.2,194030,1,291.0,2026-08-20,0,-1,1274.0,29.2
+182323,168051,DeathKnight,Blood,San'layn,Tank,US,Murder Row,10,1,1711.9,79323,0,294.0,2026-08-20,0,-1,1714.0,16.0
+182323,225430,Paladin,Holy,Herald of the Sun,Healer,US,Murder Row,10,1,1711.9,7203,1,297.0,2026-08-20,0,-1,1714.0,16.0
+182323,52568,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,10,1,1711.9,134644,0,296.0,2026-08-20,0,-1,1714.0,16.0
+182323,10572,Evoker,Devastation,Scalecommander,DPS,US,Murder Row,10,1,1711.9,179081,0,298.0,2026-08-20,0,-1,1714.0,16.0
+182323,56272,Warlock,Demonology,Diabolist,DPS,US,Murder Row,10,1,1711.9,173369,1,300.0,2026-08-20,0,-1,1714.0,16.0
+182326,238908,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,6,1,1308.3,61294,1,285.0,2026-08-20,0,-1,1305.0,36.0
+182326,238909,Shaman,Restoration,Totemic,Healer,EU,Murder Row,6,1,1308.3,25589,0,294.0,2026-08-20,0,-1,1305.0,36.0
+182326,154493,Druid,Balance,Elune's Chosen,DPS,EU,Murder Row,6,1,1308.3,125508,0,295.0,2026-08-20,0,-1,1305.0,36.0
+182326,196718,Mage,Arcane,Sunfury,DPS,EU,Murder Row,6,1,1308.3,147307,0,294.0,2026-08-20,0,-1,1305.0,36.0
+182326,226267,Warlock,Affliction,Soul Harvester,DPS,EU,Murder Row,6,1,1308.3,95853,0,299.0,2026-08-20,0,-1,1305.0,36.0
+182331,66562,DeathKnight,Blood,Unknown,Tank,US,Voidscar Arena,11,1,1579.8,99838,0,304.0,2026-08-21,0,-1,1571.0,12.7
+182331,202004,Paladin,Holy,Unknown,Healer,US,Voidscar Arena,11,1,1579.8,12981,0,297.0,2026-08-21,0,-1,1571.0,12.7
+182331,66564,Druid,Balance,Unknown,DPS,US,Voidscar Arena,11,1,1579.8,146471,0,300.0,2026-08-21,0,-1,1571.0,12.7
+182331,66566,Mage,Arcane,Unknown,DPS,US,Voidscar Arena,11,1,1579.8,194118,0,303.0,2026-08-21,0,-1,1571.0,12.7
+182331,151575,Hunter,BeastMastery,Unknown,DPS,US,Voidscar Arena,11,1,1579.8,162819,0,297.0,2026-08-21,0,-1,1571.0,12.7
+182342,227233,DemonHunter,Vengeance,Annihilator,Tank,EU,The Blinding Vale,6,1,1121.4,75949,0,297.0,2026-08-20,0,-1,1118.0,37.9
+182342,238932,Shaman,Restoration,Totemic,Healer,EU,The Blinding Vale,6,1,1121.4,18642,0,288.0,2026-08-20,0,-1,1118.0,37.9
+182342,238933,Monk,Windwalker,Shado-Pan,DPS,EU,The Blinding Vale,6,1,1121.4,134861,0,292.0,2026-08-20,0,-1,1118.0,37.9
+182342,50765,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,6,1,1121.4,138655,0,295.0,2026-08-20,0,-1,1118.0,37.9
+182342,227234,Warrior,Arms,Slayer,DPS,EU,The Blinding Vale,6,1,1121.4,145094,1,302.0,2026-08-20,0,-1,1118.0,37.9
+182355,232047,DeathKnight,Blood,San'layn,Tank,EU,Kings' Rest,8,1,1771.7,69088,2,285.0,2026-08-20,0,-1,1873.0,5.4
+182355,238950,Priest,Holy,Archon,Healer,EU,Kings' Rest,8,1,1771.7,6391,3,281.0,2026-08-20,0,-1,1873.0,5.4
+182355,238951,Warrior,Arms,Slayer,DPS,EU,Kings' Rest,8,1,1771.7,94041,5,286.0,2026-08-20,0,-1,1873.0,5.4
+182355,232704,Monk,Windwalker,Shado-Pan,DPS,EU,Kings' Rest,8,1,1771.7,103990,4,295.0,2026-08-20,0,-1,1873.0,5.4
+182355,232049,Mage,Frost,Spellslinger,DPS,EU,Kings' Rest,8,1,1771.7,124606,5,290.0,2026-08-20,0,-1,1873.0,5.4
+182368,27819,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,2,1,1514.8,50935,0,289.0,2026-08-21,0,-1,1506.0,23.9
+182368,238966,Evoker,Preservation,Chronowarden,Healer,US,Kings' Rest,2,1,1514.8,12400,2,290.0,2026-08-21,0,-1,1506.0,23.9
+182368,238967,Mage,Frost,Frostfire,DPS,US,Kings' Rest,2,1,1514.8,60917,2,284.0,2026-08-21,0,-1,1506.0,23.9
+182368,75321,Paladin,Retribution,Templar,DPS,US,Kings' Rest,2,1,1514.8,57687,1,294.0,2026-08-21,0,-1,1506.0,23.9
+182368,238968,Priest,Shadow,Archon,DPS,US,Kings' Rest,2,1,1514.8,57410,1,278.0,2026-08-21,0,-1,1506.0,23.9
+182374,29494,DeathKnight,Blood,San'layn,Tank,EU,Temple of Sethraliss,8,1,1362.2,84415,0,296.0,2026-08-21,0,-1,1364.0,29.0
+182374,238976,Priest,Holy,Oracle,Healer,EU,Temple of Sethraliss,8,1,1362.2,23442,1,284.0,2026-08-21,0,-1,1364.0,29.0
+182374,29498,Mage,Fire,Sunfury,DPS,EU,Temple of Sethraliss,8,1,1362.2,96350,0,291.0,2026-08-21,0,-1,1364.0,29.0
+182374,209816,Warrior,Arms,Slayer,DPS,EU,Temple of Sethraliss,8,1,1362.2,157403,1,288.0,2026-08-21,0,-1,1364.0,29.0
+182374,26696,Rogue,Assassination,Fatebound,DPS,EU,Temple of Sethraliss,8,1,1362.2,174830,0,296.0,2026-08-21,0,-1,1364.0,29.0
+182382,225183,Druid,Guardian,Elune's Chosen,Tank,EU,Den of Nalorakk,9,1,1746.7,70157,0,298.0,2026-08-20,0,-1,1763.0,8.2
+182382,225184,Druid,Restoration,Wildstalker,Healer,EU,Den of Nalorakk,9,1,1746.7,4207,1,289.0,2026-08-20,0,-1,1763.0,8.2
+182382,225185,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,9,1,1746.7,118997,1,294.0,2026-08-20,0,-1,1763.0,8.2
+182382,225186,Warrior,Fury,Slayer,DPS,EU,Den of Nalorakk,9,1,1746.7,122474,3,295.0,2026-08-20,0,-1,1763.0,8.2
+182382,225187,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Den of Nalorakk,9,1,1746.7,120470,0,292.0,2026-08-20,0,-1,1763.0,8.2
+182396,50516,Paladin,Protection,Lightsmith,Tank,EU,Murder Row,12,1,1640.3,75409,0,307.0,2026-08-21,0,-1,1676.0,17.8
+182396,18289,Paladin,Holy,Herald of the Sun,Healer,EU,Murder Row,12,1,1640.3,18016,0,299.0,2026-08-21,0,-1,1676.0,17.8
+182396,238996,Warlock,Demonology,Diabolist,DPS,EU,Murder Row,12,1,1640.3,241974,0,302.0,2026-08-21,0,-1,1676.0,17.8
+182396,35511,Rogue,Assassination,Deathstalker,DPS,EU,Murder Row,12,1,1640.3,171305,3,297.0,2026-08-21,0,-1,1676.0,17.8
+182396,19381,Mage,Arcane,Sunfury,DPS,EU,Murder Row,12,1,1640.3,199395,0,300.0,2026-08-21,0,-1,1676.0,17.8
+182404,107584,DeathKnight,Blood,San'layn,Tank,EU,Kings' Rest,11,0,1956.7,86711,1,305.0,2026-08-20,0,-1,2003.0,-1.2
+182404,239014,Priest,Discipline,Oracle,Healer,EU,Kings' Rest,11,0,1956.7,12291,5,282.0,2026-08-20,0,-1,2003.0,-1.2
+182404,234354,Warlock,Destruction,Diabolist,DPS,EU,Kings' Rest,11,0,1956.7,91102,2,288.0,2026-08-20,0,-1,2003.0,-1.2
+182404,239015,Priest,Shadow,Voidweaver,DPS,EU,Kings' Rest,11,0,1956.7,126933,1,291.0,2026-08-20,0,-1,2003.0,-1.2
+182404,112064,Mage,Arcane,Spellslinger,DPS,EU,Kings' Rest,11,0,1956.7,132151,2,302.0,2026-08-20,0,-1,2003.0,-1.2
+182409,197078,Monk,Brewmaster,Master of Harmony,Tank,US,Temple of Sethraliss,8,1,1489.0,67245,0,286.0,2026-08-21,0,-1,1495.0,22.1
+182409,197079,Paladin,Holy,Herald of the Sun,Healer,US,Temple of Sethraliss,8,1,1489.0,3626,0,293.0,2026-08-21,0,-1,1495.0,22.1
+182409,153588,Hunter,BeastMastery,Pack Leader,DPS,US,Temple of Sethraliss,8,1,1489.0,162354,1,299.0,2026-08-21,0,-1,1495.0,22.1
+182409,232975,Warlock,Demonology,Diabolist,DPS,US,Temple of Sethraliss,8,1,1489.0,164430,0,290.0,2026-08-21,0,-1,1495.0,22.1
+182409,147223,Rogue,Assassination,Deathstalker,DPS,US,Temple of Sethraliss,8,1,1489.0,109346,2,292.0,2026-08-21,0,-1,1495.0,22.1
+182418,235867,Paladin,Protection,Templar,Tank,US,Altar of Fangs,5,1,1256.3,75566,0,289.0,2026-08-20,0,-1,1248.0,30.7
+182418,235868,Evoker,Preservation,Flameshaper,Healer,US,Altar of Fangs,5,1,1256.3,24786,0,296.0,2026-08-20,0,-1,1248.0,30.7
+182418,235869,DemonHunter,Devourer,Void-Scarred,DPS,US,Altar of Fangs,5,1,1256.3,143561,1,296.0,2026-08-20,0,-1,1248.0,30.7
+182418,235871,Monk,Windwalker,Shado-Pan,DPS,US,Altar of Fangs,5,1,1256.3,80057,1,291.0,2026-08-20,0,-1,1248.0,30.7
+182418,235870,Warlock,Demonology,Diabolist,DPS,US,Altar of Fangs,5,1,1256.3,139816,0,294.0,2026-08-20,0,-1,1248.0,30.7
+182420,239032,Monk,Brewmaster,Shado-Pan,Tank,US,Ruby Life Pools,10,1,1335.5,73938,6,285.0,2026-08-20,0,-1,1412.0,15.9
+182420,223603,Priest,Holy,Oracle,Healer,US,Ruby Life Pools,10,1,1335.5,33510,1,294.0,2026-08-20,0,-1,1412.0,15.9
+182420,37805,Paladin,Retribution,Templar,DPS,US,Ruby Life Pools,10,1,1335.5,214541,3,306.0,2026-08-20,0,-1,1412.0,15.9
+182420,78477,Warlock,Destruction,Diabolist,DPS,US,Ruby Life Pools,10,1,1335.5,174525,3,302.0,2026-08-20,0,-1,1412.0,15.9
+182420,18338,Priest,Shadow,Archon,DPS,US,Ruby Life Pools,10,1,1335.5,180851,3,300.0,2026-08-20,0,-1,1412.0,15.9
+182425,92873,DeathKnight,Blood,San'layn,Tank,US,The Blinding Vale,8,1,1365.9,93834,0,294.0,2026-08-20,0,-1,1388.0,22.9
+182425,92874,Evoker,Preservation,Flameshaper,Healer,US,The Blinding Vale,8,1,1365.9,35959,2,289.0,2026-08-20,0,-1,1388.0,22.9
+182425,92877,Shaman,Elemental,Farseer,DPS,US,The Blinding Vale,8,1,1365.9,117707,1,269.0,2026-08-20,0,-1,1388.0,22.9
+182425,112714,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,8,1,1365.9,193200,2,294.0,2026-08-20,0,-1,1388.0,22.9
+182425,92876,Rogue,Subtlety,Deathstalker,DPS,US,The Blinding Vale,8,1,1365.9,152180,1,293.0,2026-08-20,0,-1,1388.0,22.9
+182426,188212,DeathKnight,Blood,San'layn,Tank,EU,Altar of Fangs,11,0,2194.0,99290,3,297.0,2026-08-20,0,-1,2266.0,-25.9
+182426,228424,Shaman,Restoration,Totemic,Healer,EU,Altar of Fangs,11,0,2194.0,14187,3,288.0,2026-08-20,0,-1,2266.0,-25.9
+182426,162370,Warrior,Arms,Slayer,DPS,EU,Altar of Fangs,11,0,2194.0,119674,7,286.0,2026-08-20,0,-1,2266.0,-25.9
+182426,204183,DemonHunter,Devourer,Annihilator,DPS,EU,Altar of Fangs,11,0,2194.0,176328,3,302.0,2026-08-20,0,-1,2266.0,-25.9
+182426,162368,Warlock,Demonology,Diabolist,DPS,EU,Altar of Fangs,11,0,2194.0,133812,4,284.0,2026-08-20,0,-1,2266.0,-25.9
+182434,223791,Warrior,Protection,Mountain Thane,Tank,US,Voidscar Arena,2,1,1304.9,59966,0,294.0,2026-08-20,0,-1,1296.0,28.0
+182434,239039,Priest,Discipline,Oracle,Healer,US,Voidscar Arena,2,1,1304.9,13443,0,290.0,2026-08-20,0,-1,1296.0,28.0
+182434,239040,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,2,1,1304.9,51494,1,264.0,2026-08-20,0,-1,1296.0,28.0
+182434,226280,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Voidscar Arena,2,1,1304.9,74455,0,294.0,2026-08-20,0,-1,1296.0,28.0
+182434,239041,Druid,Balance,Elune's Chosen,DPS,US,Voidscar Arena,2,1,1304.9,80980,0,292.0,2026-08-20,0,-1,1296.0,28.0
+182443,239047,Paladin,Protection,Lightsmith,Tank,EU,Temple of Sethraliss,10,1,1336.4,78132,0,292.0,2026-08-20,0,-1,1347.0,29.9
+182443,168854,Paladin,Holy,Herald of the Sun,Healer,EU,Temple of Sethraliss,10,1,1336.4,14762,1,297.0,2026-08-20,0,-1,1347.0,29.9
+182443,229936,Warrior,Arms,Slayer,DPS,EU,Temple of Sethraliss,10,1,1336.4,177782,0,289.0,2026-08-20,0,-1,1347.0,29.9
+182443,46719,Druid,Balance,Elune's Chosen,DPS,EU,Temple of Sethraliss,10,1,1336.4,157302,1,305.0,2026-08-20,0,-1,1347.0,29.9
+182443,37566,Monk,Windwalker,Conduit of the Celestials,DPS,EU,Temple of Sethraliss,10,1,1336.4,250106,2,303.0,2026-08-20,0,-1,1347.0,29.9
+182445,80484,Paladin,Protection,Templar,Tank,US,Kings' Rest,12,1,1829.8,67871,0,305.0,2026-08-20,0,-1,1821.0,8.0
+182445,6580,Shaman,Restoration,Totemic,Healer,US,Kings' Rest,12,1,1829.8,23533,0,305.0,2026-08-20,0,-1,1821.0,8.0
+182445,11256,Paladin,Retribution,Templar,DPS,US,Kings' Rest,12,1,1829.8,126530,0,295.0,2026-08-20,0,-1,1821.0,8.0
+182445,67199,Monk,Windwalker,Shado-Pan,DPS,US,Kings' Rest,12,1,1829.8,133418,0,305.0,2026-08-20,0,-1,1821.0,8.0
+182445,6582,Warlock,Demonology,Diabolist,DPS,US,Kings' Rest,12,1,1829.8,170649,0,298.0,2026-08-20,0,-1,1821.0,8.0
+182457,227203,Druid,Guardian,Elune's Chosen,Tank,EU,The Blinding Vale,8,1,1300.0,69607,0,294.0,2026-08-20,0,-1,1297.0,27.9
+182457,239068,Druid,Restoration,Wildstalker,Healer,EU,The Blinding Vale,8,1,1300.0,6181,0,287.0,2026-08-20,0,-1,1297.0,27.9
+182457,227206,DemonHunter,Devourer,Annihilator,DPS,EU,The Blinding Vale,8,1,1300.0,176065,1,295.0,2026-08-20,0,-1,1297.0,27.9
+182457,227205,Mage,Frost,Spellslinger,DPS,EU,The Blinding Vale,8,1,1300.0,177567,0,290.0,2026-08-20,0,-1,1297.0,27.9
+182457,227207,Warlock,Destruction,Diabolist,DPS,EU,The Blinding Vale,8,1,1300.0,185578,0,293.0,2026-08-20,0,-1,1297.0,27.9
+182471,239083,Monk,Brewmaster,Shado-Pan,Tank,CN,Kings' Rest,10,1,1547.2,55274,0,291.0,2026-08-21,0,-1,1553.0,21.6
+182471,239084,Shaman,Restoration,Totemic,Healer,CN,Kings' Rest,10,1,1547.2,16220,1,300.0,2026-08-21,0,-1,1553.0,21.6
+182471,172267,Mage,Arcane,Sunfury,DPS,CN,Kings' Rest,10,1,1547.2,128849,1,298.0,2026-08-21,0,-1,1553.0,21.6
+182471,239085,Paladin,Retribution,Herald of the Sun,DPS,CN,Kings' Rest,10,1,1547.2,127817,1,297.0,2026-08-21,0,-1,1553.0,21.6
+182471,239086,Warrior,Arms,Slayer,DPS,CN,Kings' Rest,10,1,1547.2,151056,0,295.0,2026-08-21,0,-1,1553.0,21.6
+182481,138651,Paladin,Protection,Templar,Tank,US,Temple of Sethraliss,10,0,1980.3,69285,2,300.0,2026-08-20,0,-1,2042.0,-6.4
+182481,26690,Priest,Holy,Oracle,Healer,US,Temple of Sethraliss,10,0,1980.3,12691,2,291.0,2026-08-20,0,-1,2042.0,-6.4
+182481,54267,Mage,Arcane,Sunfury,DPS,US,Temple of Sethraliss,10,0,1980.3,180612,2,301.0,2026-08-20,0,-1,2042.0,-6.4
+182481,66910,Paladin,Retribution,Templar,DPS,US,Temple of Sethraliss,10,0,1980.3,136700,2,296.0,2026-08-20,0,-1,2042.0,-6.4
+182481,26693,Druid,Balance,Elune's Chosen,DPS,US,Temple of Sethraliss,10,0,1980.3,129601,5,295.0,2026-08-20,0,-1,2042.0,-6.4
+182485,239094,DeathKnight,Blood,San'layn,Tank,US,The Blinding Vale,10,1,1568.3,111554,1,295.0,2026-08-20,0,-1,1610.0,10.6
+182485,239095,Priest,Holy,Oracle,Healer,US,The Blinding Vale,10,1,1568.3,10610,1,298.0,2026-08-20,0,-1,1610.0,10.6
+182485,172935,Shaman,Enhancement,Stormbringer,DPS,US,The Blinding Vale,10,1,1568.3,141729,5,294.0,2026-08-20,0,-1,1610.0,10.6
+182485,62516,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,10,1,1568.3,220767,1,298.0,2026-08-20,0,-1,1610.0,10.6
+182485,226752,Priest,Shadow,Voidweaver,DPS,US,The Blinding Vale,10,1,1568.3,194856,2,290.0,2026-08-20,0,-1,1610.0,10.6
+182490,55251,Paladin,Protection,Lightsmith,Tank,US,Ruby Life Pools,9,1,1448.1,119720,2,296.0,2026-08-20,0,-1,1485.0,11.6
+182490,239100,Druid,Restoration,Wildstalker,Healer,US,Ruby Life Pools,9,1,1448.1,1858,1,296.0,2026-08-20,0,-1,1485.0,11.6
+182490,239101,Warlock,Demonology,Diabolist,DPS,US,Ruby Life Pools,9,1,1448.1,167426,3,293.0,2026-08-20,0,-1,1485.0,11.6
+182490,239102,Evoker,Augmentation,Scalecommander,DPS,US,Ruby Life Pools,9,1,1448.1,117837,2,296.0,2026-08-20,0,-1,1485.0,11.6
+182490,239103,DemonHunter,Devourer,Annihilator,DPS,US,Ruby Life Pools,9,1,1448.1,156847,1,292.0,2026-08-20,0,-1,1485.0,11.6
+182494,128316,Druid,Guardian,Elune's Chosen,Tank,KR,Ruby Life Pools,10,1,1307.6,82682,0,299.0,2026-08-21,0,-1,1304.0,22.4
+182494,167213,Shaman,Restoration,Totemic,Healer,KR,Ruby Life Pools,10,1,1307.6,35252,0,299.0,2026-08-21,0,-1,1304.0,22.4
+182494,103691,Warlock,Demonology,Diabolist,DPS,KR,Ruby Life Pools,10,1,1307.6,178879,0,296.0,2026-08-21,0,-1,1304.0,22.4
+182494,157148,Hunter,Marksmanship,Dark Ranger,DPS,KR,Ruby Life Pools,10,1,1307.6,174124,0,298.0,2026-08-21,0,-1,1304.0,22.4
+182494,212968,Mage,Arcane,Sunfury,DPS,KR,Ruby Life Pools,10,1,1307.6,173266,1,296.0,2026-08-21,0,-1,1304.0,22.4
+182495,95462,Paladin,Protection,Lightsmith,Tank,EU,The Blinding Vale,10,0,1818.4,93352,0,297.0,2026-08-20,0,-1,1830.0,-1.7
+182495,95463,Druid,Restoration,Wildstalker,Healer,EU,The Blinding Vale,10,0,1818.4,3879,0,292.0,2026-08-20,0,-1,1830.0,-1.7
+182495,95464,Paladin,Retribution,Templar,DPS,EU,The Blinding Vale,10,0,1818.4,135813,2,295.0,2026-08-20,0,-1,1830.0,-1.7
+182495,95466,Monk,Windwalker,Shado-Pan,DPS,EU,The Blinding Vale,10,0,1818.4,142847,0,293.0,2026-08-20,0,-1,1830.0,-1.7
+182495,237714,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,10,0,1818.4,148780,2,293.0,2026-08-20,0,-1,1830.0,-1.7
+182503,239111,DeathKnight,Blood,San'layn,Tank,EU,Altar of Fangs,8,0,1772.6,59795,4,293.0,2026-08-20,0,-1,1850.0,-2.8
+182503,117484,Paladin,Holy,Herald of the Sun,Healer,EU,Altar of Fangs,8,0,1772.6,11830,2,296.0,2026-08-20,0,-1,1850.0,-2.8
+182503,117486,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,8,0,1772.6,166381,5,298.0,2026-08-20,0,-1,1850.0,-2.8
+182503,115781,Priest,Shadow,Archon,DPS,EU,Altar of Fangs,8,0,1772.6,150899,3,299.0,2026-08-20,0,-1,1850.0,-2.8
+182503,239112,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,8,0,1772.6,139990,3,291.0,2026-08-20,0,-1,1850.0,-2.8
+182509,206595,Warrior,Protection,Mountain Thane,Tank,US,Temple of Sethraliss,10,1,1880.5,71426,1,293.0,2026-08-20,0,-1,1913.0,0.4
+182509,140667,Paladin,Holy,Herald of the Sun,Healer,US,Temple of Sethraliss,10,1,1880.5,5121,3,290.0,2026-08-20,0,-1,1913.0,0.4
+182509,98876,Paladin,Retribution,Templar,DPS,US,Temple of Sethraliss,10,1,1880.5,154369,1,291.0,2026-08-20,0,-1,1913.0,0.4
+182509,44438,Hunter,Marksmanship,Sentinel,DPS,US,Temple of Sethraliss,10,1,1880.5,170768,1,308.0,2026-08-20,0,-1,1913.0,0.4
+182509,224288,Priest,Shadow,Archon,DPS,US,Temple of Sethraliss,10,1,1880.5,142707,2,294.0,2026-08-20,0,-1,1913.0,0.4
+182513,6628,Druid,Guardian,Elune's Chosen,Tank,US,Altar of Fangs,11,1,1680.3,112752,0,301.0,2026-08-21,0,-1,1716.0,4.6
+182513,106137,Paladin,Holy,Herald of the Sun,Healer,US,Altar of Fangs,11,1,1680.3,10267,2,280.0,2026-08-21,0,-1,1716.0,4.6
+182513,42032,Warlock,Demonology,Diabolist,DPS,US,Altar of Fangs,11,1,1680.3,171444,5,290.0,2026-08-21,0,-1,1716.0,4.6
+182513,149828,Priest,Shadow,Archon,DPS,US,Altar of Fangs,11,1,1680.3,199955,0,296.0,2026-08-21,0,-1,1716.0,4.6
+182513,8799,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,11,1,1680.3,205001,2,302.0,2026-08-21,0,-1,1716.0,4.6
+182521,148827,Druid,Guardian,Elune's Chosen,Tank,US,Altar of Fangs,11,1,1731.3,81004,0,298.0,2026-08-20,0,-1,1758.0,2.3
+182521,40873,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,11,1,1731.3,30955,1,300.0,2026-08-20,0,-1,1758.0,2.3
+182521,161242,Rogue,Subtlety,Deathstalker,DPS,US,Altar of Fangs,11,1,1731.3,158719,2,301.0,2026-08-20,0,-1,1758.0,2.3
+182521,38644,Paladin,Retribution,Herald of the Sun,DPS,US,Altar of Fangs,11,1,1731.3,206625,1,300.0,2026-08-20,0,-1,1758.0,2.3
+182521,119718,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,11,1,1731.3,190511,3,300.0,2026-08-20,0,-1,1758.0,2.3
+182531,236015,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,12,1,1711.2,95335,1,291.0,2026-08-20,0,-1,1792.0,6.7
+182531,239136,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,12,1,1711.2,14972,2,278.0,2026-08-20,0,-1,1792.0,6.7
+182531,22645,Hunter,BeastMastery,Pack Leader,DPS,EU,Den of Nalorakk,12,1,1711.2,174840,1,305.0,2026-08-20,0,-1,1792.0,6.7
+182531,236017,Mage,Arcane,Sunfury,DPS,EU,Den of Nalorakk,12,1,1711.2,182306,1,298.0,2026-08-20,0,-1,1792.0,6.7
+182531,236016,Shaman,Enhancement,Stormbringer,DPS,EU,Den of Nalorakk,12,1,1711.2,146889,1,299.0,2026-08-20,0,-1,1792.0,6.7
+182534,235408,Druid,Guardian,Elune's Chosen,Tank,EU,Murder Row,11,1,1530.8,105240,0,301.0,2026-08-20,0,-1,1537.0,24.7
+182534,106509,Shaman,Restoration,Totemic,Healer,EU,Murder Row,11,1,1530.8,29412,1,301.0,2026-08-20,0,-1,1537.0,24.7
+182534,235409,DemonHunter,Devourer,Annihilator,DPS,EU,Murder Row,11,1,1530.8,182914,1,296.0,2026-08-20,0,-1,1537.0,24.7
+182534,160098,Mage,Arcane,Sunfury,DPS,EU,Murder Row,11,1,1530.8,241463,1,300.0,2026-08-20,0,-1,1537.0,24.7
+182534,116117,Hunter,Survival,Sentinel,DPS,EU,Murder Row,11,1,1530.8,179482,0,290.0,2026-08-20,0,-1,1537.0,24.7
+182542,42338,Paladin,Protection,Lightsmith,Tank,US,Temple of Sethraliss,10,1,1435.4,71340,1,291.0,2026-08-21,0,-1,1447.0,24.6
+182542,11631,Shaman,Restoration,Totemic,Healer,US,Temple of Sethraliss,10,1,1435.4,21810,0,294.0,2026-08-21,0,-1,1447.0,24.6
+182542,5552,Shaman,Elemental,Farseer,DPS,US,Temple of Sethraliss,10,1,1435.4,172367,2,302.0,2026-08-21,0,-1,1447.0,24.6
+182542,19949,Hunter,Marksmanship,Sentinel,DPS,US,Temple of Sethraliss,10,1,1435.4,188496,1,303.0,2026-08-21,0,-1,1447.0,24.6
+182542,71555,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Temple of Sethraliss,10,1,1435.4,181914,0,298.0,2026-08-21,0,-1,1447.0,24.6
+182545,234834,DemonHunter,Vengeance,Annihilator,Tank,US,Ruby Life Pools,10,0,1659.7,78804,3,297.0,2026-08-21,0,-1,1691.0,-0.7
+182545,103907,Shaman,Restoration,Totemic,Healer,US,Ruby Life Pools,10,0,1659.7,26689,1,295.0,2026-08-21,0,-1,1691.0,-0.7
+182545,65391,Shaman,Elemental,Farseer,DPS,US,Ruby Life Pools,10,0,1659.7,133992,1,296.0,2026-08-21,0,-1,1691.0,-0.7
+182545,158497,DeathKnight,Frost,Deathbringer,DPS,US,Ruby Life Pools,10,0,1659.7,156350,2,301.0,2026-08-21,0,-1,1691.0,-0.7
+182545,234836,Monk,Windwalker,Shado-Pan,DPS,US,Ruby Life Pools,10,0,1659.7,134009,1,298.0,2026-08-21,0,-1,1691.0,-0.7
+182553,95977,DeathKnight,Blood,San'layn,Tank,US,Altar of Fangs,11,1,1648.5,113563,0,303.0,2026-08-21,0,-1,1650.0,8.3
+182553,4654,Paladin,Holy,Herald of the Sun,Healer,US,Altar of Fangs,11,1,1648.5,26560,1,306.0,2026-08-21,0,-1,1650.0,8.3
+182553,95979,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,11,1,1648.5,205841,0,298.0,2026-08-21,0,-1,1650.0,8.3
+182553,95978,Druid,Balance,Elune's Chosen,DPS,US,Altar of Fangs,11,1,1648.5,173236,0,300.0,2026-08-21,0,-1,1650.0,8.3
+182553,135414,DemonHunter,Devourer,Void-Scarred,DPS,US,Altar of Fangs,11,1,1648.5,201981,1,306.0,2026-08-21,0,-1,1650.0,8.3
+182554,239169,Warrior,Protection,Mountain Thane,Tank,KR,Kings' Rest,4,1,1369.2,68973,0,289.0,2026-08-21,0,-1,1360.0,31.3
+182554,239170,Paladin,Holy,Herald of the Sun,Healer,KR,Kings' Rest,4,1,1369.2,12240,1,294.0,2026-08-21,0,-1,1360.0,31.3
+182554,239171,DeathKnight,Unholy,Rider of the Apocalypse,DPS,KR,Kings' Rest,4,1,1369.2,81800,0,295.0,2026-08-21,0,-1,1360.0,31.3
+182554,239172,Mage,Frost,Spellslinger,DPS,KR,Kings' Rest,4,1,1369.2,70774,1,288.0,2026-08-21,0,-1,1360.0,31.3
+182554,37340,Evoker,Devastation,Scalecommander,DPS,KR,Kings' Rest,4,1,1369.2,75281,1,292.0,2026-08-21,0,-1,1360.0,31.3
+182569,239181,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,9,1,1423.8,72293,0,294.0,2026-08-20,0,-1,1455.0,26.5
+182569,129232,Shaman,Restoration,Totemic,Healer,US,Kings' Rest,9,1,1423.8,29992,1,292.0,2026-08-20,0,-1,1455.0,26.5
+182569,121618,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,9,1,1423.8,131606,3,298.0,2026-08-20,0,-1,1455.0,26.5
+182569,65997,Warlock,Destruction,Diabolist,DPS,US,Kings' Rest,9,1,1423.8,157046,1,301.0,2026-08-20,0,-1,1455.0,26.5
+182569,239182,Druid,Feral,Druid of the Claw,DPS,US,Kings' Rest,9,1,1423.8,93960,3,289.0,2026-08-20,0,-1,1455.0,26.5
+182582,239199,DeathKnight,Blood,San'layn,Tank,US,Voidscar Arena,9,1,1508.1,85035,0,300.0,2026-08-21,0,-1,1510.0,16.1
+182582,208759,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,9,1,1508.1,22337,0,298.0,2026-08-21,0,-1,1510.0,16.1
+182582,162227,Evoker,Augmentation,Scalecommander,DPS,US,Voidscar Arena,9,1,1508.1,104299,0,299.0,2026-08-21,0,-1,1510.0,16.1
+182582,172761,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,9,1,1508.1,157490,2,298.0,2026-08-21,0,-1,1510.0,16.1
+182582,239200,Paladin,Retribution,Templar,DPS,US,Voidscar Arena,9,1,1508.1,146834,0,293.0,2026-08-21,0,-1,1510.0,16.1
+182583,206200,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,10,1,1345.4,105231,0,298.0,2026-08-20,0,-1,1337.0,25.7
+182583,141206,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,10,1,1345.4,35950,0,297.0,2026-08-20,0,-1,1337.0,25.7
+182583,206202,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,The Blinding Vale,10,1,1345.4,187554,0,297.0,2026-08-20,0,-1,1337.0,25.7
+182583,206203,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,10,1,1345.4,209666,0,296.0,2026-08-20,0,-1,1337.0,25.7
+182583,230046,Hunter,BeastMastery,Dark Ranger,DPS,US,The Blinding Vale,10,1,1345.4,181477,0,302.0,2026-08-20,0,-1,1337.0,25.7
+182592,48116,Druid,Guardian,Elune's Chosen,Tank,US,Den of Nalorakk,10,1,1544.5,69841,0,298.0,2026-08-20,0,-1,1546.0,19.5
+182592,94419,Druid,Restoration,Wildstalker,Healer,US,Den of Nalorakk,10,1,1544.5,13530,1,297.0,2026-08-20,0,-1,1546.0,19.5
+182592,4233,Mage,Arcane,Sunfury,DPS,US,Den of Nalorakk,10,1,1544.5,176437,0,301.0,2026-08-20,0,-1,1546.0,19.5
+182592,234278,Priest,Shadow,Archon,DPS,US,Den of Nalorakk,10,1,1544.5,152304,1,294.0,2026-08-20,0,-1,1546.0,19.5
+182592,114804,Warlock,Demonology,Diabolist,DPS,US,Den of Nalorakk,10,1,1544.5,171872,0,292.0,2026-08-20,0,-1,1546.0,19.5
+182596,237155,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,8,1,1368.3,72937,0,294.0,2026-08-21,0,-1,1370.0,30.8
+182596,239212,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Kings' Rest,8,1,1368.3,36163,0,302.0,2026-08-21,0,-1,1370.0,30.8
+182596,69092,Shaman,Elemental,Farseer,DPS,US,Kings' Rest,8,1,1368.3,132442,0,298.0,2026-08-21,0,-1,1370.0,30.8
+182596,108363,Hunter,BeastMastery,Pack Leader,DPS,US,Kings' Rest,8,1,1368.3,135732,0,297.0,2026-08-21,0,-1,1370.0,30.8
+182596,69090,Evoker,Devastation,Flameshaper,DPS,US,Kings' Rest,8,1,1368.3,78618,2,299.0,2026-08-21,0,-1,1370.0,30.8
+182602,230735,Paladin,Protection,Lightsmith,Tank,EU,Altar of Fangs,2,1,1280.1,73935,0,298.0,2026-08-20,0,-1,1272.0,29.4
+182602,221361,Evoker,Preservation,Flameshaper,Healer,EU,Altar of Fangs,2,1,1280.1,19036,0,292.0,2026-08-20,0,-1,1272.0,29.4
+182602,230736,Paladin,Retribution,Templar,DPS,EU,Altar of Fangs,2,1,1280.1,117476,0,288.0,2026-08-20,0,-1,1272.0,29.4
+182602,239217,Warlock,Demonology,Diabolist,DPS,EU,Altar of Fangs,2,1,1280.1,49967,0,257.0,2026-08-20,0,-1,1272.0,29.4
+182602,51274,Mage,Frost,Spellslinger,DPS,EU,Altar of Fangs,2,1,1280.1,110044,0,287.0,2026-08-20,0,-1,1272.0,29.4
+182615,226078,Warrior,Protection,Unknown,Tank,EU,Den of Nalorakk,5,1,1252.6,55068,0,291.0,2026-08-20,0,-1,1245.0,35.2
+182615,226079,Paladin,Holy,Unknown,Healer,EU,Den of Nalorakk,5,1,1252.6,14890,0,292.0,2026-08-20,0,-1,1245.0,35.2
+182615,99386,DemonHunter,Devourer,Unknown,DPS,EU,Den of Nalorakk,5,1,1252.6,114369,0,298.0,2026-08-20,0,-1,1245.0,35.2
+182615,226080,Druid,Balance,Unknown,DPS,EU,Den of Nalorakk,5,1,1252.6,88743,2,292.0,2026-08-20,0,-1,1245.0,35.2
+182615,226081,Hunter,BeastMastery,Unknown,DPS,EU,Den of Nalorakk,5,1,1252.6,104448,1,293.0,2026-08-20,0,-1,1245.0,35.2
+182616,239227,Paladin,Protection,Unknown,Tank,US,Murder Row,8,1,1655.8,63922,0,289.0,2026-08-20,0,-1,1647.0,19.3
+182616,239228,Priest,Holy,Unknown,Healer,US,Murder Row,8,1,1655.8,19130,0,285.0,2026-08-20,0,-1,1647.0,19.3
+182616,197153,DeathKnight,Unholy,Unknown,DPS,US,Murder Row,8,1,1655.8,120635,0,295.0,2026-08-20,0,-1,1647.0,19.3
+182616,239229,Mage,Arcane,Unknown,DPS,US,Murder Row,8,1,1655.8,146945,0,296.0,2026-08-20,0,-1,1647.0,19.3
+182616,182156,Warlock,Destruction,Unknown,DPS,US,Murder Row,8,1,1655.8,146402,0,303.0,2026-08-20,0,-1,1647.0,19.3
+182623,9045,Monk,Brewmaster,Master of Harmony,Tank,US,Altar of Fangs,10,1,1436.8,111121,0,306.0,2026-08-20,0,-1,1433.0,20.4
+182623,118954,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,10,1,1436.8,27667,1,298.0,2026-08-20,0,-1,1433.0,20.4
+182623,37947,Shaman,Enhancement,Stormbringer,DPS,US,Altar of Fangs,10,1,1436.8,251703,0,301.0,2026-08-20,0,-1,1433.0,20.4
+182623,10362,Evoker,Augmentation,Chronowarden,DPS,US,Altar of Fangs,10,1,1436.8,138779,0,303.0,2026-08-20,0,-1,1433.0,20.4
+182623,10361,Hunter,Marksmanship,Sentinel,DPS,US,Altar of Fangs,10,1,1436.8,217614,0,301.0,2026-08-20,0,-1,1433.0,20.4
+182628,224164,Monk,Brewmaster,Shado-Pan,Tank,CN,Ruby Life Pools,11,0,1881.4,83522,2,292.0,2026-08-20,0,-1,1952.0,-16.2
+182628,224165,Monk,Mistweaver,Conduit of the Celestials,Healer,CN,Ruby Life Pools,11,0,1881.4,42806,3,299.0,2026-08-20,0,-1,1952.0,-16.2
+182628,231702,Warrior,Arms,Slayer,DPS,CN,Ruby Life Pools,11,0,1881.4,184329,3,293.0,2026-08-20,0,-1,1952.0,-16.2
+182628,239241,Mage,Arcane,Sunfury,DPS,CN,Ruby Life Pools,11,0,1881.4,110009,4,276.0,2026-08-20,0,-1,1952.0,-16.2
+182628,239242,Priest,Shadow,Voidweaver,DPS,CN,Ruby Life Pools,11,0,1881.4,103724,5,280.0,2026-08-20,0,-1,1952.0,-16.2
+182638,223067,Druid,Guardian,Elune's Chosen,Tank,US,Altar of Fangs,10,1,1030.7,132488,0,294.0,2026-08-20,0,-1,1022.0,43.2
+182638,349,Paladin,Holy,Herald of the Sun,Healer,US,Altar of Fangs,10,1,1030.7,25132,0,301.0,2026-08-20,0,-1,1022.0,43.2
+182638,3457,Rogue,Subtlety,Deathstalker,DPS,US,Altar of Fangs,10,1,1030.7,341090,0,298.0,2026-08-20,0,-1,1022.0,43.2
+182638,39838,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,10,1,1030.7,263040,0,302.0,2026-08-20,0,-1,1022.0,43.2
+182638,351,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,10,1,1030.7,239864,0,300.0,2026-08-20,0,-1,1022.0,43.2
+182653,138462,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,10,1,1724.6,82078,0,295.0,2026-08-20,0,-1,1726.0,10.1
+182653,224496,Priest,Discipline,Oracle,Healer,EU,Den of Nalorakk,10,1,1724.6,14874,1,297.0,2026-08-20,0,-1,1726.0,10.1
+182653,224499,Paladin,Retribution,Herald of the Sun,DPS,EU,Den of Nalorakk,10,1,1724.6,156912,0,293.0,2026-08-20,0,-1,1726.0,10.1
+182653,230423,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,10,1,1724.6,146142,1,288.0,2026-08-20,0,-1,1726.0,10.1
+182653,224497,Warlock,Destruction,Hellcaller,DPS,EU,Den of Nalorakk,10,1,1724.6,121960,0,294.0,2026-08-20,0,-1,1726.0,10.1
+182669,156705,DeathKnight,Blood,San'layn,Tank,CN,Ruby Life Pools,10,1,1606.5,81528,0,292.0,2026-08-21,0,-1,1628.0,3.1
+182669,175304,Shaman,Restoration,Totemic,Healer,CN,Ruby Life Pools,10,1,1606.5,14842,3,293.0,2026-08-21,0,-1,1628.0,3.1
+182669,235975,Shaman,Elemental,Farseer,DPS,CN,Ruby Life Pools,10,1,1606.5,132948,2,298.0,2026-08-21,0,-1,1628.0,3.1
+182669,235976,Druid,Balance,Elune's Chosen,DPS,CN,Ruby Life Pools,10,1,1606.5,120994,1,299.0,2026-08-21,0,-1,1628.0,3.1
+182669,79096,Mage,Arcane,Sunfury,DPS,CN,Ruby Life Pools,10,1,1606.5,179185,0,294.0,2026-08-21,0,-1,1628.0,3.1
+182681,234613,DeathKnight,Blood,San'layn,Tank,EU,Kings' Rest,10,1,1731.5,89418,1,297.0,2026-08-20,0,-1,1772.0,10.5
+182681,233511,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Kings' Rest,10,1,1731.5,28047,3,295.0,2026-08-20,0,-1,1772.0,10.5
+182681,239304,Warrior,Arms,Slayer,DPS,EU,Kings' Rest,10,1,1731.5,115476,2,292.0,2026-08-20,0,-1,1772.0,10.5
+182681,215344,Shaman,Elemental,Farseer,DPS,EU,Kings' Rest,10,1,1731.5,98218,2,288.0,2026-08-20,0,-1,1772.0,10.5
+182681,239305,Rogue,Outlaw,Trickster,DPS,EU,Kings' Rest,10,1,1731.5,122679,2,294.0,2026-08-20,0,-1,1772.0,10.5
+182689,37370,DeathKnight,Blood,Deathbringer,Tank,US,Altar of Fangs,12,1,1606.1,92638,0,301.0,2026-08-21,0,-1,1598.0,11.2
+182689,37371,Paladin,Holy,Herald of the Sun,Healer,US,Altar of Fangs,12,1,1606.1,16482,0,305.0,2026-08-21,0,-1,1598.0,11.2
+182689,228022,DemonHunter,Havoc,Fel-Scarred,DPS,US,Altar of Fangs,12,1,1606.1,223828,0,304.0,2026-08-21,0,-1,1598.0,11.2
+182689,2560,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,12,1,1606.1,256612,0,299.0,2026-08-21,0,-1,1598.0,11.2
+182689,37374,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,12,1,1606.1,172636,0,294.0,2026-08-21,0,-1,1598.0,11.2
+182703,222285,Paladin,Protection,Lightsmith,Tank,CN,Ruby Life Pools,10,1,1328.5,105208,1,293.0,2026-08-20,0,-1,1330.0,20.8
+182703,239324,Paladin,Holy,Lightsmith,Healer,CN,Ruby Life Pools,10,1,1328.5,12688,0,291.0,2026-08-20,0,-1,1330.0,20.8
+182703,165407,DeathKnight,Unholy,Rider of the Apocalypse,DPS,CN,Ruby Life Pools,10,1,1328.5,208515,0,296.0,2026-08-20,0,-1,1330.0,20.8
+182703,239325,Druid,Balance,Elune's Chosen,DPS,CN,Ruby Life Pools,10,1,1328.5,189164,0,295.0,2026-08-20,0,-1,1330.0,20.8
+182703,222286,DemonHunter,Devourer,Void-Scarred,DPS,CN,Ruby Life Pools,10,1,1328.5,199487,1,302.0,2026-08-20,0,-1,1330.0,20.8
+182704,78474,Paladin,Protection,Lightsmith,Tank,US,Murder Row,11,1,1596.5,71133,0,301.0,2026-08-20,0,-1,1588.0,22.2
+182704,239326,Druid,Restoration,Wildstalker,Healer,US,Murder Row,11,1,1596.5,15607,0,296.0,2026-08-20,0,-1,1588.0,22.2
+182704,136054,Hunter,Marksmanship,Sentinel,DPS,US,Murder Row,11,1,1596.5,199154,0,307.0,2026-08-20,0,-1,1588.0,22.2
+182704,5704,Priest,Shadow,Archon,DPS,US,Murder Row,11,1,1596.5,217108,0,307.0,2026-08-20,0,-1,1588.0,22.2
+182704,78834,DemonHunter,Devourer,Annihilator,DPS,US,Murder Row,11,1,1596.5,152823,0,305.0,2026-08-20,0,-1,1588.0,22.2
+182713,135254,Druid,Guardian,Elune's Chosen,Tank,EU,Den of Nalorakk,11,1,1847.5,48562,0,290.0,2026-08-20,0,-1,1864.0,2.9
+182713,239337,Priest,Discipline,Voidweaver,Healer,EU,Den of Nalorakk,11,1,1847.5,23188,1,294.0,2026-08-20,0,-1,1864.0,2.9
+182713,239338,Paladin,Retribution,Herald of the Sun,DPS,EU,Den of Nalorakk,11,1,1847.5,142579,1,298.0,2026-08-20,0,-1,1864.0,2.9
+182713,225400,Mage,Frost,Spellslinger,DPS,EU,Den of Nalorakk,11,1,1847.5,150523,2,295.0,2026-08-20,0,-1,1864.0,2.9
+182713,78170,Warlock,Demonology,Diabolist,DPS,EU,Den of Nalorakk,11,1,1847.5,152521,1,297.0,2026-08-20,0,-1,1864.0,2.9
+182719,33761,DemonHunter,Vengeance,Annihilator,Tank,EU,Ruby Life Pools,12,0,1632.0,129244,0,301.0,2026-08-20,0,-1,1684.0,-0.3
+182719,221663,Paladin,Holy,Herald of the Sun,Healer,EU,Ruby Life Pools,12,0,1632.0,17340,1,303.0,2026-08-20,0,-1,1684.0,-0.3
+182719,147999,Druid,Balance,Elune's Chosen,DPS,EU,Ruby Life Pools,12,0,1632.0,145380,3,294.0,2026-08-20,0,-1,1684.0,-0.3
+182719,33764,Mage,Arcane,Sunfury,DPS,EU,Ruby Life Pools,12,0,1632.0,202724,0,306.0,2026-08-20,0,-1,1684.0,-0.3
+182719,114949,Warlock,Demonology,Diabolist,DPS,EU,Ruby Life Pools,12,0,1632.0,205383,0,309.0,2026-08-20,0,-1,1684.0,-0.3
+182736,239363,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,7,1,1459.2,63266,1,293.0,2026-08-21,0,-1,1496.0,24.5
+182736,233919,Evoker,Preservation,Flameshaper,Healer,US,Kings' Rest,7,1,1459.2,12127,2,284.0,2026-08-21,0,-1,1496.0,24.5
+182736,233263,Warrior,Arms,Slayer,DPS,US,Kings' Rest,7,1,1459.2,140660,1,301.0,2026-08-21,0,-1,1496.0,24.5
+182736,233920,Rogue,Subtlety,Deathstalker,DPS,US,Kings' Rest,7,1,1459.2,82319,4,291.0,2026-08-21,0,-1,1496.0,24.5
+182736,239364,Priest,Shadow,Voidweaver,DPS,US,Kings' Rest,7,1,1459.2,105105,1,292.0,2026-08-21,0,-1,1496.0,24.5
+182738,172501,Warrior,Protection,Mountain Thane,Tank,EU,Temple of Sethraliss,9,1,1775.6,82337,1,299.0,2026-08-20,0,-1,1842.0,4.0
+182738,221478,Druid,Restoration,Wildstalker,Healer,EU,Temple of Sethraliss,9,1,1775.6,1248,1,296.0,2026-08-20,0,-1,1842.0,4.0
+182738,129138,Shaman,Elemental,Farseer,DPS,EU,Temple of Sethraliss,9,1,1775.6,170752,3,301.0,2026-08-20,0,-1,1842.0,4.0
+182738,200433,Hunter,BeastMastery,Pack Leader,DPS,EU,Temple of Sethraliss,9,1,1775.6,144836,4,298.0,2026-08-20,0,-1,1842.0,4.0
+182738,207327,Warlock,Demonology,Diabolist,DPS,EU,Temple of Sethraliss,9,1,1775.6,95884,6,290.0,2026-08-20,0,-1,1842.0,4.0
+182773,193517,DeathKnight,Blood,Deathbringer,Tank,EU,Kings' Rest,4,1,1372.2,61397,0,292.0,2026-08-20,0,-1,1363.0,31.1
+182773,227510,Shaman,Restoration,Totemic,Healer,EU,Kings' Rest,4,1,1372.2,16571,0,290.0,2026-08-20,0,-1,1363.0,31.1
+182773,227512,Paladin,Retribution,Templar,DPS,EU,Kings' Rest,4,1,1372.2,71647,0,296.0,2026-08-20,0,-1,1363.0,31.1
+182773,227513,Paladin,Retribution,Templar,DPS,EU,Kings' Rest,4,1,1372.2,76806,0,295.0,2026-08-20,0,-1,1363.0,31.1
+182773,227511,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Kings' Rest,4,1,1372.2,66224,1,290.0,2026-08-20,0,-1,1363.0,31.1
+182774,196394,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,10,1,1745.1,67191,2,302.0,2026-08-21,0,-1,1772.0,1.6
+182774,239400,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,10,1,1745.1,12853,1,289.0,2026-08-21,0,-1,1772.0,1.6
+182774,80190,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,10,1,1745.1,165158,2,301.0,2026-08-21,0,-1,1772.0,1.6
+182774,11138,Druid,Balance,Elune's Chosen,DPS,US,Altar of Fangs,10,1,1745.1,141998,1,303.0,2026-08-21,0,-1,1772.0,1.6
+182774,37002,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,10,1,1745.1,203071,1,303.0,2026-08-21,0,-1,1772.0,1.6
+182778,199644,Druid,Guardian,Elune's Chosen,Tank,EU,Den of Nalorakk,10,1,1674.6,97163,0,306.0,2026-08-20,0,-1,1671.0,13.0
+182778,108941,Paladin,Holy,Herald of the Sun,Healer,EU,Den of Nalorakk,10,1,1674.6,15668,0,300.0,2026-08-20,0,-1,1671.0,13.0
+182778,90085,Mage,Arcane,Sunfury,DPS,EU,Den of Nalorakk,10,1,1674.6,145282,1,301.0,2026-08-20,0,-1,1671.0,13.0
+182778,239402,DeathKnight,Unholy,San'layn,DPS,EU,Den of Nalorakk,10,1,1674.6,92792,0,290.0,2026-08-20,0,-1,1671.0,13.0
+182778,40666,Mage,Arcane,Sunfury,DPS,EU,Den of Nalorakk,10,1,1674.6,157681,0,303.0,2026-08-20,0,-1,1671.0,13.0
+182790,146003,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,11,1,1456.6,79766,0,305.0,2026-08-20,0,-1,1468.0,25.8
+182790,146004,Shaman,Restoration,Totemic,Healer,US,Kings' Rest,11,1,1456.6,17801,1,302.0,2026-08-20,0,-1,1468.0,25.8
+182790,19,DemonHunter,Devourer,Void-Scarred,DPS,US,Kings' Rest,11,1,1456.6,179775,1,306.0,2026-08-20,0,-1,1468.0,25.8
+182790,9343,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,11,1,1456.6,154495,1,304.0,2026-08-20,0,-1,1468.0,25.8
+182790,239415,Warlock,Demonology,Diabolist,DPS,US,Kings' Rest,11,1,1456.6,144073,1,306.0,2026-08-20,0,-1,1468.0,25.8
+182798,57776,Paladin,Protection,Templar,Tank,EU,Murder Row,10,1,1525.5,68278,2,300.0,2026-08-21,0,-1,1577.0,22.7
+182798,80468,Priest,Discipline,Oracle,Healer,EU,Murder Row,10,1,1525.5,18882,3,300.0,2026-08-21,0,-1,1577.0,22.7
+182798,102147,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Murder Row,10,1,1525.5,177291,2,301.0,2026-08-21,0,-1,1577.0,22.7
+182798,194806,Mage,Arcane,Sunfury,DPS,EU,Murder Row,10,1,1525.5,214718,2,306.0,2026-08-21,0,-1,1577.0,22.7
+182798,22895,DemonHunter,Devourer,Void-Scarred,DPS,EU,Murder Row,10,1,1525.5,164334,3,307.0,2026-08-21,0,-1,1577.0,22.7
+182799,6895,DeathKnight,Blood,San'layn,Tank,US,The Blinding Vale,10,1,1507.5,125740,0,300.0,2026-08-20,0,-1,1504.0,16.4
+182799,239420,Priest,Holy,Oracle,Healer,US,The Blinding Vale,10,1,1507.5,14246,0,292.0,2026-08-20,0,-1,1504.0,16.4
+182799,99492,DemonHunter,Devourer,Void-Scarred,DPS,US,The Blinding Vale,10,1,1507.5,169076,0,293.0,2026-08-20,0,-1,1504.0,16.4
+182799,160914,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,10,1,1507.5,134854,1,294.0,2026-08-20,0,-1,1504.0,16.4
+182799,6898,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,10,1,1507.5,218750,0,310.0,2026-08-20,0,-1,1504.0,16.4
+182806,106162,Druid,Guardian,Elune's Chosen,Tank,US,Den of Nalorakk,10,1,1875.0,61157,1,299.0,2026-08-21,0,-1,1912.0,0.4
+182806,3673,Paladin,Holy,Herald of the Sun,Healer,US,Den of Nalorakk,10,1,1875.0,20658,3,307.0,2026-08-21,0,-1,1912.0,0.4
+182806,91070,Druid,Balance,Elune's Chosen,DPS,US,Den of Nalorakk,10,1,1875.0,94181,3,295.0,2026-08-21,0,-1,1912.0,0.4
+182806,114544,Paladin,Retribution,Templar,DPS,US,Den of Nalorakk,10,1,1875.0,165394,1,303.0,2026-08-21,0,-1,1912.0,0.4
+182806,106163,Shaman,Elemental,Farseer,DPS,US,Den of Nalorakk,10,1,1875.0,135973,1,302.0,2026-08-21,0,-1,1912.0,0.4
+182807,159701,DeathKnight,Blood,Deathbringer,Tank,US,Voidscar Arena,8,1,1487.0,98936,1,296.0,2026-08-20,0,-1,1513.0,15.9
+182807,159702,Paladin,Holy,Herald of the Sun,Healer,US,Voidscar Arena,8,1,1487.0,9123,1,296.0,2026-08-20,0,-1,1513.0,15.9
+182807,169969,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,8,1,1487.0,151717,1,290.0,2026-08-20,0,-1,1513.0,15.9
+182807,71622,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,8,1,1487.0,165592,2,305.0,2026-08-20,0,-1,1513.0,15.9
+182807,189304,Paladin,Retribution,Templar,DPS,US,Voidscar Arena,8,1,1487.0,107911,2,290.0,2026-08-20,0,-1,1513.0,15.9
+182810,158092,Monk,Brewmaster,Shado-Pan,Tank,EU,Ruby Life Pools,8,1,1197.6,87826,1,291.0,2026-08-20,0,-1,1199.0,28.6
+182810,49333,Paladin,Holy,Herald of the Sun,Healer,EU,Ruby Life Pools,8,1,1197.6,18294,0,289.0,2026-08-20,0,-1,1199.0,28.6
+182810,239432,Shaman,Elemental,Farseer,DPS,EU,Ruby Life Pools,8,1,1197.6,141826,1,291.0,2026-08-20,0,-1,1199.0,28.6
+182810,55574,Mage,Arcane,Sunfury,DPS,EU,Ruby Life Pools,8,1,1197.6,185428,0,294.0,2026-08-20,0,-1,1199.0,28.6
+182810,224754,Hunter,BeastMastery,Pack Leader,DPS,EU,Ruby Life Pools,8,1,1197.6,160913,0,296.0,2026-08-20,0,-1,1199.0,28.6
+182812,239433,DemonHunter,Vengeance,Annihilator,Tank,EU,Voidscar Arena,8,1,1288.4,76475,0,290.0,2026-08-20,0,-1,1290.0,28.3
+182812,239434,Paladin,Holy,Herald of the Sun,Healer,EU,Voidscar Arena,8,1,1288.4,13680,0,288.0,2026-08-20,0,-1,1290.0,28.3
+182812,239435,Warrior,Arms,Slayer,DPS,EU,Voidscar Arena,8,1,1288.4,169731,1,296.0,2026-08-20,0,-1,1290.0,28.3
+182812,87621,Paladin,Retribution,Templar,DPS,EU,Voidscar Arena,8,1,1288.4,126584,1,298.0,2026-08-20,0,-1,1290.0,28.3
+182812,239436,Shaman,Elemental,Farseer,DPS,EU,Voidscar Arena,8,1,1288.4,137240,0,282.0,2026-08-20,0,-1,1290.0,28.3
+182840,74090,DeathKnight,Blood,San'layn,Tank,US,Voidscar Arena,10,1,1597.1,72650,1,299.0,2026-08-20,0,-1,1628.0,9.5
+182840,74091,Paladin,Holy,Herald of the Sun,Healer,US,Voidscar Arena,10,1,1597.1,7365,2,293.0,2026-08-20,0,-1,1628.0,9.5
+182840,63181,DeathKnight,Unholy,San'layn,DPS,US,Voidscar Arena,10,1,1597.1,182547,1,304.0,2026-08-20,0,-1,1628.0,9.5
+182840,14165,Druid,Balance,Elune's Chosen,DPS,US,Voidscar Arena,10,1,1597.1,148360,1,302.0,2026-08-20,0,-1,1628.0,9.5
+182840,75002,Warlock,Affliction,Soul Harvester,DPS,US,Voidscar Arena,10,1,1597.1,132246,3,297.0,2026-08-20,0,-1,1628.0,9.5
+182845,81874,Warrior,Protection,Mountain Thane,Tank,US,Voidscar Arena,10,1,1278.8,99252,0,304.0,2026-08-20,0,-1,1271.0,29.4
+182845,81875,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,10,1,1278.8,24703,0,301.0,2026-08-20,0,-1,1271.0,29.4
+182845,224043,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,10,1,1278.8,163658,0,308.0,2026-08-20,0,-1,1271.0,29.4
+182845,69874,Paladin,Retribution,Templar,DPS,US,Voidscar Arena,10,1,1278.8,158601,0,295.0,2026-08-20,0,-1,1271.0,29.4
+182845,81876,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,10,1,1278.8,210759,0,307.0,2026-08-20,0,-1,1271.0,29.4
+182847,78124,DeathKnight,Blood,San'layn,Tank,EU,Kings' Rest,10,1,1731.9,63870,0,298.0,2026-08-20,0,-1,1734.0,12.4
+182847,93054,Priest,Discipline,Oracle,Healer,EU,Kings' Rest,10,1,1731.9,14708,0,302.0,2026-08-20,0,-1,1734.0,12.4
+182847,78128,Monk,Windwalker,Shado-Pan,DPS,EU,Kings' Rest,10,1,1731.9,112899,0,302.0,2026-08-20,0,-1,1734.0,12.4
+182847,131769,Hunter,BeastMastery,Pack Leader,DPS,EU,Kings' Rest,10,1,1731.9,103014,2,293.0,2026-08-20,0,-1,1734.0,12.4
+182847,78127,Warlock,Demonology,Diabolist,DPS,EU,Kings' Rest,10,1,1731.9,121659,0,305.0,2026-08-20,0,-1,1734.0,12.4
+182859,2848,Monk,Brewmaster,Master of Harmony,Tank,US,Altar of Fangs,11,1,1298.2,125605,0,305.0,2026-08-21,0,-1,1295.0,28.1
+182859,44107,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,11,1,1298.2,34092,1,298.0,2026-08-21,0,-1,1295.0,28.1
+182859,2847,DemonHunter,Devourer,Void-Scarred,DPS,US,Altar of Fangs,11,1,1298.2,248377,0,306.0,2026-08-21,0,-1,1295.0,28.1
+182859,67228,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,11,1,1298.2,240660,0,305.0,2026-08-21,0,-1,1295.0,28.1
+182859,3371,Monk,Windwalker,Shado-Pan,DPS,US,Altar of Fangs,11,1,1298.2,229706,0,306.0,2026-08-21,0,-1,1295.0,28.1
+182864,190291,DemonHunter,Vengeance,Annihilator,Tank,EU,Altar of Fangs,9,1,1420.7,104036,0,291.0,2026-08-20,0,-1,1447.0,19.6
+182864,232772,Druid,Restoration,Wildstalker,Healer,EU,Altar of Fangs,9,1,1420.7,13223,1,298.0,2026-08-20,0,-1,1447.0,19.6
+182864,113385,Warlock,Destruction,Diabolist,DPS,EU,Altar of Fangs,9,1,1420.7,168671,0,301.0,2026-08-20,0,-1,1447.0,19.6
+182864,173848,Shaman,Elemental,Farseer,DPS,EU,Altar of Fangs,9,1,1420.7,237375,1,303.0,2026-08-20,0,-1,1447.0,19.6
+182864,239488,Warrior,Arms,Slayer,DPS,EU,Altar of Fangs,9,1,1420.7,127968,5,283.0,2026-08-20,0,-1,1447.0,19.6
+182866,239491,DeathKnight,Blood,Deathbringer,Tank,EU,Kings' Rest,9,1,1665.5,60734,2,290.0,2026-08-20,0,-1,1722.0,13.1
+182866,239492,Paladin,Holy,Herald of the Sun,Healer,EU,Kings' Rest,9,1,1665.5,10896,3,283.0,2026-08-20,0,-1,1722.0,13.1
+182866,65672,Warrior,Arms,Slayer,DPS,EU,Kings' Rest,9,1,1665.5,117381,3,294.0,2026-08-20,0,-1,1722.0,13.1
+182866,211969,Rogue,Outlaw,Trickster,DPS,EU,Kings' Rest,9,1,1665.5,91976,3,294.0,2026-08-20,0,-1,1722.0,13.1
+182866,65673,Shaman,Elemental,Farseer,DPS,EU,Kings' Rest,9,1,1665.5,130804,2,302.0,2026-08-20,0,-1,1722.0,13.1
+182867,239493,Druid,Guardian,Elune's Chosen,Tank,US,Ruby Life Pools,8,0,1719.7,56415,5,293.0,2026-08-21,0,-1,1831.0,-9.0
+182867,236003,Shaman,Restoration,Totemic,Healer,US,Ruby Life Pools,8,0,1719.7,17063,3,293.0,2026-08-21,0,-1,1831.0,-9.0
+182867,156484,Warrior,Arms,Slayer,DPS,US,Ruby Life Pools,8,0,1719.7,107254,8,293.0,2026-08-21,0,-1,1831.0,-9.0
+182867,236004,Paladin,Retribution,Templar,DPS,US,Ruby Life Pools,8,0,1719.7,162746,5,296.0,2026-08-21,0,-1,1831.0,-9.0
+182867,236005,Rogue,Outlaw,Trickster,DPS,US,Ruby Life Pools,8,0,1719.7,129916,3,293.0,2026-08-21,0,-1,1831.0,-9.0
+182883,92407,DeathKnight,Blood,San'layn,Tank,US,Voidscar Arena,12,1,1348.9,117833,0,308.0,2026-08-21,0,-1,1401.0,22.2
+182883,237570,Paladin,Holy,Herald of the Sun,Healer,US,Voidscar Arena,12,1,1348.9,19960,0,289.0,2026-08-21,0,-1,1401.0,22.2
+182883,11933,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,12,1,1348.9,244170,2,310.0,2026-08-21,0,-1,1401.0,22.2
+182883,22194,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,12,1,1348.9,193075,0,307.0,2026-08-21,0,-1,1401.0,22.2
+182883,4213,Warlock,Demonology,Diabolist,DPS,US,Voidscar Arena,12,1,1348.9,197124,2,300.0,2026-08-21,0,-1,1401.0,22.2
+182886,236609,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,2,1,1271.7,59576,0,290.0,2026-08-21,0,-1,1263.0,36.2
+182886,233138,Shaman,Restoration,Totemic,Healer,US,Kings' Rest,2,1,1271.7,18001,1,265.0,2026-08-21,0,-1,1263.0,36.2
+182886,239513,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,2,1,1271.7,73456,0,278.0,2026-08-21,0,-1,1263.0,36.2
+182886,239514,Paladin,Retribution,Templar,DPS,US,Kings' Rest,2,1,1271.7,48586,0,292.0,2026-08-21,0,-1,1263.0,36.2
+182886,105767,Warrior,Arms,Slayer,DPS,US,Kings' Rest,2,1,1271.7,76811,0,292.0,2026-08-21,0,-1,1263.0,36.2
+182907,89129,Paladin,Protection,Templar,Tank,US,Ruby Life Pools,10,1,1510.2,78720,1,298.0,2026-08-21,0,-1,1527.0,9.1
+182907,202464,Shaman,Restoration,Totemic,Healer,US,Ruby Life Pools,10,1,1510.2,14790,1,283.0,2026-08-21,0,-1,1527.0,9.1
+182907,106604,Shaman,Elemental,Farseer,DPS,US,Ruby Life Pools,10,1,1510.2,186304,1,297.0,2026-08-21,0,-1,1527.0,9.1
+182907,228805,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,10,1,1510.2,161357,1,300.0,2026-08-21,0,-1,1527.0,9.1
+182907,72925,Warrior,Arms,Slayer,DPS,US,Ruby Life Pools,10,1,1510.2,150706,1,306.0,2026-08-21,0,-1,1527.0,9.1
+182909,30000,Paladin,Protection,Unknown,Tank,EU,Murder Row,11,1,1423.0,93158,0,300.0,2026-08-20,0,-1,1419.0,30.4
+182909,49196,Paladin,Holy,Unknown,Healer,EU,Murder Row,11,1,1423.0,28385,1,303.0,2026-08-20,0,-1,1419.0,30.4
+182909,20104,DemonHunter,Devourer,Unknown,DPS,EU,Murder Row,11,1,1423.0,208354,0,301.0,2026-08-20,0,-1,1419.0,30.4
+182909,49198,Hunter,BeastMastery,Unknown,DPS,EU,Murder Row,11,1,1423.0,176940,0,300.0,2026-08-20,0,-1,1419.0,30.4
+182909,69733,Mage,Arcane,Unknown,DPS,EU,Murder Row,11,1,1423.0,216396,0,300.0,2026-08-20,0,-1,1419.0,30.4
+182910,193863,DeathKnight,Blood,San'layn,Tank,CN,The Blinding Vale,12,1,1310.8,173408,0,307.0,2026-08-20,0,-1,1317.0,26.8
+182910,235776,Evoker,Preservation,Flameshaper,Healer,CN,The Blinding Vale,12,1,1310.8,49498,0,303.0,2026-08-20,0,-1,1317.0,26.8
+182910,239533,Warrior,Arms,Slayer,DPS,CN,The Blinding Vale,12,1,1310.8,216162,1,302.0,2026-08-20,0,-1,1317.0,26.8
+182910,55531,Mage,Arcane,Sunfury,DPS,CN,The Blinding Vale,12,1,1310.8,243531,0,304.0,2026-08-20,0,-1,1317.0,26.8
+182910,239534,Hunter,BeastMastery,Pack Leader,DPS,CN,The Blinding Vale,12,1,1310.8,204032,0,302.0,2026-08-20,0,-1,1317.0,26.8
+182934,227172,DeathKnight,Blood,Deathbringer,Tank,EU,Murder Row,8,1,1853.4,78077,0,294.0,2026-08-20,0,-1,1850.0,9.3
+182934,239563,Shaman,Restoration,Totemic,Healer,EU,Murder Row,8,1,1853.4,11660,0,296.0,2026-08-20,0,-1,1850.0,9.3
+182934,227173,Mage,Arcane,Sunfury,DPS,EU,Murder Row,8,1,1853.4,136330,1,294.0,2026-08-20,0,-1,1850.0,9.3
+182934,115347,Druid,Feral,Wildstalker,DPS,EU,Murder Row,8,1,1853.4,128948,0,290.0,2026-08-20,0,-1,1850.0,9.3
+182934,238958,Paladin,Retribution,Templar,DPS,EU,Murder Row,8,1,1853.4,102273,0,284.0,2026-08-20,0,-1,1850.0,9.3
+182938,233785,Druid,Guardian,Elune's Chosen,Tank,US,Ruby Life Pools,6,1,1242.0,84467,0,298.0,2026-08-21,0,-1,1239.0,26.3
+182938,118462,Druid,Restoration,Wildstalker,Healer,US,Ruby Life Pools,6,1,1242.0,1776,0,289.0,2026-08-21,0,-1,1239.0,26.3
+182938,233786,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,6,1,1242.0,120311,0,299.0,2026-08-21,0,-1,1239.0,26.3
+182938,239565,Warrior,Arms,Slayer,DPS,US,Ruby Life Pools,6,1,1242.0,121362,1,300.0,2026-08-21,0,-1,1239.0,26.3
+182938,167165,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Ruby Life Pools,6,1,1242.0,131060,0,284.0,2026-08-21,0,-1,1239.0,26.3
+182947,238773,DeathKnight,Blood,Deathbringer,Tank,US,Murder Row,9,1,1515.2,58366,0,284.0,2026-08-20,0,-1,1517.0,25.6
+182947,230290,Shaman,Restoration,Totemic,Healer,US,Murder Row,9,1,1515.2,10659,0,267.0,2026-08-20,0,-1,1517.0,25.6
+182947,121065,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,9,1,1515.2,186988,0,308.0,2026-08-20,0,-1,1517.0,25.6
+182947,105812,Mage,Fire,Sunfury,DPS,US,Murder Row,9,1,1515.2,177843,0,302.0,2026-08-20,0,-1,1517.0,25.6
+182947,139491,Rogue,Outlaw,Trickster,DPS,US,Murder Row,9,1,1515.2,134808,2,293.0,2026-08-20,0,-1,1517.0,25.6
+182965,123291,DeathKnight,Blood,Deathbringer,Tank,EU,Murder Row,10,1,1631.4,88991,0,301.0,2026-08-20,0,-1,1628.0,20.2
+182965,97175,Paladin,Holy,Herald of the Sun,Healer,EU,Murder Row,10,1,1631.4,3458,0,300.0,2026-08-20,0,-1,1628.0,20.2
+182965,21138,Paladin,Retribution,Templar,DPS,EU,Murder Row,10,1,1631.4,173730,0,296.0,2026-08-20,0,-1,1628.0,20.2
+182965,203863,DeathKnight,Unholy,San'layn,DPS,EU,Murder Row,10,1,1631.4,136626,1,292.0,2026-08-20,0,-1,1628.0,20.2
+182965,14520,Shaman,Elemental,Farseer,DPS,EU,Murder Row,10,1,1631.4,198845,0,300.0,2026-08-20,0,-1,1628.0,20.2
+182966,594,DeathKnight,Blood,Deathbringer,Tank,US,Altar of Fangs,10,1,1508.4,141207,0,308.0,2026-08-20,0,-1,1520.0,15.6
+182966,6030,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Altar of Fangs,10,1,1508.4,50266,1,299.0,2026-08-20,0,-1,1520.0,15.6
+182966,119574,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,10,1,1508.4,213776,1,301.0,2026-08-20,0,-1,1520.0,15.6
+182966,6032,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,10,1,1508.4,167383,2,298.0,2026-08-20,0,-1,1520.0,15.6
+182966,211840,Druid,Balance,Elune's Chosen,DPS,US,Altar of Fangs,10,1,1508.4,162006,0,294.0,2026-08-20,0,-1,1520.0,15.6
+182969,73202,Paladin,Protection,Lightsmith,Tank,US,Ruby Life Pools,10,1,1447.7,94980,2,299.0,2026-08-20,0,-1,1484.0,11.7
+182969,229990,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Ruby Life Pools,10,1,1447.7,46709,1,291.0,2026-08-20,0,-1,1484.0,11.7
+182969,73205,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,10,1,1447.7,150057,3,304.0,2026-08-20,0,-1,1484.0,11.7
+182969,99778,Paladin,Retribution,Templar,DPS,US,Ruby Life Pools,10,1,1447.7,172027,2,305.0,2026-08-20,0,-1,1484.0,11.7
+182969,229991,DemonHunter,Havoc,Fel-Scarred,DPS,US,Ruby Life Pools,10,1,1447.7,177666,1,292.0,2026-08-20,0,-1,1484.0,11.7
+182979,239590,DeathKnight,Blood,San'layn,Tank,EU,Murder Row,10,1,1487.9,102552,0,292.0,2026-08-20,0,-1,1494.0,26.8
+182979,44200,Priest,Discipline,Oracle,Healer,EU,Murder Row,10,1,1487.9,13780,0,300.0,2026-08-20,0,-1,1494.0,26.8
+182979,50348,Druid,Balance,Elune's Chosen,DPS,EU,Murder Row,10,1,1487.9,174869,1,297.0,2026-08-20,0,-1,1494.0,26.8
+182979,239591,Warrior,Arms,Slayer,DPS,EU,Murder Row,10,1,1487.9,166551,2,292.0,2026-08-20,0,-1,1494.0,26.8
+182979,239592,Evoker,Devastation,Scalecommander,DPS,EU,Murder Row,10,1,1487.9,214060,0,304.0,2026-08-20,0,-1,1494.0,26.8
+182981,136592,Paladin,Protection,Lightsmith,Tank,EU,Temple of Sethraliss,10,1,1379.8,90200,0,289.0,2026-08-20,0,-1,1377.0,28.3
+182981,22982,Shaman,Restoration,Totemic,Healer,EU,Temple of Sethraliss,10,1,1379.8,26892,0,306.0,2026-08-20,0,-1,1377.0,28.3
+182981,44362,Warrior,Arms,Slayer,DPS,EU,Temple of Sethraliss,10,1,1379.8,212571,1,303.0,2026-08-20,0,-1,1377.0,28.3
+182981,44361,Shaman,Elemental,Farseer,DPS,EU,Temple of Sethraliss,10,1,1379.8,179405,0,298.0,2026-08-20,0,-1,1377.0,28.3
+182981,50057,Mage,Arcane,Sunfury,DPS,EU,Temple of Sethraliss,10,1,1379.8,169415,0,303.0,2026-08-20,0,-1,1377.0,28.3
+182990,66383,DeathKnight,Blood,Deathbringer,Tank,US,Den of Nalorakk,11,1,1800.5,84611,0,298.0,2026-08-20,0,-1,1812.0,5.6
+182990,96494,Paladin,Holy,Herald of the Sun,Healer,US,Den of Nalorakk,11,1,1800.5,19017,0,304.0,2026-08-20,0,-1,1812.0,5.6
+182990,14213,Warrior,Arms,Slayer,DPS,US,Den of Nalorakk,11,1,1800.5,173094,1,308.0,2026-08-20,0,-1,1812.0,5.6
+182990,67588,Mage,Arcane,Sunfury,DPS,US,Den of Nalorakk,11,1,1800.5,171313,1,300.0,2026-08-20,0,-1,1812.0,5.6
+182990,96495,Warlock,Destruction,Diabolist,DPS,US,Den of Nalorakk,11,1,1800.5,119471,2,295.0,2026-08-20,0,-1,1812.0,5.6
+182996,87647,Paladin,Protection,Templar,Tank,US,Kings' Rest,5,1,1541.2,50036,1,297.0,2026-08-21,0,-1,1533.0,22.6
+182996,49825,Priest,Holy,Oracle,Healer,US,Kings' Rest,5,1,1541.2,9168,1,299.0,2026-08-21,0,-1,1533.0,22.6
+182996,156655,Hunter,Survival,Pack Leader,DPS,US,Kings' Rest,5,1,1541.2,62808,3,295.0,2026-08-21,0,-1,1533.0,22.6
+182996,234288,Warlock,Affliction,Soul Harvester,DPS,US,Kings' Rest,5,1,1541.2,76028,2,289.0,2026-08-21,0,-1,1533.0,22.6
+182996,234287,Shaman,Elemental,Farseer,DPS,US,Kings' Rest,5,1,1541.2,90576,4,287.0,2026-08-21,0,-1,1533.0,22.6
+183003,9075,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,13,0,1839.2,88160,1,306.0,2026-08-20,0,-1,1920.0,-6.7
+183003,9049,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,13,0,1839.2,28720,1,308.0,2026-08-20,0,-1,1920.0,-6.7
+183003,105042,Paladin,Retribution,Herald of the Sun,DPS,US,Voidscar Arena,13,0,1839.2,168320,2,300.0,2026-08-20,0,-1,1920.0,-6.7
+183003,66297,Rogue,Subtlety,Trickster,DPS,US,Voidscar Arena,13,0,1839.2,169194,1,303.0,2026-08-20,0,-1,1920.0,-6.7
+183003,2394,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,13,0,1839.2,181179,1,301.0,2026-08-20,0,-1,1920.0,-6.7
+183005,56953,DemonHunter,Vengeance,Annihilator,Tank,US,The Blinding Vale,10,1,1647.5,85889,0,300.0,2026-08-21,0,-1,1649.0,8.4
+183005,82727,Paladin,Holy,Herald of the Sun,Healer,US,The Blinding Vale,10,1,1647.5,23643,1,297.0,2026-08-21,0,-1,1649.0,8.4
+183005,236799,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,10,1,1647.5,165523,1,295.0,2026-08-21,0,-1,1649.0,8.4
+183005,236800,Evoker,Augmentation,Scalecommander,DPS,US,The Blinding Vale,10,1,1647.5,112677,0,295.0,2026-08-21,0,-1,1649.0,8.4
+183005,92016,Warlock,Demonology,Diabolist,DPS,US,The Blinding Vale,10,1,1647.5,180344,0,301.0,2026-08-21,0,-1,1649.0,8.4
+183008,82778,Druid,Guardian,Unknown,Tank,US,Murder Row,8,1,1407.5,88845,0,297.0,2026-08-21,0,-1,1400.0,31.4
+183008,82779,Evoker,Preservation,Unknown,Healer,US,Murder Row,8,1,1407.5,35600,0,294.0,2026-08-21,0,-1,1400.0,31.4
+183008,2549,Hunter,BeastMastery,Unknown,DPS,US,Murder Row,8,1,1407.5,155513,0,299.0,2026-08-21,0,-1,1400.0,31.4
+183008,91694,Monk,Windwalker,Unknown,DPS,US,Murder Row,8,1,1407.5,122898,0,293.0,2026-08-21,0,-1,1400.0,31.4
+183008,73729,Mage,Arcane,Unknown,DPS,US,Murder Row,8,1,1407.5,145888,0,297.0,2026-08-21,0,-1,1400.0,31.4
+183011,239602,Paladin,Protection,Templar,Tank,US,Kings' Rest,6,1,1737.9,46800,2,296.0,2026-08-20,0,-1,1799.0,9.1
+183011,239603,Priest,Holy,Archon,Healer,US,Kings' Rest,6,1,1737.9,6105,3,300.0,2026-08-20,0,-1,1799.0,9.1
+183011,96844,Warrior,Fury,Slayer,DPS,US,Kings' Rest,6,1,1737.9,90086,2,296.0,2026-08-20,0,-1,1799.0,9.1
+183011,239604,Warlock,Demonology,Diabolist,DPS,US,Kings' Rest,6,1,1737.9,51726,3,291.0,2026-08-20,0,-1,1799.0,9.1
+183011,131389,Druid,Balance,Elune's Chosen,DPS,US,Kings' Rest,6,1,1737.9,82312,2,292.0,2026-08-20,0,-1,1799.0,9.1
+183023,226552,DeathKnight,Blood,Deathbringer,Tank,EU,Temple of Sethraliss,10,1,1742.9,84876,0,296.0,2026-08-20,0,-1,1759.0,8.4
+183023,226553,Paladin,Holy,Herald of the Sun,Healer,EU,Temple of Sethraliss,10,1,1742.9,15104,0,293.0,2026-08-20,0,-1,1759.0,8.4
+183023,227893,Priest,Shadow,Archon,DPS,EU,Temple of Sethraliss,10,1,1742.9,138069,1,290.0,2026-08-20,0,-1,1759.0,8.4
+183023,90849,DemonHunter,Devourer,Void-Scarred,DPS,EU,Temple of Sethraliss,10,1,1742.9,129420,3,300.0,2026-08-20,0,-1,1759.0,8.4
+183023,226554,Warrior,Arms,Slayer,DPS,EU,Temple of Sethraliss,10,1,1742.9,148852,1,291.0,2026-08-20,0,-1,1759.0,8.4
+183038,239637,DemonHunter,Vengeance,Annihilator,Tank,US,Kings' Rest,11,1,1701.8,67063,0,302.0,2026-08-21,0,-1,1698.0,14.2
+183038,91176,Paladin,Holy,Herald of the Sun,Healer,US,Kings' Rest,11,1,1701.8,23767,0,298.0,2026-08-21,0,-1,1698.0,14.2
+183038,31583,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,11,1,1701.8,138863,1,302.0,2026-08-21,0,-1,1698.0,14.2
+183038,31584,Shaman,Elemental,Farseer,DPS,US,Kings' Rest,11,1,1701.8,129737,0,304.0,2026-08-21,0,-1,1698.0,14.2
+183038,239638,Warrior,Arms,Slayer,DPS,US,Kings' Rest,11,1,1701.8,122996,0,291.0,2026-08-21,0,-1,1698.0,14.2
+183044,239648,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,10,1,1845.8,58904,0,299.0,2026-08-20,0,-1,1902.0,3.9
+183044,138531,Paladin,Holy,Herald of the Sun,Healer,US,Kings' Rest,10,1,1845.8,23195,5,303.0,2026-08-20,0,-1,1902.0,3.9
+183044,239649,Priest,Shadow,Voidweaver,DPS,US,Kings' Rest,10,1,1845.8,89932,5,304.0,2026-08-20,0,-1,1902.0,3.9
+183044,4082,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Kings' Rest,10,1,1845.8,125060,1,303.0,2026-08-20,0,-1,1902.0,3.9
+183044,97436,Mage,Arcane,Sunfury,DPS,US,Kings' Rest,10,1,1845.8,121911,2,306.0,2026-08-20,0,-1,1902.0,3.9
+183061,90633,Warrior,Protection,Mountain Thane,Tank,US,Murder Row,7,1,1478.3,79365,2,299.0,2026-08-21,0,-1,1510.0,26.0
+183061,133572,Shaman,Restoration,Totemic,Healer,US,Murder Row,7,1,1478.3,15217,2,288.0,2026-08-21,0,-1,1510.0,26.0
+183061,194582,Rogue,Subtlety,Trickster,DPS,US,Murder Row,7,1,1478.3,163394,0,292.0,2026-08-21,0,-1,1510.0,26.0
+183061,90636,Mage,Arcane,Sunfury,DPS,US,Murder Row,7,1,1478.3,129355,1,302.0,2026-08-21,0,-1,1510.0,26.0
+183061,72489,Monk,Windwalker,Shado-Pan,DPS,US,Murder Row,7,1,1478.3,118313,3,293.0,2026-08-21,0,-1,1510.0,26.0
+183066,215505,DeathKnight,Blood,San'layn,Tank,US,Den of Nalorakk,10,1,1777.2,82763,1,297.0,2026-08-20,0,-1,1804.0,6.1
+183066,61032,Paladin,Holy,Herald of the Sun,Healer,US,Den of Nalorakk,10,1,1777.2,5765,2,291.0,2026-08-20,0,-1,1804.0,6.1
+183066,144424,Druid,Balance,Elune's Chosen,DPS,US,Den of Nalorakk,10,1,1777.2,128101,1,299.0,2026-08-20,0,-1,1804.0,6.1
+183066,178011,Mage,Arcane,Sunfury,DPS,US,Den of Nalorakk,10,1,1777.2,148288,1,298.0,2026-08-20,0,-1,1804.0,6.1
+183066,125633,Hunter,BeastMastery,Pack Leader,DPS,US,Den of Nalorakk,10,1,1777.2,133514,2,302.0,2026-08-20,0,-1,1804.0,6.1
+183068,150926,Druid,Guardian,Elune's Chosen,Tank,US,Altar of Fangs,8,1,1727.4,98788,0,299.0,2026-08-20,0,-1,1734.0,3.7
+183068,239671,Priest,Holy,Archon,Healer,US,Altar of Fangs,8,1,1727.4,18710,0,297.0,2026-08-20,0,-1,1734.0,3.7
+183068,239672,DemonHunter,Havoc,Fel-Scarred,DPS,US,Altar of Fangs,8,1,1727.4,125989,1,294.0,2026-08-20,0,-1,1734.0,3.7
+183068,112153,Evoker,Augmentation,Scalecommander,DPS,US,Altar of Fangs,8,1,1727.4,117792,1,296.0,2026-08-20,0,-1,1734.0,3.7
+183068,239673,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,8,1,1727.4,162642,0,292.0,2026-08-20,0,-1,1734.0,3.7
+183084,239688,DeathKnight,Blood,Deathbringer,Tank,EU,The Blinding Vale,6,1,1203.7,86385,0,291.0,2026-08-20,0,-1,1195.0,33.6
+183084,237109,Paladin,Holy,Herald of the Sun,Healer,EU,The Blinding Vale,6,1,1203.7,9140,0,289.0,2026-08-20,0,-1,1195.0,33.6
+183084,237112,DemonHunter,Devourer,Void-Scarred,DPS,EU,The Blinding Vale,6,1,1203.7,133570,0,291.0,2026-08-20,0,-1,1195.0,33.6
+183084,237111,Shaman,Elemental,Farseer,DPS,EU,The Blinding Vale,6,1,1203.7,136065,0,279.0,2026-08-20,0,-1,1195.0,33.6
+183084,239689,Druid,Feral,Druid of the Claw,DPS,EU,The Blinding Vale,6,1,1203.7,151790,0,296.0,2026-08-20,0,-1,1195.0,33.6
+183085,101407,DeathKnight,Blood,San'layn,Tank,EU,Kings' Rest,11,1,1800.4,91984,0,303.0,2026-08-20,0,-1,1837.0,7.2
+183085,33012,Druid,Restoration,Wildstalker,Healer,EU,Kings' Rest,11,1,1800.4,11012,1,296.0,2026-08-20,0,-1,1837.0,7.2
+183085,239690,DemonHunter,Devourer,Void-Scarred,DPS,EU,Kings' Rest,11,1,1800.4,96247,5,291.0,2026-08-20,0,-1,1837.0,7.2
+183085,140528,Hunter,BeastMastery,Pack Leader,DPS,EU,Kings' Rest,11,1,1800.4,118751,1,295.0,2026-08-20,0,-1,1837.0,7.2
+183085,226955,Shaman,Elemental,Farseer,DPS,EU,Kings' Rest,11,1,1800.4,126944,2,292.0,2026-08-20,0,-1,1837.0,7.2
+183113,7696,DeathKnight,Blood,San'layn,Tank,US,Murder Row,10,1,1606.9,119621,0,308.0,2026-08-20,0,-1,1614.0,20.9
+183113,226066,Paladin,Holy,Herald of the Sun,Healer,US,Murder Row,10,1,1606.9,35947,1,291.0,2026-08-20,0,-1,1614.0,20.9
+183113,179639,Paladin,Holy,Herald of the Sun,Healer,US,Murder Row,10,1,1606.9,0,0,267.0,2026-08-20,0,-1,1614.0,20.9
+183113,4829,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Murder Row,10,1,1606.9,217698,0,303.0,2026-08-20,0,-1,1614.0,20.9
+183113,4833,Mage,Arcane,Sunfury,DPS,US,Murder Row,10,1,1606.9,210642,0,309.0,2026-08-20,0,-1,1614.0,20.9
+183115,150408,Paladin,Protection,Lightsmith,Tank,US,Ruby Life Pools,8,1,1455.5,71385,1,293.0,2026-08-20,0,-1,1472.0,12.4
+183115,78479,Priest,Holy,Oracle,Healer,US,Ruby Life Pools,8,1,1455.5,14392,1,291.0,2026-08-20,0,-1,1472.0,12.4
+183115,225863,Monk,Windwalker,Conduit of the Celestials,DPS,US,Ruby Life Pools,8,1,1455.5,122549,1,285.0,2026-08-20,0,-1,1472.0,12.4
+183115,134869,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,8,1,1455.5,112384,1,296.0,2026-08-20,0,-1,1472.0,12.4
+183115,29785,Hunter,BeastMastery,Pack Leader,DPS,US,Ruby Life Pools,8,1,1455.5,126504,1,302.0,2026-08-20,0,-1,1472.0,12.4
+183125,137717,Warrior,Protection,Mountain Thane,Tank,EU,Altar of Fangs,6,1,1727.2,99046,1,288.0,2026-08-21,0,-1,1774.0,1.4
+183125,122540,Paladin,Holy,Herald of the Sun,Healer,EU,Altar of Fangs,6,1,1727.2,1604,3,301.0,2026-08-21,0,-1,1774.0,1.4
+183125,236755,Shaman,Enhancement,Stormbringer,DPS,EU,Altar of Fangs,6,1,1727.2,68399,4,259.0,2026-08-21,0,-1,1774.0,1.4
+183125,137716,Paladin,Retribution,Templar,DPS,EU,Altar of Fangs,6,1,1727.2,109742,2,287.0,2026-08-21,0,-1,1774.0,1.4
+183125,137715,DemonHunter,Devourer,Void-Scarred,DPS,EU,Altar of Fangs,6,1,1727.2,117551,1,299.0,2026-08-21,0,-1,1774.0,1.4
+183128,43198,Paladin,Protection,Lightsmith,Tank,CN,Altar of Fangs,12,1,1680.1,92444,1,298.0,2026-08-21,0,-1,1686.0,6.3
+183128,239714,Shaman,Restoration,Totemic,Healer,CN,Altar of Fangs,12,1,1680.1,28473,0,304.0,2026-08-21,0,-1,1686.0,6.3
+183128,47409,Mage,Arcane,Sunfury,DPS,CN,Altar of Fangs,12,1,1680.1,239919,0,304.0,2026-08-21,0,-1,1686.0,6.3
+183128,239715,Paladin,Retribution,Herald of the Sun,DPS,CN,Altar of Fangs,12,1,1680.1,184985,0,302.0,2026-08-21,0,-1,1686.0,6.3
+183128,239716,Warrior,Arms,Slayer,DPS,CN,Altar of Fangs,12,1,1680.1,191091,0,302.0,2026-08-21,0,-1,1686.0,6.3
+183151,239741,Monk,Brewmaster,Shado-Pan,Tank,EU,Ruby Life Pools,11,1,1453.7,86726,0,293.0,2026-08-20,0,-1,1460.0,13.1
+183151,58585,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,11,1,1453.7,16720,0,296.0,2026-08-20,0,-1,1460.0,13.1
+183151,58587,Shaman,Enhancement,Stormbringer,DPS,EU,Ruby Life Pools,11,1,1453.7,171439,0,294.0,2026-08-20,0,-1,1460.0,13.1
+183151,239011,Shaman,Elemental,Farseer,DPS,EU,Ruby Life Pools,11,1,1453.7,157389,2,292.0,2026-08-20,0,-1,1460.0,13.1
+183151,58586,Monk,Windwalker,Shado-Pan,DPS,EU,Ruby Life Pools,11,1,1453.7,156976,1,295.0,2026-08-20,0,-1,1460.0,13.1
+183156,3327,DeathKnight,Blood,San'layn,Tank,US,Den of Nalorakk,12,1,1759.8,110405,0,308.0,2026-08-20,0,-1,1767.0,8.0
+183156,8670,Shaman,Restoration,Totemic,Healer,US,Den of Nalorakk,12,1,1759.8,21368,0,298.0,2026-08-20,0,-1,1767.0,8.0
+183156,3331,DemonHunter,Devourer,Void-Scarred,DPS,US,Den of Nalorakk,12,1,1759.8,156108,1,306.0,2026-08-20,0,-1,1767.0,8.0
+183156,103457,Warrior,Arms,Slayer,DPS,US,Den of Nalorakk,12,1,1759.8,142848,0,295.0,2026-08-20,0,-1,1767.0,8.0
+183156,103456,Mage,Arcane,Sunfury,DPS,US,Den of Nalorakk,12,1,1759.8,130810,0,295.0,2026-08-20,0,-1,1767.0,8.0
+183167,12056,Paladin,Protection,Templar,Tank,US,Kings' Rest,11,0,2140.9,63695,2,303.0,2026-08-20,0,-1,2188.0,-10.5
+183167,222808,Evoker,Preservation,Flameshaper,Healer,US,Kings' Rest,11,0,2140.9,17557,2,299.0,2026-08-20,0,-1,2188.0,-10.5
+183167,91406,Warlock,Destruction,Diabolist,DPS,US,Kings' Rest,11,0,2140.9,110930,1,295.0,2026-08-20,0,-1,2188.0,-10.5
+183167,38552,Priest,Shadow,Archon,DPS,US,Kings' Rest,11,0,2140.9,110334,4,299.0,2026-08-20,0,-1,2188.0,-10.5
+183167,2607,DemonHunter,Devourer,Void-Scarred,DPS,US,Kings' Rest,11,0,2140.9,115573,2,303.0,2026-08-20,0,-1,2188.0,-10.5
+183174,140793,Monk,Brewmaster,Shado-Pan,Tank,EU,Altar of Fangs,2,1,2048.7,44132,6,279.0,2026-08-20,0,-1,1754.0,2.6
+183174,140794,Paladin,Holy,Lightsmith,Healer,EU,Altar of Fangs,2,1,2048.7,18975,3,278.0,2026-08-20,0,-1,1754.0,2.6
+183174,239768,Paladin,Retribution,Templar,DPS,EU,Altar of Fangs,2,1,2048.7,47120,5,271.0,2026-08-20,0,-1,1754.0,2.6
+183174,140796,Hunter,BeastMastery,Pack Leader,DPS,EU,Altar of Fangs,2,1,2048.7,89342,5,289.0,2026-08-20,0,-1,1754.0,2.6
+183174,239769,Hunter,BeastMastery,Pack Leader,DPS,EU,Altar of Fangs,2,1,2048.7,66873,3,292.0,2026-08-20,0,-1,1754.0,2.6
+183179,239590,DeathKnight,Blood,San'layn,Tank,EU,Den of Nalorakk,12,1,1687.5,83825,0,292.0,2026-08-21,0,-1,1679.0,12.6
+183179,44200,Priest,Discipline,Oracle,Healer,EU,Den of Nalorakk,12,1,1687.5,12701,0,300.0,2026-08-21,0,-1,1679.0,12.6
+183179,239776,Paladin,Retribution,Templar,DPS,EU,Den of Nalorakk,12,1,1687.5,201536,0,308.0,2026-08-21,0,-1,1679.0,12.6
+183179,239591,Warrior,Arms,Slayer,DPS,EU,Den of Nalorakk,12,1,1687.5,169285,0,292.0,2026-08-21,0,-1,1679.0,12.6
+183179,239777,Shaman,Enhancement,Stormbringer,DPS,EU,Den of Nalorakk,12,1,1687.5,202762,0,302.0,2026-08-21,0,-1,1679.0,12.6
+183184,175412,Druid,Guardian,Elune's Chosen,Tank,US,Den of Nalorakk,10,1,1510.9,76906,2,289.0,2026-08-21,0,-1,1538.0,19.9
+183184,1386,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Den of Nalorakk,10,1,1510.9,50975,1,300.0,2026-08-21,0,-1,1538.0,19.9
+183184,38578,Mage,Fire,Sunfury,DPS,US,Den of Nalorakk,10,1,1510.9,118373,2,297.0,2026-08-21,0,-1,1538.0,19.9
+183184,148088,Paladin,Retribution,Templar,DPS,US,Den of Nalorakk,10,1,1510.9,155546,1,306.0,2026-08-21,0,-1,1538.0,19.9
+183184,149222,Warlock,Demonology,Diabolist,DPS,US,Den of Nalorakk,10,1,1510.9,159612,1,303.0,2026-08-21,0,-1,1538.0,19.9
+183189,239791,Warrior,Protection,Mountain Thane,Tank,US,Voidscar Arena,5,1,1015.2,49040,0,280.0,2026-08-21,0,-1,1006.0,44.1
+183189,235109,Paladin,Holy,Herald of the Sun,Healer,US,Voidscar Arena,5,1,1015.2,7446,0,270.0,2026-08-21,0,-1,1006.0,44.1
+183189,235110,Hunter,BeastMastery,Pack Leader,DPS,US,Voidscar Arena,5,1,1015.2,130690,0,292.0,2026-08-21,0,-1,1006.0,44.1
+183189,108064,Priest,Shadow,Archon,DPS,US,Voidscar Arena,5,1,1015.2,125178,0,292.0,2026-08-21,0,-1,1006.0,44.1
+183189,108063,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,5,1,1015.2,127067,0,294.0,2026-08-21,0,-1,1006.0,44.1
+183194,86650,DeathKnight,Blood,San'layn,Tank,EU,Murder Row,9,1,1296.8,147959,0,301.0,2026-08-20,0,-1,1294.0,36.6
+183194,34174,Priest,Discipline,Oracle,Healer,EU,Murder Row,9,1,1296.8,16569,1,303.0,2026-08-20,0,-1,1294.0,36.6
+183194,62913,Warrior,Arms,Slayer,DPS,EU,Murder Row,9,1,1296.8,179841,0,305.0,2026-08-20,0,-1,1294.0,36.6
+183194,239793,Mage,Frost,Spellslinger,DPS,EU,Murder Row,9,1,1296.8,156930,0,293.0,2026-08-20,0,-1,1294.0,36.6
+183194,221662,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Murder Row,9,1,1296.8,156816,0,294.0,2026-08-20,0,-1,1294.0,36.6
+183202,103672,DeathKnight,Blood,San'layn,Tank,US,The Blinding Vale,8,1,1387.9,99177,0,299.0,2026-08-20,0,-1,1409.0,21.7
+183202,78776,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,8,1,1387.9,19870,2,303.0,2026-08-20,0,-1,1409.0,21.7
+183202,180249,Rogue,Assassination,Deathstalker,DPS,US,The Blinding Vale,8,1,1387.9,186253,1,297.0,2026-08-20,0,-1,1409.0,21.7
+183202,239798,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,8,1,1387.9,151123,2,293.0,2026-08-20,0,-1,1409.0,21.7
+183202,239799,DeathKnight,Frost,Deathbringer,DPS,US,The Blinding Vale,8,1,1387.9,133158,1,296.0,2026-08-20,0,-1,1409.0,21.7
+183213,239809,DeathKnight,Blood,San'layn,Tank,EU,Voidscar Arena,12,1,1425.0,116797,1,305.0,2026-08-20,0,-1,1596.0,11.3
+183213,239810,Paladin,Holy,Lightsmith,Healer,EU,Voidscar Arena,12,1,1425.0,33942,3,298.0,2026-08-20,0,-1,1596.0,11.3
+183213,239811,Warrior,Arms,Slayer,DPS,EU,Voidscar Arena,12,1,1425.0,172951,5,303.0,2026-08-20,0,-1,1596.0,11.3
+183213,87732,DemonHunter,Devourer,Annihilator,DPS,EU,Voidscar Arena,12,1,1425.0,223408,1,306.0,2026-08-20,0,-1,1596.0,11.3
+183213,239812,Shaman,Elemental,Farseer,DPS,EU,Voidscar Arena,12,1,1425.0,206767,2,300.0,2026-08-20,0,-1,1596.0,11.3
+183226,220914,Monk,Brewmaster,Shado-Pan,Tank,EU,Voidscar Arena,10,1,1360.5,85355,0,298.0,2026-08-20,0,-1,1357.0,24.6
+183226,220915,Shaman,Restoration,Totemic,Healer,EU,Voidscar Arena,10,1,1360.5,18485,0,298.0,2026-08-20,0,-1,1357.0,24.6
+183226,42255,Hunter,Marksmanship,Sentinel,DPS,EU,Voidscar Arena,10,1,1360.5,189595,0,303.0,2026-08-20,0,-1,1357.0,24.6
+183226,220923,Warlock,Demonology,Diabolist,DPS,EU,Voidscar Arena,10,1,1360.5,144616,0,292.0,2026-08-20,0,-1,1357.0,24.6
+183226,220916,Shaman,Enhancement,Stormbringer,DPS,EU,Voidscar Arena,10,1,1360.5,182152,1,302.0,2026-08-20,0,-1,1357.0,24.6
+183227,239823,DeathKnight,Blood,San'layn,Tank,CN,Ruby Life Pools,10,1,1567.9,150423,1,300.0,2026-08-21,0,-1,1635.0,2.7
+183227,239824,Paladin,Holy,Lightsmith,Healer,CN,Ruby Life Pools,10,1,1567.9,33783,2,291.0,2026-08-21,0,-1,1635.0,2.7
+183227,50070,DeathKnight,Frost,Deathbringer,DPS,CN,Ruby Life Pools,10,1,1567.9,128106,3,297.0,2026-08-21,0,-1,1635.0,2.7
+183227,239825,Shaman,Elemental,Farseer,DPS,CN,Ruby Life Pools,10,1,1567.9,178442,3,290.0,2026-08-21,0,-1,1635.0,2.7
+183227,239826,Warrior,Arms,Slayer,DPS,CN,Ruby Life Pools,10,1,1567.9,136800,6,286.0,2026-08-21,0,-1,1635.0,2.7
+183237,239829,DeathKnight,Blood,Deathbringer,Tank,US,Voidscar Arena,2,1,1195.7,40903,0,269.0,2026-08-21,0,-1,1187.0,34.1
+183237,239830,Priest,Discipline,Voidweaver,Healer,US,Voidscar Arena,2,1,1195.7,18836,0,284.0,2026-08-21,0,-1,1187.0,34.1
+183237,239831,Paladin,Retribution,Templar,DPS,US,Voidscar Arena,2,1,1195.7,115756,1,296.0,2026-08-21,0,-1,1187.0,34.1
+183237,239832,Warrior,Fury,Slayer,DPS,US,Voidscar Arena,2,1,1195.7,68554,1,289.0,2026-08-21,0,-1,1187.0,34.1
+183237,110212,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,2,1,1195.7,102099,1,286.0,2026-08-21,0,-1,1187.0,34.1
+183238,76613,DemonHunter,Vengeance,Aldrachi Reaver,Tank,US,Voidscar Arena,10,1,1711.3,43442,0,295.0,2026-08-21,0,-1,1718.0,4.5
+183238,131638,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,10,1,1711.3,14772,0,292.0,2026-08-21,0,-1,1718.0,4.5
+183238,239833,Monk,Windwalker,Shado-Pan,DPS,US,Voidscar Arena,10,1,1711.3,105068,2,295.0,2026-08-21,0,-1,1718.0,4.5
+183238,145684,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,10,1,1711.3,180651,0,301.0,2026-08-21,0,-1,1718.0,4.5
+183238,131639,Rogue,Subtlety,Deathstalker,DPS,US,Voidscar Arena,10,1,1711.3,139848,1,296.0,2026-08-21,0,-1,1718.0,4.5
+183261,186333,DemonHunter,Vengeance,Annihilator,Tank,US,The Blinding Vale,10,0,1912.7,71030,1,296.0,2026-08-21,0,-1,1974.0,-9.7
+183261,236159,Druid,Restoration,Wildstalker,Healer,US,The Blinding Vale,10,0,1912.7,3538,1,287.0,2026-08-21,0,-1,1974.0,-9.7
+183261,236161,Paladin,Retribution,Templar,DPS,US,The Blinding Vale,10,0,1912.7,143480,6,283.0,2026-08-21,0,-1,1974.0,-9.7
+183261,109922,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,10,0,1912.7,162973,3,302.0,2026-08-21,0,-1,1974.0,-9.7
+183261,236160,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,10,0,1912.7,126543,3,294.0,2026-08-21,0,-1,1974.0,-9.7
+183263,190155,DeathKnight,Blood,San'layn,Tank,EU,Voidscar Arena,7,1,1310.7,54272,0,278.0,2026-08-20,0,-1,1328.0,26.2
+183263,239856,Priest,Holy,Oracle,Healer,EU,Voidscar Arena,7,1,1310.7,17504,0,292.0,2026-08-20,0,-1,1328.0,26.2
+183263,109573,Paladin,Retribution,Templar,DPS,EU,Voidscar Arena,7,1,1310.7,141692,0,299.0,2026-08-20,0,-1,1328.0,26.2
+183263,114922,Rogue,Assassination,Deathstalker,DPS,EU,Voidscar Arena,7,1,1310.7,131142,4,290.0,2026-08-20,0,-1,1328.0,26.2
+183263,129319,Mage,Arcane,Sunfury,DPS,EU,Voidscar Arena,7,1,1310.7,179478,1,298.0,2026-08-20,0,-1,1328.0,26.2
+183270,171917,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,8,1,1602.6,90192,0,297.0,2026-08-20,0,-1,1619.0,15.7
+183270,239869,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,8,1,1602.6,14373,0,295.0,2026-08-20,0,-1,1619.0,15.7
+183270,171919,Evoker,Augmentation,Scalecommander,DPS,EU,Den of Nalorakk,8,1,1602.6,107044,1,294.0,2026-08-20,0,-1,1619.0,15.7
+183270,171920,Warlock,Demonology,Diabolist,DPS,EU,Den of Nalorakk,8,1,1602.6,108396,2,291.0,2026-08-20,0,-1,1619.0,15.7
+183270,239870,Druid,Balance,Elune's Chosen,DPS,EU,Den of Nalorakk,8,1,1602.6,104660,2,296.0,2026-08-20,0,-1,1619.0,15.7
+183271,239871,Paladin,Protection,Templar,Tank,US,The Blinding Vale,11,1,1574.3,107814,0,296.0,2026-08-20,0,-1,1591.0,11.6
+183271,119308,Paladin,Holy,Herald of the Sun,Healer,US,The Blinding Vale,11,1,1574.3,5350,2,302.0,2026-08-20,0,-1,1591.0,11.6
+183271,218041,Druid,Balance,Elune's Chosen,DPS,US,The Blinding Vale,11,1,1574.3,202274,1,301.0,2026-08-20,0,-1,1591.0,11.6
+183271,107278,Shaman,Elemental,Farseer,DPS,US,The Blinding Vale,11,1,1574.3,179158,1,299.0,2026-08-20,0,-1,1591.0,11.6
+183271,114016,DemonHunter,Devourer,Void-Scarred,DPS,US,The Blinding Vale,11,1,1574.3,210816,1,297.0,2026-08-20,0,-1,1591.0,11.6
+183276,144585,Paladin,Protection,Templar,Tank,EU,Kings' Rest,10,1,1429.0,66204,1,296.0,2026-08-20,0,-1,1470.0,25.7
+183276,45126,Druid,Restoration,Wildstalker,Healer,EU,Kings' Rest,10,1,1429.0,16880,4,304.0,2026-08-20,0,-1,1470.0,25.7
+183276,20714,Shaman,Enhancement,Stormbringer,DPS,EU,Kings' Rest,10,1,1429.0,144927,2,305.0,2026-08-20,0,-1,1470.0,25.7
+183276,20715,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Kings' Rest,10,1,1429.0,168727,1,308.0,2026-08-20,0,-1,1470.0,25.7
+183276,145029,Mage,Arcane,Sunfury,DPS,EU,Kings' Rest,10,1,1429.0,129718,2,300.0,2026-08-20,0,-1,1470.0,25.7
+183277,58910,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,9,1,1545.3,71498,1,296.0,2026-08-21,0,-1,1602.0,11.0
+183277,58911,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Voidscar Arena,9,1,1545.3,36148,2,300.0,2026-08-21,0,-1,1602.0,11.0
+183277,34707,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,9,1,1545.3,159077,3,300.0,2026-08-21,0,-1,1602.0,11.0
+183277,143144,Priest,Shadow,Voidweaver,DPS,US,Voidscar Arena,9,1,1545.3,152042,4,296.0,2026-08-21,0,-1,1602.0,11.0
+183277,239873,Druid,Balance,Elune's Chosen,DPS,US,Voidscar Arena,9,1,1545.3,112732,3,290.0,2026-08-21,0,-1,1602.0,11.0
+183278,239874,DeathKnight,Blood,San'layn,Tank,EU,Temple of Sethraliss,10,1,1417.9,85323,0,293.0,2026-08-20,0,-1,1444.0,24.8
+183278,239875,Druid,Restoration,Wildstalker,Healer,EU,Temple of Sethraliss,10,1,1417.9,10076,1,300.0,2026-08-20,0,-1,1444.0,24.8
+183278,239876,DemonHunter,Devourer,Annihilator,DPS,EU,Temple of Sethraliss,10,1,1417.9,170294,0,287.0,2026-08-20,0,-1,1444.0,24.8
+183278,126147,DemonHunter,Devourer,Void-Scarred,DPS,EU,Temple of Sethraliss,10,1,1417.9,143094,3,303.0,2026-08-20,0,-1,1444.0,24.8
+183278,13050,Shaman,Enhancement,Stormbringer,DPS,EU,Temple of Sethraliss,10,1,1417.9,205438,3,307.0,2026-08-20,0,-1,1444.0,24.8
+183282,47959,Paladin,Protection,Templar,Tank,US,Den of Nalorakk,10,1,1505.6,95664,0,301.0,2026-08-20,0,-1,1502.0,21.8
+183282,39654,Paladin,Holy,Herald of the Sun,Healer,US,Den of Nalorakk,10,1,1505.6,30880,0,306.0,2026-08-20,0,-1,1502.0,21.8
+183282,144728,Mage,Arcane,Sunfury,DPS,US,Den of Nalorakk,10,1,1505.6,170714,0,301.0,2026-08-20,0,-1,1502.0,21.8
+183282,116355,Druid,Balance,Elune's Chosen,DPS,US,Den of Nalorakk,10,1,1505.6,108137,1,302.0,2026-08-20,0,-1,1502.0,21.8
+183282,109491,Warrior,Arms,Slayer,DPS,US,Den of Nalorakk,10,1,1505.6,159246,0,300.0,2026-08-20,0,-1,1502.0,21.8
+183287,137038,DeathKnight,Blood,San'layn,Tank,US,Ruby Life Pools,10,1,1207.4,110073,0,296.0,2026-08-21,0,-1,1203.0,28.4
+183287,44660,Shaman,Restoration,Totemic,Healer,US,Ruby Life Pools,10,1,1207.4,23284,0,297.0,2026-08-21,0,-1,1203.0,28.4
+183287,32050,Druid,Balance,Elune's Chosen,DPS,US,Ruby Life Pools,10,1,1207.4,182904,1,296.0,2026-08-21,0,-1,1203.0,28.4
+183287,41876,Monk,Windwalker,Shado-Pan,DPS,US,Ruby Life Pools,10,1,1207.4,175908,0,301.0,2026-08-21,0,-1,1203.0,28.4
+183287,70109,DemonHunter,Devourer,Annihilator,DPS,US,Ruby Life Pools,10,1,1207.4,176355,0,302.0,2026-08-21,0,-1,1203.0,28.4
+183289,168027,Monk,Brewmaster,Master of Harmony,Tank,EU,Den of Nalorakk,11,1,1746.4,71890,2,292.0,2026-08-20,0,-1,1778.0,7.4
+183289,140120,Paladin,Holy,Herald of the Sun,Healer,EU,Den of Nalorakk,11,1,1746.4,13250,1,288.0,2026-08-20,0,-1,1778.0,7.4
+183289,97434,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,11,1,1746.4,162607,1,299.0,2026-08-20,0,-1,1778.0,7.4
+183289,91431,Warrior,Arms,Slayer,DPS,EU,Den of Nalorakk,11,1,1746.4,147684,3,292.0,2026-08-20,0,-1,1778.0,7.4
+183289,62534,Paladin,Retribution,Templar,DPS,EU,Den of Nalorakk,11,1,1746.4,153402,1,293.0,2026-08-20,0,-1,1778.0,7.4
+183295,176124,DemonHunter,Vengeance,Annihilator,Tank,US,Ruby Life Pools,2,1,987.5,61872,0,295.0,2026-08-21,0,-1,979.0,41.7
+183295,176125,Evoker,Preservation,Flameshaper,Healer,US,Ruby Life Pools,2,1,987.5,22202,0,283.0,2026-08-21,0,-1,979.0,41.7
+183295,239891,Warlock,Demonology,Diabolist,DPS,US,Ruby Life Pools,2,1,987.5,113311,0,291.0,2026-08-21,0,-1,979.0,41.7
+183295,51410,Shaman,Enhancement,Stormbringer,DPS,US,Ruby Life Pools,2,1,987.5,104323,1,284.0,2026-08-21,0,-1,979.0,41.7
+183295,239892,Mage,Fire,Sunfury,DPS,US,Ruby Life Pools,2,1,987.5,101386,0,287.0,2026-08-21,0,-1,979.0,41.7
+183303,73833,Druid,Guardian,Elune's Chosen,Tank,US,Voidscar Arena,9,1,1455.9,70685,0,291.0,2026-08-20,0,-1,1462.0,18.8
+183303,9357,Priest,Discipline,Oracle,Healer,US,Voidscar Arena,9,1,1455.9,16113,1,301.0,2026-08-20,0,-1,1462.0,18.8
+183303,189424,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,9,1,1455.9,157413,0,296.0,2026-08-20,0,-1,1462.0,18.8
+183303,227393,Rogue,Subtlety,Deathstalker,DPS,US,Voidscar Arena,9,1,1455.9,161368,0,291.0,2026-08-20,0,-1,1462.0,18.8
+183303,73835,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,9,1,1455.9,150552,2,288.0,2026-08-20,0,-1,1462.0,18.8
+183328,102077,DeathKnight,Blood,San'layn,Tank,US,Murder Row,10,1,1245.6,115980,0,300.0,2026-08-20,0,-1,1237.0,39.4
+183328,24614,Shaman,Restoration,Totemic,Healer,US,Murder Row,10,1,1245.6,32881,0,297.0,2026-08-20,0,-1,1237.0,39.4
+183328,88788,Rogue,Subtlety,Deathstalker,DPS,US,Murder Row,10,1,1245.6,224077,0,296.0,2026-08-20,0,-1,1237.0,39.4
+183328,137835,Priest,Shadow,Voidweaver,DPS,US,Murder Row,10,1,1245.6,208726,0,296.0,2026-08-20,0,-1,1237.0,39.4
+183328,24616,Warrior,Arms,Slayer,DPS,US,Murder Row,10,1,1245.6,237188,0,302.0,2026-08-20,0,-1,1237.0,39.4
+183330,46570,DeathKnight,Blood,San'layn,Tank,EU,Altar of Fangs,9,1,1382.5,125210,0,292.0,2026-08-20,0,-1,1384.0,23.1
+183330,231771,Priest,Holy,Oracle,Healer,EU,Altar of Fangs,9,1,1382.5,13810,0,289.0,2026-08-20,0,-1,1384.0,23.1
+183330,32274,Shaman,Elemental,Farseer,DPS,EU,Altar of Fangs,9,1,1382.5,192707,1,300.0,2026-08-20,0,-1,1384.0,23.1
+183330,91888,Warrior,Arms,Slayer,DPS,EU,Altar of Fangs,9,1,1382.5,195681,0,304.0,2026-08-20,0,-1,1384.0,23.1
+183330,239914,Druid,Balance,Elune's Chosen,DPS,EU,Altar of Fangs,9,1,1382.5,161996,1,293.0,2026-08-20,0,-1,1384.0,23.1
+183339,239929,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,10,1,1355.8,94263,0,291.0,2026-08-20,0,-1,1347.0,34.0
+183339,20098,Paladin,Holy,Lightsmith,Healer,EU,Murder Row,10,1,1355.8,53644,0,308.0,2026-08-20,0,-1,1347.0,34.0
+183339,190691,Shaman,Elemental,Farseer,DPS,EU,Murder Row,10,1,1355.8,113121,0,274.0,2026-08-20,0,-1,1347.0,34.0
+183339,23544,Mage,Arcane,Sunfury,DPS,EU,Murder Row,10,1,1355.8,221044,0,302.0,2026-08-20,0,-1,1347.0,34.0
+183339,20101,Rogue,Assassination,Deathstalker,DPS,EU,Murder Row,10,1,1355.8,223674,0,298.0,2026-08-20,0,-1,1347.0,34.0
+183343,41913,DeathKnight,Blood,San'layn,Tank,EU,Murder Row,8,1,1820.1,111706,0,297.0,2026-08-20,0,-1,1822.0,10.7
+183343,29510,Shaman,Restoration,Totemic,Healer,EU,Murder Row,8,1,1820.1,18875,0,303.0,2026-08-20,0,-1,1822.0,10.7
+183343,41914,Paladin,Retribution,Templar,DPS,EU,Murder Row,8,1,1820.1,129785,2,292.0,2026-08-20,0,-1,1822.0,10.7
+183343,87437,Rogue,Outlaw,Trickster,DPS,EU,Murder Row,8,1,1820.1,121669,0,294.0,2026-08-20,0,-1,1822.0,10.7
+183343,41916,Evoker,Augmentation,Scalecommander,DPS,EU,Murder Row,8,1,1820.1,81629,0,296.0,2026-08-20,0,-1,1822.0,10.7
+183345,180181,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,10,1,1528.9,65781,0,297.0,2026-08-20,0,-1,1545.0,14.2
+183345,66396,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,10,1,1528.9,9195,1,298.0,2026-08-20,0,-1,1545.0,14.2
+183345,90874,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,10,1,1528.9,170894,3,298.0,2026-08-20,0,-1,1545.0,14.2
+183345,239935,DeathKnight,Frost,Deathbringer,DPS,US,Voidscar Arena,10,1,1528.9,139185,0,296.0,2026-08-20,0,-1,1545.0,14.2
+183345,239936,Hunter,BeastMastery,Pack Leader,DPS,US,Voidscar Arena,10,1,1528.9,166913,1,302.0,2026-08-20,0,-1,1545.0,14.2
+183352,64495,Monk,Brewmaster,Master of Harmony,Tank,US,Voidscar Arena,8,1,1207.1,76620,0,301.0,2026-08-20,0,-1,1199.0,33.4
+183352,239941,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Voidscar Arena,8,1,1207.1,51101,0,293.0,2026-08-20,0,-1,1199.0,33.4
+183352,25337,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,8,1,1207.1,201569,0,298.0,2026-08-20,0,-1,1199.0,33.4
+183352,239942,DemonHunter,Havoc,Fel-Scarred,DPS,US,Voidscar Arena,8,1,1207.1,120938,0,285.0,2026-08-20,0,-1,1199.0,33.4
+183352,66757,Warlock,Demonology,Diabolist,DPS,US,Voidscar Arena,8,1,1207.1,167935,0,294.0,2026-08-20,0,-1,1199.0,33.4
+183366,239949,Paladin,Protection,Lightsmith,Tank,EU,Temple of Sethraliss,2,1,1493.8,60772,0,293.0,2026-08-20,0,-1,1485.0,22.7
+183366,239950,Paladin,Holy,Herald of the Sun,Healer,EU,Temple of Sethraliss,2,1,1493.8,6201,0,284.0,2026-08-20,0,-1,1485.0,22.7
+183366,239951,Hunter,BeastMastery,Pack Leader,DPS,EU,Temple of Sethraliss,2,1,1493.8,84818,0,288.0,2026-08-20,0,-1,1485.0,22.7
+183366,239952,Rogue,Subtlety,Deathstalker,DPS,EU,Temple of Sethraliss,2,1,1493.8,75188,0,292.0,2026-08-20,0,-1,1485.0,22.7
+183366,239953,Druid,Balance,Elune's Chosen,DPS,EU,Temple of Sethraliss,2,1,1493.8,70619,2,292.0,2026-08-20,0,-1,1485.0,22.7
+183371,43366,DeathKnight,Blood,Deathbringer,Tank,EU,Voidscar Arena,11,1,1444.6,102734,0,300.0,2026-08-20,0,-1,1446.0,19.7
+183371,43367,Shaman,Restoration,Totemic,Healer,EU,Voidscar Arena,11,1,1444.6,30111,1,300.0,2026-08-20,0,-1,1446.0,19.7
+183371,43369,Priest,Shadow,Voidweaver,DPS,EU,Voidscar Arena,11,1,1444.6,172355,0,297.0,2026-08-20,0,-1,1446.0,19.7
+183371,140773,DemonHunter,Havoc,Fel-Scarred,DPS,EU,Voidscar Arena,11,1,1444.6,131792,1,304.0,2026-08-20,0,-1,1446.0,19.7
+183371,43368,Mage,Arcane,Sunfury,DPS,EU,Voidscar Arena,11,1,1444.6,198664,0,302.0,2026-08-20,0,-1,1446.0,19.7
+183373,202832,Druid,Guardian,Elune's Chosen,Tank,EU,Kings' Rest,11,1,1544.3,51646,0,288.0,2026-08-21,0,-1,1546.0,21.9
+183373,80275,Shaman,Restoration,Totemic,Healer,EU,Kings' Rest,11,1,1544.3,42093,0,300.0,2026-08-21,0,-1,1546.0,21.9
+183373,21053,Rogue,Outlaw,Trickster,DPS,EU,Kings' Rest,11,1,1544.3,172819,2,302.0,2026-08-21,0,-1,1546.0,21.9
+183373,177033,Monk,Windwalker,Shado-Pan,DPS,EU,Kings' Rest,11,1,1544.3,127638,0,298.0,2026-08-21,0,-1,1546.0,21.9
+183373,183838,DemonHunter,Devourer,Void-Scarred,DPS,EU,Kings' Rest,11,1,1544.3,128130,0,298.0,2026-08-21,0,-1,1546.0,21.9
+183374,53546,Warrior,Protection,Colossus,Tank,US,Voidscar Arena,10,1,1638.5,107138,1,295.0,2026-08-20,0,-1,1695.0,5.8
+183374,148614,Evoker,Preservation,Flameshaper,Healer,US,Voidscar Arena,10,1,1638.5,30832,3,302.0,2026-08-20,0,-1,1695.0,5.8
+183374,93330,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,10,1,1638.5,148164,4,301.0,2026-08-20,0,-1,1695.0,5.8
+183374,83995,Paladin,Retribution,Templar,DPS,US,Voidscar Arena,10,1,1638.5,113006,2,296.0,2026-08-20,0,-1,1695.0,5.8
+183374,53548,DemonHunter,Havoc,Fel-Scarred,DPS,US,Voidscar Arena,10,1,1638.5,113103,3,294.0,2026-08-20,0,-1,1695.0,5.8
+183383,239961,DeathKnight,Blood,Deathbringer,Tank,EU,Temple of Sethraliss,2,1,1359.4,34022,0,281.0,2026-08-21,0,-1,1351.0,29.6
+183383,239962,Paladin,Holy,Lightsmith,Healer,EU,Temple of Sethraliss,2,1,1359.4,29266,1,292.0,2026-08-21,0,-1,1351.0,29.6
+183383,239963,DeathKnight,Frost,Deathbringer,DPS,EU,Temple of Sethraliss,2,1,1359.4,76098,0,296.0,2026-08-21,0,-1,1351.0,29.6
+183383,33797,Hunter,BeastMastery,Pack Leader,DPS,EU,Temple of Sethraliss,2,1,1359.4,112630,0,305.0,2026-08-21,0,-1,1351.0,29.6
+183383,156778,Warlock,Destruction,Diabolist,DPS,EU,Temple of Sethraliss,2,1,1359.4,48979,0,293.0,2026-08-21,0,-1,1351.0,29.6
+183398,239972,DeathKnight,Blood,San'layn,Tank,US,The Blinding Vale,10,0,1837.3,85772,1,285.0,2026-08-20,0,-1,1889.0,-5.0
+183398,126692,Evoker,Preservation,Flameshaper,Healer,US,The Blinding Vale,10,0,1837.3,33653,3,296.0,2026-08-20,0,-1,1889.0,-5.0
+183398,126693,DemonHunter,Devourer,Annihilator,DPS,US,The Blinding Vale,10,0,1837.3,178840,3,289.0,2026-08-20,0,-1,1889.0,-5.0
+183398,126694,Rogue,Subtlety,Deathstalker,DPS,US,The Blinding Vale,10,0,1837.3,160698,3,307.0,2026-08-20,0,-1,1889.0,-5.0
+183398,239973,Druid,Feral,Druid of the Claw,DPS,US,The Blinding Vale,10,0,1837.3,98679,2,290.0,2026-08-20,0,-1,1889.0,-5.0
+183424,84776,DeathKnight,Blood,Deathbringer,Tank,EU,Altar of Fangs,6,1,1124.6,92826,0,309.0,2026-08-20,0,-1,1136.0,36.9
+183424,84777,Paladin,Holy,Herald of the Sun,Healer,EU,Altar of Fangs,6,1,1124.6,22006,0,303.0,2026-08-20,0,-1,1136.0,36.9
+183424,84780,Rogue,Subtlety,Deathstalker,DPS,EU,Altar of Fangs,6,1,1124.6,160173,1,301.0,2026-08-20,0,-1,1136.0,36.9
+183424,110651,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,6,1,1124.6,180562,1,295.0,2026-08-20,0,-1,1136.0,36.9
+183424,134794,Druid,Balance,Elune's Chosen,DPS,EU,Altar of Fangs,6,1,1124.6,130027,2,297.0,2026-08-20,0,-1,1136.0,36.9
+183433,135043,Druid,Guardian,Elune's Chosen,Tank,US,Kings' Rest,10,1,1570.0,71318,0,296.0,2026-08-20,0,-1,1567.0,20.9
+183433,62288,Priest,Holy,Oracle,Healer,US,Kings' Rest,10,1,1570.0,22626,0,303.0,2026-08-20,0,-1,1567.0,20.9
+183433,9578,Rogue,Subtlety,Deathstalker,DPS,US,Kings' Rest,10,1,1570.0,114896,1,292.0,2026-08-20,0,-1,1567.0,20.9
+183433,135046,Hunter,Survival,Pack Leader,DPS,US,Kings' Rest,10,1,1570.0,128743,0,295.0,2026-08-20,0,-1,1567.0,20.9
+183433,10486,Paladin,Retribution,Templar,DPS,US,Kings' Rest,10,1,1570.0,135693,0,294.0,2026-08-20,0,-1,1567.0,20.9
+183435,240005,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,2,1,1048.9,76952,0,296.0,2026-08-20,0,-1,1040.0,42.2
+183435,240006,Evoker,Preservation,Flameshaper,Healer,US,Altar of Fangs,2,1,1048.9,22800,1,292.0,2026-08-20,0,-1,1040.0,42.2
+183435,27382,Druid,Balance,Elune's Chosen,DPS,US,Altar of Fangs,2,1,1048.9,119727,0,299.0,2026-08-20,0,-1,1040.0,42.2
+183435,240007,DemonHunter,Devourer,Annihilator,DPS,US,Altar of Fangs,2,1,1048.9,100398,0,279.0,2026-08-20,0,-1,1040.0,42.2
+183435,206907,Rogue,Assassination,Deathstalker,DPS,US,Altar of Fangs,2,1,1048.9,115225,0,292.0,2026-08-20,0,-1,1040.0,42.2
+183436,240008,DeathKnight,Blood,San'layn,Tank,US,Murder Row,4,1,1556.0,63435,0,296.0,2026-08-20,0,-1,1548.0,24.1
+183436,240009,Priest,Holy,Oracle,Healer,US,Murder Row,4,1,1556.0,13347,1,287.0,2026-08-20,0,-1,1548.0,24.1
+183436,240010,Mage,Arcane,Sunfury,DPS,US,Murder Row,4,1,1556.0,90070,1,284.0,2026-08-20,0,-1,1548.0,24.1
+183436,240011,Shaman,Elemental,Farseer,DPS,US,Murder Row,4,1,1556.0,97200,1,287.0,2026-08-20,0,-1,1548.0,24.1
+183436,240012,Warrior,Fury,Slayer,DPS,US,Murder Row,4,1,1556.0,94478,0,300.0,2026-08-20,0,-1,1548.0,24.1
+183440,240014,Paladin,Protection,Templar,Tank,EU,Kings' Rest,7,1,1660.7,43143,3,300.0,2026-08-20,0,-1,1732.0,12.5
+183440,239573,Priest,Holy,Archon,Healer,EU,Kings' Rest,7,1,1660.7,4279,2,284.0,2026-08-20,0,-1,1732.0,12.5
+183440,141003,Hunter,BeastMastery,Pack Leader,DPS,EU,Kings' Rest,7,1,1660.7,130032,2,301.0,2026-08-20,0,-1,1732.0,12.5
+183440,125601,Warrior,Fury,Mountain Thane,DPS,EU,Kings' Rest,7,1,1660.7,81257,5,295.0,2026-08-20,0,-1,1732.0,12.5
+183440,239575,Warlock,Destruction,Hellcaller,DPS,EU,Kings' Rest,7,1,1660.7,96643,3,293.0,2026-08-20,0,-1,1732.0,12.5
+183441,240015,Druid,Guardian,Elune's Chosen,Tank,EU,Kings' Rest,3,1,1606.2,43471,0,289.0,2026-08-20,0,-1,1598.0,19.3
+183441,182304,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Kings' Rest,3,1,1606.2,25878,2,283.0,2026-08-20,0,-1,1598.0,19.3
+183441,240016,Warrior,Arms,Colossus,DPS,EU,Kings' Rest,3,1,1606.2,39141,2,283.0,2026-08-20,0,-1,1598.0,19.3
+183441,240017,Paladin,Retribution,Templar,DPS,EU,Kings' Rest,3,1,1606.2,72224,2,291.0,2026-08-20,0,-1,1598.0,19.3
+183441,182305,Shaman,Elemental,Farseer,DPS,EU,Kings' Rest,3,1,1606.2,58788,2,286.0,2026-08-20,0,-1,1598.0,19.3
+183444,240019,Druid,Guardian,Elune's Chosen,Tank,EU,Murder Row,8,1,1633.7,65734,2,289.0,2026-08-20,0,-1,1680.0,17.6
+183444,240020,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Murder Row,8,1,1633.7,11152,1,292.0,2026-08-20,0,-1,1680.0,17.6
+183444,240021,Monk,Windwalker,Conduit of the Celestials,DPS,EU,Murder Row,8,1,1633.7,119484,4,290.0,2026-08-20,0,-1,1680.0,17.6
+183444,64404,DemonHunter,Devourer,Void-Scarred,DPS,EU,Murder Row,8,1,1633.7,163457,2,298.0,2026-08-20,0,-1,1680.0,17.6
+183444,240022,Mage,Arcane,Sunfury,DPS,EU,Murder Row,8,1,1633.7,168715,2,295.0,2026-08-20,0,-1,1680.0,17.6
+183487,1204,Paladin,Protection,Templar,Tank,US,Voidscar Arena,10,1,1329.8,105525,1,305.0,2026-08-21,0,-1,1331.0,26.1
+183487,11984,Evoker,Preservation,Flameshaper,Healer,US,Voidscar Arena,10,1,1329.8,44943,0,304.0,2026-08-21,0,-1,1331.0,26.1
+183487,142867,Priest,Shadow,Archon,DPS,US,Voidscar Arena,10,1,1329.8,213195,0,302.0,2026-08-21,0,-1,1331.0,26.1
+183487,222222,Hunter,Marksmanship,Sentinel,DPS,US,Voidscar Arena,10,1,1329.8,161432,0,292.0,2026-08-21,0,-1,1331.0,26.1
+183487,240059,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,10,1,1329.8,191896,1,297.0,2026-08-21,0,-1,1331.0,26.1
+183496,240063,DeathKnight,Blood,San'layn,Tank,EU,Ruby Life Pools,10,1,1184.7,130427,0,296.0,2026-08-21,0,-1,1181.0,29.7
+183496,38481,Priest,Discipline,Voidweaver,Healer,EU,Ruby Life Pools,10,1,1184.7,46530,0,302.0,2026-08-21,0,-1,1181.0,29.7
+183496,114166,Hunter,BeastMastery,Pack Leader,DPS,EU,Ruby Life Pools,10,1,1184.7,146949,1,295.0,2026-08-21,0,-1,1181.0,29.7
+183496,16531,DemonHunter,Devourer,Void-Scarred,DPS,EU,Ruby Life Pools,10,1,1184.7,167379,0,303.0,2026-08-21,0,-1,1181.0,29.7
+183496,90157,Rogue,Outlaw,Trickster,DPS,EU,Ruby Life Pools,10,1,1184.7,183642,0,301.0,2026-08-21,0,-1,1181.0,29.7
+183500,13635,Paladin,Protection,Lightsmith,Tank,US,Kings' Rest,10,1,1610.9,79916,2,308.0,2026-08-20,0,-1,1678.0,15.3
+183500,4630,Priest,Discipline,Oracle,Healer,US,Kings' Rest,10,1,1610.9,13690,3,297.0,2026-08-20,0,-1,1678.0,15.3
+183500,222975,Mage,Fire,Sunfury,DPS,US,Kings' Rest,10,1,1610.9,118076,5,290.0,2026-08-20,0,-1,1678.0,15.3
+183500,18977,Hunter,Marksmanship,Sentinel,DPS,US,Kings' Rest,10,1,1610.9,126060,3,306.0,2026-08-20,0,-1,1678.0,15.3
+183500,102353,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Kings' Rest,10,1,1610.9,128505,2,304.0,2026-08-20,0,-1,1678.0,15.3
+183508,240076,Paladin,Protection,Lightsmith,Tank,US,Ruby Life Pools,8,1,1541.5,92652,2,288.0,2026-08-20,0,-1,1588.0,5.5
+183508,132517,Evoker,Preservation,Chronowarden,Healer,US,Ruby Life Pools,8,1,1541.5,14293,2,273.0,2026-08-20,0,-1,1588.0,5.5
+183508,132518,Druid,Balance,Elune's Chosen,DPS,US,Ruby Life Pools,8,1,1541.5,146698,2,298.0,2026-08-20,0,-1,1588.0,5.5
+183508,132519,Hunter,Marksmanship,Sentinel,DPS,US,Ruby Life Pools,8,1,1541.5,145449,2,288.0,2026-08-20,0,-1,1588.0,5.5
+183508,237788,Mage,Fire,Sunfury,DPS,US,Ruby Life Pools,8,1,1541.5,137495,3,288.0,2026-08-20,0,-1,1588.0,5.5
+183523,224524,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,8,1,1727.3,65830,1,300.0,2026-08-20,0,-1,1768.0,7.9
+183523,210971,Priest,Discipline,Oracle,Healer,EU,Den of Nalorakk,8,1,1727.3,13000,4,294.0,2026-08-20,0,-1,1768.0,7.9
+183523,195149,Evoker,Devastation,Scalecommander,DPS,EU,Den of Nalorakk,8,1,1727.3,125663,2,298.0,2026-08-20,0,-1,1768.0,7.9
+183523,100812,DemonHunter,Devourer,Annihilator,DPS,EU,Den of Nalorakk,8,1,1727.3,124636,1,292.0,2026-08-20,0,-1,1768.0,7.9
+183523,86862,Warlock,Affliction,Soul Harvester,DPS,EU,Den of Nalorakk,8,1,1727.3,133630,2,301.0,2026-08-20,0,-1,1768.0,7.9
+183532,240098,DemonHunter,Vengeance,Annihilator,Tank,EU,Ruby Life Pools,5,1,1006.5,72501,0,293.0,2026-08-20,0,-1,998.0,40.6
+183532,228796,Priest,Holy,Oracle,Healer,EU,Ruby Life Pools,5,1,1006.5,22643,0,292.0,2026-08-20,0,-1,998.0,40.6
+183532,240099,Druid,Balance,Elune's Chosen,DPS,EU,Ruby Life Pools,5,1,1006.5,130217,1,289.0,2026-08-20,0,-1,998.0,40.6
+183532,240100,Priest,Shadow,Archon,DPS,EU,Ruby Life Pools,5,1,1006.5,99512,1,293.0,2026-08-20,0,-1,998.0,40.6
+183532,89201,Mage,Arcane,Sunfury,DPS,EU,Ruby Life Pools,5,1,1006.5,116900,1,288.0,2026-08-20,0,-1,998.0,40.6
+183536,231630,Paladin,Protection,Lightsmith,Tank,US,Ruby Life Pools,10,1,1269.6,93720,0,293.0,2026-08-20,0,-1,1261.0,24.9
+183536,74943,Shaman,Restoration,Totemic,Healer,US,Ruby Life Pools,10,1,1269.6,16404,0,297.0,2026-08-20,0,-1,1261.0,24.9
+183536,231631,Paladin,Retribution,Templar,DPS,US,Ruby Life Pools,10,1,1269.6,183158,0,295.0,2026-08-20,0,-1,1261.0,24.9
+183536,240103,Warlock,Demonology,Diabolist,DPS,US,Ruby Life Pools,10,1,1269.6,160151,0,295.0,2026-08-20,0,-1,1261.0,24.9
+183536,52319,Warlock,Demonology,Diabolist,DPS,US,Ruby Life Pools,10,1,1269.6,244249,0,304.0,2026-08-20,0,-1,1261.0,24.9
+183537,27694,DeathKnight,Blood,San'layn,Tank,EU,Kings' Rest,10,1,1535.9,88394,0,299.0,2026-08-20,0,-1,1532.0,22.6
+183537,27695,Paladin,Holy,Herald of the Sun,Healer,EU,Kings' Rest,10,1,1535.9,11756,1,288.0,2026-08-20,0,-1,1532.0,22.6
+183537,230747,Mage,Arcane,Sunfury,DPS,EU,Kings' Rest,10,1,1535.9,126800,0,301.0,2026-08-20,0,-1,1532.0,22.6
+183537,152672,Rogue,Subtlety,Deathstalker,DPS,EU,Kings' Rest,10,1,1535.9,127022,0,298.0,2026-08-20,0,-1,1532.0,22.6
+183537,223010,Monk,Windwalker,Shado-Pan,DPS,EU,Kings' Rest,10,1,1535.9,113993,0,299.0,2026-08-20,0,-1,1532.0,22.6
+183545,51833,Paladin,Protection,Lightsmith,Tank,EU,Ruby Life Pools,11,1,1408.5,103807,4,295.0,2026-08-20,0,-1,1475.0,12.2
+183545,223425,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,11,1,1408.5,41181,2,292.0,2026-08-20,0,-1,1475.0,12.2
+183545,218314,Druid,Balance,Elune's Chosen,DPS,EU,Ruby Life Pools,11,1,1408.5,181323,2,296.0,2026-08-20,0,-1,1475.0,12.2
+183545,94234,Mage,Arcane,Sunfury,DPS,EU,Ruby Life Pools,11,1,1408.5,219889,3,302.0,2026-08-20,0,-1,1475.0,12.2
+183545,240104,Warrior,Arms,Slayer,DPS,EU,Ruby Life Pools,11,1,1408.5,175446,4,300.0,2026-08-20,0,-1,1475.0,12.2
+183550,225608,Monk,Brewmaster,Shado-Pan,Tank,US,Temple of Sethraliss,6,1,1210.4,62237,0,290.0,2026-08-20,0,-1,1207.0,37.1
+183550,227687,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Temple of Sethraliss,6,1,1210.4,27718,1,294.0,2026-08-20,0,-1,1207.0,37.1
+183550,53093,Druid,Balance,Elune's Chosen,DPS,US,Temple of Sethraliss,6,1,1210.4,83912,0,276.0,2026-08-20,0,-1,1207.0,37.1
+183550,225610,Mage,Arcane,Sunfury,DPS,US,Temple of Sethraliss,6,1,1210.4,153656,0,294.0,2026-08-20,0,-1,1207.0,37.1
+183550,225609,Druid,Balance,Elune's Chosen,DPS,US,Temple of Sethraliss,6,1,1210.4,145469,0,286.0,2026-08-20,0,-1,1207.0,37.1
+183567,240120,Paladin,Protection,Lightsmith,Tank,US,Den of Nalorakk,4,1,1505.7,53127,0,297.0,2026-08-21,0,-1,1497.0,22.0
+183567,234581,Paladin,Holy,Herald of the Sun,Healer,US,Den of Nalorakk,4,1,1505.7,9855,2,291.0,2026-08-21,0,-1,1497.0,22.0
+183567,234584,Shaman,Elemental,Farseer,DPS,US,Den of Nalorakk,4,1,1505.7,129369,2,295.0,2026-08-21,0,-1,1497.0,22.0
+183567,234582,Mage,Arcane,Sunfury,DPS,US,Den of Nalorakk,4,1,1505.7,62378,1,288.0,2026-08-21,0,-1,1497.0,22.0
+183567,234583,Monk,Windwalker,Shado-Pan,DPS,US,Den of Nalorakk,4,1,1505.7,50970,1,279.0,2026-08-21,0,-1,1497.0,22.0
+183606,99365,Monk,Brewmaster,Shado-Pan,Tank,EU,Den of Nalorakk,11,1,1741.6,78580,0,295.0,2026-08-20,0,-1,1743.0,9.2
+183606,214838,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Den of Nalorakk,11,1,1741.6,30472,0,294.0,2026-08-20,0,-1,1743.0,9.2
+183606,227490,Priest,Shadow,Archon,DPS,EU,Den of Nalorakk,11,1,1741.6,124217,2,294.0,2026-08-20,0,-1,1743.0,9.2
+183606,225593,Evoker,Devastation,Scalecommander,DPS,EU,Den of Nalorakk,11,1,1741.6,151447,0,297.0,2026-08-20,0,-1,1743.0,9.2
+183606,190949,Paladin,Retribution,Templar,DPS,EU,Den of Nalorakk,11,1,1741.6,137467,0,297.0,2026-08-20,0,-1,1743.0,9.2
+183607,240152,Druid,Guardian,Elune's Chosen,Tank,US,Altar of Fangs,10,1,1512.8,106222,1,291.0,2026-08-21,0,-1,1534.0,14.8
+183607,81835,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,10,1,1512.8,25037,1,298.0,2026-08-21,0,-1,1534.0,14.8
+183607,9729,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,10,1,1512.8,231855,2,308.0,2026-08-21,0,-1,1534.0,14.8
+183607,8439,Warrior,Arms,Slayer,DPS,US,Altar of Fangs,10,1,1512.8,210957,1,303.0,2026-08-21,0,-1,1534.0,14.8
+183607,240153,DemonHunter,Devourer,Void-Scarred,DPS,US,Altar of Fangs,10,1,1512.8,170037,1,294.0,2026-08-21,0,-1,1534.0,14.8
+183614,240163,DeathKnight,Blood,Deathbringer,Tank,US,Ruby Life Pools,7,1,1315.7,74811,1,301.0,2026-08-20,0,-1,1357.0,19.2
+183614,240164,Shaman,Restoration,Totemic,Healer,US,Ruby Life Pools,7,1,1315.7,20668,2,291.0,2026-08-20,0,-1,1357.0,19.2
+183614,240165,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,7,1,1315.7,134957,3,294.0,2026-08-20,0,-1,1357.0,19.2
+183614,240166,Paladin,Retribution,Templar,DPS,US,Ruby Life Pools,7,1,1315.7,119832,3,297.0,2026-08-20,0,-1,1357.0,19.2
+183614,99439,Warlock,Demonology,Diabolist,DPS,US,Ruby Life Pools,7,1,1315.7,166558,1,290.0,2026-08-20,0,-1,1357.0,19.2
+183616,52618,DemonHunter,Vengeance,Annihilator,Tank,EU,Temple of Sethraliss,5,1,1038.4,66822,0,301.0,2026-08-21,0,-1,1030.0,46.4
+183616,52619,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Temple of Sethraliss,5,1,1038.4,31018,0,293.0,2026-08-21,0,-1,1030.0,46.4
+183616,117362,Paladin,Retribution,Templar,DPS,EU,Temple of Sethraliss,5,1,1038.4,138596,1,295.0,2026-08-21,0,-1,1030.0,46.4
+183616,52622,Hunter,BeastMastery,Pack Leader,DPS,EU,Temple of Sethraliss,5,1,1038.4,186312,0,304.0,2026-08-21,0,-1,1030.0,46.4
+183616,100079,Druid,Balance,Elune's Chosen,DPS,EU,Temple of Sethraliss,5,1,1038.4,90318,0,299.0,2026-08-21,0,-1,1030.0,46.4
+183619,206010,Paladin,Protection,Lightsmith,Tank,EU,Temple of Sethraliss,10,1,1505.0,112260,0,294.0,2026-08-20,0,-1,1517.0,21.0
+183619,187159,Paladin,Holy,Herald of the Sun,Healer,EU,Temple of Sethraliss,10,1,1505.0,15669,2,305.0,2026-08-20,0,-1,1517.0,21.0
+183619,195171,Priest,Shadow,Archon,DPS,EU,Temple of Sethraliss,10,1,1505.0,170634,1,294.0,2026-08-20,0,-1,1517.0,21.0
+183619,157270,Mage,Fire,Sunfury,DPS,EU,Temple of Sethraliss,10,1,1505.0,184889,0,297.0,2026-08-20,0,-1,1517.0,21.0
+183619,135343,Warrior,Arms,Slayer,DPS,EU,Temple of Sethraliss,10,1,1505.0,157048,1,295.0,2026-08-20,0,-1,1517.0,21.0
+183627,233710,Warrior,Protection,Mountain Thane,Tank,US,Temple of Sethraliss,8,1,1358.8,102081,0,292.0,2026-08-21,0,-1,1365.0,28.9
+183627,233711,Druid,Restoration,Wildstalker,Healer,US,Temple of Sethraliss,8,1,1358.8,3691,1,290.0,2026-08-21,0,-1,1365.0,28.9
+183627,137470,DemonHunter,Havoc,Fel-Scarred,DPS,US,Temple of Sethraliss,8,1,1358.8,145617,1,302.0,2026-08-21,0,-1,1365.0,28.9
+183627,161646,Hunter,BeastMastery,Pack Leader,DPS,US,Temple of Sethraliss,8,1,1358.8,163138,1,302.0,2026-08-21,0,-1,1365.0,28.9
+183627,127483,Mage,Arcane,Sunfury,DPS,US,Temple of Sethraliss,8,1,1358.8,130449,0,287.0,2026-08-21,0,-1,1365.0,28.9
+183628,103254,DemonHunter,Vengeance,Annihilator,Tank,EU,Kings' Rest,10,0,2003.1,48398,1,296.0,2026-08-20,0,-1,2010.0,-1.5
+183628,48230,Paladin,Holy,Lightsmith,Healer,EU,Kings' Rest,10,0,2003.1,21550,0,297.0,2026-08-20,0,-1,2010.0,-1.5
+183628,103256,DemonHunter,Havoc,Fel-Scarred,DPS,EU,Kings' Rest,10,0,2003.1,103563,1,296.0,2026-08-20,0,-1,2010.0,-1.5
+183628,73355,Evoker,Augmentation,Scalecommander,DPS,EU,Kings' Rest,10,0,2003.1,95536,0,295.0,2026-08-20,0,-1,2010.0,-1.5
+183628,223284,Priest,Shadow,Voidweaver,DPS,EU,Kings' Rest,10,0,2003.1,107330,1,292.0,2026-08-20,0,-1,2010.0,-1.5
+183631,240172,Druid,Guardian,Elune's Chosen,Tank,US,Den of Nalorakk,2,1,1574.8,68095,0,290.0,2026-08-21,0,-1,1567.0,18.4
+183631,240173,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Den of Nalorakk,2,1,1574.8,15054,3,279.0,2026-08-21,0,-1,1567.0,18.4
+183631,240174,Paladin,Retribution,Herald of the Sun,DPS,US,Den of Nalorakk,2,1,1574.8,80870,1,284.0,2026-08-21,0,-1,1567.0,18.4
+183631,240175,Warlock,Demonology,Diabolist,DPS,US,Den of Nalorakk,2,1,1574.8,74129,2,292.0,2026-08-21,0,-1,1567.0,18.4
+183631,240176,Warrior,Arms,Slayer,DPS,US,Den of Nalorakk,2,1,1574.8,62084,2,269.0,2026-08-21,0,-1,1567.0,18.4
+183643,100478,DeathKnight,Blood,San'layn,Tank,US,Ruby Life Pools,10,1,1421.4,109792,0,294.0,2026-08-21,0,-1,1428.0,15.0
+183643,34018,Shaman,Restoration,Totemic,Healer,US,Ruby Life Pools,10,1,1421.4,26734,0,299.0,2026-08-21,0,-1,1428.0,15.0
+183643,240185,Druid,Balance,Elune's Chosen,DPS,US,Ruby Life Pools,10,1,1421.4,180340,1,294.0,2026-08-21,0,-1,1428.0,15.0
+183643,193791,Paladin,Retribution,Herald of the Sun,DPS,US,Ruby Life Pools,10,1,1421.4,151219,1,284.0,2026-08-21,0,-1,1428.0,15.0
+183643,137419,Monk,Windwalker,Shado-Pan,DPS,US,Ruby Life Pools,10,1,1421.4,188372,1,300.0,2026-08-21,0,-1,1428.0,15.0
+183653,240193,Paladin,Protection,Templar,Tank,US,The Blinding Vale,6,0,1919.7,66002,1,291.0,2026-08-21,0,-1,1976.0,-9.8
+183653,150417,Paladin,Holy,Herald of the Sun,Healer,US,The Blinding Vale,6,0,1919.7,7986,2,286.0,2026-08-21,0,-1,1976.0,-9.8
+183653,103600,DemonHunter,Devourer,Void-Scarred,DPS,US,The Blinding Vale,6,0,1919.7,152912,2,294.0,2026-08-21,0,-1,1976.0,-9.8
+183653,103601,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,6,0,1919.7,133132,4,297.0,2026-08-21,0,-1,1976.0,-9.8
+183653,233158,Warrior,Arms,Colossus,DPS,US,The Blinding Vale,6,0,1919.7,21086,5,268.0,2026-08-21,0,-1,1976.0,-9.8
+183656,240196,Druid,Guardian,Elune's Chosen,Tank,EU,Ruby Life Pools,7,1,1077.0,82983,1,298.0,2026-08-20,0,-1,1104.0,34.3
+183656,228725,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,7,1,1077.0,25861,2,296.0,2026-08-20,0,-1,1104.0,34.3
+183656,228644,Paladin,Retribution,Templar,DPS,EU,Ruby Life Pools,7,1,1077.0,162731,1,298.0,2026-08-20,0,-1,1104.0,34.3
+183656,169100,Warlock,Demonology,Diabolist,DPS,EU,Ruby Life Pools,7,1,1077.0,165902,2,301.0,2026-08-20,0,-1,1104.0,34.3
+183656,240197,Warlock,Demonology,Diabolist,DPS,EU,Ruby Life Pools,7,1,1077.0,192836,1,295.0,2026-08-20,0,-1,1104.0,34.3
+183658,240199,DeathKnight,Blood,San'layn,Tank,CN,Kings' Rest,11,1,1456.5,63811,0,295.0,2026-08-20,0,-1,1448.0,26.9
+183658,99570,Shaman,Restoration,Totemic,Healer,CN,Kings' Rest,11,1,1456.5,12667,0,300.0,2026-08-20,0,-1,1448.0,26.9
+183658,240200,Shaman,Elemental,Farseer,DPS,CN,Kings' Rest,11,1,1456.5,164449,0,302.0,2026-08-20,0,-1,1448.0,26.9
+183658,240201,Rogue,Outlaw,Trickster,DPS,CN,Kings' Rest,11,1,1456.5,154347,0,298.0,2026-08-20,0,-1,1448.0,26.9
+183658,240202,Warrior,Arms,Slayer,DPS,CN,Kings' Rest,11,1,1456.5,154591,0,302.0,2026-08-20,0,-1,1448.0,26.9
+183659,130272,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,7,1,1403.2,120732,1,291.0,2026-08-20,0,-1,1425.0,20.9
+183659,240203,Druid,Restoration,Wildstalker,Healer,US,The Blinding Vale,7,1,1403.2,10818,0,292.0,2026-08-20,0,-1,1425.0,20.9
+183659,178601,Monk,Windwalker,Conduit of the Celestials,DPS,US,The Blinding Vale,7,1,1403.2,163601,2,293.0,2026-08-20,0,-1,1425.0,20.9
+183659,240204,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,7,1,1403.2,116330,3,259.0,2026-08-20,0,-1,1425.0,20.9
+183659,99223,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,7,1,1403.2,175203,0,293.0,2026-08-20,0,-1,1425.0,20.9
+183660,428,Paladin,Protection,Lightsmith,Tank,US,Altar of Fangs,11,0,1787.8,79716,1,289.0,2026-08-21,0,-1,1804.0,-0.2
+183660,103379,Shaman,Restoration,Totemic,Healer,US,Altar of Fangs,11,0,1787.8,26979,1,293.0,2026-08-21,0,-1,1804.0,-0.2
+183660,240205,Warlock,Affliction,Soul Harvester,DPS,US,Altar of Fangs,11,0,1787.8,170309,1,286.0,2026-08-21,0,-1,1804.0,-0.2
+183660,31576,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,11,0,1787.8,286657,1,305.0,2026-08-21,0,-1,1804.0,-0.2
+183660,221448,Paladin,Retribution,Templar,DPS,US,Altar of Fangs,11,0,1787.8,155739,1,288.0,2026-08-21,0,-1,1804.0,-0.2
+183667,222651,DemonHunter,Vengeance,Annihilator,Tank,EU,Kings' Rest,9,1,1694.5,76473,0,301.0,2026-08-20,0,-1,1701.0,14.1
+183667,223216,Shaman,Restoration,Totemic,Healer,EU,Kings' Rest,9,1,1694.5,7175,1,290.0,2026-08-20,0,-1,1701.0,14.1
+183667,240208,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Kings' Rest,9,1,1694.5,69573,0,269.0,2026-08-20,0,-1,1701.0,14.1
+183667,240209,Paladin,Retribution,Templar,DPS,EU,Kings' Rest,9,1,1694.5,134080,1,293.0,2026-08-20,0,-1,1701.0,14.1
+183667,230313,Druid,Balance,Elune's Chosen,DPS,EU,Kings' Rest,9,1,1694.5,95102,1,294.0,2026-08-20,0,-1,1701.0,14.1
+183696,240225,Paladin,Protection,Templar,Tank,EU,Kings' Rest,8,1,1712.6,47692,1,291.0,2026-08-20,0,-1,1769.0,10.7
+183696,240226,Druid,Restoration,Keeper of the Grove,Healer,EU,Kings' Rest,8,1,1712.6,11022,4,288.0,2026-08-20,0,-1,1769.0,10.7
+183696,154365,Warrior,Arms,Slayer,DPS,EU,Kings' Rest,8,1,1712.6,122870,3,291.0,2026-08-20,0,-1,1769.0,10.7
+183696,211122,Shaman,Elemental,Farseer,DPS,EU,Kings' Rest,8,1,1712.6,85074,3,280.0,2026-08-20,0,-1,1769.0,10.7
+183696,227161,Rogue,Outlaw,Trickster,DPS,EU,Kings' Rest,8,1,1712.6,98142,2,291.0,2026-08-20,0,-1,1769.0,10.7
+183697,45578,DeathKnight,Blood,San'layn,Tank,US,Kings' Rest,10,1,1394.4,103506,0,290.0,2026-08-20,0,-1,1406.0,29.0
+183697,66097,Shaman,Restoration,Farseer,Healer,US,Kings' Rest,10,1,1394.4,25477,0,301.0,2026-08-20,0,-1,1406.0,29.0
+183697,129338,Warrior,Arms,Slayer,DPS,US,Kings' Rest,10,1,1394.4,118503,3,300.0,2026-08-20,0,-1,1406.0,29.0
+183697,23429,Warrior,Arms,Slayer,DPS,US,Kings' Rest,10,1,1394.4,141689,1,304.0,2026-08-20,0,-1,1406.0,29.0
+183697,151674,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Kings' Rest,10,1,1394.4,138150,0,296.0,2026-08-20,0,-1,1406.0,29.0
+183699,81731,Paladin,Protection,Lightsmith,Tank,US,Voidscar Arena,13,1,1642.7,103260,0,308.0,2026-08-20,0,-1,1709.0,5.1
+183699,30053,Paladin,Holy,Herald of the Sun,Healer,US,Voidscar Arena,13,1,1642.7,25428,0,297.0,2026-08-20,0,-1,1709.0,5.1
+183699,66359,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,13,1,1642.7,190011,1,303.0,2026-08-20,0,-1,1709.0,5.1
+183699,21840,Hunter,BeastMastery,Pack Leader,DPS,US,Voidscar Arena,13,1,1642.7,174096,2,310.0,2026-08-20,0,-1,1709.0,5.1
+183699,9742,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,13,1,1642.7,197524,2,305.0,2026-08-20,0,-1,1709.0,5.1
+183702,6816,Paladin,Protection,Templar,Tank,US,Voidscar Arena,10,1,1294.9,111684,0,307.0,2026-08-20,0,-1,1306.0,27.4
+183702,8299,Shaman,Restoration,Totemic,Healer,US,Voidscar Arena,10,1,1294.9,22821,0,302.0,2026-08-20,0,-1,1306.0,27.4
+183702,229950,Warrior,Arms,Slayer,DPS,US,Voidscar Arena,10,1,1294.9,80178,3,266.0,2026-08-20,0,-1,1306.0,27.4
+183702,5509,Rogue,Subtlety,Deathstalker,DPS,US,Voidscar Arena,10,1,1294.9,203308,0,303.0,2026-08-20,0,-1,1306.0,27.4
+183702,5511,Paladin,Retribution,Templar,DPS,US,Voidscar Arena,10,1,1294.9,202405,1,302.0,2026-08-20,0,-1,1306.0,27.4
+183708,25902,Warrior,Protection,Mountain Thane,Tank,EU,Murder Row,11,1,1742.0,114573,0,302.0,2026-08-20,0,-1,1754.0,14.0
+183708,240236,Priest,Holy,Oracle,Healer,EU,Murder Row,11,1,1742.0,20201,0,292.0,2026-08-20,0,-1,1754.0,14.0
+183708,189697,Rogue,Outlaw,Trickster,DPS,EU,Murder Row,11,1,1742.0,126144,3,282.0,2026-08-20,0,-1,1754.0,14.0
+183708,25905,Evoker,Devastation,Scalecommander,DPS,EU,Murder Row,11,1,1742.0,183391,0,304.0,2026-08-20,0,-1,1754.0,14.0
+183708,26043,Monk,Windwalker,Conduit of the Celestials,DPS,EU,Murder Row,11,1,1742.0,138524,0,300.0,2026-08-20,0,-1,1754.0,14.0
+183714,240237,Warrior,Protection,Mountain Thane,Tank,EU,Den of Nalorakk,10,1,1600.4,80403,0,298.0,2026-08-20,0,-1,1607.0,16.3
+183714,49606,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Den of Nalorakk,10,1,1600.4,35364,1,296.0,2026-08-20,0,-1,1607.0,16.3
+183714,230044,Mage,Arcane,Sunfury,DPS,EU,Den of Nalorakk,10,1,1600.4,152376,0,295.0,2026-08-20,0,-1,1607.0,16.3
+183714,230043,DemonHunter,Devourer,Void-Scarred,DPS,EU,Den of Nalorakk,10,1,1600.4,112492,1,293.0,2026-08-20,0,-1,1607.0,16.3
+183714,51662,Monk,Windwalker,Shado-Pan,DPS,EU,Den of Nalorakk,10,1,1600.4,144118,1,296.0,2026-08-20,0,-1,1607.0,16.3
+183724,31406,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,10,1,1697.1,84660,1,296.0,2026-08-20,0,-1,1724.0,10.2
+183724,74367,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,10,1,1697.1,28276,0,299.0,2026-08-20,0,-1,1724.0,10.2
+183724,74368,DeathKnight,Frost,Deathbringer,DPS,EU,Den of Nalorakk,10,1,1697.1,163526,1,293.0,2026-08-20,0,-1,1724.0,10.2
+183724,112468,Shaman,Enhancement,Stormbringer,DPS,EU,Den of Nalorakk,10,1,1697.1,148611,2,295.0,2026-08-20,0,-1,1724.0,10.2
+183724,112469,Evoker,Augmentation,Chronowarden,DPS,EU,Den of Nalorakk,10,1,1697.1,96561,3,298.0,2026-08-20,0,-1,1724.0,10.2
+183726,30469,Warrior,Protection,Mountain Thane,Tank,EU,Kings' Rest,8,1,1586.6,83944,0,295.0,2026-08-20,0,-1,1603.0,19.0
+183726,108807,Shaman,Restoration,Totemic,Healer,EU,Kings' Rest,8,1,1586.6,22038,1,300.0,2026-08-20,0,-1,1603.0,19.0
+183726,238645,Priest,Shadow,Voidweaver,DPS,EU,Kings' Rest,8,1,1586.6,87340,2,276.0,2026-08-20,0,-1,1603.0,19.0
+183726,153952,Mage,Arcane,Sunfury,DPS,EU,Kings' Rest,8,1,1586.6,114513,0,302.0,2026-08-20,0,-1,1603.0,19.0
+183726,153951,Paladin,Retribution,Templar,DPS,EU,Kings' Rest,8,1,1586.6,97185,2,296.0,2026-08-20,0,-1,1603.0,19.0
+183730,240253,DemonHunter,Vengeance,Annihilator,Tank,EU,The Blinding Vale,9,1,1474.0,80691,0,276.0,2026-08-20,0,-1,1500.0,16.7
+183730,65716,Paladin,Holy,Herald of the Sun,Healer,EU,The Blinding Vale,9,1,1474.0,3320,1,290.0,2026-08-20,0,-1,1500.0,16.7
+183730,122997,Druid,Balance,Elune's Chosen,DPS,EU,The Blinding Vale,9,1,1474.0,184127,1,294.0,2026-08-20,0,-1,1500.0,16.7
+183730,223281,Shaman,Elemental,Farseer,DPS,EU,The Blinding Vale,9,1,1474.0,189588,3,286.0,2026-08-20,0,-1,1500.0,16.7
+183730,223283,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,9,1,1474.0,173826,2,294.0,2026-08-20,0,-1,1500.0,16.7
+183732,16746,Warrior,Protection,Mountain Thane,Tank,EU,The Blinding Vale,10,1,1260.2,141425,0,304.0,2026-08-21,0,-1,1267.0,29.6
+183732,144999,Druid,Restoration,Wildstalker,Healer,EU,The Blinding Vale,10,1,1260.2,2135,0,295.0,2026-08-21,0,-1,1267.0,29.6
+183732,23230,Rogue,Subtlety,Deathstalker,DPS,EU,The Blinding Vale,10,1,1260.2,273272,0,302.0,2026-08-21,0,-1,1267.0,29.6
+183732,26255,Hunter,BeastMastery,Pack Leader,DPS,EU,The Blinding Vale,10,1,1260.2,213620,1,306.0,2026-08-21,0,-1,1267.0,29.6
+183732,16750,Mage,Arcane,Sunfury,DPS,EU,The Blinding Vale,10,1,1260.2,210713,2,301.0,2026-08-21,0,-1,1267.0,29.6
+183749,7413,DeathKnight,Blood,Deathbringer,Tank,US,Altar of Fangs,10,1,1206.9,130850,0,303.0,2026-08-20,0,-1,1198.0,33.4
+183749,9229,Paladin,Holy,Lightsmith,Healer,US,Altar of Fangs,10,1,1206.9,47258,0,301.0,2026-08-20,0,-1,1198.0,33.4
+183749,575,Shaman,Elemental,Farseer,DPS,US,Altar of Fangs,10,1,1206.9,261105,0,304.0,2026-08-20,0,-1,1198.0,33.4
+183749,45689,Priest,Shadow,Archon,DPS,US,Altar of Fangs,10,1,1206.9,207299,0,300.0,2026-08-20,0,-1,1198.0,33.4
+183749,2195,Paladin,Retribution,Templar,DPS,US,Altar of Fangs,10,1,1206.9,202539,0,296.0,2026-08-20,0,-1,1198.0,33.4
+183750,240273,Paladin,Protection,Lightsmith,Tank,EU,Den of Nalorakk,12,1,1723.3,77962,0,292.0,2026-08-20,0,-1,1715.0,10.7
+183750,20221,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,12,1,1723.3,25673,0,302.0,2026-08-20,0,-1,1715.0,10.7
+183750,15694,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Den of Nalorakk,12,1,1723.3,154474,0,303.0,2026-08-20,0,-1,1715.0,10.7
+183750,141845,Paladin,Retribution,Templar,DPS,EU,Den of Nalorakk,12,1,1723.3,151196,0,299.0,2026-08-20,0,-1,1715.0,10.7
+183750,181507,Mage,Arcane,Sunfury,DPS,EU,Den of Nalorakk,12,1,1723.3,162104,0,306.0,2026-08-20,0,-1,1715.0,10.7
+183760,39038,DeathKnight,Blood,San'layn,Tank,CN,Voidscar Arena,10,0,1918.8,68163,2,303.0,2026-08-21,0,-1,1996.0,-10.9
+183760,180931,Shaman,Restoration,Totemic,Healer,CN,Voidscar Arena,10,0,1918.8,11350,3,296.0,2026-08-21,0,-1,1996.0,-10.9
+183760,161859,Rogue,Assassination,Deathstalker,DPS,CN,Voidscar Arena,10,0,1918.8,104092,6,299.0,2026-08-21,0,-1,1996.0,-10.9
+183760,39042,Warrior,Arms,Slayer,DPS,CN,Voidscar Arena,10,0,1918.8,131461,2,301.0,2026-08-21,0,-1,1996.0,-10.9
+183760,56516,Warlock,Demonology,Diabolist,DPS,CN,Voidscar Arena,10,0,1918.8,109809,5,296.0,2026-08-21,0,-1,1996.0,-10.9
+183770,5901,Druid,Guardian,Elune's Chosen,Tank,US,Altar of Fangs,10,1,1739.9,78377,3,295.0,2026-08-20,0,-1,1796.0,0.2
+183770,5902,Priest,Holy,Oracle,Healer,US,Altar of Fangs,10,1,1739.9,26927,1,293.0,2026-08-20,0,-1,1796.0,0.2
+183770,5904,Paladin,Retribution,Templar,DPS,US,Altar of Fangs,10,1,1739.9,137158,4,295.0,2026-08-20,0,-1,1796.0,0.2
+183770,240285,DeathKnight,Unholy,San'layn,DPS,US,Altar of Fangs,10,1,1739.9,154377,2,293.0,2026-08-20,0,-1,1796.0,0.2
+183770,5905,Mage,Arcane,Sunfury,DPS,US,Altar of Fangs,10,1,1739.9,217719,2,303.0,2026-08-20,0,-1,1796.0,0.2
+183772,3243,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,11,1,1682.7,102449,0,304.0,2026-08-20,0,-1,1694.0,5.9
+183772,4576,Priest,Discipline,Voidweaver,Healer,US,The Blinding Vale,11,1,1682.7,37991,1,301.0,2026-08-20,0,-1,1694.0,5.9
+183772,167454,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,11,1,1682.7,207220,2,304.0,2026-08-20,0,-1,1694.0,5.9
+183772,234887,Monk,Windwalker,Conduit of the Celestials,DPS,US,The Blinding Vale,11,1,1682.7,136756,1,294.0,2026-08-20,0,-1,1694.0,5.9
+183772,228247,DeathKnight,Frost,Rider of the Apocalypse,DPS,US,The Blinding Vale,11,1,1682.7,128512,0,305.0,2026-08-20,0,-1,1694.0,5.9
+183782,240295,Paladin,Protection,Templar,Tank,US,Den of Nalorakk,2,1,1903.1,37034,1,276.0,2026-08-21,0,-1,1895.0,1.3
+183782,240296,Priest,Discipline,Voidweaver,Healer,US,Den of Nalorakk,2,1,1903.1,8832,1,280.0,2026-08-21,0,-1,1895.0,1.3
+183782,240297,Druid,Balance,Keeper of the Grove,DPS,US,Den of Nalorakk,2,1,1903.1,61568,1,284.0,2026-08-21,0,-1,1895.0,1.3
+183782,240298,Monk,Windwalker,Shado-Pan,DPS,US,Den of Nalorakk,2,1,1903.1,51708,1,284.0,2026-08-21,0,-1,1895.0,1.3
+183782,240299,DeathKnight,Unholy,Rider of the Apocalypse,DPS,US,Den of Nalorakk,2,1,1903.1,95162,2,290.0,2026-08-21,0,-1,1895.0,1.3
+183796,240314,DeathKnight,Blood,Deathbringer,Tank,CN,Kings' Rest,9,1,1581.3,74205,0,301.0,2026-08-21,0,-1,1612.0,18.6
+183796,240315,Paladin,Holy,Lightsmith,Healer,CN,Kings' Rest,9,1,1581.3,11078,1,299.0,2026-08-21,0,-1,1612.0,18.6
+183796,240316,Shaman,Elemental,Farseer,DPS,CN,Kings' Rest,9,1,1581.3,112069,3,297.0,2026-08-21,0,-1,1612.0,18.6
+183796,240317,Hunter,BeastMastery,Pack Leader,DPS,CN,Kings' Rest,9,1,1581.3,103455,3,297.0,2026-08-21,0,-1,1612.0,18.6
+183796,240318,Paladin,Retribution,Herald of the Sun,DPS,CN,Kings' Rest,9,1,1581.3,118482,1,296.0,2026-08-21,0,-1,1612.0,18.6
+183821,229178,DeathKnight,Blood,San'layn,Tank,EU,Ruby Life Pools,5,1,826.9,74038,0,291.0,2026-08-20,0,-1,818.0,51.3
+183821,229179,Shaman,Restoration,Totemic,Healer,EU,Ruby Life Pools,5,1,826.9,20439,0,294.0,2026-08-20,0,-1,818.0,51.3
+183821,229180,Monk,Windwalker,Shado-Pan,DPS,EU,Ruby Life Pools,5,1,826.9,153914,0,294.0,2026-08-20,0,-1,818.0,51.3
+183821,229181,Mage,Arcane,Sunfury,DPS,EU,Ruby Life Pools,5,1,826.9,146539,0,286.0,2026-08-20,0,-1,818.0,51.3
+183821,195992,Warrior,Arms,Slayer,DPS,EU,Ruby Life Pools,5,1,826.9,173902,0,300.0,2026-08-20,0,-1,818.0,51.3
+183826,226973,DeathKnight,Blood,San'layn,Tank,EU,Den of Nalorakk,9,1,1325.5,94717,0,303.0,2026-08-20,0,-1,1327.0,30.9
+183826,185168,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Den of Nalorakk,9,1,1325.5,45234,1,295.0,2026-08-20,0,-1,1327.0,30.9
+183826,226974,Hunter,Survival,Sentinel,DPS,EU,Den of Nalorakk,9,1,1325.5,140850,0,297.0,2026-08-20,0,-1,1327.0,30.9
+183826,98300,Rogue,Subtlety,Deathstalker,DPS,EU,Den of Nalorakk,9,1,1325.5,142325,0,292.0,2026-08-20,0,-1,1327.0,30.9
+183826,230001,Paladin,Retribution,Templar,DPS,EU,Den of Nalorakk,9,1,1325.5,141633,1,294.0,2026-08-20,0,-1,1327.0,30.9
+183828,35400,DeathKnight,Blood,San'layn,Tank,EU,Den of Nalorakk,10,1,1388.8,92182,0,301.0,2026-08-20,0,-1,1386.0,27.8
+183828,132396,Paladin,Holy,Herald of the Sun,Healer,EU,Den of Nalorakk,10,1,1388.8,13914,0,299.0,2026-08-20,0,-1,1386.0,27.8
+183828,38063,Druid,Balance,Elune's Chosen,DPS,EU,Den of Nalorakk,10,1,1388.8,174680,1,305.0,2026-08-20,0,-1,1386.0,27.8
+183828,35403,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,10,1,1388.8,152952,0,295.0,2026-08-20,0,-1,1386.0,27.8
+183828,38064,Warrior,Arms,Slayer,DPS,EU,Den of Nalorakk,10,1,1388.8,216192,0,305.0,2026-08-20,0,-1,1386.0,27.8
+183836,137137,Warrior,Protection,Mountain Thane,Tank,EU,Den of Nalorakk,11,1,1543.0,89135,0,300.0,2026-08-20,0,-1,1535.0,20.1
+183836,230972,Paladin,Holy,Herald of the Sun,Healer,EU,Den of Nalorakk,11,1,1543.0,11502,0,294.0,2026-08-20,0,-1,1535.0,20.1
+183836,230973,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,11,1,1543.0,171316,0,297.0,2026-08-20,0,-1,1535.0,20.1
+183836,129220,Monk,Windwalker,Shado-Pan,DPS,EU,Den of Nalorakk,11,1,1543.0,176567,0,303.0,2026-08-20,0,-1,1535.0,20.1
+183836,176670,Shaman,Elemental,Farseer,DPS,EU,Den of Nalorakk,11,1,1543.0,149358,0,298.0,2026-08-20,0,-1,1535.0,20.1
+183839,116265,Paladin,Protection,Lightsmith,Tank,EU,The Blinding Vale,10,1,1707.7,88602,2,296.0,2026-08-20,0,-1,1770.0,1.7
+183839,173940,Shaman,Restoration,Totemic,Healer,EU,The Blinding Vale,10,1,1707.7,26410,3,293.0,2026-08-20,0,-1,1770.0,1.7
+183839,116266,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,The Blinding Vale,10,1,1707.7,141531,2,301.0,2026-08-20,0,-1,1770.0,1.7
+183839,224422,Monk,Windwalker,Shado-Pan,DPS,EU,The Blinding Vale,10,1,1707.7,158041,3,302.0,2026-08-20,0,-1,1770.0,1.7
+183839,224423,Hunter,BeastMastery,Pack Leader,DPS,EU,The Blinding Vale,10,1,1707.7,145269,4,296.0,2026-08-20,0,-1,1770.0,1.7
+183845,1495,Warrior,Protection,Mountain Thane,Tank,US,Voidscar Arena,10,1,989.6,144344,0,304.0,2026-08-20,0,-1,997.0,44.6
+183845,3356,Evoker,Preservation,Flameshaper,Healer,US,Voidscar Arena,10,1,989.6,30667,2,306.0,2026-08-20,0,-1,997.0,44.6
+183845,1496,Shaman,Enhancement,Stormbringer,DPS,US,Voidscar Arena,10,1,989.6,253739,1,310.0,2026-08-20,0,-1,997.0,44.6
+183845,1498,Mage,Arcane,Sunfury,DPS,US,Voidscar Arena,10,1,989.6,239632,0,310.0,2026-08-20,0,-1,997.0,44.6
+183845,1499,Hunter,Marksmanship,Sentinel,DPS,US,Voidscar Arena,10,1,989.6,210551,0,309.0,2026-08-20,0,-1,997.0,44.6
+183847,240356,DeathKnight,Blood,Deathbringer,Tank,EU,Den of Nalorakk,11,1,1710.8,81720,0,288.0,2026-08-20,0,-1,1707.0,11.1
+183847,74623,Shaman,Restoration,Totemic,Healer,EU,Den of Nalorakk,11,1,1710.8,24502,0,299.0,2026-08-20,0,-1,1707.0,11.1
+183847,240357,DeathKnight,Unholy,Rider of the Apocalypse,DPS,EU,Den of Nalorakk,11,1,1710.8,133066,0,292.0,2026-08-20,0,-1,1707.0,11.1
+183847,240358,Druid,Balance,Elune's Chosen,DPS,EU,Den of Nalorakk,11,1,1710.8,149210,1,295.0,2026-08-20,0,-1,1707.0,11.1
+183847,80851,Warrior,Arms,Slayer,DPS,EU,Den of Nalorakk,11,1,1710.8,149040,0,298.0,2026-08-20,0,-1,1707.0,11.1
+183850,208269,Paladin,Protection,Lightsmith,Tank,US,The Blinding Vale,11,1,1653.0,91847,0,304.0,2026-08-20,0,-1,1679.0,6.7
+183850,57844,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,11,1,1653.0,32533,1,306.0,2026-08-20,0,-1,1679.0,6.7
+183850,4147,Paladin,Retribution,Templar,DPS,US,The Blinding Vale,11,1,1653.0,173830,3,303.0,2026-08-20,0,-1,1679.0,6.7
+183850,235540,Shaman,Elemental,Farseer,DPS,US,The Blinding Vale,11,1,1653.0,189567,2,299.0,2026-08-20,0,-1,1679.0,6.7
+183850,3949,Mage,Arcane,Sunfury,DPS,US,The Blinding Vale,11,1,1653.0,183831,1,305.0,2026-08-20,0,-1,1679.0,6.7
+183855,46638,DeathKnight,Blood,Deathbringer,Tank,US,The Blinding Vale,6,1,1020.5,101644,0,299.0,2026-08-20,0,-1,1012.0,43.8
+183855,41827,Shaman,Restoration,Totemic,Healer,US,The Blinding Vale,6,1,1020.5,24114,0,289.0,2026-08-20,0,-1,1012.0,43.8
+183855,78377,Warrior,Arms,Slayer,DPS,US,The Blinding Vale,6,1,1020.5,123245,0,289.0,2026-08-20,0,-1,1012.0,43.8
+183855,82400,Paladin,Retribution,Templar,DPS,US,The Blinding Vale,6,1,1020.5,178213,0,298.0,2026-08-20,0,-1,1012.0,43.8
+183855,41828,Hunter,BeastMastery,Dark Ranger,DPS,US,The Blinding Vale,6,1,1020.5,191426,0,295.0,2026-08-20,0,-1,1012.0,43.8
+183878,67368,DeathKnight,Blood,San'layn,Tank,EU,Altar of Fangs,10,1,1507.0,142150,0,300.0,2026-08-20,0,-1,1513.0,15.9
+183878,143334,Paladin,Holy,Herald of the Sun,Healer,EU,Altar of Fangs,10,1,1507.0,12769,1,289.0,2026-08-20,0,-1,1513.0,15.9
+183878,58861,Druid,Balance,Elune's Chosen,DPS,EU,Altar of Fangs,10,1,1507.0,173977,0,301.0,2026-08-20,0,-1,1513.0,15.9
+183878,22110,Monk,Windwalker,Shado-Pan,DPS,EU,Altar of Fangs,10,1,1507.0,165251,2,302.0,2026-08-20,0,-1,1513.0,15.9
+183878,58862,Mage,Arcane,Sunfury,DPS,EU,Altar of Fangs,10,1,1507.0,220118,0,300.0,2026-08-20,0,-1,1513.0,15.9
+183880,136622,Warrior,Protection,Mountain Thane,Tank,US,Voidscar Arena,10,1,1281.0,106838,0,302.0,2026-08-20,0,-1,1288.0,28.4
+183880,155198,Evoker,Preservation,Flameshaper,Healer,US,Voidscar Arena,10,1,1281.0,35667,1,301.0,2026-08-20,0,-1,1288.0,28.4
+183880,228070,Priest,Shadow,Archon,DPS,US,Voidscar Arena,10,1,1281.0,168374,2,301.0,2026-08-20,0,-1,1288.0,28.4
+183880,156955,Shaman,Elemental,Farseer,DPS,US,Voidscar Arena,10,1,1281.0,168735,0,296.0,2026-08-20,0,-1,1288.0,28.4
+183880,31508,Warlock,Demonology,Diabolist,DPS,US,Voidscar Arena,10,1,1281.0,219382,0,309.0,2026-08-20,0,-1,1288.0,28.4
+183886,40684,DeathKnight,Blood,Deathbringer,Tank,US,Ruby Life Pools,12,1,1378.4,122602,0,307.0,2026-08-21,0,-1,1414.0,15.8
+183886,6826,Paladin,Holy,Herald of the Sun,Healer,US,Ruby Life Pools,12,1,1378.4,28931,2,302.0,2026-08-21,0,-1,1414.0,15.8
+183886,155897,Rogue,Outlaw,Trickster,DPS,US,Ruby Life Pools,12,1,1378.4,197799,0,295.0,2026-08-21,0,-1,1414.0,15.8
+183886,10840,Warrior,Arms,Slayer,DPS,US,Ruby Life Pools,12,1,1378.4,232530,1,305.0,2026-08-21,0,-1,1414.0,15.8
+183886,37441,Mage,Arcane,Sunfury,DPS,US,Ruby Life Pools,12,1,1378.4,177355,0,305.0,2026-08-21,0,-1,1414.0,15.8
+183888,240398,Druid,Guardian,Elune's Chosen,Tank,US,Temple of Sethraliss,2,1,1440.4,59688,0,294.0,2026-08-21,0,-1,1432.0,25.4
+183888,240399,Priest,Discipline,Oracle,Healer,US,Temple of Sethraliss,2,1,1440.4,4941,0,294.0,2026-08-21,0,-1,1432.0,25.4
+183888,240400,DeathKnight,Frost,Deathbringer,DPS,US,Temple of Sethraliss,2,1,1440.4,85333,0,291.0,2026-08-21,0,-1,1432.0,25.4
+183888,240401,Paladin,Retribution,Templar,DPS,US,Temple of Sethraliss,2,1,1440.4,81924,0,292.0,2026-08-21,0,-1,1432.0,25.4
+183888,240402,Hunter,BeastMastery,Dark Ranger,DPS,US,Temple of Sethraliss,2,1,1440.4,75220,1,295.0,2026-08-21,0,-1,1432.0,25.4
+183902,240422,DeathKnight,Blood,Deathbringer,Tank,EU,Altar of Fangs,9,1,1722.7,81997,1,299.0,2026-08-20,0,-1,1749.0,2.8
+183902,102941,Monk,Mistweaver,Conduit of the Celestials,Healer,EU,Altar of Fangs,9,1,1722.7,21046,1,297.0,2026-08-20,0,-1,1749.0,2.8
+183902,31409,Warlock,Demonology,Diabolist,DPS,EU,Altar of Fangs,9,1,1722.7,183973,2,299.0,2026-08-20,0,-1,1749.0,2.8
+183902,220888,Paladin,Retribution,Templar,DPS,EU,Altar of Fangs,9,1,1722.7,129158,1,299.0,2026-08-20,0,-1,1749.0,2.8
+183902,240423,Hunter,BeastMastery,Pack Leader,DPS,EU,Altar of Fangs,9,1,1722.7,120913,2,292.0,2026-08-20,0,-1,1749.0,2.8
+183913,82065,Warrior,Protection,Mountain Thane,Tank,US,Den of Nalorakk,11,0,1999.8,71572,1,304.0,2026-08-20,0,-1,2036.0,-6.0
+183913,229140,Monk,Mistweaver,Conduit of the Celestials,Healer,US,Den of Nalorakk,11,0,1999.8,36447,1,300.0,2026-08-20,0,-1,2036.0,-6.0
+183913,46668,Rogue,Subtlety,Deathstalker,DPS,US,Den of Nalorakk,11,0,1999.8,139191,1,307.0,2026-08-20,0,-1,2036.0,-6.0
+183913,6805,Evoker,Devastation,Scalecommander,DPS,US,Den of Nalorakk,11,0,1999.8,116566,2,304.0,2026-08-20,0,-1,2036.0,-6.0
+183913,89574,Mage,Arcane,Sunfury,DPS,US,Den of Nalorakk,11,0,1999.8,113445,4,302.0,2026-08-20,0,-1,2036.0,-6.0
+183918,240416,Monk,Brewmaster,Shado-Pan,Tank,EU,Murder Row,7,1,1937.2,53186,2,286.0,2026-08-20,0,-1,1989.0,2.5
+183918,240440,Druid,Restoration,Wildstalker,Healer,EU,Murder Row,7,1,1937.2,5929,2,291.0,2026-08-20,0,-1,1989.0,2.5
+183918,240441,Hunter,BeastMastery,Pack Leader,DPS,EU,Murder Row,7,1,1937.2,92817,3,291.0,2026-08-20,0,-1,1989.0,2.5
+183918,240442,Shaman,Elemental,Farseer,DPS,EU,Murder Row,7,1,1937.2,118204,2,293.0,2026-08-20,0,-1,1989.0,2.5
+183918,142997,Warlock,Destruction,Diabolist,DPS,EU,Murder Row,7,1,1937.2,135775,3,302.0,2026-08-20,0,-1,1989.0,2.5
