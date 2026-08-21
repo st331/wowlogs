@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 — dataset for LLM analysis
 
-> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 195,444 runs / 977,212 player parses, keystone levels +2-+17, 2026-08-18 to 2026-08-21. Generated 2026-08-21 13:55 UTC.
+> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 199,485 runs / 997,416 player parses, keystone levels +2-+17, 2026-08-18 to 2026-08-21. Generated 2026-08-21 16:55 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/ is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -41,15 +41,15 @@ The `composition` string is role-ordered and pipe-separated, e.g. "T:Blood Death
 
 **Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
 
-1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 3,682,188 parses against a true 977,212. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 977,212. "timed" is a subset of "all", never a separate population to add on.
-2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x — in this dataset the 195,444 real runs sum to 966,048 across spec_summary rows. `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
+1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 3,759,054 parses against a true 997,416. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 997,416. "timed" is a subset of "all", never a separate population to add on.
+2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x — in this dataset the 199,485 real runs sum to 986,006 across spec_summary rows. `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
 3. *Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.
 
 When a question spans rows, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) rather than summing aggregates.
 
-## Raw per-parse data (121,354 of 977,212 rows, a uniform sample)
+## Raw per-parse data (121,194 of 997,416 rows, a uniform sample)
 
-These chunks are a uniform random sample of 121,354 parses drawn from all 977,212, selected by whole run so every sampled run still shows its complete 5-player roster. Use them for distributions, medians and per-parse reasoning, which the sample preserves. Do NOT use them for totals or counts -- "how many runs happened" or "how many players parsed" must come from the aggregate CSVs above, which are computed on every row. Scaling a count off these chunks will understate it by roughly 8.1x.
+These chunks are a uniform random sample of 121,194 parses drawn from all 997,416, selected by whole run so every sampled run still shows its complete 5-player roster. Use them for distributions, medians and per-parse reasoning, which the sample preserves. Do NOT use them for totals or counts -- "how many runs happened" or "how many players parsed" must come from the aggregate CSVs above, which are computed on every row. Scaling a count off these chunks will understate it by roughly 8.2x.
 
 - https://st331.github.io/wowlogs/llms/parses_1.csv — rows 1-6,000
 - https://st331.github.io/wowlogs/llms/parses_2.csv — rows 6,001-12,000
@@ -71,7 +71,7 @@ These chunks are a uniform random sample of 121,354 parses drawn from all 977,21
 - https://st331.github.io/wowlogs/llms/parses_18.csv — rows 102,001-108,000
 - https://st331.github.io/wowlogs/llms/parses_19.csv — rows 108,001-114,000
 - https://st331.github.io/wowlogs/llms/parses_20.csv — rows 114,001-120,000
-- https://st331.github.io/wowlogs/llms/parses_21.csv — rows 120,001-121,354
+- https://st331.github.io/wowlogs/llms/parses_21.csv — rows 120,001-121,194
 
 One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.
 
@@ -103,9 +103,9 @@ These recipes are checked on every build: the exported rows are compared against
 
 ## Dataset shape at a glance
 
-- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 195,444 runs, 977,212 parses.
-- Regions by parses: EU 523,527, US 386,200, CN 54,015, KR 13,470.
-- Timed split: 863,882 timed, 113,330 over timer, 0 unknown (keys under +10).
+- Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 199,485 runs, 997,416 parses.
+- Regions by parses: EU 536,411, US 389,835, CN 57,145, KR 14,025.
+- Timed split: 882,111 timed, 115,305 over timer, 0 unknown (keys under +10).
 - 8 dungeons, keystone levels +2-+17, median +10.
 - Sample size: early in a season many class/spec/dungeon cells are thin. Treat a row with fewer than ~30 characters as indicative only, and prefer `characters` over `parses` when judging whether a number is broadly based.
 
