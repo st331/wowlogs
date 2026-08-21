@@ -89,6 +89,10 @@ MAX_PAGE = 20  # the API 404s past page 20 (hasMorePages stays true)
 # a range the default view does not even show. They get a shallower slice of
 # the same leaderboard instead.
 LOW_KEY_MAX_PAGE = 4              # 200 runs per dungeon x key below +10
+# How long after a window closes before a walk of it can be trusted as final.
+# Re-walks of settled windows still surfaced ~10% new runs at 48h, so this is
+# a floor rather than a guarantee; the loop re-walks anything unsettled.
+ENUM_SETTLE_S = 48 * 3600
 
 
 def page_cap(bracket: int) -> int:
@@ -321,15 +325,45 @@ def sweep(client: WCLClient, brackets: list[int]) -> None:
 ## --------------------------------------------------------------------------
 
 
-def _enum_done_windows() -> set:
+def _enum_window_marks() -> dict:
+    """window_start -> (walked_at_ms, rows_found) for the best walk we made."""
+    out = {}
     if not ENUM_WINDOWS.exists():
-        return set()
-    out = set()
+        return out
     for line in ENUM_WINDOWS.read_text().splitlines():
-        line = line.strip()
-        if line.isdigit():
-            out.add(int(line))
+        parts = line.strip().split("\t")
+        if not parts or not parts[0].isdigit():
+            continue
+        w = int(parts[0])
+        # bare-int markers predate walked_at; treat them as unsettled so the
+        # window is re-walked once, which is exactly the recovery we want
+        at = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+        n = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+        prev = out.get(w)
+        if prev is None or (at, n) > prev:
+            out[w] = (at, n)
     return out
+
+
+def _enum_settled(w: int, mark) -> bool:
+    """A window is finished only once a walk that actually returned runs
+    happened well after the window closed.
+
+    Warcraft Logs keeps indexing a report after its runs end, so a window
+    walked minutes later sees a fraction of what eventually lands there -- and
+    a walk can come back empty entirely. Marking such a walk final left
+    permanent holes: one 30-minute window held 0 of the 2,805 runs a re-walk
+    finds.
+    """
+    if mark is None:
+        return False
+    at, n = mark
+    return n > 0 and at >= w + ENUM_WINDOW_S * 1000 + ENUM_SETTLE_S * 1000
+
+
+def _enum_done_windows() -> set:
+    marks = _enum_window_marks()
+    return {w for w, m in marks.items() if _enum_settled(w, m)}
 
 
 def _enum_window(client: WCLClient, start_ms: int, end_ms: int) -> list[dict]:
@@ -375,15 +409,17 @@ def enumerate_reports(since_ms: int, until_ms: int) -> None:
     Windows are the resume unit: a window is only marked done once its pages
     are fully written, so a kill mid-window costs at most that window.
     """
-    done = _enum_done_windows()
+    marks = _enum_window_marks()
     windows = []
     w = (since_ms // (ENUM_WINDOW_S * 1000)) * (ENUM_WINDOW_S * 1000)
     while w < until_ms:
-        if w not in done:
+        if not _enum_settled(w, marks.get(w)):
             windows.append(w)
         w += ENUM_WINDOW_S * 1000
+    revisits = sum(1 for x in windows if x in marks)
     print(f"[enum] {len(windows)} windows of {ENUM_WINDOW_S}s to walk "
-          f"({len(done)} already done), {ENUM_WORKERS} workers", flush=True)
+          f"({revisits} of them re-walks of unsettled windows), "
+          f"{ENUM_WORKERS} workers", flush=True)
     if not windows:
         return
 
@@ -407,7 +443,7 @@ def enumerate_reports(since_ms: int, until_ms: int) -> None:
             for r in rows:
                 out.write(json.dumps(r) + "\n")
             out.flush()
-            marks.write(f"{w0}\n")
+            marks.write(f"{w0}\t{int(time.time() * 1000)}\t{len(rows)}\n")
             marks.flush()
             tally[0] += 1
             tally[1] += len(rows)
