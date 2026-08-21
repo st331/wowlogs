@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><title>Midnight M+ Season 2 — data for LLMs</title><style>body{font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#111}table{border-collapse:collapse;font-size:.85rem}th,td{border:1px solid #ccc;padding:.2rem .45rem;text-align:right}th{background:#f2f2f2}td:nth-child(-n+5),th:nth-child(-n+5){text-align:left}code{background:#f2f2f2;padding:0 .2rem}</style></head><body><h1>Midnight Mythic+ Season 2 — dataset for LLM analysis</h1>
 <ul>
-<li>Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 190,085 runs / 950,418 player parses, keystone levels +2-+17, 2026-08-18 to 2026-08-21. Generated 2026-08-21 10:10 UTC.</li>
+<li>Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 195,444 runs / 977,212 player parses, keystone levels +2-+17, 2026-08-18 to 2026-08-21. Generated 2026-08-21 13:55 UTC.</li>
 </ul>
 <p>The interactive dashboard at <a href="https://st331.github.io/wowlogs/">https://st331.github.io/wowlogs/</a> is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.</p>
 <p>If your fetcher only handles HTML, everything here is mirrored as pages: <a href="https://st331.github.io/wowlogs/llms/">https://st331.github.io/wowlogs/llms/</a> carries this same documentation, and each CSV below has an .html twin at the same path (for example <a href="https://st331.github.io/wowlogs/llms/spec_summary.html">https://st331.github.io/wowlogs/llms/spec_summary.html</a>). The content is identical.</p>
@@ -28,13 +28,13 @@
 <p>The <code>composition</code> string is role-ordered and pipe-separated, e.g. "T:Blood DeathKnight | H:Holy Paladin | D:Arcane Mage | ..."; the raw chunks carry keystone_s and pct_under_timer per row so any other cut can be rebuilt by grouping on run_id.</p>
 <p><b>Combining rows — read this before adding anything up.</b> These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:</p>
 <ul>
-<li>*Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 3,580,102 parses against a true 950,418. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 950,418. "timed" is a subset of "all", never a separate population to add on.</li>
-<li>*Non-additive columns.* Only <code>parses</code> is additive. <code>runs</code> counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x — in this dataset the 190,085 real runs sum to 939,540 across spec_summary rows. <code>characters</code> counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.</li>
+<li>*Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 3,682,188 parses against a true 977,212. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 977,212. "timed" is a subset of "all", never a separate population to add on.</li>
+<li>*Non-additive columns.* Only <code>parses</code> is additive. <code>runs</code> counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x — in this dataset the 195,444 real runs sum to 966,048 across spec_summary rows. <code>characters</code> counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.</li>
 <li>*Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.</li>
 </ul>
 <p>When a question spans rows, recompute from the raw chunks (distinct run_id / char_id, or the raw dps values) rather than summing aggregates.</p>
-<h2>Raw per-parse data (121,274 of 950,418 rows, a uniform sample)</h2>
-<p>These chunks are a uniform random sample of 121,274 parses drawn from all 950,418, selected by whole run so every sampled run still shows its complete 5-player roster. Use them for distributions, medians and per-parse reasoning, which the sample preserves. Do NOT use them for totals or counts -- "how many runs happened" or "how many players parsed" must come from the aggregate CSVs above, which are computed on every row. Scaling a count off these chunks will understate it by roughly 7.8x.</p>
+<h2>Raw per-parse data (121,354 of 977,212 rows, a uniform sample)</h2>
+<p>These chunks are a uniform random sample of 121,354 parses drawn from all 977,212, selected by whole run so every sampled run still shows its complete 5-player roster. Use them for distributions, medians and per-parse reasoning, which the sample preserves. Do NOT use them for totals or counts -- "how many runs happened" or "how many players parsed" must come from the aggregate CSVs above, which are computed on every row. Scaling a count off these chunks will understate it by roughly 8.1x.</p>
 <ul>
 <li><a href="https://st331.github.io/wowlogs/llms/parses_1.csv">https://st331.github.io/wowlogs/llms/parses_1.csv</a> — rows 1-6,000</li>
 <li><a href="https://st331.github.io/wowlogs/llms/parses_2.csv">https://st331.github.io/wowlogs/llms/parses_2.csv</a> — rows 6,001-12,000</li>
@@ -56,7 +56,7 @@
 <li><a href="https://st331.github.io/wowlogs/llms/parses_18.csv">https://st331.github.io/wowlogs/llms/parses_18.csv</a> — rows 102,001-108,000</li>
 <li><a href="https://st331.github.io/wowlogs/llms/parses_19.csv">https://st331.github.io/wowlogs/llms/parses_19.csv</a> — rows 108,001-114,000</li>
 <li><a href="https://st331.github.io/wowlogs/llms/parses_20.csv">https://st331.github.io/wowlogs/llms/parses_20.csv</a> — rows 114,001-120,000</li>
-<li><a href="https://st331.github.io/wowlogs/llms/parses_21.csv">https://st331.github.io/wowlogs/llms/parses_21.csv</a> — rows 120,001-121,274</li>
+<li><a href="https://st331.github.io/wowlogs/llms/parses_21.csv">https://st331.github.io/wowlogs/llms/parses_21.csv</a> — rows 120,001-121,354</li>
 </ul>
 <p>One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.</p>
 <h2>Column dictionary</h2>
@@ -83,9 +83,9 @@
 <p>These recipes are checked on every build: the exported rows are compared against the dashboard's own in-browser aggregation for the whole dataset, for individual reset buckets and for the day zoom, and they reproduce its parse, run and character counts exactly.</p>
 <h2>Dataset shape at a glance</h2>
 <ul>
-<li>Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 190,085 runs, 950,418 parses.</li>
-<li>Regions by parses: EU 506,333, US 383,530, CN 48,365, KR 12,190.</li>
-<li>Timed split: 839,633 timed, 110,785 over timer, 0 unknown (keys under +10).</li>
+<li>Composition: a standard run is 1 tank + 1 healer + 3 DPS, so parses run ~5x the run count. 195,444 runs, 977,212 parses.</li>
+<li>Regions by parses: EU 523,527, US 386,200, CN 54,015, KR 13,470.</li>
+<li>Timed split: 863,882 timed, 113,330 over timer, 0 unknown (keys under +10).</li>
 <li>8 dungeons, keystone levels +2-+17, median +10.</li>
 <li>Sample size: early in a season many class/spec/dungeon cells are thin. Treat a row with fewer than ~30 characters as indicative only, and prefer <code>characters</code> over <code>parses</code> when judging whether a number is broadly based.</li>
 </ul>
@@ -105,10 +105,10 @@
 <li>Dataset regenerates on each data refresh; row counts and ids change between versions.</li>
 </ul><h2>Data tables (HTML mirrors of the CSVs)</h2><ul>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_summary.html">spec_summary.html</a> — 341 rows</li>
-<li><a href="https://st331.github.io/wowlogs/llms/spec_by_key.html">spec_by_key.html</a> — 1,132 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/spec_by_key.html">spec_by_key.html</a> — 1,138 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_dungeon.html">spec_by_dungeon.html</a> — 642 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_reset.html">spec_by_reset.html</a> — 82 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_day.html">spec_by_day.html</a> — 322 rows</li>
 <li><a href="https://st331.github.io/wowlogs/llms/dungeon_summary.html">dungeon_summary.html</a> — 8 rows</li>
-<li><a href="https://st331.github.io/wowlogs/llms/comps.html">comps.html</a> — 4,042 rows</li>
+<li><a href="https://st331.github.io/wowlogs/llms/comps.html">comps.html</a> — 4,054 rows</li>
 </ul></body></html>
