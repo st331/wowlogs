@@ -217,7 +217,7 @@ def tuning_multipliers(df, post):
 # The browser gets every parse as a row, so the payload scales with the run
 # count. Collecting the whole population (~10x a leaderboard sweep, and still
 # growing) would put data.json past 70 MB, which no page should ask for.
-MAX_RUNS = 45_000
+MAX_RUNS = 150_000
 
 
 def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
