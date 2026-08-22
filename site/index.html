@@ -312,15 +312,6 @@ const TABS = [
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
-  {id:"ascore", label:"Average Score", fmt:fmtInt, betterUp:true, inlay:"dps",
-   shade:"avg", tick:"mscore", score:true,
-   cap:"Average total score per character: each character's best run per dungeon on this spec (within the current filters) summed across dungeons — characters who skipped dungeons simply sum fewer. Grey tick: median."},
-  {id:"mscore", label:"Median Score", fmt:fmtInt, betterUp:true, inlay:"dps",
-   shade:"avg", tick:"ascore", score:true,
-   cap:"Median total score per character (sum of each character's best run per dungeon on this spec, within the current filters). Grey tick: average."},
-  {id:"tscore", label:"Top Score", fmt:fmtInt, betterUp:true, inlay:"dps",
-   shade:"avg", tick:"ascore", score:true,
-   cap:"What this spec can hit: the 95th-percentile character total score (sum of best run per dungeon, within the current filters). Grey tick: average."},
   {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
    inlay:"dps", shade:"avg", tick:null,
    cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher average DPS."},
@@ -349,7 +340,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              minchars:100, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
              tsort:{col:"a_v", dir:-1}};
-let hasScore=false, hasTimed=false, hasTune=false, hasProj=false;
+let hasTimed=false, hasTune=false, hasProj=false;
 // A parse's projected damage multiplier, from ITS OWN ability breakdown.
 // Applying it per row means every aggregate stays exact under any filter.
 const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
@@ -415,8 +406,6 @@ function initData(d,cfg){
   buildRuns();
   computeResetBuckets();
   // score tabs only make sense when the source carries ranking scores
-  hasScore=false;
-  if(R.score) for(let i=0;i<N;i++) if(R.score[i]>=0){hasScore=true; break}
   hasTune=!!(d.tuning&&R.post);
   $("tunebox").style.display=hasTune?"":"none";
   state.postTune=hasTune;
@@ -443,10 +432,6 @@ function initData(d,cfg){
   state.timedOnly=hasTimed;
   $("timedseg").querySelectorAll("button").forEach(x=>
     x.classList.toggle("on",(x.dataset.t==="1")===state.timedOnly));
-  if(!hasScore){
-    if(TABS.find(t=>t.id===state.tab)?.score) state.tab="med";
-    if(TABS.find(t=>t.id===state.trendMetric)?.score) state.trendMetric="avg";
-  }
   // selections carry over between sources only where the names still exist
   const prune=(sel,names)=>{const ok=new Set(names);
     for(const x of [...sel]) if(!ok.has(x)) sel.delete(x);};
@@ -781,7 +766,7 @@ function buildControls(){
   });
   const tabs=$("tabs");
   tabs.innerHTML="";
-  TABS.filter(t=>!t.score||hasScore).forEach(t=>{
+  TABS.forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
@@ -790,10 +775,9 @@ function buildControls(){
     tabs.appendChild(b);
   });
   // trend-metric picker: one entry per metric tab, shown only on the Trend
-  // tab (score tabs are excluded: character totals don't slice into weeks)
   const tseg=$("trendseg");
   tseg.innerHTML="";
-  TABS.filter(t=>!t.trend&&!t.score).forEach(t=>{
+  TABS.filter(t=>!t.trend).forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.trendMetric?"on":"";
     b.onclick=()=>{state.trendMetric=t.id;
@@ -896,16 +880,10 @@ function effMinFor(pool){
   return ref>0 ? Math.max(1,Math.round(state.minchars*pool/ref))
                : state.minchars;
 }
-// composite-key strides for per-character score totals; groupKey() tops out
-// below GS (non-merged: (13*100+36)*200+199) and dungeon index below 16
-const GS=300000;
 function aggregate(weeks){
   const m=baseMasks(), cut=periodCut(weeks);
   const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
   const runSeen=new Uint8Array(runCount), charSeen=new Set();
-  // (char, group, dungeon) -> that character's best run score in the dungeon;
-  // summing the bests across dungeons gives the season-style total score
-  const charBest=(hasScore&&R.char)?new Map():null;
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     if(!periodPass(i,weeks,cut)) continue;
@@ -925,24 +903,6 @@ function aggregate(weeks){
     // recorded (un-projected) figures, so the toggle can show a delta
     g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
     g.chars.add(R.char[i]); charSeen.add(R.char[i]);
-    if(charBest&&R.score[i]>=0){
-      const ck=(R.char[i]*GS+key)*16+R.dun[i];
-      const prev=charBest.get(ck);
-      if(prev===undefined||R.score[i]>prev) charBest.set(ck,R.score[i]);
-    }
-  }
-  // roll per-dungeon bests into per-character totals, bucketed by group
-  const gtotals=charBest&&charBest.size?new Map():null;
-  if(gtotals){
-    const totals=new Map();               // char*GS+group -> summed best scores
-    for(const [ck,sc] of charBest)
-      totals.set(Math.floor(ck/16),(totals.get(Math.floor(ck/16))||0)+sc);
-    for(const [tk,sum] of totals){
-      const gk=tk%GS;
-      let arr=gtotals.get(gk);
-      if(!arr){arr=[]; gtotals.set(gk,arr)}
-      arr.push(sum);
-    }
   }
   const out=new Map();
   for(const [key,g] of groups){
@@ -950,22 +910,13 @@ function aggregate(weeks){
     const med=q50(g.dps);
     let ravg=null, rmed=null;
     if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n; rmed=q50(g.rdps)}
-    let ascore=NaN, mscore=NaN, tscore=NaN, cn=0;
-    const tl=gtotals&&gtotals.get(key);
-    if(tl&&tl.length){
-      tl.sort((a,b)=>a-b); cn=tl.length;
-      ascore=tl.reduce((a,b)=>a+b,0)/cn;
-      mscore=q50(tl);
-      tscore=tl[Math.min(cn-1,Math.round(0.95*(cn-1)))];
-    }
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
       avg:g.sum/g.n, med, diff:g.sum/g.n-med,
       ravg, rmed, rdiff:(ravg==null?null:ravg-rmed),
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
-      chars:g.chars.size,
-      ascore, mscore, tscore, cn});
+      chars:g.chars.size});
   }
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
@@ -1016,13 +967,6 @@ function tipHTML(r,compare){
   h+=row("Mean − median", f(r.a,"diff",fmtSigned), f(r.b,"diff",fmtSigned));
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
-  if(hasScore){
-    const sf=v=>isFinite(v)?fmtInt(v):"–";
-    h+=row("Avg total score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
-    h+=row("Median total score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
-    h+=row("Top score (p95)", f(r.a,"tscore",sf), f(r.b,"tscore",sf));
-    h+=row("Scored characters", f(r.a,"cn",fmtInt), f(r.b,"cn",fmtInt));
-  }
   return h+"</table>";
 }
 function attachTip(el,html){
@@ -1089,7 +1033,6 @@ function render(){
   // order + rank (rank always by A value of this tab, best first)
   const col=tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id;
   let ranked=rows;
-  if(tab.score) ranked=rows.filter(r=>isFinite(r.a[col]));  // partial score data
   ranked.sort((x,y)=>y.a[col]-x.a[col]);
   ranked.forEach((r,i)=>r.rank=i+1);
   let view=ranked.slice(0,CHART_MAX);
@@ -1547,8 +1490,6 @@ function renderTable(rows,tab){
       ["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
-    if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"],
-      ["tscore","Top Score"]);
   }
   const get=(r,k)=>{
     switch(k){
@@ -1596,7 +1537,6 @@ function renderTable(rows,tab){
     if(k==="diff") return fmtSigned(v);
     if(k==="adeaths") return v.toFixed(2);
     if(k==="deathless") return v.toFixed(1)+"%";
-    if(k==="ascore"||k==="mscore"||k==="tscore") return isFinite(v)?fmtInt(v):"–";
     return esc(v);
   };
   for(const r of sorted){

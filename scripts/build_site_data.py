@@ -312,14 +312,10 @@ def build(name: str, cfg: dict) -> None:
     roles, role_arr = enc("role")
     run_ids = (df["report_code"].astype(str) + ":" + df["fight_id"].astype(str))
     run_arr = pd.factorize(run_ids)[0].tolist()
-    # character identity (name@server@region) for per-character score totals
+    # character identity (name@server@region), for distinct-player counts
     char_ids = (df["character"].fillna("?").astype(str) + "@"
                 + df["server"].fillna("?").astype(str) + "@" + df["region"])
     char_arr = pd.factorize(char_ids)[0].tolist()
-    # WCL M+ score (per run; -1 = absent, which hides all score UI client-side)
-    score = pd.to_numeric(df["score"], errors="coerce").fillna(-1).round(1)
-    if not cfg.get("score", True):
-        score = pd.Series(-1.0, index=df.index)
     # beat-the-timer flag from the run's medal: 1 = timed (any chest count;
     # from the ranking medal), 0 = over timer, -1 = unknown
     timed = df["medal"].map(MEDAL_TIMED).fillna(-1).astype(int)
@@ -354,7 +350,6 @@ def build(name: str, cfg: dict) -> None:
                      if "keystone_s" in df.columns
                      else pd.Series(0, index=df.index))
                     .fillna(0).round(0).astype(int).tolist(),
-            "score": score.tolist(),
             "timed": timed.tolist(),
             "post": post.tolist(),
             "day": day.tolist(),

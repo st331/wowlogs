@@ -340,11 +340,10 @@ def dedupe_fights(fights: dict) -> dict:
 
 
 def _pick(cluster):
-    """One representative per run: prefer a copy the leaderboard scored, then
-    one already fetched, then the lowest code so the choice is stable."""
+    """One representative per run: prefer a copy already fetched, then the
+    lowest code so the choice is stable across runs."""
     done = load_done.cache if hasattr(load_done, "cache") else set()
-    return min(cluster, key=lambda kv: (kv[1].get("score") is None,
-                                        kv[0] not in done, kv[0]))
+    return min(cluster, key=lambda kv: (kv[0] not in done, kv[0]))
 
 
 ## --------------------------------------------------------------------------
@@ -374,14 +373,14 @@ def load_fights(regions: set[str] | None) -> dict:
                 continue
             key = f"{code}:{fid}"
             prev = fights.get(key)
-            if prev is not None and prev.get("score") is not None:
-                continue                      # already have the ranked copy
+            if prev is not None:
+                continue                      # first ranking entry wins
             fights[key] = {
                 "code": code, "fid": fid, "enc": rec["enc"],
                 "dungeon": ENCOUNTERS.get(rec["enc"], str(rec["enc"])),
                 "key_level": r.get("bracketData", bracket_to_key(rec["bracket"])),
                 "rank_duration_ms": r.get("duration"),
-                "score": r.get("score"), "medal": r.get("medal"),
+                "medal": r.get("medal"),
                 "affixes": r.get("affixes") or [],
                 "region": region or (prev or {}).get("region", ""),
                 "start_time": r.get("startTime") or (prev or {}).get("start_time"),
@@ -444,6 +443,11 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
     deaths = Counter(e.get("id")
                      for e in data.get("deathEvents") or [] if isinstance(e, dict))
 
+    if not damage:
+        # the dashboard measures damage and nothing else, so a summary table
+        # without a damageDone section has nothing we can use
+        raise ValueError("no damage data")
+
     rows = []
     for role_key, role in (("tanks", "Tank"), ("healers", "Healer"), ("dps", "DPS")):
         for p in details.get(role_key) or []:
@@ -467,7 +471,6 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
                 "dps": round(damage.get(p.get("id"), 0) / seconds, 1),
                 "deaths": int(deaths.get(p.get("id"), 0)),
                 "item_level": p.get("maxItemLevel"),
-                "score": fight["score"],
                 "medal": fight["medal"],
                 "affixes": "|".join(str(a) for a in fight["affixes"]),
                 "report_code": fight["code"],
@@ -635,10 +638,9 @@ def export() -> None:
     df = pd.DataFrame(rows)
     before = len(df)
     df = df.drop_duplicates(subset=["report_code", "fight_id", "character", "server"])
-    # scores and medals live in the rankings journal, which can be re-swept
-    # much more cheaply than the summaries; overlay so late-arriving values
-    # (e.g. rankings score / medal) reach rows fetched before the
-    # journal carried them
+    # medals live in the rankings journal, which can be re-swept much more
+    # cheaply than the summaries; overlay so a late-arriving medal reaches rows
+    # fetched before the journal carried one
     jmap = {(f["code"], f["fid"]): f for f in load_fights(None).values()}
     # The keystone clock (wall-time against the dungeon timer) differs from the
     # combat duration already stored, and is what "% under timer" needs. WCL's
@@ -686,11 +688,12 @@ def export() -> None:
         print(f"[export] collapsed {len(per_run) - len(canon)} duplicate "
               f"uploads of the same fight", flush=True)
     if jmap:
-        for col in ("score", "medal"):
+        for col in ("medal",):
             df[col] = [
                 (jmap.get((c, f), {}).get(col) if jmap.get((c, f), {}).get(col)
                  is not None else v)
                 for c, f, v in zip(df["report_code"], df["fight_id"], df[col])]
+    df = df.drop(columns=[c for c in ("score",) if c in df.columns])
     tmp = CSV_FILE.with_name(CSV_FILE.name + ".tmp")
     df.to_csv(tmp, index=False, compression="gzip")
     os.replace(tmp, CSV_FILE)  # atomic: the live dashboard never sees a torn file
