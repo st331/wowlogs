@@ -1,6 +1,6 @@
 name: Refresh Season 2 data
 
-# Hourly collection sidecar. Sweeps the Warcraft Logs leaderboards, fetches
+# Collection sidecar, every 10 minutes. Sweeps the Warcraft Logs leaderboards, fetches
 # the summaries for whatever is new, rebuilds the dashboard and publishes it.
 #
 # Nothing is committed on the hourly path: the built site is 29 MB and a
@@ -11,7 +11,7 @@ name: Refresh Season 2 data
 # day of re-fetching rather than the whole season (see seed_from_csv()).
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
       resweep:
@@ -100,7 +100,10 @@ jobs:
       - name: Commit the export (daily)
         if: github.event_name == 'schedule'
         run: |
-          [ "$(date -u +%H)" = "03" ] || { echo "not the daily slot; skipping"; exit 0; }
+          # six runs an hour now, so pin the daily commit to ONE of them --
+          # otherwise every run in the 03:00 hour races to push the same file
+          [ "$(date -u +%H)" = "03" ] && [ "$(date -u +%M)" -lt 10 ] \
+            || { echo "not the daily slot; skipping"; exit 0; }
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/mythic_runs.csv.gz data/keystone_times.json
