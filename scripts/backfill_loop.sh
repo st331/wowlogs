@@ -16,6 +16,17 @@ LOCK=/tmp/wowlogs-backfill.lock
 exec 9>"$LOCK"
 flock -n 9 || { echo "another backfill loop holds $LOCK; exiting"; exit 0; }
 
+# Collection runs in GitHub Actions against the account's API client. If no
+# credentials are present locally that is deliberate, not a fault -- exit
+# rather than spinning, since fetch_data exits immediately without them and
+# the || true below would otherwise turn that into a hot loop.
+if [ -z "${WCL_TOKEN:-}${WCL_CLIENT_ID:-}" ] \
+   && [ ! -s .secrets/wcl_token ] \
+   && [ ! -s .secrets/wcl_client_id ]; then
+  echo "no local WCL credentials; collection belongs to the workflow" >>"$LOG"
+  exit 0
+fi
+
 cycle=0
 while true; do
   cycle=$((cycle + 1))
