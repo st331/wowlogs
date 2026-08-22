@@ -767,6 +767,7 @@ def main() -> None:
         export()
         return
 
+    from wcl_client import QuotaDeadline  # noqa: F401  (raised inside query)
     signal.signal(signal.SIGINT, _handle_stop)
     signal.signal(signal.SIGTERM, _handle_stop)
     fetch_summaries.hero = HeroResolver()

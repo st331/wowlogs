@@ -27,6 +27,10 @@ import requests
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRETS = ROOT / ".secrets"
+class QuotaDeadline(RuntimeError):
+    """Raised instead of sleeping past a caller-supplied deadline."""
+
+
 API_URL = "https://www.warcraftlogs.com/api/v2/client"
 TOKEN_URL = "https://www.warcraftlogs.com/oauth/token"
 
@@ -88,6 +92,16 @@ class WCLClient:
 
     def _sleep_for_reset(self) -> None:
         wait = max(self.reset_in, 30) + 20  # small cushion past the reset
+        # A caller on a clock (a CI job with a timeout) must not burn its whole
+        # slot asleep. WCL_MAX_SLEEP_S caps how long we are willing to wait;
+        # past that we stop cleanly and the next run picks up from the journal
+        # with a fresh budget, instead of being killed having fetched nothing.
+        cap = float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
+        if cap and wait > cap:
+            self._log(f"quota exhausted ({self.spent:.0f}/{self.limit:.0f} pts) and "
+                      f"the reset is {wait:.0f}s away, over the {cap:.0f}s cap; "
+                      f"stopping so the next run can use a fresh window")
+            raise QuotaDeadline(f"quota reset {wait:.0f}s away, cap {cap:.0f}s")
         self._log(f"quota nearly exhausted ({self.spent:.0f}/{self.limit:.0f} pts); "
                   f"sleeping {wait:.0f}s until the window resets")
         time.sleep(wait)

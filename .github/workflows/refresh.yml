@@ -70,6 +70,9 @@ jobs:
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
+          # the job has 50 minutes; never spend more than 8 of them asleep
+          # waiting for a quota window that the next run will get for free
+          WCL_MAX_SLEEP_S: "480"
         run: |
           test -n "$WCL_CLIENT_ID" || {
             echo "::error::WCL_CLIENT_ID / WCL_CLIENT_SECRET repository secrets are not set"
