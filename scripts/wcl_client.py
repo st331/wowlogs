@@ -27,8 +27,13 @@ import requests
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRETS = ROOT / ".secrets"
-class QuotaDeadline(RuntimeError):
-    """Raised instead of sleeping past a caller-supplied deadline."""
+class QuotaDeadline(Exception):
+    """Raised instead of sleeping past a caller-supplied deadline.
+
+    Deliberately NOT a RuntimeError: callers catch RuntimeError to mean "this
+    batch failed, requeue it", and a deadline is the opposite -- it means stop
+    asking. Subclassing RuntimeError would have it swallowed and retried.
+    """
 
 
 API_URL = "https://www.warcraftlogs.com/api/v2/client"

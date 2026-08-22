@@ -42,7 +42,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wcl_client import WCLClient
+from wcl_client import WCLClient, QuotaDeadline
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
@@ -767,16 +767,21 @@ def main() -> None:
         export()
         return
 
-    from wcl_client import QuotaDeadline  # noqa: F401  (raised inside query)
     signal.signal(signal.SIGINT, _handle_stop)
     signal.signal(signal.SIGTERM, _handle_stop)
     fetch_summaries.hero = HeroResolver()
     client = WCLClient()
 
-    if args.stage in ("all", "sweep"):
-        sweep(client, brackets)
-    if args.stage in ("all", "summaries") and not STOP:
-        fetch_summaries(regions, args.limit_fights)
+    try:
+        if args.stage in ("all", "sweep"):
+            sweep(client, brackets)
+        if args.stage in ("all", "summaries") and not STOP:
+            fetch_summaries(regions, args.limit_fights)
+    except QuotaDeadline as e:
+        # Not a failure: the budget is spent and waiting would cost more than
+        # the next run does. Keep everything fetched so far and exit 0 so the
+        # caller's later steps (cache save, build, deploy) still run.
+        print(f"[quota] stopping early -- {e}", flush=True)
     export()
     print(f"[done] {client.requests_made} HTTP requests, "
           f"{client.spent:.0f} points spent this window", flush=True)
