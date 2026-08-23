@@ -28,6 +28,18 @@ on:
         description: "Re-scan the leaderboards (off = only fetch known-missing summaries)"
         type: boolean
         default: true
+      regear_min_key:
+        description: "Refetch already-fetched runs at this key level or higher to capture gear (blank = off)"
+        type: string
+        default: ""
+      regear_days:
+        description: "How far back the gear refetch reaches, in days"
+        type: string
+        default: "3"
+      quota_fraction:
+        description: "Share of the hourly API budget this run may spend. The standing cap is 0.70; raise it only for a deliberate one-off."
+        type: string
+        default: "0.70"
   push:
     branches: [claude/wow-mythic-dashboard-jv235l]
     paths:
@@ -93,7 +105,10 @@ jobs:
           # for anything else using the same credentials. The client refuses to
           # send a request that would cross it and stops cleanly instead.
           # Raise ONLY on an explicit request; the client clamps it to 1.0.
-          WCL_QUOTA_FRACTION: "0.70"
+          # Standing cap is 0.70. A manual dispatch may raise it for a single
+          # run -- a gear refetch, say -- but the scheduled path never does:
+          # `inputs` is empty on a schedule, so this falls back to 0.70.
+          WCL_QUOTA_FRACTION: ${{ inputs.quota_fraction || '0.70' }}
           # the job has 50 minutes; never spend more than 8 of them asleep
           # waiting for a quota window that the next run will get for free
           WCL_MAX_SLEEP_S: "480"
@@ -106,7 +121,12 @@ jobs:
           # finished once its cursors close, so without this it finds nothing.
           # the rankings sweep closes its cursors once walked, so a refresh
           # that does not re-scan finds nothing
-          python -u scripts/fetch_data.py --resweep
+          REGEAR=""
+          if [ -n "${{ inputs.regear_min_key }}" ]; then
+            REGEAR="--regear-min-key ${{ inputs.regear_min_key }} --regear-days ${{ inputs.regear_days || '3' }}"
+            echo "::notice::gear refetch: $REGEAR at quota fraction ${{ inputs.quota_fraction || '0.70' }}"
+          fi
+          python -u scripts/fetch_data.py --resweep $REGEAR
 
       # Raider.IO season scores, one request per character against a ~150k
       # population and no bulk endpoint. This spends no Warcraft Logs budget at
