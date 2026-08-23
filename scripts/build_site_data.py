@@ -278,7 +278,9 @@ def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
     return out
 
 
-RIO_FILE = ROOT / "data" / "rio_scores.csv.gz"
+# live journal first, committed seed second -- see scripts/fetch_rio.py
+RIO_FILE = ROOT / "data" / "processed" / "rio_scores.csv.gz"
+RIO_SEED = ROOT / "data" / "rio_scores.csv.gz"
 
 
 def player_scores() -> dict[str, float]:
@@ -292,11 +294,12 @@ def player_scores() -> dict[str, float]:
     Absent journal, or a character missing from it, simply means no rating; the
     client drops those rather than counting them as zero.
     """
-    if not RIO_FILE.exists():
+    src = RIO_FILE if RIO_FILE.exists() else RIO_SEED
+    if not src.exists():
         print("[build] no Raider.IO journal; player rating omitted")
         return {}
     out: dict[str, float] = {}
-    with gzip.open(RIO_FILE, "rt", encoding="utf-8", newline="") as fh:
+    with gzip.open(src, "rt", encoding="utf-8", newline="") as fh:
         for row in csv.reader(fh):
             if len(row) != 5:
                 continue
@@ -305,7 +308,9 @@ def player_scores() -> dict[str, float]:
                 v = float(score)
             except ValueError:
                 continue
-            if v >= 0:                      # -1 is a journalled "no answer"
+            if v > 0:    # -1 = journalled "no answer"; 0 = profile with no
+                         # current-season rating, which cannot be a real
+                         # figure for a character we have M+ parses for
                 out[f"{name}@{realm}@{region}"] = v
     return out
 

@@ -57,13 +57,20 @@ jobs:
       # Journals are gitignored, so they ride in the cache. The key rotates
       # every run and restore-keys falls back to the newest previous one,
       # which is how you get a read-write cache out of a write-once store.
+      #
+      # DO NOT add paths here. actions/cache derives a cache *version* from the
+      # path list, and a lookup only matches caches of the same version -- so
+      # editing this list silently orphans every cache ever saved and the next
+      # run re-seeds from the daily CSV commit, losing everything collected
+      # since. That happened once (run 32625724812: restore took 0s, fetch took
+      # 9m instead of 30s, 70,246 runs -> 34,312). Anything new that needs to
+      # survive between runs goes *inside* data/processed.
       - name: Restore collection journals
         uses: actions/cache/restore@v4
         with:
           path: |
             data/raw
             data/processed
-            data/rio_scores.csv.gz
           key: wowlogs-journals-${{ github.run_id }}
           restore-keys: wowlogs-journals-
 
@@ -104,7 +111,6 @@ jobs:
           path: |
             data/raw
             data/processed
-            data/rio_scores.csv.gz
           key: wowlogs-journals-${{ github.run_id }}
 
       # Keeps the recovery seed fresh at one commit a day instead of 24.
@@ -117,6 +123,7 @@ jobs:
             || { echo "not the daily slot; skipping"; exit 0; }
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
           git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -m "Daily data export ($(date -u +%Y-%m-%d))"

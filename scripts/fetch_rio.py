@@ -36,7 +36,14 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_CSV = ROOT / "data" / "mythic_runs.csv.gz"
-RIO_FILE = ROOT / "data" / "rio_scores.csv.gz"
+# The live journal lives inside data/processed because that is what the
+# workflow cache carries. It must NOT be a separate cache path: actions/cache
+# versions a cache by its path list, so adding one orphans every cache that
+# came before it. RIO_SEED is the committed copy, refreshed once a day, and is
+# the recovery path when the cache is evicted -- the same arrangement
+# mythic_runs.csv.gz has with the collection journals.
+RIO_FILE = ROOT / "data" / "processed" / "rio_scores.csv.gz"
+RIO_SEED = ROOT / "data" / "rio_scores.csv.gz"
 
 API = "https://raider.io/api/v1/characters/profile"
 FIELDS = "mythic_plus_scores_by_season:current"
@@ -105,11 +112,18 @@ def slug(realm: str) -> str:
 # ---------------------------------------------------------------- journal
 
 def load_journal() -> dict[tuple[str, str, str], tuple[float, int]]:
-    """(name, realm, region) -> (score, day fetched). Missing file is empty."""
-    if not RIO_FILE.exists():
+    """(name, realm, region) -> (score, day fetched).
+
+    Falls back to the committed seed when the cached journal is gone, so a
+    cache eviction costs at most a day of re-fetching rather than the lot.
+    """
+    src = RIO_FILE if RIO_FILE.exists() else RIO_SEED
+    if not src.exists():
         return {}
+    if src is RIO_SEED:
+        print(f"[rio] cached journal missing; seeding from {RIO_SEED}", flush=True)
     out: dict[tuple[str, str, str], tuple[float, int]] = {}
-    with gzip.open(RIO_FILE, "rt", encoding="utf-8", newline="") as fh:
+    with gzip.open(src, "rt", encoding="utf-8", newline="") as fh:
         for row in csv.reader(fh):
             if len(row) != 5:
                 continue
