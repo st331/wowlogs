@@ -73,7 +73,14 @@ main{padding:26px 30px 60px; max-width:1150px}
 .kpi-note{color:var(--muted); font-size:.78rem; margin-top:.5rem}
 .kpi-note b{color:var(--ink)}
 .sec{display:flex; align-items:baseline; gap:.8rem; margin:2.1rem 0 .7rem;
-  padding-bottom:.45rem; border-bottom:1px solid var(--grid)}
+  padding-bottom:.45rem; border-bottom:1px solid var(--grid);
+  cursor:pointer; user-select:none}
+.sec:hover .t{color:var(--ink)}
+.sec .chev{color:var(--muted); font-size:.7rem; width:.8rem; flex:0 0 auto;
+  transition:transform .15s}
+.sec.closed .chev{transform:rotate(-90deg)}
+.sec.closed{margin-bottom:.2rem}
+.secbody[hidden]{display:none}
 .sec .t{text-transform:uppercase; letter-spacing:.18em; font-size:.8rem; font-weight:700; color:var(--gold)}
 .sec .s{color:var(--muted); font-size:.78rem}
 .seg{display:inline-flex; border:1px solid var(--grid); border-radius:10px; overflow:hidden; margin:.3rem 0 .6rem; flex-wrap:wrap}
@@ -192,9 +199,9 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
 
   <div class="side-label">Quality</div>
   <div>Minimum characters:
-    <b id="minchars-v" style="color:var(--gold)">100</b>
+    <b id="minchars-v" style="color:var(--gold)">250</b>
     <span id="minchars-eff" class="hint"></span></div>
-  <input type="range" id="minchars" min="1" max="1200" value="100">
+  <input type="range" id="minchars" min="1" max="1200" value="250">
   <div class="hint" id="minchars-help">How many distinct players must have
     parsed a spec for it to show, counted against the view this page opens on.
     Narrowing the sample — period, key range, dungeon, region — scales the
@@ -240,7 +247,8 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     </div>
     <div class="kpi-note" id="period-note"></div>
 
-    <div class="sec"><span class="t">Overview</span><span class="s">hover any bar for the full story</span></div>
+    <div class="sec" data-sec="overview"><span class="chev">&#9662;</span><span class="t">Overview</span><span class="s">hover any bar for the full story</span></div>
+    <div class="secbody" id="sec-overview">
     <div class="seg" id="sortseg">
       <button data-s="desc" class="on">Highest first</button>
       <button data-s="asc">Lowest first</button>
@@ -254,14 +262,19 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     <div id="chart"></div>
     <div id="trendbox" style="display:none"></div>
     <div class="caption" id="chart-caption"></div>
+    </div>
 
-    <div class="sec"><span class="t">Breakdown</span><span class="s" id="tbl-sub"></span></div>
+    <div class="sec" data-sec="breakdown"><span class="chev">&#9662;</span><span class="t">Breakdown</span><span class="s" id="tbl-sub"></span></div>
+    <div class="secbody" id="sec-breakdown">
     <div class="tblwrap"><table class="data" id="tbl"></table></div>
+    </div>
 
-    <div class="sec"><span class="t">Top Comps</span>
+    <div class="sec" data-sec="comps"><span class="chev">&#9662;</span><span class="t">Top Comps</span>
       <span class="s" id="comps-sub"></span></div>
+    <div class="secbody" id="sec-comps">
     <div class="tblwrap"><table class="data" id="comps"></table></div>
     <div class="caption" id="comps-caption"></div>
+    </div>
 
     <footer>
       DPS is per-player overall damage ÷ run duration; deaths are parsed from each report's
@@ -337,7 +350,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              compMin:20, csort:{col:"strength", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
              proj:false,       // re-score every parse under the upcoming tuning
-             minchars:100, sort:"desc", tab:"med", trendMetric:"avg",
+             minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
              tsort:{col:"a_v", dir:-1}};
 let hasTimed=false, hasTune=false, hasProj=false;
@@ -363,7 +376,7 @@ const SEASON={file:"data.json",
       +'rankings (~200 below +10, where the leaderboards are bottomless) — read it as '
       +'"what strong runs pull", not a population census.',
   // thresholds scale to the period, so these are season-wide starting points
-  minchars:100, maxchars:1200};
+  minchars:250, maxchars:1200};
 
 // Large datasets are published pre-gzipped (the deploy artifact has to stay
 // small); inflate them in the browser, else fall back to the plain file.
@@ -493,6 +506,40 @@ $("timedseg").querySelectorAll("button").forEach(b=>{
   };
 });
 window.addEventListener("resize",()=>{ if(state.tab==="trend"&&D) render(); });
+// Section headers fold their body away. The sliders live in the sidebar, so
+// collapsing Overview and Breakdown brings Top Comps up next to them and you
+// can watch the comps react while you drag. Choices persist per browser;
+// localStorage can throw (private windows, blocked site data), so every access
+// is guarded and a failure just means the sections open normally.
+const SEC_KEY="wowlogs.collapsed";
+function readCollapsed(){
+  try{ return new Set(JSON.parse(localStorage.getItem(SEC_KEY)||"[]")) }
+  catch(e){ return new Set() }
+}
+function applyCollapsed(){
+  const shut=readCollapsed();
+  document.querySelectorAll(".sec[data-sec]").forEach(h=>{
+    const id=h.dataset.sec, body=document.getElementById("sec-"+id);
+    const closed=shut.has(id);
+    h.classList.toggle("closed",closed);
+    h.setAttribute("aria-expanded",String(!closed));
+    if(body) body.hidden=closed;
+  });
+}
+document.querySelectorAll(".sec[data-sec]").forEach(h=>{
+  h.setAttribute("role","button");
+  h.setAttribute("tabindex","0");
+  const toggle=()=>{
+    const shut=readCollapsed(), id=h.dataset.sec;
+    shut.has(id) ? shut.delete(id) : shut.add(id);
+    try{ localStorage.setItem(SEC_KEY,JSON.stringify([...shut])) }catch(e){}
+    applyCollapsed();
+  };
+  h.onclick=toggle;
+  h.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle() } };
+});
+applyCollapsed();
+
 loadSeason();
 
 // One entry per run: its duration, where/when it happened, and the full
