@@ -444,11 +444,7 @@ function initData(d,cfg){
   // when something is actually known, and says how much.
   hasTier=!!(R.tier&&R.tier.some(v=>v>=0));
   $("tierbox").style.display=hasTier?"":"none";
-  if(hasTier){
-    const known=R.tier.reduce((a,v)=>a+(v>=0),0);
-    $("tierhint").textContent=
-      "gear known for "+(100*known/R.tier.length).toFixed(1)+"% of parses";
-  }
+
   CHARSCORE=d.charscore||[];
   hasRating=CHARSCORE.some(v=>v>=0);
   hasTune=!!(d.tuning&&R.post);
@@ -1257,6 +1253,27 @@ function render(){
   $("chart-caption").textContent=cap;
   renderTable(rows,tab);
   renderSetBonus();
+  updateTierHint();
+}
+
+// Coverage across what is actually on screen, not across the whole payload.
+// Gear was backfilled for +12 and up, so at low key levels only runs collected
+// since capture began have it -- around 1% against 30-70% higher up. A global
+// figure would hide that exactly where it matters most.
+function updateTierHint(){
+  if(!hasTier) return;
+  const m=baseMasks();
+  let seen=0, known=0;
+  for(let i=0;i<N;i++){
+    if(!periodPass(i,state.weeksA,periodCut(state.weeksA))) continue;
+    if(!rowPass(i,m,true)) continue;
+    seen++; if(R.tier[i]>=0) known++;
+  }
+  const pct=seen?100*known/seen:0;
+  $("tierhint").textContent = seen
+    ? "gear known for "+pct.toFixed(1)+"% of parses in view ("+fmtInt(known)+")"
+      +(pct<10?" — thin here; the backfill covered +12 and up":"")
+    : "";
 }
 
 /* ---------------- top comps ---------------- */
@@ -1343,19 +1360,26 @@ function renderSetBonus(){
   let h='<thead><tr><th>Class</th><th>Spec</th>'
     +(state.merge?"":"<th>Hero Talent</th>")
     +'<th>No set</th><th>2-set</th><th>4-set</th>'
+    +'<th>DPS no set</th><th>DPS 2-set</th><th>DPS 4-set</th>'
     +'<th>Gain from 2-set</th><th>Gain from 4-set</th><th>Total gain</th>'
-    +'<th>Median DPS (4-set)</th></tr></thead><tbody>';
+    +'</tr></thead><tbody>';
   for(const r of rows){
     h+='<tr><td>'+esc(r.cls)+'</td><td>'+esc(r.spec)+'</td>'
       +(state.merge?"":"<td>"+esc(r.hero)+"</td>")
       +'<td>'+n(r.n0)+'</td><td>'+n(r.n2)+'</td><td>'+n(r.n4)+'</td>'
-      +'<td>'+pc(r.p2)+'</td><td>'+pc(r.p4)+'</td><td>'+pc(r.pt)+'</td>'
-      +'<td>'+(isFinite(r.m4)?fmtInt(r.m4):"–")+'</td></tr>';
+      +'<td>'+(isFinite(r.m0)?fmtInt(r.m0):"–")+'</td>'
+      +'<td>'+(isFinite(r.m2)?fmtInt(r.m2):"–")+'</td>'
+      +'<td>'+(isFinite(r.m4)?fmtInt(r.m4):"–")+'</td>'
+      +'<td>'+pc(r.p2)+'</td><td>'+pc(r.p4)+'</td><td>'+pc(r.pt)+'</td></tr>';
   }
   host.innerHTML=h+"</tbody></table>";
   const known=R.tier.reduce((a,v)=>a+(v>=0),0);
   $("set-caption").textContent=
-    "Gain from 2-set compares no-set against 2-set; gain from 4-set compares "
+    "The three DPS columns are each cohort's plain median under the current "
+    +"filters, so they can be read against one another directly — but they are "
+    +"not like for like: the 4-set cohort also runs higher keys in better gear. "
+    +"The gain columns are the corrected version of that same comparison. "
+    +"Gain from 2-set compares no-set against 2-set; gain from 4-set compares "
     +"2-set against 4-set; total compares no-set against 4-set. Each is a "
     +"matched comparison — median against median within the same spec, dungeon "
     +"and key level, pooled across cells and weighted by the smaller cohort — "
@@ -1365,7 +1389,9 @@ function renderSetBonus(){
     +SET_BUCKET_MIN+"+ parses per cohort and "+SET_CELLS_MIN+"+ matched cells "
     +"of "+SET_CELL_MIN+"+ parses each. Gear is known for "
     +(100*known/R.tier.length).toFixed(1)+"% of parses; the tier checkboxes do "
-    +"not apply here, since this table needs all three cohorts.";
+    +"not apply here, since this table needs all three cohorts. No set means "
+    +"no Season 2 set on a report whose gear is visible — an old tier kept on "
+    +"is still no set — never a report whose gear is unknown.";
 }
 
 function renderComps(A){

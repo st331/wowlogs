@@ -8,7 +8,7 @@ return "unknown" rather than raise or invent a zero.
 """
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from fetch_data import compact_gear, compact_talents, gear_sets, parse_summary
+from fetch_data import compact_gear, compact_talents, gear_sets, pack_sets, parse_summary
 
 TIER = "1729"
 def item(i, set_id=None, **kw):
@@ -39,23 +39,37 @@ assert t["talentImportString"] == "ABC" and t["specID"] == 260
 assert t["stats"] == {"Haste": 3100, "Crit": 2400}, t["stats"]
 print(f"talents   : {len(t['tree'])} nodes, loadout string, specID, stats flattened")
 
-n, sid = gear_sets(full)
-assert (n, sid) == (4, TIER), (n, sid)
-print(f"set count : {n} pieces of set {sid} (the 9999 single piece loses)")
+counts = gear_sets(full)
+assert counts == {TIER: 4, "9999": 1}, counts
+print(f"set count : {counts} -- every set counted, not just the largest")
+
+# The case that made counting only the dominant set wrong: last season's
+# four-piece worn alongside this season's two-piece. Keeping only the biggest
+# reported last season's set and the current two-piece disappeared, which put
+# the player in the no-set bucket while they had the 2-set bonus active.
+OLD = "1600"
+mixed = {"gear": [item(1, OLD), item(2, OLD), item(3, OLD), item(4, OLD),
+                  item(5, TIER), item(6, TIER)]}
+mc = gear_sets(mixed)
+assert mc == {OLD: 4, TIER: 2}, mc
+assert mc.get(TIER) == 2, "this season's 2-set must survive an older 4-set"
+assert pack_sets(mc) == "1600:4|1729:2", pack_sets(mc)
+print(f"mixed sets: {pack_sets(mc)} -- old 4-set does not hide the current 2-set")
 
 # --- the absent cases, which must be distinguishable from a real zero
 for label, ci in [("no combatantInfo", None), ("empty dict", {}),
                   ("gear key absent", {"talentTree": []}),
                   ("gear empty list", {"gear": []})]:
     assert compact_gear(ci) is None, label
-    assert gear_sets(ci) == (None, ""), label
-    print(f"absent    : {label:18} -> gear None, pieces None (unknown, not 0)")
+    assert gear_sets(ci) is None, label
+    print(f"absent    : {label:18} -> gear None, sets None (unknown, not 0)")
 
 # gear present but no set pieces at all is a REAL zero, not unknown
 noset = {"gear": [item(7001), item(7002)]}
-assert gear_sets(noset) == (0, ""), gear_sets(noset)
+assert gear_sets(noset) == {}, gear_sets(noset)
+assert pack_sets(gear_sets(noset)) == "", "gear present, no sets -> empty, not None"
 assert compact_gear(noset) is not None
-print("real zero : gear present, no set items -> pieces 0 (not None)")
+print("real zero : gear present, no set items -> {} (not None)")
 
 # talents absent
 assert compact_talents(None) is None and compact_talents({}) is None
@@ -82,19 +96,19 @@ table = {"data": {"totalTime": 1_500_000,
 rows, gear_rows = parse_summary(fight, table, _Hero())
 assert len(rows) == 1 and len(gear_rows) == 1, (len(rows), len(gear_rows))
 r, g = rows[0], gear_rows[0]
-assert r["spec"] == "Assassination" and r["set_pieces"] == 4 and r["set_id"] == TIER
+assert r["spec"] == "Assassination" and r["set_counts"] == "1729:4|9999:1", r["set_counts"]
 assert g["spec"] == "Assassination" and g["report_code"] == "aBc" and g["fight_id"] == 7
 assert len(g["gear"]) == 9 and g["talents"]["specID"] == 260
 print(f"parse_summary: 1 row + 1 gear row; spec={r['spec']!r} "
-      f"set_pieces={r['set_pieces']} gear_slots={len(g['gear'])}")
+      f"set_counts={r['set_counts']!r} gear_slots={len(g['gear'])}")
 
 bare = dict(player); bare.pop("combatantInfo")
 rows2, gear2 = parse_summary(fight, {"data": {"totalTime": 1_500_000,
     "playerDetails": {"dps": [bare]},
     "damageDone": [{"id": 1, "total": 9_000_000}], "deathEvents": []}}, _Hero())
 assert len(rows2) == 1 and gear2 == [], (rows2, gear2)
-assert rows2[0]["set_pieces"] is None, rows2[0]["set_pieces"]
+assert rows2[0]["set_counts"] is None, rows2[0]["set_counts"]
 print("parse_summary: no combatantInfo -> player row kept, no gear row, "
-      "set_pieces None")
+      "set_counts None")
 
 print("\nPASS")

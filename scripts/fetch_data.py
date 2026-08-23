@@ -491,25 +491,29 @@ def compact_talents(ci: dict | None) -> dict | None:
     return out or None
 
 
-def gear_sets(ci: dict | None) -> tuple[int | None, str]:
-    """(pieces equipped from the player's dominant item set, that set's id).
+def gear_sets(ci: dict | None) -> dict[str, int] | None:
+    """Pieces equipped from every item set, as {set id: count}.
 
     Deliberately does not care which slots tier pieces occupy. Slot indices in
     combatantInfo.gear vary by game version and getting them wrong fails
     silently, whereas set membership is carried on the item itself: the only
-    equipped items with a setID are set items, and a player wears one set. So
-    count setIDs across the whole gear array and take the commonest.
+    equipped items with a setID are set items.
 
-    Returns (None, "") when the report carries no gear at all -- Warcraft Logs
-    omits combatantInfo for some uploads -- which is different from a player
-    who simply has no set pieces, and the two must not be conflated: one is
-    unknown, the other is a real zero.
+    Every set is counted, not just the largest. Keeping only the dominant one
+    hid a real case: a player wearing last season's four-piece and this
+    season's two-piece reported as last season's set, and their current
+    two-piece vanished into the no-set bucket.
+
+    Returns None when the report carries no gear at all -- Warcraft Logs omits
+    combatantInfo for some uploads -- which is different from a player who
+    simply wears no set pieces, and the two must not be conflated: one is
+    unknown, the other is a real zero. That case returns an empty dict.
     """
     if not isinstance(ci, dict):
-        return None, ""
+        return None
     gear = ci.get("gear")
     if not isinstance(gear, list) or not gear:
-        return None, ""
+        return None
     counts: Counter = Counter()
     for item in gear:
         if not isinstance(item, dict):
@@ -519,10 +523,18 @@ def gear_sets(ci: dict | None) -> tuple[int | None, str]:
         if sid in (None, 0, "0", ""):
             continue
         counts[str(sid)] += 1
-    if not counts:
-        return 0, ""          # gear was present, this player has no set pieces
-    sid, n = counts.most_common(1)[0]
-    return n, sid
+    return dict(counts)
+
+
+def pack_sets(counts: dict[str, int] | None) -> str | None:
+    """{'1729': 4, '1600': 2} -> '1729:4|1600:2'. None stays None.
+
+    Packed into one CSV column so it rides the committed export, which is what
+    the site is rebuilt from; the full gear journal is bulkier and cache-only.
+    """
+    if counts is None:
+        return None
+    return "|".join(f"{k}:{v}" for k, v in sorted(counts.items()))
 
 
 def parse_summary(fight: dict, table: dict,
@@ -555,7 +567,7 @@ def parse_summary(fight: dict, table: dict,
         for p in details.get(role_key) or []:
             ci = p.get("combatantInfo")
             tree = ci.get("talentTree") if isinstance(ci, dict) else None
-            set_pieces, set_id = gear_sets(ci)
+            set_counts = gear_sets(ci)
             specs = p.get("specs") or []
             icon = p.get("icon") or ""
             spec = specs[0] if specs else (icon.split("-", 1)[1] if "-" in icon else "")
@@ -584,10 +596,10 @@ def parse_summary(fight: dict, table: dict,
                 "dps": round(damage.get(p.get("id"), 0) / seconds, 1),
                 "deaths": int(deaths.get(p.get("id"), 0)),
                 "item_level": p.get("maxItemLevel"),
-                # set_pieces is None when the report carried no gear, which the
-                # build keeps distinct from a genuine zero -- see gear_sets()
-                "set_pieces": set_pieces,
-                "set_id": set_id,
+                # None when the report carried no gear; "" when gear was
+                # present and no set pieces were worn -- the build keeps those
+                # distinct, see gear_sets()
+                "set_counts": pack_sets(set_counts),
                 "score": fight["score"],
                 "medal": fight["medal"],
                 "affixes": "|".join(str(a) for a in fight["affixes"]),

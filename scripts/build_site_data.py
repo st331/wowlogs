@@ -315,6 +315,63 @@ def player_scores() -> dict[str, float]:
     return out
 
 
+GEAR_JOURNAL = ROOT / "data" / "processed" / "gear.jsonl"
+GEAR_EXPORT = ROOT / "data" / "gear.jsonl.gz"
+
+
+def sets_from_gear_journal() -> dict[tuple, dict[str, int]]:
+    """(report, fight, character, server) -> {set id: pieces}, from raw gear.
+
+    Authoritative, because it counts every set off the equipped items rather
+    than trusting a summary written at collection time. Parses collected before
+    the collector counted more than the dominant set are only correct through
+    this path, which is why it is preferred over the packed column.
+    """
+    src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
+    if not src.exists():
+        return {}
+    opener = gzip.open if src.suffix == ".gz" else open
+    out: dict[tuple, dict[str, int]] = {}
+    with opener(src, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue                       # tolerate a torn trailing line
+            gear = rec.get("gear")
+            if not isinstance(gear, list):
+                continue                       # talents only: gear unknown
+            counts: dict[str, int] = {}
+            for item in gear:
+                if not isinstance(item, dict):
+                    continue
+                sid = item.get("set")
+                if sid in (None, 0, "0", ""):
+                    continue
+                counts[str(sid)] = counts.get(str(sid), 0) + 1
+            out[(rec.get("report_code"), rec.get("fight_id"),
+                 rec.get("character"), rec.get("server"))] = counts
+    return out
+
+
+def unpack_sets(v) -> dict[str, int] | None:
+    """'1729:4|1600:2' -> {'1729': 4, '1600': 2}; '' -> {}; missing -> None."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    v = str(v)
+    if v in ("", "nan"):
+        return {}
+    out: dict[str, int] = {}
+    for part in v.split("|"):
+        sid, _, n = part.partition(":")
+        if sid and n.isdigit():
+            out[sid] = int(n)
+    return out
+
+
 def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
     """Season tier pieces per parse: -1 unknown, else 0-5.
 
@@ -332,36 +389,52 @@ def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
     real zero all the way to the client so the filter can exclude it rather
     than treat it as "no set".
     """
-    if "set_pieces" not in df.columns:
-        print(f"[{name}] no gear captured yet; tier filter unavailable")
-        return pd.Series(-1, index=df.index, dtype=int)
-    pieces = pd.to_numeric(df["set_pieces"], errors="coerce")
-    sets = df["set_id"].astype(str) if "set_id" in df.columns else pd.Series("", index=df.index)
-    known = pieces.notna()
-    if not known.any():
+    journal = sets_from_gear_journal()
+    packed = (df["set_counts"] if "set_counts" in df.columns
+              else pd.Series(None, index=df.index, dtype=object))
+    keys = list(zip(df["report_code"], df["fight_id"],
+                    df["character"], df["server"]))
+
+    # per parse: {set id: pieces}, or None when the report carried no gear
+    per: list[dict | None] = []
+    for k, pv in zip(keys, packed):
+        c = journal.get(k)
+        per.append(c if c is not None else unpack_sets(pv))
+    if not any(c is not None for c in per):
         print(f"[{name}] no gear captured yet; tier filter unavailable")
         return pd.Series(-1, index=df.index, dtype=int)
 
-    # the season's tier set, per class, by popularity among parses that have it
-    seasonal = {}
-    have = known & sets.ne("") & sets.ne("nan")
-    for cls, grp in df.loc[have].groupby("class"):
-        top = sets[grp.index].value_counts()
-        if len(top):
-            seasonal[cls] = top.index[0]
-    out = pd.Series(-1, index=df.index, dtype=int)
-    out.loc[known] = 0
-    match = have & df["class"].map(seasonal).eq(sets)
-    out.loc[match] = pieces[match].astype(int).clip(0, 5)
+    # This season's tier set per class, taken as the set most of that class's
+    # parses wear. Hard-coding item-set ids would mean editing this every patch.
+    tally: dict[str, dict[str, int]] = {}
+    for cls, c in zip(df["class"], per):
+        if not c:
+            continue
+        for sid, n in c.items():
+            tally.setdefault(cls, {})
+            tally[cls][sid] = tally[cls].get(sid, 0) + n
+    seasonal = {cls: max(v, key=v.get) for cls, v in tally.items() if v}
 
-    n_known = int(known.sum())
-    n2 = int((out >= 2).sum())
-    n4 = int((out >= 4).sum())
+    # Pieces of THIS season's set specifically. A player wearing last season's
+    # four-piece and nothing current is a true zero, which is the point: the
+    # no-set cohort is "no Season 2 set", verified against visible gear, not
+    # "no set at all" and not "gear unknown".
+    out = []
+    for cls, c in zip(df["class"], per):
+        if c is None:
+            out.append(-1)                       # report carried no gear
+            continue
+        sid = seasonal.get(cls)
+        out.append(min(c.get(sid, 0), 5) if sid else 0)
+    res = pd.Series(out, index=df.index, dtype=int)
+
+    n_known = int((res >= 0).sum())
     print(f"[{name}] gear on {n_known:,} of {len(df):,} parses "
-          f"({n_known / max(len(df), 1):.1%}); {n2:,} with 2-piece, "
-          f"{n4:,} with 4-piece; tier sets identified for "
-          f"{len(seasonal)} classes")
-    return out
+          f"({n_known / max(len(df), 1):.1%}); {int((res >= 2).sum()):,} with "
+          f"2-piece, {int((res >= 4).sum()):,} with 4-piece; tier set "
+          f"identified for {len(seasonal)} classes "
+          f"({len(journal):,} parses read from the gear journal)")
+    return res
 
 
 def build(name: str, cfg: dict) -> None:
