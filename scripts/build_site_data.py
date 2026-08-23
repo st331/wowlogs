@@ -350,11 +350,6 @@ def build(name: str, cfg: dict) -> None:
     roles, role_arr = enc("role")
     run_ids = (df["report_code"].astype(str) + ":" + df["fight_id"].astype(str))
     run_arr = pd.factorize(run_ids)[0].tolist()
-    # the run's M+ score, carried on every parse of that run; -1 = absent,
-    # which the client reads as "no score data" and hides the metric
-    score = (pd.to_numeric(df["score"], errors="coerce").fillna(-1).round(1)
-             if "score" in df.columns else pd.Series(-1.0, index=df.index))
-
     # character identity (name@server@region), for distinct-player counts
     char_ids = (df["character"].fillna("?").astype(str) + "@"
                 + df["server"].fillna("?").astype(str) + "@" + df["region"])
@@ -399,7 +394,6 @@ def build(name: str, cfg: dict) -> None:
             "key": df["key_level"].astype(int).tolist(),
             "deaths": df["deaths"].astype(int).tolist(),
             "dps": df["dps"].round(0).astype(int).tolist(),
-            "score": score.tolist(),
             "dur": pd.to_numeric(df["duration_s"], errors="coerce")
                      .fillna(0).round(0).astype(int).tolist(),
             "kdur": (pd.to_numeric(df["keystone_s"], errors="coerce")
@@ -488,6 +482,9 @@ def build_llms() -> None:
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
     resolve_hero_talents(df)
     df["timed"] = df["medal"].map(MEDAL_TIMED).fillna(-1).astype(int)
+    # Per-run score is still collected and exported -- it rides free in the
+    # rankings journal -- but nothing consumes it since the run-score metric
+    # was dropped. Normalised here so the column is well-formed if it returns.
     # a CSV predating score collection has no column at all; make it explicit
     # rather than letting the aggregation KeyError
     if "score" not in df.columns:
@@ -554,16 +551,10 @@ def build_llms() -> None:
             avg_deaths=("deaths", "mean"),
             deathless_pct=("deaths", lambda s: (s == 0).mean() * 100),
             avg_item_level=("item_level", "mean"),
-            # the run's M+ score, averaged over the spec's parses. Runs the
-            # leaderboard no longer lists have none, so this skips nulls
-            # rather than counting them as zero.
-            avg_score=("score", "mean"),
-            median_score=("score", "median"),
         ).reset_index()
         for c, r in (("avg_dps", 0), ("median_dps", 0), ("p90_dps", 0),
                      ("avg_deaths", 2), ("deathless_pct", 1),
-                     ("avg_item_level", 1), ("avg_score", 1),
-                     ("median_score", 1)):
+                     ("avg_item_level", 1)):
             out[c] = out[c].round(r)
         for c in ("avg_dps", "median_dps", "p90_dps"):
             out[c] = out[c].astype("Int64")
