@@ -63,6 +63,7 @@ jobs:
           path: |
             data/raw
             data/processed
+            data/rio_scores.csv.gz
           key: wowlogs-journals-${{ github.run_id }}
           restore-keys: wowlogs-journals-
 
@@ -84,6 +85,15 @@ jobs:
           # that does not re-scan finds nothing
           python -u scripts/fetch_data.py --resweep
 
+      # Raider.IO season scores, one request per character against a ~150k
+      # population and no bulk endpoint. Time-boxed so it never crowds the job:
+      # four minutes a run at ~300/min fills the backlog over about a day, then
+      # costs a couple of minutes an hour to keep the week-old entries fresh.
+      # Never fails the run -- an enrichment outage must not stop the refresh.
+      - name: Raider.IO player ratings
+        continue-on-error: true
+        run: python -u scripts/fetch_rio.py --budget-s 240
+
       - name: Build site
         run: python -u scripts/build_site_data.py
 
@@ -94,6 +104,7 @@ jobs:
           path: |
             data/raw
             data/processed
+            data/rio_scores.csv.gz
           key: wowlogs-journals-${{ github.run_id }}
 
       # Keeps the recovery seed fresh at one commit a day instead of 24.
@@ -106,7 +117,7 @@ jobs:
             || { echo "not the daily slot; skipping"; exit 0; }
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/mythic_runs.csv.gz data/keystone_times.json
+          git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -m "Daily data export ($(date -u +%Y-%m-%d))"
           git push origin HEAD:${{ github.ref_name }}

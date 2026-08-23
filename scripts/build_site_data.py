@@ -10,6 +10,7 @@ Emits data.json for the current season, self-describing via its "season"
 label.
 """
 import argparse
+import csv
 import gzip
 import hashlib
 import json
@@ -277,6 +278,38 @@ def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
     return out
 
 
+RIO_FILE = ROOT / "data" / "rio_scores.csv.gz"
+
+
+def player_scores() -> dict[str, float]:
+    """Raider.IO season score per character, keyed name@server@region.
+
+    This is the player's season total -- the sum of their best run in each of
+    the eight dungeons -- and so is roughly eight times the per-run score that
+    rides on each parse. The two are separate metrics on the site and must not
+    be confused for one another.
+
+    Absent journal, or a character missing from it, simply means no rating; the
+    client drops those rather than counting them as zero.
+    """
+    if not RIO_FILE.exists():
+        print("[build] no Raider.IO journal; player rating omitted")
+        return {}
+    out: dict[str, float] = {}
+    with gzip.open(RIO_FILE, "rt", encoding="utf-8", newline="") as fh:
+        for row in csv.reader(fh):
+            if len(row) != 5:
+                continue
+            name, realm, region, score, _day = row
+            try:
+                v = float(score)
+            except ValueError:
+                continue
+            if v >= 0:                      # -1 is a journalled "no answer"
+                out[f"{name}@{realm}@{region}"] = v
+    return out
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
     if not csv.exists():                       # tolerate an un-gzipped copy
@@ -320,7 +353,19 @@ def build(name: str, cfg: dict) -> None:
     # character identity (name@server@region), for distinct-player counts
     char_ids = (df["character"].fillna("?").astype(str) + "@"
                 + df["server"].fillna("?").astype(str) + "@" + df["region"])
-    char_arr = pd.factorize(char_ids)[0].tolist()
+    char_codes, char_keys = pd.factorize(char_ids)
+    char_arr = char_codes.tolist()
+    # Player rating is a property of the character, not the parse, so it ships
+    # once per character rather than once per row -- an array parallel to the
+    # factorize codes. Rounded to whole points: season scores run to four
+    # digits and the decimal is noise at that scale. -1 = not rated.
+    rio = player_scores()
+    charscore = [int(round(rio.get(k, -1))) if rio.get(k) is not None else -1
+                 for k in char_keys]
+    rated = sum(1 for v in charscore if v >= 0)
+    if charscore:
+        print(f"[{name}] player rating: {rated:,} of {len(charscore):,} "
+              f"characters rated ({rated / len(charscore) * 100:.1f}%)")
     # beat-the-timer flag from the run's medal: 1 = timed (any chest count;
     # from the ranking medal), 0 = over timer, -1 = unknown
     timed = df["medal"].map(MEDAL_TIMED).fillna(-1).astype(int)
@@ -363,6 +408,7 @@ def build(name: str, cfg: dict) -> None:
             "char": char_arr,
             **({"tmul": tmul} if tmul is not None else {}),
         },
+        "charscore": charscore,
     }
     if proj:
         payload["projection"] = proj

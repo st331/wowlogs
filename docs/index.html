@@ -325,12 +325,18 @@ const TABS = [
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
-  {id:"ascore", label:"Average Score", fmt:v=>v.toFixed(1), betterUp:true,
+  {id:"ascore", label:"Avg Run Score", fmt:v=>v.toFixed(1), betterUp:true,
    inlay:"dps", shade:"avg", tick:"mscore", score:true,
-   cap:"Average Mythic+ score of the runs this spec appeared in, under the current filters. It measures the company a spec keeps — how highly rated the runs are — not how hard it hits. Grey tick: median. Brighter bar = higher average DPS."},
-  {id:"mscore", label:"Median Score", fmt:v=>v.toFixed(1), betterUp:true,
+   cap:"Average score of the individual runs this spec appeared in — the rating a single key awards, roughly 170 at +2 rising to 460 at +18. This is not a character's season score: that is the sum of their best run in each of the 8 dungeons, so ~8x these numbers. It measures the company a spec keeps — how highly rated the runs are — not how hard it hits. Grey tick: median. Brighter bar = higher average DPS."},
+  {id:"mscore", label:"Median Run Score", fmt:v=>v.toFixed(1), betterUp:true,
    inlay:"dps", shade:"avg", tick:"ascore", score:true,
-   cap:"Median Mythic+ score of the runs this spec appeared in. Less swayed by a handful of very high-rated runs than the average. Grey tick: average. Brighter bar = higher average DPS."},
+   cap:"Median score of the individual runs this spec appeared in — per run, not a character season total (that is the sum of the best run in each of the 8 dungeons, ~8x these). Less swayed by a handful of very high-rated runs than the average. Grey tick: average. Brighter bar = higher average DPS."},
+  {id:"arating", label:"Avg Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
+   inlay:"dps", shade:"avg", tick:"mrating", rating:true,
+   cap:"Average Raider.IO season score of the distinct characters who played this spec under the current filters — a season total (best run in each of the 8 dungeons), not a single run's rating. Each character counts once however many times they logged, so it reads as who plays a spec, not how hard it hits. Grey tick: median. Brighter bar = higher average DPS."},
+  {id:"mrating", label:"Median Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
+   inlay:"dps", shade:"avg", tick:"arating", rating:true,
+   cap:"Median Raider.IO season score of the distinct characters who played this spec — less swayed by a handful of very highly rated players than the average. Grey tick: average. Brighter bar = higher average DPS."},
   {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
    inlay:"dps", shade:"avg", tick:null,
    cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher average DPS."},
@@ -360,6 +366,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              trendView:"lines", trendPin:new Set(), timedOnly:true,
              tsort:{col:"a_v", dir:-1}};
 let hasTimed=false, hasTune=false, hasProj=false, hasScore=false;
+let hasRating=false, CHARSCORE=[];
 // A parse's projected damage multiplier, from ITS OWN ability breakdown.
 // Applying it per row means every aggregate stays exact under any filter.
 const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
@@ -428,6 +435,11 @@ function initData(d,cfg){
   // a run drops off the leaderboard eventually and loses its score, so the
   // metric only appears when the payload actually carries some
   hasScore=!!(R.score&&R.score.some(v=>v>=0));
+  // Raider.IO season score per character, indexed by the same char id the rows
+  // carry. Enrichment is a slow background sweep, so partial coverage is the
+  // normal state and the metric appears as soon as anyone is rated.
+  CHARSCORE=d.charscore||[];
+  hasRating=CHARSCORE.some(v=>v>=0);
   hasTune=!!(d.tuning&&R.post);
   $("tunebox").style.display=hasTune?"":"none";
   state.postTune=hasTune;
@@ -822,7 +834,7 @@ function buildControls(){
   });
   const tabs=$("tabs");
   tabs.innerHTML="";
-  TABS.filter(t=>!t.score||hasScore).forEach(t=>{
+  TABS.filter(t=>(!t.score||hasScore)&&(!t.rating||hasRating)).forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
@@ -833,7 +845,7 @@ function buildControls(){
   // trend-metric picker: one entry per metric tab, shown only on the Trend
   const tseg=$("trendseg");
   tseg.innerHTML="";
-  TABS.filter(t=>!t.trend&&(!t.score||hasScore)).forEach(t=>{
+  TABS.filter(t=>!t.trend&&!t.rating&&(!t.score||hasScore)).forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.trendMetric?"on":"";
     b.onclick=()=>{state.trendMetric=t.id;
@@ -974,6 +986,15 @@ function aggregate(weeks){
       ascore=g.scores.reduce((a,b)=>a+b,0)/g.scores.length;
       mscore=q50(g.scores);
     }
+    // player rating comes off the character set, so a grinder with 200 runs
+    // counts exactly as much as someone with one; unrated characters drop out
+    let arating=NaN, mrating=NaN, rn=0;
+    if(hasRating){
+      const rs=[];
+      for(const c of g.chars){const v=CHARSCORE[c]; if(v>=0) rs.push(v)}
+      if(rs.length){rs.sort((a,b)=>a-b); rn=rs.length;
+        arating=rs.reduce((a,b)=>a+b,0)/rs.length; mrating=q50(rs)}
+    }
     let ravg=null, rmed=null;
     if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n; rmed=q50(g.rdps)}
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
@@ -982,9 +1003,22 @@ function aggregate(weeks){
       ravg, rmed, rdiff:(ravg==null?null:ravg-rmed),
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
-      chars:g.chars.size, ascore, mscore, sn:g.scores.length});
+      chars:g.chars.size, ascore, mscore, sn:g.scores.length,
+      arating, mrating, rn});
   }
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
+}
+
+// Ratings arrive over hours, heaviest loggers first, so a partial sweep reads
+// high: the players with the most logged runs are the better-rated ones. The
+// number is not wrong, but it is not yet the whole population either.
+function ratingCoverage(){
+  const n=CHARSCORE.length, r=CHARSCORE.reduce((a,v)=>a+(v>=0),0);
+  if(!n) return "";
+  const pct=100*r/n;
+  return "Ratings cover "+fmtInt(r)+" of "+fmtInt(n)+" characters ("+pct.toFixed(1)+"%)"
+    +(pct<80?"; the sweep fills in heaviest-logged first, so a partial one reads high."
+            :".");
 }
 
 /* ---------------- rendering ---------------- */
@@ -1035,9 +1069,15 @@ function tipHTML(r,compare){
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
   if(hasScore){
     const sf=v=>isFinite(v)?v.toFixed(1):"–";
-    h+=row("Average score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
-    h+=row("Median score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
+    h+=row("Average run score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
+    h+=row("Median run score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
     h+=row("Scored runs", f(r.a,"sn",fmtInt), f(r.b,"sn",fmtInt));
+  }
+  if(hasRating){
+    const rf=v=>isFinite(v)?fmtInt(v):"–";
+    h+=row("Average player rating", f(r.a,"arating",rf), f(r.b,"arating",rf));
+    h+=row("Median player rating", f(r.a,"mrating",rf), f(r.b,"mrating",rf));
+    h+=row("Rated characters", f(r.a,"rn",fmtInt), f(r.b,"rn",fmtInt));
   }
   return h+"</table>";
 }
@@ -1191,6 +1231,7 @@ function render(){
     chart.appendChild(row);
   }
   let cap=tab.cap;
+  if(tab.rating) cap+=" "+ratingCoverage();
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
   if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
   $("chart-caption").textContent=cap;
@@ -1566,7 +1607,8 @@ function renderTable(rows,tab){
       ["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
-    if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"]);
+    if(hasScore) cols.push(["ascore","Avg Run Score"],["mscore","Med Run Score"]);
+    if(hasRating) cols.push(["arating","Avg Player Rating"],["mrating","Med Player Rating"]);
   }
   const get=(r,k)=>{
     switch(k){
@@ -1610,6 +1652,7 @@ function renderTable(rows,tab){
     if(k==="d") return isFinite(v)
       ?`<span class="delta ${ (v>=0)===tab.betterUp?"up":"down" }">${(v>=0?"+":"")+(v*100).toFixed(1)}%</span>`:"–";
     if(k==="ascore"||k==="mscore") return isFinite(v)?v.toFixed(1):"–";
+    if(k==="arating"||k==="mrating") return isFinite(v)?fmtInt(v):"–";
     if(k==="avg") return fmtInt(v)+(state.proj?projDelta(v,r.a.ravg):"");
     if(k==="med") return fmtInt(v)+(state.proj?projDelta(v,r.a.rmed):"");
     if(k==="diff") return fmtSigned(v);
