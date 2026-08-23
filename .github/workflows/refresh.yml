@@ -1,17 +1,27 @@
 name: Refresh Season 2 data
 
-# Collection sidecar, every 10 minutes. Sweeps the Warcraft Logs leaderboards, fetches
-# the summaries for whatever is new, rebuilds the dashboard and publishes it.
+# Collection sidecar, every 2 hours. Sweeps the Warcraft Logs leaderboards,
+# fetches the summaries for whatever is new, rebuilds the dashboard and
+# publishes it.
 #
-# Nothing is committed on the hourly path: the built site is 29 MB and a
-# commit every hour would add ~3.5 GB a month to the repository. The site is
-# published straight from the run as a Pages artifact instead, and the
+# The cadence is set by API budget, not by how fresh the data could be. Every
+# run re-scans all 232 leaderboard cursors for roughly 1,900 points whether or
+# not anything changed, so the sweep overhead is a function of how often we
+# run: six times an hour spent ~11,400 points/hour of an 18,000/hour account
+# budget purely on re-scanning. Twice a day per hour -- one run every two
+# hours -- costs ~950/hour and leaves the rest of the account free. Fetching
+# the summaries themselves costs the same either way, since it is priced per
+# new run rather than per sweep.
+#
+# Nothing is committed on the periodic path: the built site is 29 MB and
+# committing each build would add gigabytes a month to the repository. The
+# site is published straight from the run as a Pages artifact instead, and the
 # journals that make the sweep incremental live in the Actions cache.
 # The CSV export IS committed once a day, so a cache eviction costs at most a
 # day of re-fetching rather than the whole season (see seed_from_csv()).
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "0 */2 * * *"
   workflow_dispatch:
     inputs:
       resweep:
@@ -27,7 +37,7 @@ on:
       - ".github/workflows/refresh.yml"
 
 # One refresh at a time. A run that is still fetching must not have the next
-# hour's run start underneath it and fight over the same journals.
+# one start underneath it and fight over the same journals.
 concurrency:
   group: wowlogs-refresh
   cancel-in-progress: false
@@ -93,13 +103,16 @@ jobs:
           python -u scripts/fetch_data.py --resweep
 
       # Raider.IO season scores, one request per character against a ~150k
-      # population and no bulk endpoint. Time-boxed so it never crowds the job:
-      # four minutes a run at ~300/min fills the backlog over about a day, then
-      # costs a couple of minutes an hour to keep the week-old entries fresh.
-      # Never fails the run -- an enrichment outage must not stop the refresh.
+      # population and no bulk endpoint. This spends no Warcraft Logs budget at
+      # all, so the two-hourly WCL cadence must not drag it down with it: at 15
+      # minutes a run, twelve runs a day at ~300/min covers ~54k characters a
+      # day and clears the backlog in a couple of days. Once it is caught up
+      # only the week-stale entries are due and most runs finish early.
+      # Time-boxed so it never approaches the job timeout, and never fails the
+      # run -- an enrichment outage must not stop the data refresh.
       - name: Raider.IO player ratings
         continue-on-error: true
-        run: python -u scripts/fetch_rio.py --budget-s 240
+        run: python -u scripts/fetch_rio.py --budget-s 900
 
       - name: Build site
         run: python -u scripts/build_site_data.py
@@ -113,14 +126,22 @@ jobs:
             data/processed
           key: wowlogs-journals-${{ github.run_id }}
 
-      # Keeps the recovery seed fresh at one commit a day instead of 24.
+      # Keeps the recovery seed fresh at one commit a day instead of twelve.
       - name: Commit the export (daily)
         if: github.event_name == 'schedule'
         run: |
-          # six runs an hour now, so pin the daily commit to ONE of them --
-          # otherwise every run in the 03:00 hour races to push the same file
-          [ "$(date -u +%H)" = "03" ] && [ "$(date -u +%M)" -lt 10 ] \
-            || { echo "not the daily slot; skipping"; exit 0; }
+          # Match the 02:00 run, and accept it in the 03:00 hour too: GitHub
+          # runs scheduled jobs late under load, and an hour-exact gate means a
+          # slipped run silently skips the day's seed. The 04:00 run cannot
+          # reach back into 03, so at most one run a day still matches.
+          #
+          # This gate MUST agree with the cron above. It is pinned to an even
+          # hour because a 2-hourly schedule never sees an odd one -- the
+          # previous gate said 03 and would have stopped committing outright.
+          case "$(date -u +%H)" in
+            02|03) ;;
+            *) echo "not the daily slot; skipping"; exit 0 ;;
+          esac
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
