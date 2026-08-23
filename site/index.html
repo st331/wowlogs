@@ -325,12 +325,12 @@ const TABS = [
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
-  {id:"ascore", label:"Average Score", fmt:v=>v.toFixed(1), betterUp:true,
+  {id:"ascore", label:"Avg Run Score", fmt:v=>v.toFixed(1), betterUp:true,
    inlay:"dps", shade:"avg", tick:"mscore", score:true,
-   cap:"Average Mythic+ score of the runs this spec appeared in, under the current filters. It measures the company a spec keeps — how highly rated the runs are — not how hard it hits. Grey tick: median. Brighter bar = higher average DPS."},
-  {id:"mscore", label:"Median Score", fmt:v=>v.toFixed(1), betterUp:true,
+   cap:"Average score of the individual runs this spec appeared in — the rating a single key awards, roughly 170 at +2 rising to 460 at +18. This is not a character's season score: that is the sum of their best run in each of the 8 dungeons, so ~8x these numbers. It measures the company a spec keeps — how highly rated the runs are — not how hard it hits. Grey tick: median. Brighter bar = higher average DPS."},
+  {id:"mscore", label:"Median Run Score", fmt:v=>v.toFixed(1), betterUp:true,
    inlay:"dps", shade:"avg", tick:"ascore", score:true,
-   cap:"Median Mythic+ score of the runs this spec appeared in. Less swayed by a handful of very high-rated runs than the average. Grey tick: average. Brighter bar = higher average DPS."},
+   cap:"Median score of the individual runs this spec appeared in — per run, not a character season total (that is the sum of the best run in each of the 8 dungeons, ~8x these). Less swayed by a handful of very high-rated runs than the average. Grey tick: average. Brighter bar = higher average DPS."},
   {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
    inlay:"dps", shade:"avg", tick:null,
    cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher average DPS."},
@@ -1035,8 +1035,8 @@ function tipHTML(r,compare){
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
   if(hasScore){
     const sf=v=>isFinite(v)?v.toFixed(1):"–";
-    h+=row("Average score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
-    h+=row("Median score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
+    h+=row("Average run score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
+    h+=row("Median run score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
     h+=row("Scored runs", f(r.a,"sn",fmtInt), f(r.b,"sn",fmtInt));
   }
   return h+"</table>";
@@ -1566,7 +1566,7 @@ function renderTable(rows,tab){
       ["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
-    if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"]);
+    if(hasScore) cols.push(["ascore","Avg Run Score"],["mscore","Med Run Score"]);
   }
   const get=(r,k)=>{
     switch(k){
