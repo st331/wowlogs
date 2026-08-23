@@ -170,6 +170,11 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     <label class="small"><input type="checkbox" id="ranged"> Ranged</label>
     <span class="hint">both/neither = no filter</span>
   </div>
+  <div class="rowflex" id="tierbox">
+    <label class="small"><input type="checkbox" id="t2"> Season 2 2-piece</label>
+    <label class="small"><input type="checkbox" id="t4"> Season 2 4-piece</label>
+    <span class="hint" id="tierhint"></span>
+  </div>
 
   <div class="side-label">Where</div>
   <details><summary>Dungeon <span class="cnt" id="cnt-dun"></span></summary><div class="chips" id="f-dun"></div></details>
@@ -356,9 +361,10 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              proj:false,       // re-score every parse under the upcoming tuning
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
+             tier2:false, tier4:false,
              tsort:{col:"a_v", dir:-1}};
 let hasTimed=false, hasTune=false, hasProj=false;
-let hasRating=false, CHARSCORE=[];
+let hasRating=false, hasTier=false, CHARSCORE=[];
 // A parse's projected damage multiplier, from ITS OWN ability breakdown.
 // Applying it per row means every aggregate stays exact under any filter.
 const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
@@ -425,6 +431,16 @@ function initData(d,cfg){
   // Raider.IO season score per character, indexed by the same char id the rows
   // carry. Enrichment is a slow background sweep, so partial coverage is the
   // normal state and the metric appears as soon as anyone is rated.
+  // Gear only started being captured partway through the season, so most
+  // historical parses carry -1 (report had no gear). The filter appears only
+  // when something is actually known, and says how much.
+  hasTier=!!(R.tier&&R.tier.some(v=>v>=0));
+  $("tierbox").style.display=hasTier?"":"none";
+  if(hasTier){
+    const known=R.tier.reduce((a,v)=>a+(v>=0),0);
+    $("tierhint").textContent=
+      "gear known for "+(100*known/R.tier.length).toFixed(1)+"% of parses";
+  }
   CHARSCORE=d.charscore||[];
   hasRating=CHARSCORE.some(v=>v>=0);
   hasTune=!!(d.tuning&&R.post);
@@ -478,6 +494,11 @@ function initData(d,cfg){
   $("minchars").max=cfg.maxchars;
   $("minchars").value=state.minchars;
   $("minchars-v").textContent=state.minchars;
+  for(const [id,key] of [["t2","tier2"],["t4","tier4"]]){
+    const el=$(id); if(!el) continue;
+    el.checked=state[key];
+    el.onchange=()=>{state[key]=el.checked; render()};
+  }
   DEF={klo:state.klo, khi:state.khi, timedOnly:state.timedOnly,
        postTune:state.postTune};
   refMemo=new Map();
@@ -881,9 +902,21 @@ function baseMasks(){
     role:idxSet(state.role,D.roles), reg:idxSet(state.reg,D.regions),
     atk:state.melee!==state.ranged?(state.melee?1:2):0};
 }
+// 2-piece means the 2-set bonus and NOT the 4-set; 4-piece means four or
+// more. Kept disjoint so ticking both is a union rather than a contradiction,
+// and so the two can be compared against each other, which is the point.
+// A parse whose report carried no gear (-1) is excluded whenever either box is
+// ticked: it is unknown, not "no set", and counting it either way is a guess.
+function tierPass(i){
+  if(!state.tier2&&!state.tier4) return true;
+  const t=R.tier?R.tier[i]:-1;
+  if(t<0) return false;
+  return (state.tier2&&t>=2&&t<4)||(state.tier4&&t>=4);
+}
 function rowPass(i,m){
   if(state.postTune&&R.post[i]!==1) return false;
   if(state.timedOnly&&R.timed[i]!==1) return false;
+  if(!tierPass(i)) return false;
   if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
   if(m.cls&&!m.cls.has(R.cls[i])) return false;
   if(m.spec&&!m.spec.has(R.spec[i])) return false;
@@ -1099,6 +1132,9 @@ function render(){
       : "")
     +(state.postTune?"<b>Post-tuning runs only.</b> ":"")
     +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
+    +((state.tier2||state.tier4)?"<b>🛡 "
+        +[state.tier2?"2-piece":null,state.tier4?"4-piece":null].filter(Boolean).join(" or ")
+        +" only</b> (parses without gear data excluded). ":"")
     +(state.compare
     ? "Period <b>A</b>: "+describePeriod(state.weeksA)+" (solid, class colors) &nbsp;·&nbsp; "
       +"Period <b>B</b>: "+describePeriod(state.weeksB)+" (grey ghost bars) — KPIs show period A. "

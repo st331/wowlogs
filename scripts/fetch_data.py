@@ -51,6 +51,13 @@ CHECKPOINTS = ROOT / "data" / "checkpoints"
 RANKINGS_FILE = RAW / "rankings.jsonl"
 SUMMARIES_DONE = PROCESSED / "summaries_done.txt"
 PLAYERS_FILE = PROCESSED / "players.jsonl"
+# Full gear and talents live in their own journal rather than inline on the
+# player row. They are an order of magnitude bulkier than everything else on a
+# parse, and players.jsonl round-trips through the committed CSV that seeds a
+# cold start -- keeping the bulk out of that path leaves the seed small and the
+# round-trip unchanged. Keyed report:fight:character so the two rejoin.
+GEAR_FILE = PROCESSED / "gear.jsonl"
+GEAR_CSV = ROOT / "data" / "gear.jsonl.gz"
 # stored gzipped: the live CSV crossed GitHub's hard 100 MB blob limit,
 # and pandas reads/writes .csv.gz transparently
 CSV_FILE = ROOT / "data" / "mythic_runs.csv.gz"
@@ -425,7 +432,101 @@ class HeroResolver:
         return self.names[votes.most_common(1)[0][0]]
 
 
-def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
+def compact_gear(ci: dict | None) -> list[dict] | None:
+    """Equipped items, trimmed to the fields worth keeping.
+
+    Warcraft Logs returns a gear entry per slot with a lot of presentation
+    noise (icon, name, quality). Kept here: the item id, its level, the set it
+    belongs to, its permanent enchant, its gems and its bonus ids -- enough to
+    answer "which trinket", "which enchant", "who is wearing what" later
+    without going back to the API, which would cost the whole season again.
+
+    Slot is the array position, which is how Warcraft Logs conveys it; entries
+    are kept positionally (empty slots become None) so the index stays
+    meaningful.
+    """
+    if not isinstance(ci, dict):
+        return None
+    gear = ci.get("gear")
+    if not isinstance(gear, list) or not gear:
+        return None
+    out: list[dict | None] = []
+    for item in gear:
+        if not isinstance(item, dict) or not item.get("id"):
+            out.append(None)
+            continue
+        rec = {"id": item.get("id")}
+        for src, dst in (("itemLevel", "ilvl"), ("setID", "set"),
+                         ("permanentEnchant", "ench")):
+            v = item.get(src)
+            if v not in (None, 0, "", "0"):
+                rec[dst] = v
+        for src, dst in (("gems", "gems"), ("bonusIDs", "bonus")):
+            v = item.get(src)
+            if isinstance(v, list) and v:
+                rec[dst] = v
+        out.append(rec)
+    return out
+
+
+def compact_talents(ci: dict | None) -> dict | None:
+    """Talent selections and the loadout code, when the report carries them."""
+    if not isinstance(ci, dict):
+        return None
+    out: dict = {}
+    tree = ci.get("talentTree")
+    if isinstance(tree, list) and tree:
+        # each node is {id, name, icon, guid?, ...}; id + rank is the selection
+        out["tree"] = [{"id": n.get("id"), "rank": n.get("rank")}
+                       for n in tree if isinstance(n, dict) and n.get("id")]
+    for key in ("talentImportString", "specID", "heroTalentTreeID"):
+        v = ci.get(key)
+        if v not in (None, "", 0):
+            out[key] = v
+    stats = ci.get("stats")
+    if isinstance(stats, dict) and stats:
+        # secondary stats as rated at the pull: crit/haste/mastery/vers
+        out["stats"] = {k: (v.get("min") if isinstance(v, dict) else v)
+                        for k, v in stats.items()}
+    return out or None
+
+
+def gear_sets(ci: dict | None) -> tuple[int | None, str]:
+    """(pieces equipped from the player's dominant item set, that set's id).
+
+    Deliberately does not care which slots tier pieces occupy. Slot indices in
+    combatantInfo.gear vary by game version and getting them wrong fails
+    silently, whereas set membership is carried on the item itself: the only
+    equipped items with a setID are set items, and a player wears one set. So
+    count setIDs across the whole gear array and take the commonest.
+
+    Returns (None, "") when the report carries no gear at all -- Warcraft Logs
+    omits combatantInfo for some uploads -- which is different from a player
+    who simply has no set pieces, and the two must not be conflated: one is
+    unknown, the other is a real zero.
+    """
+    if not isinstance(ci, dict):
+        return None, ""
+    gear = ci.get("gear")
+    if not isinstance(gear, list) or not gear:
+        return None, ""
+    counts: Counter = Counter()
+    for item in gear:
+        if not isinstance(item, dict):
+            continue
+        sid = item.get("setID")
+        # 0 and None both mean "not part of a set"; ids arrive as int or str
+        if sid in (None, 0, "0", ""):
+            continue
+        counts[str(sid)] += 1
+    if not counts:
+        return 0, ""          # gear was present, this player has no set pieces
+    sid, n = counts.most_common(1)[0]
+    return n, sid
+
+
+def parse_summary(fight: dict, table: dict,
+                  hero: HeroResolver) -> tuple[list[dict], list[dict]]:
     data = table.get("data") if isinstance(table, dict) else None
     if not isinstance(data, dict):
         raise ValueError("no summary data")
@@ -448,11 +549,22 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
         # without a damageDone section has nothing we can use
         raise ValueError("no damage data")
 
-    rows = []
+    rows: list[dict] = []
+    gear_rows: list[dict] = []
     for role_key, role in (("tanks", "Tank"), ("healers", "Healer"), ("dps", "DPS")):
         for p in details.get(role_key) or []:
             ci = p.get("combatantInfo")
             tree = ci.get("talentTree") if isinstance(ci, dict) else None
+            set_pieces, set_id = gear_sets(ci)
+            gear = compact_gear(ci)
+            talents = compact_talents(ci)
+            if gear is not None or talents is not None:
+                gear_rows.append({
+                    "report_code": fight["code"], "fight_id": fight["fid"],
+                    "character": p.get("name"), "server": p.get("server"),
+                    "class": p.get("type"), "spec": spec,
+                    "gear": gear, "talents": talents,
+                })
             specs = p.get("specs") or []
             icon = p.get("icon") or ""
             spec = specs[0] if specs else (icon.split("-", 1)[1] if "-" in icon else "")
@@ -471,6 +583,10 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
                 "dps": round(damage.get(p.get("id"), 0) / seconds, 1),
                 "deaths": int(deaths.get(p.get("id"), 0)),
                 "item_level": p.get("maxItemLevel"),
+                # set_pieces is None when the report carried no gear, which the
+                # build keeps distinct from a genuine zero -- see gear_sets()
+                "set_pieces": set_pieces,
+                "set_id": set_id,
                 "score": fight["score"],
                 "medal": fight["medal"],
                 "affixes": "|".join(str(a) for a in fight["affixes"]),
@@ -480,7 +596,7 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
             })
     if not rows:
         raise ValueError("no players parsed")
-    return rows
+    return rows, gear_rows
 
 
 _tls = threading.local()
@@ -516,9 +632,42 @@ def _fetch_batch(batch: list[dict]):
             alias_error_map(data.get("_errors")), client.spent)
 
 
-def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
+def regear_candidates(fights: dict, done: set[str], min_key: int,
+                      days: float) -> set[str]:
+    """Runs already fetched that should be fetched again to pick up gear.
+
+    Gear was not captured before this existed, so every historical parse has
+    no set information. Rather than refetch the whole season, this narrows to
+    the slice worth the points -- high keys, recent -- and forgets only those
+    from the done-set so the normal summary stage refetches them.
+    """
+    if not fights:
+        return set()
+    newest = max((f.get("start_time") or 0) for f in fights.values())
+    cutoff = newest - days * 86400 * 1000          # start_time is epoch ms
+    out = set()
+    for k, f in fights.items():
+        if k not in done:
+            continue                               # not fetched yet anyway
+        if (f.get("key_level") or 0) < min_key:
+            continue
+        if (f.get("start_time") or 0) < cutoff:
+            continue
+        out.add(k)
+    return out
+
+
+def fetch_summaries(regions: set[str] | None, limit: int | None = None,
+                    regear: tuple[int, float] | None = None) -> None:
     fights = load_fights(regions)
     done = load_done()
+    if regear:
+        min_key, days = regear
+        again = regear_candidates(fights, done, min_key, days)
+        done = done - again
+        print(f"[regear] {len(again):,} already-fetched runs at +{min_key} or "
+              f"higher from the last {days:g} days will be refetched for gear "
+              f"(~{len(again) * 1.35:,.0f} points)", flush=True)
     load_done.cache = done          # lets _pick() prefer an already-fetched copy
     raw_n = len(fights)
     fights = dedupe_fights(fights)
@@ -546,8 +695,10 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
     PROCESSED.mkdir(parents=True, exist_ok=True)
     _repair_tail(SUMMARIES_DONE)
     _repair_tail(PLAYERS_FILE)
+    _repair_tail(GEAR_FILE)
     done_fh = SUMMARIES_DONE.open("a")
     rows_fh = PLAYERS_FILE.open("a")
+    gear_fh = GEAR_FILE.open("a")
     n_done, t0 = 0, time.time()
     retry_round = 0
     while pending and not STOP and retry_round <= 2:
@@ -583,8 +734,8 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
                                 transient.append(f)
                             continue
                         try:
-                            rows = parse_summary(f, node["table"],
-                                                 fetch_summaries.hero)
+                            rows, gear_rows = parse_summary(
+                                f, node["table"], fetch_summaries.hero)
                         except (ValueError, KeyError, TypeError,
                                 AttributeError) as e:
                             done_fh.write(f"{key}\tFAILED\t{e}\n")
@@ -592,11 +743,17 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
                         for row in rows:
                             rows_fh.write(
                                 json.dumps(row, ensure_ascii=False) + "\n")
+                        for row in gear_rows:
+                            gear_fh.write(
+                                json.dumps(row, ensure_ascii=False) + "\n")
                         done_fh.write(f"{key}\tOK\n")
                     # rows must hit disk before their OK markers: a kill
                     # between the flushes then costs a refetch (deduped at
-                    # export), never silent row loss
+                    # export), never silent row loss. Gear flushes with them
+                    # for the same reason -- an OK marker whose gear never
+                    # landed would never be refetched.
                     rows_fh.flush()
+                    gear_fh.flush()
                     done_fh.flush()
                 n_done += 1
                 if n_done % 20 == 0:
@@ -618,6 +775,7 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None) -> None:
               f"(transient failures; re-run to retry)", flush=True)
     done_fh.close()
     rows_fh.close()
+    gear_fh.close()
 
 
 fetch_summaries.hero = None
@@ -626,6 +784,32 @@ fetch_summaries.hero = None
 # --------------------------------------------------------------------------
 # Stage 3: export
 # --------------------------------------------------------------------------
+
+def export_gear() -> None:
+    """Compress the gear/talent journal for durability outside the cache.
+
+    Written separately from mythic_runs.csv.gz because it is far bulkier and
+    grows with every parse; keeping it out of the seed CSV leaves the cold-start
+    path small. Deduped on run+character with the last copy winning, matching
+    the player export, so a refetch supersedes what it replaces.
+    """
+    if not GEAR_FILE.exists():
+        return
+    import pandas as pd
+    rows = list(_iter_journal(GEAR_FILE))
+    if not rows:
+        return
+    df = pd.DataFrame(rows).drop_duplicates(
+        subset=["report_code", "fight_id", "character", "server"], keep="last")
+    tmp = GEAR_CSV.with_name(GEAR_CSV.name + ".tmp")
+    with gzip.open(tmp, "wt", encoding="utf-8") as fh:
+        for rec in df.to_dict("records"):
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    os.replace(tmp, GEAR_CSV)
+    mb = GEAR_CSV.stat().st_size / 1e6
+    print(f"[export] {len(df):,} gear rows -> {GEAR_CSV.name} ({mb:.1f} MB)",
+          flush=True)
+
 
 def export() -> None:
     if not PLAYERS_FILE.exists():
@@ -638,7 +822,12 @@ def export() -> None:
         return
     df = pd.DataFrame(rows)
     before = len(df)
-    df = df.drop_duplicates(subset=["report_code", "fight_id", "character", "server"])
+    # keep="last": the journal is append-only, so when a run has been fetched
+    # twice the later copy is the newer one. That is what makes --regear-min-key
+    # work at all -- the default (keep="first") would hold on to the original
+    # gear-less row and silently discard everything the refetch just paid for.
+    df = df.drop_duplicates(subset=["report_code", "fight_id", "character", "server"],
+                            keep="last")
     # score and medal live in the rankings journal, which is re-swept far more
     # cheaply than the summaries. Overlaying here means a run fetched before it
     # carried either value picks them up on the next export, with no refetch
@@ -697,6 +886,7 @@ def export() -> None:
     tmp = CSV_FILE.with_name(CSV_FILE.name + ".tmp")
     df.to_csv(tmp, index=False, compression="gzip")
     os.replace(tmp, CSV_FILE)  # atomic: the live dashboard never sees a torn file
+    export_gear()
     print(f"[export] {len(df)} player-rows ({before - len(df)} dupes dropped) "
           f"across {df[['report_code', 'fight_id']].drop_duplicates().shape[0]} runs "
           f"-> {CSV_FILE}", flush=True)
@@ -743,6 +933,12 @@ def main() -> None:
                     help="bracket range lo-hi (bracket = key level - 1)")
     ap.add_argument("--limit-fights", type=int, default=None,
                     help="stop after N summary fetches (for testing)")
+    ap.add_argument("--regear-min-key", type=int, default=None,
+                    help="refetch already-fetched runs at this key level or "
+                         "higher to capture gear (see --regear-days)")
+    ap.add_argument("--regear-days", type=float, default=3.0,
+                    help="with --regear-min-key, how far back to refetch "
+                         "(default 3 days)")
     ap.add_argument("--resweep", action="store_true",
                     help="discard the rankings journal (and its checkpoint "
                          "snapshot) to re-scan the leaderboards; already-"
@@ -776,7 +972,9 @@ def main() -> None:
         if args.stage in ("all", "sweep"):
             sweep(client, brackets)
         if args.stage in ("all", "summaries") and not STOP:
-            fetch_summaries(regions, args.limit_fights)
+            regear = ((args.regear_min_key, args.regear_days)
+                      if args.regear_min_key is not None else None)
+            fetch_summaries(regions, args.limit_fights, regear)
     except QuotaDeadline as e:
         # Not a failure: the budget is spent and waiting would cost more than
         # the next run does. Keep everything fetched so far and exit 0 so the

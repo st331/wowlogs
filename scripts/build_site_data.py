@@ -315,6 +315,55 @@ def player_scores() -> dict[str, float]:
     return out
 
 
+def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
+    """Season tier pieces per parse: -1 unknown, else 0-5.
+
+    The collector records how many items a player wears from their commonest
+    item set, and which set that is. It does not know which set is *this*
+    season's tier -- that would mean hard-coding item-set ids that change every
+    patch. Instead the season's set is read off the data: for each class, the
+    set id worn by the most of that class's parses is the current tier, since
+    that is what the set bonus makes everyone wear.
+
+    Pieces from any other set (an old tier kept for transmog, a crafted set)
+    count as zero rather than being credited to this season's bonus.
+
+    -1 means the report carried no gear at all, which stays distinct from a
+    real zero all the way to the client so the filter can exclude it rather
+    than treat it as "no set".
+    """
+    if "set_pieces" not in df.columns:
+        print(f"[{name}] no gear captured yet; tier filter unavailable")
+        return pd.Series(-1, index=df.index, dtype=int)
+    pieces = pd.to_numeric(df["set_pieces"], errors="coerce")
+    sets = df["set_id"].astype(str) if "set_id" in df.columns else pd.Series("", index=df.index)
+    known = pieces.notna()
+    if not known.any():
+        print(f"[{name}] no gear captured yet; tier filter unavailable")
+        return pd.Series(-1, index=df.index, dtype=int)
+
+    # the season's tier set, per class, by popularity among parses that have it
+    seasonal = {}
+    have = known & sets.ne("") & sets.ne("nan")
+    for cls, grp in df.loc[have].groupby("class"):
+        top = sets[grp.index].value_counts()
+        if len(top):
+            seasonal[cls] = top.index[0]
+    out = pd.Series(-1, index=df.index, dtype=int)
+    out.loc[known] = 0
+    match = have & df["class"].map(seasonal).eq(sets)
+    out.loc[match] = pieces[match].astype(int).clip(0, 5)
+
+    n_known = int(known.sum())
+    n2 = int((out >= 2).sum())
+    n4 = int((out >= 4).sum())
+    print(f"[{name}] gear on {n_known:,} of {len(df):,} parses "
+          f"({n_known / max(len(df), 1):.1%}); {n2:,} with 2-piece, "
+          f"{n4:,} with 4-piece; tier sets identified for "
+          f"{len(seasonal)} classes")
+    return out
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
     if not csv.exists():                       # tolerate an un-gzipped copy
@@ -350,6 +399,8 @@ def build(name: str, cfg: dict) -> None:
     roles, role_arr = enc("role")
     run_ids = (df["report_code"].astype(str) + ":" + df["fight_id"].astype(str))
     run_arr = pd.factorize(run_ids)[0].tolist()
+    tier = tier_pieces(df, name)
+
     # character identity (name@server@region), for distinct-player counts
     char_ids = (df["character"].fillna("?").astype(str) + "@"
                 + df["server"].fillna("?").astype(str) + "@" + df["region"])
@@ -405,6 +456,8 @@ def build(name: str, cfg: dict) -> None:
             "day": day.tolist(),
             "run": run_arr,
             "char": char_arr,
+            # season tier pieces: -1 = report carried no gear, else 0-5
+            "tier": tier.tolist(),
             **({"tmul": tmul} if tmul is not None else {}),
         },
         "charscore": charscore,
