@@ -2,8 +2,10 @@
 """Warcraft Logs v2 (GraphQL) client with quota management.
 
 Design goals:
-  * Spend the 18,000 points/hour budget aggressively (no artificial pacing),
-    but stop cleanly before exhausting it and sleep until the window resets.
+  * Never spend more than WCL_QUOTA_FRACTION of the hourly budget (default
+    0.70). The rest of the hour belongs to whatever else the account is doing.
+  * Within that ceiling, spend without artificial pacing, then stop cleanly
+    and sleep until the window resets.
   * Every query piggybacks `rateLimitData` so we always know the live spend
     without extra requests.
   * Survive 429s, transient network errors and GraphQL quota errors.
@@ -21,6 +23,7 @@ import json
 import os
 import pathlib
 import sys
+import threading
 import time
 
 import requests
@@ -40,6 +43,93 @@ API_URL = "https://www.warcraftlogs.com/api/v2/client"
 TOKEN_URL = "https://www.warcraftlogs.com/oauth/token"
 
 RATE_FIELD = "rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn }"
+
+# Hard ceiling on the share of the hourly budget this process may spend, as a
+# fraction of whatever limitPerHour the API reports. Overridable per-run with
+# WCL_QUOTA_FRACTION, and clamped to 1.0 so it can never authorise more than
+# the account actually has.
+DEFAULT_QUOTA_FRACTION = 0.70
+
+
+def quota_fraction() -> float:
+    raw = os.environ.get("WCL_QUOTA_FRACTION", "").strip()
+    if not raw:
+        return DEFAULT_QUOTA_FRACTION
+    try:
+        f = float(raw)
+    except ValueError:
+        print(f"[wcl] ignoring unparseable WCL_QUOTA_FRACTION={raw!r}; "
+              f"using {DEFAULT_QUOTA_FRACTION}", flush=True)
+        return DEFAULT_QUOTA_FRACTION
+    if not 0 < f <= 1:
+        print(f"[wcl] WCL_QUOTA_FRACTION={f} out of range (0, 1]; "
+              f"using {DEFAULT_QUOTA_FRACTION}", flush=True)
+        return DEFAULT_QUOTA_FRACTION
+    return f
+
+
+class _Quota:
+    """Account-wide hourly budget, shared by every client in the process.
+
+    The budget is per ACCOUNT -- not per API client and not per thread -- so
+    the fourteen summary workers are all drawing on one pot. Holding this state
+    per instance let each worker believe the whole hour was its own, and
+    fourteen such beliefs overshoot any ceiling by fourteen requests.
+
+    `inflight` is the estimated cost of requests admitted but not yet returned.
+    Without it a burst of workers all pass the same check against the same
+    stale `spent` and go through together.
+    """
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.limit = 18000.0
+        self.spent = 0.0
+        self.reset_in = 3600.0
+        self.inflight = 0.0
+        self.requests_made = 0
+        self.fraction = quota_fraction()
+        self.probe_lock = threading.Lock()
+        self.probed = False
+        # until a real reading lands we are guessing; the first response fixes
+        # both the true limit and what the rest of the account already spent
+        self.observed = False
+
+    @property
+    def ceiling(self) -> float:
+        return self.limit * self.fraction
+
+    def admit(self, est_cost: float, margin: float) -> bool:
+        """Reserve est_cost against the ceiling, or refuse."""
+        with self.lock:
+            if self.spent + self.inflight + est_cost + margin >= self.ceiling:
+                return False
+            self.inflight += est_cost
+            return True
+
+    def release(self, est_cost: float) -> None:
+        with self.lock:
+            self.inflight = max(0.0, self.inflight - est_cost)
+
+    def observe(self, rl: dict) -> None:
+        with self.lock:
+            self.limit = float(rl["limitPerHour"])
+            self.spent = float(rl["pointsSpentThisHour"])
+            self.reset_in = float(rl["pointsResetIn"])
+            self.observed = True
+
+    def count_request(self) -> None:
+        with self.lock:
+            self.requests_made += 1
+
+    def rolled_over(self) -> None:
+        with self.lock:
+            self.spent = 0.0
+            self.reset_in = 3600.0
+            self.inflight = 0.0
+
+
+QUOTA = _Quota()
 
 
 def _read_secret(name: str) -> str | None:
@@ -85,11 +175,62 @@ class WCLClient:
         self.session.headers["Authorization"] = f"Bearer {self.token}"
         self.budget_margin = budget_margin
         self.verbose = verbose
-        # live quota state, refreshed on every response
-        self.limit = 18000.0
-        self.spent = 0.0
-        self.reset_in = 3600.0
-        self.requests_made = 0
+        self._probe_quota()
+
+    def _probe_quota(self) -> None:
+        """Learn what the account has already spent, before spending anything.
+
+        The governor starts at zero spent because it has not seen a reading
+        yet. Without this, the first request of a process goes out no matter
+        what the rest of the account did in this hour -- which is precisely the
+        case the ceiling exists to catch. One cheap query (rateLimitData alone)
+        closes it. Deliberately bypasses the budget guard: it is the call that
+        makes the guard meaningful, and refusing it would deadlock the start.
+        """
+        with QUOTA.probe_lock:
+            if QUOTA.probed:
+                return
+            QUOTA.probed = True
+        try:
+            r = self.session.post(API_URL, json={"query": "{ " + RATE_FIELD + " }"},
+                                  timeout=60)
+            rl = ((r.json() or {}).get("data") or {}).get("rateLimitData")
+        except (requests.RequestException, ValueError, AttributeError) as e:
+            self._log(f"could not read starting quota ({e}); "
+                      f"the first response will set it")
+            return
+        if not rl:
+            return
+        QUOTA.observe(rl)
+        self._log(f"quota at start: {QUOTA.spent:.0f}/{QUOTA.limit:.0f} pts spent "
+                  f"this hour; ceiling {QUOTA.ceiling:.0f} "
+                  f"({QUOTA.fraction:.0%}), {QUOTA.ceiling - QUOTA.spent:.0f} available")
+        if QUOTA.spent >= QUOTA.ceiling:
+            self._log("already at or over the ceiling; this run will not fetch")
+
+    # Quota lives in the process-wide governor, not on the instance: callers
+    # build one client per thread, and a per-instance view of a per-account
+    # budget is exactly the bug this avoids. Exposed as properties so existing
+    # readers of client.spent / client.limit keep working unchanged.
+    @property
+    def limit(self) -> float:
+        return QUOTA.limit
+
+    @property
+    def spent(self) -> float:
+        return QUOTA.spent
+
+    @property
+    def reset_in(self) -> float:
+        return QUOTA.reset_in
+
+    @property
+    def ceiling(self) -> float:
+        return QUOTA.ceiling
+
+    @property
+    def requests_made(self) -> int:
+        return QUOTA.requests_made
 
     def _log(self, msg: str) -> None:
         if self.verbose:
@@ -103,22 +244,21 @@ class WCLClient:
         # with a fresh budget, instead of being killed having fetched nothing.
         cap = float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
         if cap and wait > cap:
-            self._log(f"quota exhausted ({self.spent:.0f}/{self.limit:.0f} pts) and "
-                      f"the reset is {wait:.0f}s away, over the {cap:.0f}s cap; "
-                      f"stopping so the next run can use a fresh window")
+            self._log(f"budget ceiling reached ({self.spent:.0f}/{self.ceiling:.0f} "
+                      f"pts, {QUOTA.fraction:.0%} of {self.limit:.0f}) and the reset "
+                      f"is {wait:.0f}s away, over the {cap:.0f}s cap; stopping so the "
+                      f"next run can use a fresh window")
             raise QuotaDeadline(f"quota reset {wait:.0f}s away, cap {cap:.0f}s")
-        self._log(f"quota nearly exhausted ({self.spent:.0f}/{self.limit:.0f} pts); "
-                  f"sleeping {wait:.0f}s until the window resets")
+        self._log(f"budget ceiling reached ({self.spent:.0f}/{self.ceiling:.0f} pts, "
+                  f"{QUOTA.fraction:.0%} of {self.limit:.0f}); sleeping {wait:.0f}s "
+                  f"until the window resets")
         time.sleep(wait)
-        self.spent = 0.0
-        self.reset_in = 3600.0
+        QUOTA.rolled_over()
 
     def _update_rate(self, data: dict) -> None:
         rl = data.get("rateLimitData")
         if rl:
-            self.limit = float(rl["limitPerHour"])
-            self.spent = float(rl["pointsSpentThisHour"])
-            self.reset_in = float(rl["pointsResetIn"])
+            QUOTA.observe(rl)
 
     def query(self, gql: str, variables: dict | None = None,
               est_cost: float = 15.0) -> dict:
@@ -137,72 +277,83 @@ class WCLClient:
         auth_retried = False
         gql_failures = 0
         while True:
-            # budget guard: leave headroom for this request's estimated cost
-            if self.spent + est_cost + self.budget_margin >= self.limit:
-                self._sleep_for_reset()
-            try:
-                r = self.session.post(
-                    API_URL, json={"query": gql, "variables": variables or {}},
-                    timeout=120)
-            except requests.RequestException as e:
-                self._log(f"network error: {e}; retrying in {backoff}s")
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 120)
-                continue
-
-            if r.status_code == 429:
-                retry_after = float(r.headers.get("Retry-After", 0) or 0)
-                wait = retry_after if retry_after > 0 else max(self.reset_in, 60) + 20
-                self._log(f"HTTP 429; sleeping {wait:.0f}s")
-                time.sleep(wait)
-                continue
-            if r.status_code >= 500:
-                self._log(f"HTTP {r.status_code}; retrying in {backoff}s")
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 120)
-                continue
-            if r.status_code in (401, 403):
-                # a cached client-credentials token may simply have expired
-                if self.token_source == "auto" and not auth_retried:
-                    auth_retried = True
-                    self._log("HTTP 401/403: refreshing client-credentials token")
-                    (SECRETS / "wcl_token_auto").unlink(missing_ok=True)
-                    self.token = _client_credentials_token(self.session)
-                    self.session.headers["Authorization"] = f"Bearer {self.token}"
-                    continue
-                sys.exit(f"auth failure (HTTP {r.status_code}): check WCL token")
-            r.raise_for_status()
-
-            try:
-                payload = r.json()
-            except ValueError:
-                self._log(f"non-JSON 200 response; retrying in {backoff}s")
-                time.sleep(backoff)
-                backoff = min(backoff * 2, 120)
-                continue
-            data = payload.get("data") or {}
-            self._update_rate(data)
-            self.requests_made += 1
-
-            errors = payload.get("errors") or []
-            quota_err = [e for e in errors
-                         if "quota" in e.get("message", "").lower()
-                         or "rate limit" in e.get("message", "").lower()]
-            if quota_err and not data.get("reportData") and not data.get("worldData"):
-                self._log(f"GraphQL quota error: {quota_err[0]['message']}")
+            # Budget guard. Reserves this request's estimated cost against the
+            # ceiling before sending, so concurrent workers cannot all clear the
+            # same check on the same stale reading. Refused means the ceiling is
+            # reached: sleep to the window reset (or stop, under a deadline).
+            if not QUOTA.admit(est_cost, self.budget_margin):
                 self._sleep_for_reset()
                 continue
-            if errors and not (data.get("reportData") or data.get("worldData")):
-                # whole-query GraphQL failure with no usable payload: transient
-                # server hiccups land here too, so retry before giving up
-                gql_failures += 1
-                if gql_failures <= 3:
-                    self._log(f"GraphQL error ({gql_failures}/3): "
-                              f"{errors[0].get('message', '?')[:120]}; retrying")
+            # The reservation is released on every way out of this iteration --
+            # retry, raise or return. Leaking one would permanently shrink the
+            # headroom the ceiling is computed against; on a success the real
+            # cost has already replaced it via _update_rate.
+            try:
+                try:
+                    r = self.session.post(
+                        API_URL, json={"query": gql, "variables": variables or {}},
+                        timeout=120)
+                except requests.RequestException as e:
+                    self._log(f"network error: {e}; retrying in {backoff}s")
                     time.sleep(backoff)
                     backoff = min(backoff * 2, 120)
                     continue
-                raise RuntimeError(f"GraphQL error: {errors[:3]}")
-            # partial errors (individual aliases) are the caller's business
-            data["_errors"] = errors
-            return data
+
+                if r.status_code == 429:
+                    retry_after = float(r.headers.get("Retry-After", 0) or 0)
+                    wait = retry_after if retry_after > 0 else max(self.reset_in, 60) + 20
+                    self._log(f"HTTP 429; sleeping {wait:.0f}s")
+                    time.sleep(wait)
+                    continue
+                if r.status_code >= 500:
+                    self._log(f"HTTP {r.status_code}; retrying in {backoff}s")
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 120)
+                    continue
+                if r.status_code in (401, 403):
+                    # a cached client-credentials token may simply have expired
+                    if self.token_source == "auto" and not auth_retried:
+                        auth_retried = True
+                        self._log("HTTP 401/403: refreshing client-credentials token")
+                        (SECRETS / "wcl_token_auto").unlink(missing_ok=True)
+                        self.token = _client_credentials_token(self.session)
+                        self.session.headers["Authorization"] = f"Bearer {self.token}"
+                        continue
+                    sys.exit(f"auth failure (HTTP {r.status_code}): check WCL token")
+                r.raise_for_status()
+
+                try:
+                    payload = r.json()
+                except ValueError:
+                    self._log(f"non-JSON 200 response; retrying in {backoff}s")
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 120)
+                    continue
+                data = payload.get("data") or {}
+                self._update_rate(data)
+                QUOTA.count_request()
+
+                errors = payload.get("errors") or []
+                quota_err = [e for e in errors
+                             if "quota" in e.get("message", "").lower()
+                             or "rate limit" in e.get("message", "").lower()]
+                if quota_err and not data.get("reportData") and not data.get("worldData"):
+                    self._log(f"GraphQL quota error: {quota_err[0]['message']}")
+                    self._sleep_for_reset()
+                    continue
+                if errors and not (data.get("reportData") or data.get("worldData")):
+                    # whole-query GraphQL failure with no usable payload: transient
+                    # server hiccups land here too, so retry before giving up
+                    gql_failures += 1
+                    if gql_failures <= 3:
+                        self._log(f"GraphQL error ({gql_failures}/3): "
+                                  f"{errors[0].get('message', '?')[:120]}; retrying")
+                        time.sleep(backoff)
+                        backoff = min(backoff * 2, 120)
+                        continue
+                    raise RuntimeError(f"GraphQL error: {errors[:3]}")
+                # partial errors (individual aliases) are the caller's business
+                data["_errors"] = errors
+                return data
+            finally:
+                QUOTA.release(est_cost)

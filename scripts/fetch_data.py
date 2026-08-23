@@ -784,7 +784,9 @@ def main() -> None:
         print(f"[quota] stopping early -- {e}", flush=True)
     export()
     print(f"[done] {client.requests_made} HTTP requests, "
-          f"{client.spent:.0f} points spent this window", flush=True)
+          f"{client.spent:.0f} points spent this window "
+          f"({client.spent / max(client.limit, 1):.1%} of the account budget; "
+          f"ceiling {client.ceiling:.0f})", flush=True)
 
 
 if __name__ == "__main__":

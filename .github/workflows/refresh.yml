@@ -88,6 +88,12 @@ jobs:
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
+          # Hard ceiling on the share of the hourly API budget this run may
+          # spend. The budget is per ACCOUNT, so the remaining 30% stays free
+          # for anything else using the same credentials. The client refuses to
+          # send a request that would cross it and stops cleanly instead.
+          # Raise ONLY on an explicit request; the client clamps it to 1.0.
+          WCL_QUOTA_FRACTION: "0.70"
           # the job has 50 minutes; never spend more than 8 of them asleep
           # waiting for a quota window that the next run will get for free
           WCL_MAX_SLEEP_S: "480"
