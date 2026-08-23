@@ -325,6 +325,12 @@ const TABS = [
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
+  {id:"ascore", label:"Average Score", fmt:v=>v.toFixed(1), betterUp:true,
+   inlay:"dps", shade:"avg", tick:"mscore", score:true,
+   cap:"Average Mythic+ score of the runs this spec appeared in, under the current filters. It measures the company a spec keeps — how highly rated the runs are — not how hard it hits. Grey tick: median. Brighter bar = higher average DPS."},
+  {id:"mscore", label:"Median Score", fmt:v=>v.toFixed(1), betterUp:true,
+   inlay:"dps", shade:"avg", tick:"ascore", score:true,
+   cap:"Median Mythic+ score of the runs this spec appeared in. Less swayed by a handful of very high-rated runs than the average. Grey tick: average. Brighter bar = higher average DPS."},
   {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
    inlay:"dps", shade:"avg", tick:null,
    cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher average DPS."},
@@ -353,7 +359,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
              tsort:{col:"a_v", dir:-1}};
-let hasTimed=false, hasTune=false, hasProj=false;
+let hasTimed=false, hasTune=false, hasProj=false, hasScore=false;
 // A parse's projected damage multiplier, from ITS OWN ability breakdown.
 // Applying it per row means every aggregate stays exact under any filter.
 const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
@@ -419,6 +425,9 @@ function initData(d,cfg){
   buildRuns();
   computeResetBuckets();
   // score tabs only make sense when the source carries ranking scores
+  // a run drops off the leaderboard eventually and loses its score, so the
+  // metric only appears when the payload actually carries some
+  hasScore=!!(R.score&&R.score.some(v=>v>=0));
   hasTune=!!(d.tuning&&R.post);
   $("tunebox").style.display=hasTune?"":"none";
   state.postTune=hasTune;
@@ -813,7 +822,7 @@ function buildControls(){
   });
   const tabs=$("tabs");
   tabs.innerHTML="";
-  TABS.forEach(t=>{
+  TABS.filter(t=>!t.score||hasScore).forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
@@ -824,7 +833,7 @@ function buildControls(){
   // trend-metric picker: one entry per metric tab, shown only on the Trend
   const tseg=$("trendseg");
   tseg.innerHTML="";
-  TABS.filter(t=>!t.trend).forEach(t=>{
+  TABS.filter(t=>!t.trend&&(!t.score||hasScore)).forEach(t=>{
     const b=document.createElement("button"); b.textContent=t.label;
     b.className=t.id===state.trendMetric?"on":"";
     b.onclick=()=>{state.trendMetric=t.id;
@@ -941,7 +950,8 @@ function aggregate(weeks){
     const key=groupKey(i);
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,dps:[],rsum:0,rdps:[],chars:new Set()};
+             n:0,sum:0,dsum:0,dzero:0,dps:[],rsum:0,rdps:[],chars:new Set(),
+             scores:[]};
            groups.set(key,g)}
     const dv=dpsAt(i);
     g.n++; g.sum+=dv; g.dsum+=R.deaths[i];
@@ -950,11 +960,20 @@ function aggregate(weeks){
     // recorded (un-projected) figures, so the toggle can show a delta
     g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
     g.chars.add(R.char[i]); charSeen.add(R.char[i]);
+    // a run that has aged off the leaderboard carries -1; skip rather than
+    // averaging it in as a zero
+    if(R.score&&R.score[i]>=0) g.scores.push(R.score[i]);
   }
   const out=new Map();
   for(const [key,g] of groups){
     g.dps.sort((a,b)=>a-b);
     const med=q50(g.dps);
+    let ascore=NaN, mscore=NaN;
+    if(g.scores.length){
+      g.scores.sort((a,b)=>a-b);
+      ascore=g.scores.reduce((a,b)=>a+b,0)/g.scores.length;
+      mscore=q50(g.scores);
+    }
     let ravg=null, rmed=null;
     if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n; rmed=q50(g.rdps)}
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
@@ -963,7 +982,7 @@ function aggregate(weeks){
       ravg, rmed, rdiff:(ravg==null?null:ravg-rmed),
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
-      chars:g.chars.size});
+      chars:g.chars.size, ascore, mscore, sn:g.scores.length});
   }
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
@@ -1014,6 +1033,12 @@ function tipHTML(r,compare){
   h+=row("Mean − median", f(r.a,"diff",fmtSigned), f(r.b,"diff",fmtSigned));
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
+  if(hasScore){
+    const sf=v=>isFinite(v)?v.toFixed(1):"–";
+    h+=row("Average score", f(r.a,"ascore",sf), f(r.b,"ascore",sf));
+    h+=row("Median score", f(r.a,"mscore",sf), f(r.b,"mscore",sf));
+    h+=row("Scored runs", f(r.a,"sn",fmtInt), f(r.b,"sn",fmtInt));
+  }
   return h+"</table>";
 }
 function attachTip(el,html){
@@ -1299,13 +1324,14 @@ function renderTrend(){
   if(mt.score){state.trendMetric="avg"; mt=TABS[0];}
   const useDeaths=mt.id==="adeaths"||mt.id==="deathless";
   const useChars=mt.id==="chars";
+  const useScore=mt.id==="ascore"||mt.id==="mscore";
   const calc=vals=>{           // metric over one bag of per-parse source values
     const n=vals.length; if(!n) return NaN;
     let s=0,z=0; for(const v of vals){s+=v; if(v===0)z++}
     switch(mt.id){
       case "chars": return new Set(vals).size;
-      case "avg": case "adeaths": return s/n;
-      case "med": return q50([...vals].sort((a,b)=>a-b));
+      case "avg": case "adeaths": case "ascore": return s/n;
+      case "med": case "mscore": return q50([...vals].sort((a,b)=>a-b));
       case "diff": return s/n-q50([...vals].sort((a,b)=>a-b));
       case "deathless": return 100*z/n;
     }
@@ -1318,7 +1344,9 @@ function renderTrend(){
     if(!rowPass(i,m)) continue;
     const w=R.rbucket[i]; if(w>=999) continue;
     charsAll.add(R.char[i]);
-    const v=useChars?R.char[i]:useDeaths?R.deaths[i]:dpsAt(i);
+    if(useScore&&!(R.score&&R.score[i]>=0)) continue;   // no score on this run
+    const v=useChars?R.char[i]:useDeaths?R.deaths[i]
+           :useScore?R.score[i]:dpsAt(i);
     const key=groupKey(i);
     let t=tot.get(key);
     if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
@@ -1389,12 +1417,13 @@ function renderTrend(){
   let ymin=1e18,ymax=-1e18;
   series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
   const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
-  if((useDeaths||useChars)&&ymin<0) ymin=0;        // these metrics can't go negative
+  if((useDeaths||useChars||useScore)&&ymin<0) ymin=0;  // none of these go negative
   if(mt.id==="deathless"&&ymax>100) ymax=100;
   const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
   const ys=v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
   const axf=v=>useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
-    :useChars?String(Math.round(v)):Math.round(v/1000)+"k";
+    :useChars?String(Math.round(v))
+    :useScore?v.toFixed(0):Math.round(v/1000)+"k";
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,buckets,ymin,ymax,mt);
     wireTrendTips(box,mt);
@@ -1537,6 +1566,7 @@ function renderTable(rows,tab){
       ["avg","Average DPS"],["med","Median DPS"],
       ["diff","Mean − Median"],["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
+    if(hasScore) cols.push(["ascore","Avg Score"],["mscore","Med Score"]);
   }
   const get=(r,k)=>{
     switch(k){
@@ -1579,6 +1609,7 @@ function renderTable(rows,tab){
     if(k==="b_v") return isFinite(v)?fmt(v):"–";
     if(k==="d") return isFinite(v)
       ?`<span class="delta ${ (v>=0)===tab.betterUp?"up":"down" }">${(v>=0?"+":"")+(v*100).toFixed(1)}%</span>`:"–";
+    if(k==="ascore"||k==="mscore") return isFinite(v)?v.toFixed(1):"–";
     if(k==="avg") return fmtInt(v)+(state.proj?projDelta(v,r.a.ravg):"");
     if(k==="med") return fmtInt(v)+(state.proj?projDelta(v,r.a.rmed):"");
     if(k==="diff") return fmtSigned(v);

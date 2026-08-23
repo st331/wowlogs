@@ -380,7 +380,7 @@ def load_fights(regions: set[str] | None) -> dict:
                 "dungeon": ENCOUNTERS.get(rec["enc"], str(rec["enc"])),
                 "key_level": r.get("bracketData", bracket_to_key(rec["bracket"])),
                 "rank_duration_ms": r.get("duration"),
-                "medal": r.get("medal"),
+                "score": r.get("score"), "medal": r.get("medal"),
                 "affixes": r.get("affixes") or [],
                 "region": region or (prev or {}).get("region", ""),
                 "start_time": r.get("startTime") or (prev or {}).get("start_time"),
@@ -471,6 +471,7 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver) -> list[dict]:
                 "dps": round(damage.get(p.get("id"), 0) / seconds, 1),
                 "deaths": int(deaths.get(p.get("id"), 0)),
                 "item_level": p.get("maxItemLevel"),
+                "score": fight["score"],
                 "medal": fight["medal"],
                 "affixes": "|".join(str(a) for a in fight["affixes"]),
                 "report_code": fight["code"],
@@ -638,9 +639,9 @@ def export() -> None:
     df = pd.DataFrame(rows)
     before = len(df)
     df = df.drop_duplicates(subset=["report_code", "fight_id", "character", "server"])
-    # medals live in the rankings journal, which can be re-swept much more
-    # cheaply than the summaries; overlay so a late-arriving medal reaches rows
-    # fetched before the journal carried one
+    # score and medal live in the rankings journal, which is re-swept far more
+    # cheaply than the summaries. Overlaying here means a run fetched before it
+    # carried either value picks them up on the next export, with no refetch
     jmap = {(f["code"], f["fid"]): f for f in load_fights(None).values()}
     # The keystone clock (wall-time against the dungeon timer) differs from the
     # combat duration already stored, and is what "% under timer" needs. WCL's
@@ -688,12 +689,11 @@ def export() -> None:
         print(f"[export] collapsed {len(per_run) - len(canon)} duplicate "
               f"uploads of the same fight", flush=True)
     if jmap:
-        for col in ("medal",):
+        for col in ("score", "medal"):
             df[col] = [
                 (jmap.get((c, f), {}).get(col) if jmap.get((c, f), {}).get(col)
                  is not None else v)
                 for c, f, v in zip(df["report_code"], df["fight_id"], df[col])]
-    df = df.drop(columns=[c for c in ("score",) if c in df.columns])
     tmp = CSV_FILE.with_name(CSV_FILE.name + ".tmp")
     df.to_csv(tmp, index=False, compression="gzip")
     os.replace(tmp, CSV_FILE)  # atomic: the live dashboard never sees a torn file
