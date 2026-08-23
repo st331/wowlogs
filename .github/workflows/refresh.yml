@@ -62,7 +62,11 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 50          # never let a run bleed into the next hour
+    # 50 for the scheduled path, so a run never bleeds into the next slot. A
+    # gear refetch needs more than one hourly quota window by arithmetic, so it
+    # is allowed to sit through the reset rather than stop and wait to be
+    # dispatched again.
+    timeout-minutes: ${{ inputs.regear_min_key != '' && 110 || 50 }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -111,22 +115,30 @@ jobs:
           WCL_QUOTA_FRACTION: ${{ inputs.quota_fraction || '0.70' }}
           # the job has 50 minutes; never spend more than 8 of them asleep
           # waiting for a quota window that the next run will get for free
-          WCL_MAX_SLEEP_S: "480"
+          # Scheduled runs never wait more than 8 minutes for a quota window
+          # the next run gets for free. A refetch has nothing to hand off to,
+          # so it waits the window out.
+          WCL_MAX_SLEEP_S: ${{ inputs.regear_min_key != '' && '3000' || '480' }}
+          # Headroom the client keeps below the ceiling. Nothing else is
+          # competing during a deliberate refetch, so it can run to the line.
+          WCL_BUDGET_MARGIN: ${{ inputs.regear_min_key != '' && '20' || '400' }}
         run: |
           test -n "$WCL_CLIENT_ID" || {
             echo "::error::WCL_CLIENT_ID / WCL_CLIENT_SECRET repository secrets are not set"
             exit 1
           }
-          # On a scheduled run always re-scan; the sweep considers itself
-          # finished once its cursors close, so without this it finds nothing.
-          # the rankings sweep closes its cursors once walked, so a refresh
-          # that does not re-scan finds nothing
+          # The sweep closes its cursors once walked, so a refresh that does
+          # not re-scan finds nothing -- hence re-scanning by default. A gear
+          # refetch works from the existing journal and gains nothing from it,
+          # and the scan is ~1,900 points, about 1,400 runs of refetch.
           REGEAR=""
           if [ -n "${{ inputs.regear_min_key }}" ]; then
             REGEAR="--regear-min-key ${{ inputs.regear_min_key }} --regear-days ${{ inputs.regear_days || '3' }}"
             echo "::notice::gear refetch: $REGEAR at quota fraction ${{ inputs.quota_fraction || '0.70' }}"
           fi
-          python -u scripts/fetch_data.py --resweep $REGEAR
+          SWEEP="--resweep"
+          [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
+          python -u scripts/fetch_data.py $SWEEP $REGEAR
 
       # Raider.IO season scores, one request per character against a ~150k
       # population and no bulk endpoint. This spends no Warcraft Logs budget at
@@ -137,6 +149,7 @@ jobs:
       # Time-boxed so it never approaches the job timeout, and never fails the
       # run -- an enrichment outage must not stop the data refresh.
       - name: Raider.IO player ratings
+        if: inputs.regear_min_key == ''
         continue-on-error: true
         run: python -u scripts/fetch_rio.py --budget-s 900
 

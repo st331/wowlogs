@@ -169,7 +169,12 @@ class QuotaExceeded(Exception):
 
 
 class WCLClient:
-    def __init__(self, budget_margin: float = 400.0, verbose: bool = True):
+    def __init__(self, budget_margin: float | None = None, verbose: bool = True):
+        if budget_margin is None:
+            try:
+                budget_margin = float(os.environ.get("WCL_BUDGET_MARGIN", "") or 400.0)
+            except ValueError:
+                budget_margin = 400.0
         self.session = requests.Session()
         self.token, self.token_source = get_token(self.session)
         self.session.headers["Authorization"] = f"Bearer {self.token}"
