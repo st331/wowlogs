@@ -556,6 +556,10 @@ def parse_summary(fight: dict, table: dict,
             ci = p.get("combatantInfo")
             tree = ci.get("talentTree") if isinstance(ci, dict) else None
             set_pieces, set_id = gear_sets(ci)
+            specs = p.get("specs") or []
+            icon = p.get("icon") or ""
+            spec = specs[0] if specs else (icon.split("-", 1)[1] if "-" in icon else "")
+            # after spec is resolved -- the gear record carries it
             gear = compact_gear(ci)
             talents = compact_talents(ci)
             if gear is not None or talents is not None:
@@ -565,9 +569,6 @@ def parse_summary(fight: dict, table: dict,
                     "class": p.get("type"), "spec": spec,
                     "gear": gear, "talents": talents,
                 })
-            specs = p.get("specs") or []
-            icon = p.get("icon") or ""
-            spec = specs[0] if specs else (icon.split("-", 1)[1] if "-" in icon else "")
             rows.append({
                 "character": p.get("name"),
                 "server": p.get("server"),

@@ -8,7 +8,7 @@ return "unknown" rather than raise or invent a zero.
 """
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from fetch_data import compact_gear, compact_talents, gear_sets
+from fetch_data import compact_gear, compact_talents, gear_sets, parse_summary
 
 TIER = "1729"
 def item(i, set_id=None, **kw):
@@ -61,4 +61,40 @@ print("real zero : gear present, no set items -> pieces 0 (not None)")
 assert compact_talents(None) is None and compact_talents({}) is None
 assert compact_talents({"gear": []}) is None
 print("talents   : absent -> None")
+# --- parse_summary end to end.
+# The helpers above all passed while parse_summary itself raised
+# UnboundLocalError on the first real report, because the gear record was built
+# before the variable it reads. Helper-level tests cannot see that; this can.
+class _Hero:
+    def resolve(self, tree): return "Hero"
+
+fight = {"code": "aBc", "fid": 7, "dungeon": "Halls", "key_level": 14,
+         "region": "US", "score": 400.0, "medal": "gold", "affixes": [9, 10],
+         "start_time": 1_700_000_000_000, "rank_duration_ms": 1_500_000}
+player = {"id": 1, "name": "Tester", "server": "Illidan", "type": "Rogue",
+          "specs": ["Assassination"], "icon": "Rogue-Assassination",
+          "maxItemLevel": 720, "combatantInfo": full}
+table = {"data": {"totalTime": 1_500_000,
+                  "playerDetails": {"dps": [player]},
+                  "damageDone": [{"id": 1, "total": 9_000_000}],
+                  "deathEvents": []}}
+
+rows, gear_rows = parse_summary(fight, table, _Hero())
+assert len(rows) == 1 and len(gear_rows) == 1, (len(rows), len(gear_rows))
+r, g = rows[0], gear_rows[0]
+assert r["spec"] == "Assassination" and r["set_pieces"] == 4 and r["set_id"] == TIER
+assert g["spec"] == "Assassination" and g["report_code"] == "aBc" and g["fight_id"] == 7
+assert len(g["gear"]) == 9 and g["talents"]["specID"] == 260
+print(f"parse_summary: 1 row + 1 gear row; spec={r['spec']!r} "
+      f"set_pieces={r['set_pieces']} gear_slots={len(g['gear'])}")
+
+bare = dict(player); bare.pop("combatantInfo")
+rows2, gear2 = parse_summary(fight, {"data": {"totalTime": 1_500_000,
+    "playerDetails": {"dps": [bare]},
+    "damageDone": [{"id": 1, "total": 9_000_000}], "deathEvents": []}}, _Hero())
+assert len(rows2) == 1 and gear2 == [], (rows2, gear2)
+assert rows2[0]["set_pieces"] is None, rows2[0]["set_pieces"]
+print("parse_summary: no combatantInfo -> player row kept, no gear row, "
+      "set_pieces None")
+
 print("\nPASS")
