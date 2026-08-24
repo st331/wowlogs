@@ -77,12 +77,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
 
+
       - run: pip install requests pandas
+
 
       # Journals are gitignored, so they ride in the cache. The key rotates
       # every run and restore-keys falls back to the newest previous one,
@@ -103,6 +106,7 @@ jobs:
             data/processed
           key: wowlogs-journals-${{ github.run_id }}
           restore-keys: wowlogs-journals-
+
 
       - name: Fetch
         env:
@@ -144,21 +148,44 @@ jobs:
           [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
           python -u scripts/fetch_data.py $SWEEP $REGEAR
 
-      # Raider.IO season scores, one request per character against a ~150k
-      # population and no bulk endpoint. This spends no Warcraft Logs budget at
-      # all, so the two-hourly WCL cadence must not drag it down with it: at 15
-      # minutes a run, twelve runs a day at ~300/min covers ~54k characters a
-      # day and clears the backlog in a couple of days. Once it is caught up
-      # only the week-stale entries are due and most runs finish early.
-      # Time-boxed so it never approaches the job timeout, and never fails the
-      # run -- an enrichment outage must not stop the data refresh.
-      - name: Raider.IO player ratings
-        if: inputs.regear_min_key == ''
-        continue-on-error: true
-        run: python -u scripts/fetch_rio.py --budget-s 900
 
       - name: Build site
         run: python -u scripts/build_site_data.py
+
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      # Runs AFTER the deploy, deliberately. It spends no Warcraft Logs
+      # budget, and the build does not need this run's ratings: it reads
+      # the journal restored from the cache, so ratings are one run stale,
+      # at most two hours, which is well inside what they are worth.
+      # Ahead of the deploy its whole budget sat between a push and the
+      # site updating -- ~20 minutes to publish a CSS change. Behind it the
+      # page is live in about four, and the collector still gets every
+      # second of its budget. Save collection journals MUST stay after this
+      # step, or the ratings it fetches never reach the cache.
+
+      - name: Raider.IO player ratings
+        if: inputs.regear_min_key == ''
+        continue-on-error: true
+        # Two minutes on a push, the full fifteen otherwise. The deploy no
+        # longer waits on this step, but the job still holds the concurrency
+        # lock while it runs, so a fifteen-minute tail made every follow-up
+        # push queue behind it. The twelve scheduled runs a day do the real
+        # backfill; a push chipping in two minutes costs it almost nothing.
+        run: |
+          BUDGET=900
+          [ "${{ github.event_name }}" = "push" ] && BUDGET=120
+          echo "Raider.IO budget: ${BUDGET}s (${{ github.event_name }})"
+          python -u scripts/fetch_rio.py --budget-s "$BUDGET"
+
 
       - name: Save collection journals
         if: always()
@@ -168,6 +195,7 @@ jobs:
             data/raw
             data/processed
           key: wowlogs-journals-${{ github.run_id }}
+
 
       # Keeps the recovery seed fresh at one commit a day instead of twelve.
       - name: Commit the export (daily)
@@ -211,10 +239,3 @@ jobs:
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -m "Daily data export ($(date -u +%Y-%m-%d))"
           git push origin HEAD:${{ github.ref_name }}
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - id: deploy
-        uses: actions/deploy-pages@v4
