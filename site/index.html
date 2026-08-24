@@ -1344,11 +1344,16 @@ function setBonusRows(){
     };
     const med=b=>{const v=[];for(const c of g.cells.values())v.push(...c[b]);
       return v.length?q50(v.sort((x,y)=>x-y)):NaN};
+    const tot=g.n[0]+g.n[1]+g.n[2];
     const g2=gain(0,1), g4=gain(1,2), gt=gain(0,2);
     if(!isFinite(g2.pct)&&!isFinite(g4.pct)&&!isFinite(gt.pct)) continue;
     out.push({cls:D.classes[g.cls], spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero],
       n0:g.n[0], n2:g.n[1], n4:g.n[2],
+      // adoption as a share of THIS spec's gear-known parses. Raw 2-set and
+      // 4-set counts cannot be read across specs -- a spec played ten times as
+      // much leads on every one of them regardless of how its players gear.
+      s2:tot?100*g.n[1]/tot:NaN, s4:tot?100*g.n[2]/tot:NaN,
       m0:med(0), m2:med(1), m4:med(2),
       p2:g2.pct, p4:g4.pct, pt:gt.pct,
       cells:Math.max(g2.cells,g4.cells,gt.cells)});
@@ -1367,7 +1372,7 @@ function renderSetBonus(){
   const rows=setBonusRows();
   const cols=[["cls","Class","txt"],["spec","Spec","txt"]]
     .concat(state.merge?[]:[["hero","Hero Talent","txt"]])
-    .concat([["n0","No set"],["n2","2-set"],["n4","4-set"],
+    .concat([["n0","No set"],["s2","% 2-set"],["s4","% 4-set"],
              ["m0","DPS no set"],["m2","DPS 2-set"],["m4","DPS 4-set"],
              ["p2","2-set gain"],["p4","4-set gain"],["pt","Total gain"]]);
   if(!cols.some(c=>c[0]===state.ssort.col)) state.ssort={col:"pt", dir:-1};
@@ -1390,6 +1395,7 @@ function renderSetBonus(){
   const cell=(k,r)=>{
     if(k==="cls"||k==="spec"||k==="hero") return esc(r[k]);
     if(k==="p2"||k==="p4"||k==="pt") return pc(r[k]);
+    if(k==="s2"||k==="s4") return isFinite(r[k])?r[k].toFixed(1)+"%":"–";
     return n(r[k]);
   };
   let h='<thead><tr>';
@@ -1412,7 +1418,12 @@ function renderSetBonus(){
   });
   const known=R.tier.reduce((a,v)=>a+(v>=0),0);
   $("set-caption").textContent=
-    "The three DPS columns are each cohort's plain median under the current "
+    "No set is a parse count; % 2-set and % 4-set are shares of the same "
+    +"spec's gear-known parses, so they can be read across specs where raw "
+    +"cohort counts cannot — a spec played ten times as often leads on every "
+    +"raw count whatever its players wear. The three shares sum to 100%, so "
+    +"the no-set share is whatever the other two leave. "
+    +"The three DPS columns are each cohort's plain median under the current "
     +"filters, so they can be read against one another directly — but they are "
     +"not like for like: the 4-set cohort also runs higher keys in better gear. "
     +"The gain columns are the corrected version of that same comparison. "
