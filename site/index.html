@@ -126,6 +126,7 @@ table.data{border-collapse:collapse; width:100%; font-size:.85rem; min-width:700
   text-transform:uppercase; font-size:.66rem; letter-spacing:.1em; padding:.55rem .7rem;
   text-align:right; cursor:pointer; user-select:none; white-space:nowrap}
 .data th.txt{text-align:left}
+#settbl th{white-space:normal}
 .data th.sorted{color:var(--gold)}
 .data td{padding:.42rem .7rem; border-top:1px solid var(--grid); text-align:right;
   font-variant-numeric:tabular-nums}
@@ -365,6 +366,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20, csort:{col:"strength", dir:-1},
+             ssort:{col:"pt", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
              proj:false,       // re-score every parse under the upcoming tuning
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
@@ -1363,27 +1365,51 @@ function renderSetBonus(){
   $("sec-setbonus").style.display=shown?"":"none";
   if(!shown){host.innerHTML=""; return}
   const rows=setBonusRows();
-  rows.sort((a,b)=>(isFinite(b.pt)?b.pt:-1e9)-(isFinite(a.pt)?a.pt:-1e9));
-  $("set-sub").textContent=rows.length?rows.length+" specs with enough matched runs":"not enough matched runs yet";
+  const cols=[["cls","Class","txt"],["spec","Spec","txt"]]
+    .concat(state.merge?[]:[["hero","Hero Talent","txt"]])
+    .concat([["n0","No set"],["n2","2-set"],["n4","4-set"],
+             ["m0","DPS no set"],["m2","DPS 2-set"],["m4","DPS 4-set"],
+             ["p2","2-set gain"],["p4","4-set gain"],["pt","Total gain"]]);
+  if(!cols.some(c=>c[0]===state.ssort.col)) state.ssort={col:"pt", dir:-1};
+  const {col,dir}=state.ssort;
+  // a spec without enough matched cells carries NaN; park those at the bottom
+  // whichever way the column is pointing rather than letting them interleave
+  const nz=v=>typeof v==="number"&&isNaN(v)?-Infinity:v;
+  const sorted=[...rows].sort((a,b)=>{
+    const x=a[col], y=b[col];
+    if(typeof x==="string") return x.localeCompare(y)*dir;
+    const d=nz(x)-nz(y);
+    return (isNaN(d)?0:d)*dir;
+  });
+  $("set-sub").textContent=rows.length
+    ? rows.length+" specs with enough matched runs — click a column to sort"
+    : "not enough matched runs yet";
   const pc=v=>isFinite(v)?'<span class="delta '+(v>=0?"up":"down")+'">'
       +(v>=0?"+":"")+v.toFixed(1)+"%</span>":"–";
   const n=v=>isFinite(v)?fmtInt(v):"–";
-  let h='<thead><tr><th>Class</th><th>Spec</th>'
-    +(state.merge?"":"<th>Hero Talent</th>")
-    +'<th>No set</th><th>2-set</th><th>4-set</th>'
-    +'<th>DPS no set</th><th>DPS 2-set</th><th>DPS 4-set</th>'
-    +'<th>Gain from 2-set</th><th>Gain from 4-set</th><th>Total gain</th>'
-    +'</tr></thead><tbody>';
-  for(const r of rows){
-    h+='<tr><td>'+esc(r.cls)+'</td><td>'+esc(r.spec)+'</td>'
-      +(state.merge?"":"<td>"+esc(r.hero)+"</td>")
-      +'<td>'+n(r.n0)+'</td><td>'+n(r.n2)+'</td><td>'+n(r.n4)+'</td>'
-      +'<td>'+(isFinite(r.m0)?fmtInt(r.m0):"–")+'</td>'
-      +'<td>'+(isFinite(r.m2)?fmtInt(r.m2):"–")+'</td>'
-      +'<td>'+(isFinite(r.m4)?fmtInt(r.m4):"–")+'</td>'
-      +'<td>'+pc(r.p2)+'</td><td>'+pc(r.p4)+'</td><td>'+pc(r.pt)+'</td></tr>';
+  const cell=(k,r)=>{
+    if(k==="cls"||k==="spec"||k==="hero") return esc(r[k]);
+    if(k==="p2"||k==="p4"||k==="pt") return pc(r[k]);
+    return n(r[k]);
+  };
+  let h='<thead><tr>';
+  for(const [k,label,txt] of cols)
+    h+=`<th class="${txt||""} ${k===col?"sorted":""}" data-c="${k}">${label}${
+      k===col?(dir<0?" ↓":" ↑"):""}</th>`;
+  h+='</tr></thead><tbody>';
+  for(const r of sorted){
+    h+="<tr>";
+    for(const [k,,txt] of cols) h+=`<td class="${txt||""}">${cell(k,r)}</td>`;
+    h+="</tr>";
   }
-  host.innerHTML=h+"</tbody></table>";
+  host.innerHTML=h+"</tbody>";
+  host.querySelectorAll("th").forEach(th=>{
+    th.onclick=()=>{
+      const c=th.dataset.c;
+      state.ssort={col:c, dir:state.ssort.col===c?-state.ssort.dir:-1};
+      renderSetBonus();
+    };
+  });
   const known=R.tier.reduce((a,v)=>a+(v>=0),0);
   $("set-caption").textContent=
     "The three DPS columns are each cohort's plain median under the current "
