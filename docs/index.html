@@ -992,7 +992,7 @@ function aggregate(weeks){
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
              n:0,sum:0,dsum:0,dzero:0,dps:[],rsum:0,rdps:[],chars:new Set(),
-             };
+             runs:new Set()};
            groups.set(key,g)}
     const dv=dpsAt(i);
     g.n++; g.sum+=dv; g.dsum+=R.deaths[i];
@@ -1001,6 +1001,9 @@ function aggregate(weeks){
     // recorded (un-projected) figures, so the toggle can show a delta
     g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
     g.chars.add(R.char[i]); charSeen.add(R.char[i]);
+    // parses and runs differ: two of the same spec in one group is two parses
+    // of one run. The column said "Runs" and showed parses.
+    g.runs.add(R.run[i]);
   }
   const out=new Map();
   for(const [key,g] of groups){
@@ -1023,7 +1026,7 @@ function aggregate(weeks){
       ravg, rmed,
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
-      chars:g.chars.size, arating, mrating, rn});
+      chars:g.chars.size, runs:g.runs.size, arating, mrating, rn});
   }
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
@@ -1072,7 +1075,8 @@ function tipHTML(r,compare){
   const f=(o,k,fmt)=>o?fmt(o[k]):"–";
   let h="<b>"+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+"</b><table>";
   if(compare) h+=row("", "<b>A</b>", "<b>B</b>");
-  h+=row("Total runs", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
+  h+=row("Runs", f(r.a,"runs",fmtInt), f(r.b,"runs",fmtInt));
+  h+=row("Parses", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
   h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
   const pj=(o,k,rk,fmt)=>o?fmt(o[k])+(state.proj?projDelta(o[k],o[rk]):""):"–";
   h+=row(state.proj?"Average DPS (proj.)":"Average DPS",
@@ -1141,6 +1145,13 @@ function render(){
       : "")
     +(state.postTune?"<b>Post-tuning runs only.</b> ":"")
     +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
+    +((state.tier0||state.tier2||state.tier4)&&[state.tier0,state.tier2,state.tier4]
+        .filter(Boolean).length===1
+        ? "<b>Note:</b> parses split cleanly across the three cohorts, but "
+          +"characters and runs do not — a player who picks up their 4-set "
+          +"mid-week appears in two of them, and one run can hold two of the "
+          +"same spec on different pieces. Only the Parses column adds up. "
+        : "")
     +((state.tier0||state.tier2||state.tier4)?"<b>🛡 "
         +[state.tier0?"no set":null,state.tier2?"2-piece":null,state.tier4?"4-piece":null]
           .filter(Boolean).join(" or ")
@@ -1753,7 +1764,7 @@ function renderTable(rows,tab){
   } else {
     cols=[["cls","Class","txt"],["spec","Spec","txt"]];
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
-    cols.push(["a_n","Total Runs"],["chars","Characters"],
+    cols.push(["a_runs","Runs"],["a_n","Parses"],["chars","Characters"],
       ["avg","Average DPS"],["med","Median DPS"],
       ["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
@@ -1763,6 +1774,7 @@ function renderTable(rows,tab){
     switch(k){
       case "cls": return r.cls; case "spec": return r.spec; case "hero": return r.hero;
       case "a_n": return r.a.n; case "b_n": return r.b?r.b.n:-1;
+      case "a_runs": return r.a.runs;
       case "a_v": return r.a[metricCol];
       case "b_v": return r.b?r.b[metricCol]:-Infinity;
       case "d": return r.b&&Math.abs(r.b[metricCol])>1e-9

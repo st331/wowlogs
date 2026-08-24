@@ -185,6 +185,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
           git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
+          # The gear/talent journal is an order of magnitude bigger than the
+          # rest (53 MB and climbing) and git keeps every version forever, so
+          # it rides once a week rather than daily. Monday is the first daily
+          # slot after the weekly reset. Losing it would cost the per-item
+          # detail -- trinkets, gems, enchants, talents -- permanently, since
+          # summaries cannot be refetched once a run leaves the leaderboard;
+          # the site itself would be unaffected, because the set counts the
+          # tier filters need travel in mythic_runs.csv.gz.
+          if [ "$(date -u +%u)" = "1" ] && [ -f data/gear.jsonl.gz ]; then
+            echo "Monday: including the gear journal ($(du -h data/gear.jsonl.gz | cut -f1))"
+            git add data/gear.jsonl.gz
+          fi
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -m "Daily data export ($(date -u +%Y-%m-%d))"
           git push origin HEAD:${{ github.ref_name }}

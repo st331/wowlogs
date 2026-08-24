@@ -315,6 +315,11 @@ def player_scores() -> dict[str, float]:
     return out
 
 
+# Share of a class's equipped set pieces a set must reach to be considered its
+# tier set. Keeps a stray non-tier set that a few players wear from winning on
+# id alone, while staying far below the ~40%+ that a real tier set reaches.
+SEASON_SET_MIN_SHARE = 0.05
+
 GEAR_JOURNAL = ROOT / "data" / "processed" / "gear.jsonl"
 GEAR_EXPORT = ROOT / "data" / "gear.jsonl.gz"
 
@@ -404,8 +409,19 @@ def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
         print(f"[{name}] no gear captured yet; tier filter unavailable")
         return pd.Series(-1, index=df.index, dtype=int)
 
-    # This season's tier set per class, taken as the set most of that class's
-    # parses wear. Hard-coding item-set ids would mean editing this every patch.
+    # This season's tier set per class. Hard-coding item-set ids would mean
+    # editing this every patch, so it is read off the data -- but "the set most
+    # of the class wears" is the wrong rule, and was wrong in production: two
+    # tier sets are in circulation at once, and plenty of players still had
+    # last season's on. Measured on 21,362 parses, that rule picked the OLDER
+    # set for Druid, Monk, Paladin and Priest -- Paladin by 0.7% (5,141 vs
+    # 5,104) -- so four classes counted last season's pieces as this season's.
+    #
+    # Item-set ids are issued in content order, so the current tier is the
+    # highest id, and the two seasons land in tidy blocks (1978-1990 and
+    # 2055-2067). Taking the highest id alone would catch stray non-tier sets
+    # a handful of players wear, so a set has to clear a share of the class's
+    # equipped set pieces before it is eligible.
     tally: dict[str, dict[str, int]] = {}
     for cls, c in zip(df["class"], per):
         if not c:
@@ -413,7 +429,16 @@ def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
         for sid, n in c.items():
             tally.setdefault(cls, {})
             tally[cls][sid] = tally[cls].get(sid, 0) + n
-    seasonal = {cls: max(v, key=v.get) for cls, v in tally.items() if v}
+
+    def newest(counts: dict[str, int]) -> str:
+        total = sum(counts.values())
+        qual = [s for s, n in counts.items()
+                if n >= SEASON_SET_MIN_SHARE * total and s.isdigit()]
+        if not qual:                       # nothing clears the bar: fall back
+            return max(counts, key=counts.get)
+        return max(qual, key=int)
+
+    seasonal = {cls: newest(v) for cls, v in tally.items() if v}
 
     # Pieces of THIS season's set specifically. A player wearing last season's
     # four-piece and nothing current is a true zero, which is the point: the
@@ -434,6 +459,9 @@ def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
           f"2-piece, {int((res >= 4).sum()):,} with 4-piece; tier set "
           f"identified for {len(seasonal)} classes "
           f"({len(journal):,} parses read from the gear journal)")
+    if seasonal:
+        picked = ", ".join(f"{c}={seasonal[c]}" for c in sorted(seasonal))
+        print(f"[{name}] season tier sets: {picked}")
     return res
 
 
