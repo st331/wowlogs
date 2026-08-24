@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 — dataset for LLM analysis
 
-> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 87,989 runs / 439,963 player parses, keystone levels +2-+18, 2026-08-18 to 2026-08-24. Generated 2026-08-24 04:21 UTC.
+> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 87,989 runs / 439,963 player parses, keystone levels +2-+18, 2026-08-18 to 2026-08-24. Generated 2026-08-24 05:15 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/ is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -8,7 +8,9 @@ If your fetcher only handles HTML, everything here is mirrored as pages: https:/
 
 ## Start here (pre-aggregated)
 
-Every file below carries the same metric block: parses, runs, **characters** (distinct players), avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level.
+Every file below carries the same metric block: parses, runs, **characters** (distinct players), avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level, and — where the report carried gear — gear_known (parses whose gear is visible), pct_no_set / pct_2set / pct_4set (that spec's Season 2 tier-set adoption, shares of gear_known summing to 100) and avg_player_rating (mean Raider.IO season score of the players in those parses).
+
+Gear was not collected for the whole season, so gear_known is well below parses on most rows and is much higher at +12 and above, which is where the backfill ran. Treat a small gear_known as a small sample. Set counts are of the CURRENT season's tier only: a player still wearing last season's set counts as no set.
 
 - https://st331.github.io/wowlogs/llms/spec_summary.csv — one row per class/spec/hero-talent/role (plus hero_talent="(all merged)" rollups) × subset. The whole-dataset view.
 - https://st331.github.io/wowlogs/llms/spec_by_key.csv — split by keystone level.
@@ -16,7 +18,6 @@ Every file below carries the same metric block: parses, runs, **characters** (di
 - https://st331.github.io/wowlogs/llms/spec_by_reset.csv — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).
 - https://st331.github.io/wowlogs/llms/spec_by_day.csv — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".
 - https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon runs, players, timed %, average duration/key/deaths, and `timer_s`: that dungeon's keystone timer.
-- https://st331.github.io/wowlogs/llms/tuning_projection.csv — recorded vs **projected** median/average DPS per class+spec under the next announced class tuning, for the post_tuning and post_tuning_timed subsets. Columns: subset, class, spec, characters, parses, median_dps, projected_median_dps, avg_dps, projected_avg_dps, median_change_pct, avg_change_pct, tuned.
 - https://st331.github.io/wowlogs/llms/comps.csv — the 2,000 best-sampled per subset, one row per distinct 5-player composition, ranked by `strength`. Columns: subset, composition, runs, strength, avg_key, avg_pct_under, best_pct_under, median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.
 
 The `subset` column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.
@@ -73,7 +74,7 @@ These chunks are a uniform random sample of 120,601 parses drawn from all 439,96
 - https://st331.github.io/wowlogs/llms/parses_20.csv — rows 114,001-120,000
 - https://st331.github.io/wowlogs/llms/parses_21.csv — rows 120,001-120,601
 
-One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.
+One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer, set_pieces, player_rating.
 
 ## Column dictionary
 

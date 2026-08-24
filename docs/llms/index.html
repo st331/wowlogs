@@ -1,11 +1,12 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><title>Midnight M+ Season 2 — data for LLMs</title><style>body{font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#111}table{border-collapse:collapse;font-size:.85rem}th,td{border:1px solid #ccc;padding:.2rem .45rem;text-align:right}th{background:#f2f2f2}td:nth-child(-n+5),th:nth-child(-n+5){text-align:left}code{background:#f2f2f2;padding:0 .2rem}</style></head><body><h1>Midnight Mythic+ Season 2 — dataset for LLM analysis</h1>
 <ul>
-<li>Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 87,989 runs / 439,963 player parses, keystone levels +2-+18, 2026-08-18 to 2026-08-24. Generated 2026-08-24 04:21 UTC.</li>
+<li>Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 87,989 runs / 439,963 player parses, keystone levels +2-+18, 2026-08-18 to 2026-08-24. Generated 2026-08-24 05:15 UTC.</li>
 </ul>
 <p>The interactive dashboard at <a href="https://st331.github.io/wowlogs/">https://st331.github.io/wowlogs/</a> is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.</p>
 <p>If your fetcher only handles HTML, everything here is mirrored as pages: <a href="https://st331.github.io/wowlogs/llms/">https://st331.github.io/wowlogs/llms/</a> carries this same documentation, and each CSV below has an .html twin at the same path (for example <a href="https://st331.github.io/wowlogs/llms/spec_summary.html">https://st331.github.io/wowlogs/llms/spec_summary.html</a>). The content is identical.</p>
 <h2>Start here (pre-aggregated)</h2>
-<p>Every file below carries the same metric block: parses, runs, <b>characters</b> (distinct players), avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level.</p>
+<p>Every file below carries the same metric block: parses, runs, <b>characters</b> (distinct players), avg_dps, median_dps, p90_dps, avg_deaths, deathless_pct, avg_item_level, and — where the report carried gear — gear_known (parses whose gear is visible), pct_no_set / pct_2set / pct_4set (that spec's Season 2 tier-set adoption, shares of gear_known summing to 100) and avg_player_rating (mean Raider.IO season score of the players in those parses).</p>
+<p>Gear was not collected for the whole season, so gear_known is well below parses on most rows and is much higher at +12 and above, which is where the backfill ran. Treat a small gear_known as a small sample. Set counts are of the CURRENT season's tier only: a player still wearing last season's set counts as no set.</p>
 <ul>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_summary.csv">https://st331.github.io/wowlogs/llms/spec_summary.csv</a> — one row per class/spec/hero-talent/role (plus hero_talent="(all merged)" rollups) × subset. The whole-dataset view.</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_key.csv">https://st331.github.io/wowlogs/llms/spec_by_key.csv</a> — split by keystone level.</li>
@@ -13,7 +14,6 @@
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_reset.csv">https://st331.github.io/wowlogs/llms/spec_by_reset.csv</a> — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).</li>
 <li><a href="https://st331.github.io/wowlogs/llms/spec_by_day.csv">https://st331.github.io/wowlogs/llms/spec_by_day.csv</a> — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".</li>
 <li><a href="https://st331.github.io/wowlogs/llms/dungeon_summary.csv">https://st331.github.io/wowlogs/llms/dungeon_summary.csv</a> — per-dungeon runs, players, timed %, average duration/key/deaths, and <code>timer_s</code>: that dungeon's keystone timer.</li>
-<li><a href="https://st331.github.io/wowlogs/llms/tuning_projection.csv">https://st331.github.io/wowlogs/llms/tuning_projection.csv</a> — recorded vs <b>projected</b> median/average DPS per class+spec under the next announced class tuning, for the post_tuning and post_tuning_timed subsets. Columns: subset, class, spec, characters, parses, median_dps, projected_median_dps, avg_dps, projected_avg_dps, median_change_pct, avg_change_pct, tuned.</li>
 <li><a href="https://st331.github.io/wowlogs/llms/comps.csv">https://st331.github.io/wowlogs/llms/comps.csv</a> — the 2,000 best-sampled per subset, one row per distinct 5-player composition, ranked by <code>strength</code>. Columns: subset, composition, runs, strength, avg_key, avg_pct_under, best_pct_under, median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.</li>
 </ul>
 <p>The <code>subset</code> column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.</p>
@@ -58,7 +58,7 @@
 <li><a href="https://st331.github.io/wowlogs/llms/parses_20.csv">https://st331.github.io/wowlogs/llms/parses_20.csv</a> — rows 114,001-120,000</li>
 <li><a href="https://st331.github.io/wowlogs/llms/parses_21.csv">https://st331.github.io/wowlogs/llms/parses_21.csv</a> — rows 120,001-120,601</li>
 </ul>
-<p>One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer.</p>
+<p>One row per player per run; a run's 5 players share a run_id, so team compositions, per-run death totals etc. can be reconstructed. Columns: run_id, char_id, class, spec, hero_talent, role, region, dungeon, key_level, timed, duration_s, dps, deaths, item_level, date, reset_bucket, post_tuning, keystone_s, pct_under_timer, set_pieces, player_rating.</p>
 <h2>Column dictionary</h2>
 <ul>
 <li>run_id / char_id: stable anonymous integer ids within this dataset version.</li>

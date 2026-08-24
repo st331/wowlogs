@@ -644,6 +644,19 @@ def build_llms() -> None:
     if "score" not in df.columns:
         df["score"] = pd.NA
     df["score"] = pd.to_numeric(df["score"], errors="coerce")
+    # Season tier pieces and Raider.IO season score, so the static files can
+    # answer set-bonus and player-rating questions the dashboard already can.
+    # Blank rather than -1 where unknown: a CSV consumer reading -1 as a real
+    # count is a likelier mistake than one handling an empty cell.
+    tier = tier_pieces(df, "llms")
+    df["set_pieces"] = tier.where(tier >= 0).astype("Int64")
+    rio = player_scores()
+    if rio:
+        key = (df["character"].fillna("?").astype(str) + "@"
+               + df["server"].fillna("?").astype(str) + "@" + df["region"])
+        df["player_rating"] = key.map(rio).round(0).astype("Int64")
+    else:
+        df["player_rating"] = pd.NA
     started = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
                              unit="ms", errors="coerce")
     df["date"] = started.dt.strftime("%Y-%m-%d")
@@ -705,10 +718,21 @@ def build_llms() -> None:
             avg_deaths=("deaths", "mean"),
             deathless_pct=("deaths", lambda s: (s == 0).mean() * 100),
             avg_item_level=("item_level", "mean"),
+            # gear-known parses only; blank set_pieces drops out of all four
+            gear_known=("set_pieces", "count"),
+            pct_no_set=("set_pieces", lambda s: (s < 2).mean() * 100
+                        if s.notna().any() else float("nan")),
+            pct_2set=("set_pieces", lambda s: ((s >= 2) & (s < 4)).mean() * 100
+                      if s.notna().any() else float("nan")),
+            pct_4set=("set_pieces", lambda s: (s >= 4).mean() * 100
+                      if s.notna().any() else float("nan")),
+            avg_player_rating=("player_rating", "mean"),
         ).reset_index()
         for c, r in (("avg_dps", 0), ("median_dps", 0), ("p90_dps", 0),
                      ("avg_deaths", 2), ("deathless_pct", 1),
-                     ("avg_item_level", 1)):
+                     ("avg_item_level", 1), ("pct_no_set", 1),
+                     ("pct_2set", 1), ("pct_4set", 1),
+                     ("avg_player_rating", 0)):
             out[c] = out[c].round(r)
         for c in ("avg_dps", "median_dps", "p90_dps"):
             out[c] = out[c].astype("Int64")
@@ -890,8 +914,19 @@ def build_llms() -> None:
                 "run_id", "char_id", "class", "spec", "hero_talent", "role",
                 "region", "dungeon", "key_level", "timed", "duration_s",
                 "dps", "deaths", "item_level", "date", "reset_bucket",
-                "post_tuning", "keystone_s", "pct_under_timer"]
-    raw = df[raw_cols].sort_values(["run_id"]).reset_index(drop=True)
+                "post_tuning", "keystone_s", "pct_under_timer",
+                "set_pieces", "player_rating"]
+    # Ordered by a hash of the run id, not the id itself. Sorting by run_id
+    # groups the season chronologically, and anything collected late -- gear,
+    # most obviously -- then lands entirely in the last chunk or two, so a
+    # reader who fetches parses_1.csv sees none of it and concludes there is
+    # none. Hashing spreads every such column evenly across the chunks while
+    # still keeping a run's five rows adjacent, which is what the chunking
+    # needs. Stable across builds, since it is a hash and not a shuffle.
+    _order = df["run_id"].map(
+        lambda r: hashlib.md5(str(r).encode()).hexdigest())
+    raw = (df[raw_cols].assign(_o=_order).sort_values(["_o", "run_id"])
+           .drop(columns="_o").reset_index(drop=True))
     raw_total = len(raw)
     if raw_total > LLM_MAX_PARSE_ROWS:
         # whole runs, so a chunk still shows complete 5-player rosters, and by
@@ -959,7 +994,18 @@ def build_llms() -> None:
         "",
         "Every file below carries the same metric block: parses, runs, "
         "**characters** (distinct players), avg_dps, median_dps, p90_dps, "
-        "avg_deaths, deathless_pct, avg_item_level.",
+        "avg_deaths, deathless_pct, avg_item_level, and — where the report "
+        "carried gear — gear_known (parses whose gear is visible), "
+        "pct_no_set / pct_2set / pct_4set (that spec's Season 2 tier-set "
+        "adoption, shares of gear_known summing to 100) and "
+        "avg_player_rating (mean Raider.IO season score of the players in "
+        "those parses).",
+        "",
+        "Gear was not collected for the whole season, so gear_known is well "
+        "below parses on most rows and is much higher at +12 and above, which "
+        "is where the backfill ran. Treat a small gear_known as a small "
+        "sample. Set counts are of the CURRENT season's tier only: a player "
+        "still wearing last season's set counts as no set.",
         "",
         f"- {BASE_URL}/llms/spec_summary.csv — one row per class/spec/"
         "hero-talent/role (plus hero_talent=\"(all merged)\" rollups) × "
@@ -974,12 +1020,15 @@ def build_llms() -> None:
         f"- {BASE_URL}/llms/dungeon_summary.csv — per-dungeon runs, players, "
         "timed %, average duration/key/deaths, and `timer_s`: that dungeon's "
         "keystone timer.",
-        f"- {BASE_URL}/llms/tuning_projection.csv — recorded vs **projected** "
-        "median/average DPS per class+spec under the next announced class "
-        "tuning, for the post_tuning and post_tuning_timed subsets. Columns: "
-        "subset, class, spec, characters, parses, median_dps, "
-        "projected_median_dps, avg_dps, projected_avg_dps, "
-        "median_change_pct, avg_change_pct, tuned.",
+        # only when it exists: no tuning pass means no file, and a dead link
+        # is worse than a missing one for a fetcher working down this list
+        *([f"- {BASE_URL}/llms/tuning_projection.csv — recorded vs "
+           "**projected** median/average DPS per class+spec under the next "
+           "announced class tuning, for the post_tuning and post_tuning_timed "
+           "subsets. Columns: subset, class, spec, characters, parses, "
+           "median_dps, projected_median_dps, avg_dps, projected_avg_dps, "
+           "median_change_pct, avg_change_pct, tuned."]
+          if any(f[0] == "tuning_projection.csv" for f in files) else []),
         f"- {BASE_URL}/llms/comps.csv — the {COMPS_PER_SUBSET:,} "
         f"best-sampled per subset, one row per distinct 5-player "
         "composition, ranked by `strength`. Columns: subset, composition, "
