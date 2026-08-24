@@ -36,6 +36,10 @@ on:
         description: "How far back the gear refetch reaches, in days"
         type: string
         default: "3"
+      commit_export:
+        description: "Commit the data export now, gear journal included, ignoring the daily/weekly slots"
+        type: boolean
+        default: false
       quota_fraction:
         description: "Share of the hourly API budget this run may spend. The standing cap is 0.70; raise it only for a deliberate one-off."
         type: string
@@ -167,8 +171,13 @@ jobs:
 
       # Keeps the recovery seed fresh at one commit a day instead of twelve.
       - name: Commit the export (daily)
-        if: github.event_name == 'schedule'
+        if: github.event_name == 'schedule' || inputs.commit_export == true
         run: |
+          # A manual dispatch that asks for it commits immediately and takes
+          # the gear journal with it, whatever day it is. Without this the
+          # weekly slot is the only way in, so a week's gear sits uncommitted
+          # purely because the code landed after Monday's slot had run.
+          FORCE="${{ inputs.commit_export == true && '1' || '' }}"
           # Match the 02:00 run, and accept it in the 03:00 hour too: GitHub
           # runs scheduled jobs late under load, and an hour-exact gate means a
           # slipped run silently skips the day's seed. The 04:00 run cannot
@@ -177,10 +186,12 @@ jobs:
           # This gate MUST agree with the cron above. It is pinned to an even
           # hour because a 2-hourly schedule never sees an odd one -- the
           # previous gate said 03 and would have stopped committing outright.
-          case "$(date -u +%H)" in
-            02|03) ;;
-            *) echo "not the daily slot; skipping"; exit 0 ;;
-          esac
+          if [ -z "$FORCE" ]; then
+            case "$(date -u +%H)" in
+              02|03) ;;
+              *) echo "not the daily slot; skipping"; exit 0 ;;
+            esac
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
@@ -193,7 +204,7 @@ jobs:
           # summaries cannot be refetched once a run leaves the leaderboard;
           # the site itself would be unaffected, because the set counts the
           # tier filters need travel in mythic_runs.csv.gz.
-          if [ "$(date -u +%u)" = "1" ] && [ -f data/gear.jsonl.gz ]; then
+          if { [ "$(date -u +%u)" = "1" ] || [ -n "$FORCE" ]; } && [ -f data/gear.jsonl.gz ]; then
             echo "Monday: including the gear journal ($(du -h data/gear.jsonl.gz | cut -f1))"
             git add data/gear.jsonl.gz
           fi
