@@ -919,6 +919,10 @@ function baseMasks(){
 // A parse whose report carried no gear (-1) is excluded whenever either box is
 // ticked: it is unknown, not "no set", and counting it either way is a guess.
 function tierPass(i){
+  // no gear in the payload at all: the boxes are hidden, so they must not
+  // filter either -- tier4 defaults to on, and honouring it here would turn
+  // a gear-less build into an empty page with the cause invisible
+  if(!hasTier) return true;
   if(!state.tier0&&!state.tier2&&!state.tier4) return true;
   const t=R.tier?R.tier[i]:-1;
   if(t<0) return false;
@@ -1173,7 +1177,8 @@ function render(){
   $("trendview").style.display=tab.trend?"":"none";
   $("sortseg").style.display=tab.trend?"none":"";
   renderComps(A);
-  if(tab.trend){ renderTrend(); renderTable(rows,tab); return; }
+  if(tab.trend){ renderTrend(); renderTable(rows,tab);
+    renderSetBonus(); updateTierHint(); return; }
   $("trendbox").style.display="none"; $("chart").style.display="";
 
   // order + rank (rank always by A value of this tab, best first)
@@ -1318,9 +1323,12 @@ const SET_CELL_MIN = 5, SET_CELLS_MIN = 3, SET_BUCKET_MIN = 30;
 function setBonusRows(){
   if(!hasTier) return [];
   const m=baseMasks(), G=new Map();
+  const cut=periodCut(state.weeksA);
   for(let i=0;i<N;i++){
     const b=setBucket(R.tier[i]);
     if(b<0) continue;                      // no gear on this report
+    if(!periodPass(i,state.weeksA,cut)) continue;   // caption says "current filters"
+    if(projSkip(i)) continue;              // same projection contract as aggregate()
     if(!rowPass(i,m,true)) continue;       // every filter EXCEPT the tier boxes
     const gk=groupKey(i);
     let g=G.get(gk);
@@ -1387,12 +1395,12 @@ function renderSetBonus(){
   const {col,dir}=state.ssort;
   // a spec without enough matched cells carries NaN; park those at the bottom
   // whichever way the column is pointing rather than letting them interleave
-  const nz=v=>typeof v==="number"&&isNaN(v)?-Infinity:v;
   const sorted=[...rows].sort((a,b)=>{
     const x=a[col], y=b[col];
     if(typeof x==="string") return x.localeCompare(y)*dir;
-    const d=nz(x)-nz(y);
-    return (isNaN(d)?0:d)*dir;
+    const nx=typeof x==="number"&&isNaN(x), ny=typeof y==="number"&&isNaN(y);
+    if(nx||ny) return nx&&ny?0:(nx?1:-1);   // dashes last, ascending or not
+    return (x-y)*dir;
   });
   $("set-sub").textContent=rows.length
     ? rows.length+" specs with enough matched runs — click a column to sort"
@@ -1591,6 +1599,7 @@ function renderTrend(){
   const weeksSeen=new Set(), daysSeen=new Set(), charsAll=new Set();
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
+    if(projSkip(i)) continue;   // same projection contract as aggregate()
     const w=R.rbucket[i]; if(w>=999) continue;
     charsAll.add(R.char[i]);
     const v=useChars?R.char[i]:useDeaths?R.deaths[i]

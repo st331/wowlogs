@@ -67,7 +67,17 @@ for label, ci in [("no combatantInfo", None), ("empty dict", {}),
 # gear present but no set pieces at all is a REAL zero, not unknown
 noset = {"gear": [item(7001), item(7002)]}
 assert gear_sets(noset) == {}, gear_sets(noset)
-assert pack_sets(gear_sets(noset)) == "", "gear present, no sets -> empty, not None"
+# "none", never "" -- an empty string dies in the CSV round trip (pandas
+# writes it as an empty field and reads it back as NaN, i.e. "no gear"),
+# which silently reclassified every real zero as unknown on journal-less
+# rebuilds. The sentinel must survive being written and re-read.
+assert pack_sets(gear_sets(noset)) == "none", pack_sets(gear_sets(noset))
+import io
+import pandas as _pd
+_rt = _pd.read_csv(io.StringIO(_pd.DataFrame(
+    {"sc": [pack_sets(gear_sets(noset)), pack_sets(gear_sets(None))]}).to_csv()))
+assert _rt["sc"][0] == "none" and _pd.isna(_rt["sc"][1]), _rt["sc"].tolist()
+print("csv trip  : real zero -> 'none' survives; no gear -> NaN stays distinct")
 assert compact_gear(noset) is not None
 print("real zero : gear present, no set items -> {} (not None)")
 

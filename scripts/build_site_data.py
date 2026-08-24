@@ -16,6 +16,7 @@ import hashlib
 import json
 import pathlib
 import re
+import shutil
 
 import sys
 
@@ -320,6 +321,20 @@ def player_scores() -> dict[str, float]:
 # id alone, while staying far below the ~40%+ that a real tier set reaches.
 SEASON_SET_MIN_SHARE = 0.05
 
+def _gear_key(code, fid, character, server) -> tuple:
+    """Join key for gear rows, identical from either source.
+
+    The journal stores a missing server as JSON null (None); the CSV stores it
+    as NaN. None != NaN, and str() of them differ too, so without normalising
+    both to "" every such row silently missed the join and fell back to the
+    packed column. fight_id goes through int() because the journal carries a
+    JSON int while a CSV column can arrive as int64 or float64.
+    """
+    def norm(v):
+        return "" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v)
+    return (norm(code), int(fid), norm(character), norm(server))
+
+
 GEAR_JOURNAL = ROOT / "data" / "processed" / "gear.jsonl"
 GEAR_EXPORT = ROOT / "data" / "gear.jsonl.gz"
 
@@ -357,8 +372,8 @@ def sets_from_gear_journal() -> dict[tuple, dict[str, int]]:
                 if sid in (None, 0, "0", ""):
                     continue
                 counts[str(sid)] = counts.get(str(sid), 0) + 1
-            out[(rec.get("report_code"), rec.get("fight_id"),
-                 rec.get("character"), rec.get("server"))] = counts
+            out[_gear_key(rec.get("report_code"), rec.get("fight_id"),
+                          rec.get("character"), rec.get("server"))] = counts
     return out
 
 
@@ -367,7 +382,8 @@ def unpack_sets(v) -> dict[str, int] | None:
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return None
     v = str(v)
-    if v in ("", "nan"):
+    # "none" = gear visible, no set items (see pack_sets); "" kept for safety
+    if v in ("none", "", "nan"):
         return {}
     out: dict[str, int] = {}
     for part in v.split("|"):
@@ -397,8 +413,9 @@ def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
     journal = sets_from_gear_journal()
     packed = (df["set_counts"] if "set_counts" in df.columns
               else pd.Series(None, index=df.index, dtype=object))
-    keys = list(zip(df["report_code"], df["fight_id"],
-                    df["character"], df["server"]))
+    keys = [_gear_key(c, f, ch, sv) for c, f, ch, sv in
+            zip(df["report_code"], df["fight_id"],
+                df["character"], df["server"])]
 
     # per parse: {set id: pieces}, or None when the report carried no gear
     per: list[dict | None] = []
@@ -636,6 +653,11 @@ def build_llms() -> None:
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
     resolve_hero_talents(df)
     df["timed"] = df["medal"].map(MEDAL_TIMED).fillna(-1).astype(int)
+    # Same clock as the dashboard. Without this every llms DPS figure -- the
+    # spec aggregates, set_bonus.csv medians, the raw chunks -- sat ~2% off
+    # the site's for the same parse, because the site recomputes on the
+    # keystone clock and these files were still on the fight clock.
+    df = use_keystone_clock(df, "llms")
     # Per-run score is still collected and exported -- it rides free in the
     # rankings journal -- but nothing consumes it since the run-score metric
     # was dropped. Normalised here so the column is well-formed if it returns.
@@ -814,7 +836,10 @@ def build_llms() -> None:
             p2, c2 = gain(0, 1)
             p4, c4 = gain(1, 2)
             pt, ct = gain(0, 2)
-            if p2 is None and p4 is None and pt is None:
+            # rows keep their cohort counts and medians even when every gain
+            # fails its threshold -- the counts are evidence in their own
+            # right; only a spec with no cohort worth reading drops entirely
+            if max(n) < SB_COHORT_MIN:
                 continue
             tot = sum(n) or 1
             rows.append(dict(
@@ -1540,6 +1565,9 @@ def main() -> None:
               "(--force to rebuild anyway)")
         return
     build("season", SEASON)
+    # docs/ mirrors site/ for repo browsing; the payload is already written to
+    # both, but the page itself was not, so the mirror served stale UI
+    shutil.copyfile(ROOT / "site" / "index.html", ROOT / "docs" / "index.html")
     build_llms()
     index = ROOT / "site" / "index.html"
     docs_index = ROOT / "docs" / "index.html"

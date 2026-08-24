@@ -919,6 +919,10 @@ function baseMasks(){
 // A parse whose report carried no gear (-1) is excluded whenever either box is
 // ticked: it is unknown, not "no set", and counting it either way is a guess.
 function tierPass(i){
+  // no gear in the payload at all: the boxes are hidden, so they must not
+  // filter either -- tier4 defaults to on, and honouring it here would turn
+  // a gear-less build into an empty page with the cause invisible
+  if(!hasTier) return true;
   if(!state.tier0&&!state.tier2&&!state.tier4) return true;
   const t=R.tier?R.tier[i]:-1;
   if(t<0) return false;
@@ -1173,7 +1177,8 @@ function render(){
   $("trendview").style.display=tab.trend?"":"none";
   $("sortseg").style.display=tab.trend?"none":"";
   renderComps(A);
-  if(tab.trend){ renderTrend(); renderTable(rows,tab); return; }
+  if(tab.trend){ renderTrend(); renderTable(rows,tab);
+    renderSetBonus(); updateTierHint(); return; }
   $("trendbox").style.display="none"; $("chart").style.display="";
 
   // order + rank (rank always by A value of this tab, best first)
@@ -1318,9 +1323,12 @@ const SET_CELL_MIN = 5, SET_CELLS_MIN = 3, SET_BUCKET_MIN = 30;
 function setBonusRows(){
   if(!hasTier) return [];
   const m=baseMasks(), G=new Map();
+  const cut=periodCut(state.weeksA);
   for(let i=0;i<N;i++){
     const b=setBucket(R.tier[i]);
     if(b<0) continue;                      // no gear on this report
+    if(!periodPass(i,state.weeksA,cut)) continue;   // caption says "current filters"
+    if(projSkip(i)) continue;              // same projection contract as aggregate()
     if(!rowPass(i,m,true)) continue;       // every filter EXCEPT the tier boxes
     const gk=groupKey(i);
     let g=G.get(gk);
@@ -1354,10 +1362,13 @@ function setBonusRows(){
     if(!isFinite(g2.pct)&&!isFinite(g4.pct)&&!isFinite(gt.pct)) continue;
     out.push({cls:D.classes[g.cls], spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero],
-      n0:g.n[0], n2:g.n[1], n4:g.n[2],
-      // adoption as a share of THIS spec's gear-known parses. Raw 2-set and
-      // 4-set counts cannot be read across specs -- a spec played ten times as
-      // much leads on every one of them regardless of how its players gear.
+      n0:g.n[0], n2:g.n[1], n4:g.n[2], tot,
+      // adoption as shares of THIS spec's gear-known parses, all three of
+      // them, summing to 100. Raw cohort counts cannot be read across specs --
+      // a spec played ten times as much leads on every one of them regardless
+      // of how its players gear -- so the only raw number kept is the total,
+      // which says how much evidence sits behind the shares.
+      s0:tot?100*g.n[0]/tot:NaN,
       s2:tot?100*g.n[1]/tot:NaN, s4:tot?100*g.n[2]/tot:NaN,
       m0:med(0), m2:med(1), m4:med(2),
       p2:g2.pct, p4:g4.pct, pt:gt.pct,
@@ -1377,19 +1388,19 @@ function renderSetBonus(){
   const rows=setBonusRows();
   const cols=[["cls","Class","txt"],["spec","Spec","txt"]]
     .concat(state.merge?[]:[["hero","Hero Talent","txt"]])
-    .concat([["n0","No set"],["s2","% 2-set"],["s4","% 4-set"],
+    .concat([["tot","Parses w/ gear"],["s0","% no set"],["s2","% 2-set"],["s4","% 4-set"],
              ["m0","DPS no set"],["m2","DPS 2-set"],["m4","DPS 4-set"],
              ["p2","2-set gain"],["p4","4-set gain"],["pt","Total gain"]]);
   if(!cols.some(c=>c[0]===state.ssort.col)) state.ssort={col:"pt", dir:-1};
   const {col,dir}=state.ssort;
   // a spec without enough matched cells carries NaN; park those at the bottom
   // whichever way the column is pointing rather than letting them interleave
-  const nz=v=>typeof v==="number"&&isNaN(v)?-Infinity:v;
   const sorted=[...rows].sort((a,b)=>{
     const x=a[col], y=b[col];
     if(typeof x==="string") return x.localeCompare(y)*dir;
-    const d=nz(x)-nz(y);
-    return (isNaN(d)?0:d)*dir;
+    const nx=typeof x==="number"&&isNaN(x), ny=typeof y==="number"&&isNaN(y);
+    if(nx||ny) return nx&&ny?0:(nx?1:-1);   // dashes last, ascending or not
+    return (x-y)*dir;
   });
   $("set-sub").textContent=rows.length
     ? rows.length+" specs with enough matched runs — click a column to sort"
@@ -1400,7 +1411,7 @@ function renderSetBonus(){
   const cell=(k,r)=>{
     if(k==="cls"||k==="spec"||k==="hero") return esc(r[k]);
     if(k==="p2"||k==="p4"||k==="pt") return pc(r[k]);
-    if(k==="s2"||k==="s4") return isFinite(r[k])?r[k].toFixed(1)+"%":"–";
+    if(k==="s0"||k==="s2"||k==="s4") return isFinite(r[k])?r[k].toFixed(1)+"%":"–";
     return n(r[k]);
   };
   let h='<thead><tr>';
@@ -1423,11 +1434,12 @@ function renderSetBonus(){
   });
   const known=R.tier.reduce((a,v)=>a+(v>=0),0);
   $("set-caption").textContent=
-    "No set is a parse count; % 2-set and % 4-set are shares of the same "
-    +"spec's gear-known parses, so they can be read across specs where raw "
-    +"cohort counts cannot — a spec played ten times as often leads on every "
-    +"raw count whatever its players wear. The three shares sum to 100%, so "
-    +"the no-set share is whatever the other two leave. "
+    "Parses w/ gear counts this spec's parses whose report showed equipment — "
+    +"the evidence behind the row (parses, not runs: two of the same spec in "
+    +"one run is two parses). The three shares split it by Season 2 tier "
+    +"pieces worn — under 2, 2–3, 4+ — and sum to 100%, so they can be read "
+    +"across specs where raw cohort counts cannot: a spec played ten times as "
+    +"often leads on every raw count whatever its players wear. "
     +"The three DPS columns are each cohort's plain median under the current "
     +"filters, so they can be read against one another directly — but they are "
     +"not like for like: the 4-set cohort also runs higher keys in better gear. "
@@ -1587,6 +1599,7 @@ function renderTrend(){
   const weeksSeen=new Set(), daysSeen=new Set(), charsAll=new Set();
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
+    if(projSkip(i)) continue;   // same projection contract as aggregate()
     const w=R.rbucket[i]; if(w>=999) continue;
     charsAll.add(R.char[i]);
     const v=useChars?R.char[i]:useDeaths?R.deaths[i]

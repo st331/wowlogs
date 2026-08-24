@@ -170,6 +170,18 @@ def restore_checkpoints() -> None:
             with gzip.open(gz, "rb") as src, dst.open("wb") as out:
                 shutil.copyfileobj(src, out)
             print(f"[restore] {dst.name} restored from {gz}", flush=True)
+    # The gear journal recovers from its committed export, same shape either
+    # side. This is not only about losing history at read time: export_gear()
+    # rewrites GEAR_CSV from the journal alone, so a run that started with an
+    # empty journal would export only what it fetched that run and CLOBBER the
+    # committed file -- the weekly commit would then push the truncated copy.
+    if not GEAR_FILE.exists() and GEAR_CSV.exists():
+        GEAR_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(GEAR_CSV, "rb") as src, GEAR_FILE.open("wb") as out:
+            shutil.copyfileobj(src, out)
+        n = sum(1 for _ in GEAR_FILE.open())
+        print(f"[restore] gear journal seeded from {GEAR_CSV.name} "
+              f"({n:,} rows)", flush=True)
     seed_from_csv()
 
 
@@ -531,9 +543,17 @@ def pack_sets(counts: dict[str, int] | None) -> str | None:
 
     Packed into one CSV column so it rides the committed export, which is what
     the site is rebuilt from; the full gear journal is bulkier and cache-only.
+
+    A player with visible gear and NO set items packs to "none", not "" --
+    pandas writes an empty string as an empty CSV field and reads it back as
+    NaN, identical to the no-gear case, so "" silently turned every real zero
+    into "unknown" on any rebuild that lacked the journal. The sentinel is the
+    whole fix: it survives the round trip.
     """
     if counts is None:
         return None
+    if not counts:
+        return "none"
     return "|".join(f"{k}:{v}" for k, v in sorted(counts.items()))
 
 
@@ -596,7 +616,7 @@ def parse_summary(fight: dict, table: dict,
                 "dps": round(damage.get(p.get("id"), 0) / seconds, 1),
                 "deaths": int(deaths.get(p.get("id"), 0)),
                 "item_level": p.get("maxItemLevel"),
-                # None when the report carried no gear; "" when gear was
+                # None when the report carried no gear; "none" when gear was
                 # present and no set pieces were worn -- the build keeps those
                 # distinct, see gear_sets()
                 "set_counts": pack_sets(set_counts),
