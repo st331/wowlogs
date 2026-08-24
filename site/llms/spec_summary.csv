@@ -247,6 +247,228 @@ timed,Warrior,Protection,Colossus,Tank,279,279,144,111547,110053,154219,0.11,90.
 timed,Warrior,Protection,Mountain Thane,Tank,6417,6417,2885,111720,112558,149484,0.16,87.2,297.4,306,65.0,16.3,18.6,2898.0
 timed,Warrior,Protection,Slayer,Tank,1,1,1,97443,97443,97443,0.0,100.0,298.0,0,,,,
 timed,Warrior,Protection,Unknown,Tank,259,259,175,111567,114378,149173,0.16,85.7,296.7,0,,,,2936.0
+set0_timed,DeathKnight,Blood,Deathbringer,Tank,126,126,102,94989,96803,130270,0.06,93.7,296.7,126,100.0,0.0,0.0,
+set0_timed,DeathKnight,Blood,San'layn,Tank,617,617,432,113588,115574,153862,0.05,96.1,300.3,617,100.0,0.0,0.0,2869.0
+set0_timed,DeathKnight,Frost,Deathbringer,DPS,39,39,36,141973,132941,201352,0.1,92.3,296.1,39,100.0,0.0,0.0,
+set0_timed,DeathKnight,Frost,Rider of the Apocalypse,DPS,1,1,1,70104,70104,70104,0.0,100.0,296.0,1,100.0,0.0,0.0,
+set0_timed,DeathKnight,Unholy,Rider of the Apocalypse,DPS,116,115,92,145347,135878,211060,0.17,86.2,294.0,116,100.0,0.0,0.0,3016.0
+set0_timed,DeathKnight,Unholy,San'layn,DPS,63,63,48,207711,214360,259312,0.19,82.5,300.3,63,100.0,0.0,0.0,3216.0
+set0_timed,DemonHunter,Devourer,Annihilator,DPS,148,147,114,179835,185130,246210,0.47,66.2,298.0,148,100.0,0.0,0.0,3042.0
+set0_timed,DemonHunter,Devourer,Void-Scarred,DPS,85,85,71,160372,160817,222372,0.41,69.4,298.6,85,100.0,0.0,0.0,2981.0
+set0_timed,DemonHunter,Havoc,Aldrachi Reaver,DPS,5,5,5,149296,186932,225986,0.0,100.0,299.2,5,100.0,0.0,0.0,3194.0
+set0_timed,DemonHunter,Havoc,Fel-Scarred,DPS,112,112,93,152544,143400,228759,0.23,78.6,294.9,112,100.0,0.0,0.0,2956.0
+set0_timed,DemonHunter,Vengeance,Aldrachi Reaver,Tank,8,8,6,63087,60160,92457,0.12,87.5,289.5,8,100.0,0.0,0.0,
+set0_timed,DemonHunter,Vengeance,Annihilator,Tank,182,182,138,97194,99005,142334,0.05,96.7,296.0,182,100.0,0.0,0.0,2999.0
+set0_timed,Druid,Balance,Elune's Chosen,DPS,214,214,162,159791,159010,219702,0.36,73.8,297.2,214,100.0,0.0,0.0,2780.0
+set0_timed,Druid,Balance,Keeper of the Grove,DPS,6,6,6,94534,71394,156784,0.17,83.3,289.7,6,100.0,0.0,0.0,
+set0_timed,Druid,Feral,Druid of the Claw,DPS,109,109,74,182309,188920,265330,0.51,65.1,298.5,109,100.0,0.0,0.0,3152.0
+set0_timed,Druid,Feral,Wildstalker,DPS,12,12,12,143487,111904,226019,1.0,41.7,294.6,12,100.0,0.0,0.0,
+set0_timed,Druid,Guardian,Druid of the Claw,Tank,6,6,6,58531,46148,94090,0.17,83.3,290.8,6,100.0,0.0,0.0,
+set0_timed,Druid,Guardian,Elune's Chosen,Tank,255,255,204,89486,88063,126701,0.1,91.0,297.5,255,100.0,0.0,0.0,3072.0
+set0_timed,Druid,Restoration,Keeper of the Grove,Healer,8,8,8,23008,21206,41792,0.62,50.0,293.4,8,100.0,0.0,0.0,
+set0_timed,Druid,Restoration,Wildstalker,Healer,115,115,105,9269,8049,19367,0.37,73.0,293.0,115,100.0,0.0,0.0,2895.0
+set0_timed,Evoker,Augmentation,Chronowarden,DPS,4,4,3,104915,81152,155386,0.5,50.0,287.0,4,100.0,0.0,0.0,
+set0_timed,Evoker,Augmentation,Scalecommander,DPS,14,14,10,109329,105884,167280,0.0,100.0,290.7,14,100.0,0.0,0.0,
+set0_timed,Evoker,Devastation,Flameshaper,DPS,1,1,1,194502,194502,194502,0.0,100.0,294.0,1,100.0,0.0,0.0,
+set0_timed,Evoker,Devastation,Scalecommander,DPS,83,83,70,161720,157467,222016,0.41,68.7,296.9,83,100.0,0.0,0.0,2687.0
+set0_timed,Evoker,Preservation,Chronowarden,Healer,4,4,4,41526,36069,63490,0.75,50.0,291.2,4,100.0,0.0,0.0,
+set0_timed,Evoker,Preservation,Flameshaper,Healer,82,82,60,33045,32160,54255,0.4,73.2,295.6,82,100.0,0.0,0.0,2699.0
+set0_timed,Hunter,BeastMastery,Dark Ranger,DPS,9,9,6,138292,123133,219008,0.11,88.9,293.4,9,100.0,0.0,0.0,
+set0_timed,Hunter,BeastMastery,Pack Leader,DPS,306,304,257,145264,136506,207282,0.33,76.5,295.4,306,100.0,0.0,0.0,2980.0
+set0_timed,Hunter,Marksmanship,Dark Ranger,DPS,1,1,1,117201,117201,117201,0.0,100.0,291.0,1,100.0,0.0,0.0,
+set0_timed,Hunter,Marksmanship,Sentinel,DPS,91,91,81,153182,149213,221094,0.43,65.9,296.5,91,100.0,0.0,0.0,2742.0
+set0_timed,Hunter,Survival,Pack Leader,DPS,18,18,16,126849,121084,207043,0.39,66.7,285.0,18,100.0,0.0,0.0,
+set0_timed,Hunter,Survival,Sentinel,DPS,23,23,20,117602,104592,177477,0.26,78.3,293.6,23,100.0,0.0,0.0,
+set0_timed,Mage,Arcane,Spellslinger,DPS,8,8,8,137318,140808,173432,0.38,75.0,287.8,8,100.0,0.0,0.0,
+set0_timed,Mage,Arcane,Sunfury,DPS,575,567,486,168246,171234,233321,0.31,75.0,298.1,575,100.0,0.0,0.0,2961.0
+set0_timed,Mage,Fire,Frostfire,DPS,1,1,1,114870,114870,114870,1.0,0.0,295.0,1,100.0,0.0,0.0,
+set0_timed,Mage,Fire,Sunfury,DPS,15,15,14,137557,136356,209918,0.33,80.0,290.4,15,100.0,0.0,0.0,
+set0_timed,Mage,Frost,Frostfire,DPS,8,8,8,103832,104147,126273,0.75,25.0,290.2,8,100.0,0.0,0.0,
+set0_timed,Mage,Frost,Spellslinger,DPS,48,48,45,121361,114260,171413,0.29,77.1,292.0,48,100.0,0.0,0.0,
+set0_timed,Monk,Brewmaster,Master of Harmony,Tank,89,89,65,87104,89335,116976,0.11,89.9,298.1,89,100.0,0.0,0.0,
+set0_timed,Monk,Brewmaster,Shado-Pan,Tank,26,26,23,69562,66495,98972,0.19,84.6,293.7,26,100.0,0.0,0.0,
+set0_timed,Monk,Mistweaver,Conduit of the Celestials,Healer,252,252,176,39120,39937,54570,0.23,80.2,295.1,252,100.0,0.0,0.0,2910.0
+set0_timed,Monk,Mistweaver,Master of Harmony,Healer,4,4,4,31535,33452,40330,0.25,75.0,289.2,4,100.0,0.0,0.0,
+set0_timed,Monk,Windwalker,Conduit of the Celestials,DPS,8,8,7,121248,87136,236025,0.12,87.5,288.8,8,100.0,0.0,0.0,
+set0_timed,Monk,Windwalker,Shado-Pan,DPS,145,145,111,151024,142060,227141,0.26,83.4,297.5,145,100.0,0.0,0.0,2791.0
+set0_timed,Paladin,Holy,Herald of the Sun,Healer,448,448,340,18002,16932,29188,0.3,74.1,296.6,448,100.0,0.0,0.0,2807.0
+set0_timed,Paladin,Holy,Lightsmith,Healer,65,65,58,36592,34632,56811,0.2,80.0,296.9,65,100.0,0.0,0.0,2907.0
+set0_timed,Paladin,Protection,Lightsmith,Tank,306,306,233,93136,93688,128266,0.07,93.5,297.0,306,100.0,0.0,0.0,3042.0
+set0_timed,Paladin,Protection,Templar,Tank,126,126,101,77399,71458,116646,0.05,95.2,293.7,126,100.0,0.0,0.0,2872.0
+set0_timed,Paladin,Retribution,Herald of the Sun,DPS,120,119,94,175306,171894,236808,0.45,65.0,298.6,120,100.0,0.0,0.0,3234.0
+set0_timed,Paladin,Retribution,Templar,DPS,236,236,198,138994,131037,210445,0.29,77.1,294.8,236,100.0,0.0,0.0,2828.0
+set0_timed,Priest,Discipline,Oracle,Healer,117,117,94,13195,13211,17507,0.22,81.2,291.9,117,100.0,0.0,0.0,
+set0_timed,Priest,Discipline,Voidweaver,Healer,14,14,14,22004,19844,31475,0.5,64.3,293.6,14,100.0,0.0,0.0,
+set0_timed,Priest,Holy,Archon,Healer,43,43,33,15542,14963,26511,0.16,83.7,294.8,43,100.0,0.0,0.0,
+set0_timed,Priest,Holy,Oracle,Healer,201,201,164,22940,21999,36712,0.16,89.1,296.3,201,100.0,0.0,0.0,2811.0
+set0_timed,Priest,Shadow,Archon,DPS,90,89,68,166948,181212,227995,0.38,73.3,297.8,90,100.0,0.0,0.0,2700.0
+set0_timed,Priest,Shadow,Voidweaver,DPS,68,68,55,152478,145215,220347,0.21,82.4,297.0,68,100.0,0.0,0.0,2822.0
+set0_timed,Rogue,Assassination,Deathstalker,DPS,123,123,97,189295,188621,260253,0.32,75.6,297.1,123,100.0,0.0,0.0,3240.0
+set0_timed,Rogue,Assassination,Fatebound,DPS,8,8,8,142338,133042,189190,0.38,62.5,292.8,8,100.0,0.0,0.0,
+set0_timed,Rogue,Outlaw,Fatebound,DPS,1,1,1,47826,47826,47826,1.0,0.0,288.0,1,100.0,0.0,0.0,
+set0_timed,Rogue,Outlaw,Trickster,DPS,92,92,58,189473,201081,283480,0.51,69.6,296.2,92,100.0,0.0,0.0,3396.0
+set0_timed,Rogue,Subtlety,Deathstalker,DPS,123,123,95,176263,180575,241445,0.35,73.2,296.7,123,100.0,0.0,0.0,3255.0
+set0_timed,Rogue,Subtlety,Trickster,DPS,37,37,33,162952,160331,239313,0.32,81.1,295.4,37,100.0,0.0,0.0,3106.0
+set0_timed,Shaman,Elemental,Farseer,DPS,390,389,312,181469,177964,252819,0.37,72.3,297.2,390,100.0,0.0,0.0,3084.0
+set0_timed,Shaman,Elemental,Stormbringer,DPS,18,18,15,108757,106148,142192,0.17,83.3,289.3,18,100.0,0.0,0.0,
+set0_timed,Shaman,Enhancement,Stormbringer,DPS,111,111,91,150584,145850,219339,0.37,71.2,292.4,111,100.0,0.0,0.0,2791.0
+set0_timed,Shaman,Enhancement,Totemic,DPS,5,5,3,107033,102570,135352,0.4,60.0,288.0,5,100.0,0.0,0.0,
+set0_timed,Shaman,Restoration,Farseer,Healer,22,22,18,16254,14852,31103,0.23,81.8,292.0,22,100.0,0.0,0.0,
+set0_timed,Shaman,Restoration,Totemic,Healer,545,545,436,23730,24050,34174,0.28,78.5,295.9,545,100.0,0.0,0.0,2985.0
+set0_timed,Warlock,Affliction,Hellcaller,DPS,2,2,2,113612,113612,120915,0.0,100.0,291.0,2,100.0,0.0,0.0,
+set0_timed,Warlock,Affliction,Soul Harvester,DPS,26,26,25,118625,103560,173032,0.12,92.3,292.9,26,100.0,0.0,0.0,
+set0_timed,Warlock,Demonology,Diabolist,DPS,230,229,187,169158,162478,246967,0.28,80.0,296.5,230,100.0,0.0,0.0,2726.0
+set0_timed,Warlock,Destruction,Diabolist,DPS,59,59,50,139055,117767,217517,0.36,71.2,294.2,59,100.0,0.0,0.0,
+set0_timed,Warlock,Destruction,Hellcaller,DPS,10,10,8,82768,78356,165658,0.8,70.0,275.9,10,100.0,0.0,0.0,
+set0_timed,Warrior,Arms,Colossus,DPS,3,3,3,100089,98490,123696,0.67,33.3,289.7,3,100.0,0.0,0.0,
+set0_timed,Warrior,Arms,Slayer,DPS,646,637,478,183762,191504,246848,0.6,58.5,299.1,646,100.0,0.0,0.0,3065.0
+set0_timed,Warrior,Fury,Mountain Thane,DPS,27,27,23,155056,133718,214396,0.26,77.8,297.8,27,100.0,0.0,0.0,
+set0_timed,Warrior,Fury,Slayer,DPS,41,41,36,173701,181754,243932,0.32,78.0,297.3,41,100.0,0.0,0.0,3424.0
+set0_timed,Warrior,Protection,Colossus,Tank,9,9,9,108922,104855,139953,0.11,88.9,297.2,9,100.0,0.0,0.0,
+set0_timed,Warrior,Protection,Mountain Thane,Tank,199,199,151,101933,100694,142952,0.09,91.5,294.6,199,100.0,0.0,0.0,2967.0
+set2_timed,DeathKnight,Blood,Deathbringer,Tank,68,68,54,108919,111160,142103,0.04,95.6,306.6,68,0.0,100.0,0.0,3113.0
+set2_timed,DeathKnight,Blood,San'layn,Tank,580,580,391,125301,124152,163187,0.05,95.3,308.2,580,0.0,100.0,0.0,3105.0
+set2_timed,DeathKnight,Frost,Deathbringer,DPS,43,43,32,176274,187178,233592,0.35,69.8,304.1,43,0.0,100.0,0.0,2718.0
+set2_timed,DeathKnight,Unholy,Rider of the Apocalypse,DPS,71,71,57,183949,195361,244849,0.3,76.1,303.7,71,0.0,100.0,0.0,3106.0
+set2_timed,DeathKnight,Unholy,San'layn,DPS,64,64,43,222196,224120,282096,0.19,84.4,305.2,64,0.0,100.0,0.0,
+set2_timed,DemonHunter,Devourer,Annihilator,DPS,83,83,57,208619,212980,261127,0.46,60.2,305.3,83,0.0,100.0,0.0,3111.0
+set2_timed,DemonHunter,Devourer,Void-Scarred,DPS,93,93,74,193843,199466,242334,0.45,66.7,305.7,93,0.0,100.0,0.0,2919.0
+set2_timed,DemonHunter,Havoc,Aldrachi Reaver,DPS,4,4,2,173331,187456,200125,0.25,75.0,305.8,4,0.0,100.0,0.0,
+set2_timed,DemonHunter,Havoc,Fel-Scarred,DPS,63,63,56,174007,177079,238390,0.3,73.0,303.0,63,0.0,100.0,0.0,2952.0
+set2_timed,DemonHunter,Vengeance,Aldrachi Reaver,Tank,8,8,8,93090,93936,119532,0.12,87.5,305.2,8,0.0,100.0,0.0,2984.0
+set2_timed,DemonHunter,Vengeance,Annihilator,Tank,88,88,61,106772,100972,156331,0.06,94.3,305.0,88,0.0,100.0,0.0,3023.0
+set2_timed,Druid,Balance,Elune's Chosen,DPS,165,165,125,184045,190155,245420,0.4,69.7,303.8,165,0.0,100.0,0.0,2874.0
+set2_timed,Druid,Balance,Keeper of the Grove,DPS,1,1,1,99235,99235,99235,3.0,0.0,292.0,1,0.0,100.0,0.0,
+set2_timed,Druid,Feral,Druid of the Claw,DPS,61,61,42,205585,211089,272139,0.41,65.6,304.9,61,0.0,100.0,0.0,
+set2_timed,Druid,Feral,Wildstalker,DPS,2,2,2,200990,200990,243008,0.0,100.0,306.0,2,0.0,100.0,0.0,
+set2_timed,Druid,Guardian,Druid of the Claw,Tank,5,5,2,119399,114662,132230,0.0,100.0,310.2,5,0.0,100.0,0.0,
+set2_timed,Druid,Guardian,Elune's Chosen,Tank,126,126,96,100608,98544,138156,0.06,94.4,305.1,126,0.0,100.0,0.0,2861.0
+set2_timed,Druid,Restoration,Keeper of the Grove,Healer,7,7,7,45628,44594,78150,0.86,28.6,301.6,7,0.0,100.0,0.0,
+set2_timed,Druid,Restoration,Wildstalker,Healer,40,40,35,10399,9850,17301,0.32,77.5,300.0,40,0.0,100.0,0.0,
+set2_timed,Evoker,Augmentation,Chronowarden,DPS,1,1,1,73413,73413,73413,0.0,100.0,296.0,1,0.0,100.0,0.0,
+set2_timed,Evoker,Augmentation,Scalecommander,DPS,3,3,3,112485,112700,115922,0.0,100.0,302.0,3,0.0,100.0,0.0,
+set2_timed,Evoker,Devastation,Scalecommander,DPS,48,48,31,199681,212404,247987,0.29,77.1,304.9,48,0.0,100.0,0.0,
+set2_timed,Evoker,Preservation,Chronowarden,Healer,4,4,2,60036,58844,70111,0.5,75.0,308.2,4,0.0,100.0,0.0,
+set2_timed,Evoker,Preservation,Flameshaper,Healer,78,78,59,43700,43146,62155,0.42,65.4,303.6,78,0.0,100.0,0.0,3025.0
+set2_timed,Hunter,BeastMastery,Dark Ranger,DPS,2,2,1,156714,156714,161472,0.0,100.0,296.0,2,0.0,100.0,0.0,
+set2_timed,Hunter,BeastMastery,Pack Leader,DPS,184,183,149,175217,178142,230268,0.22,79.9,302.7,184,0.0,100.0,0.0,3014.0
+set2_timed,Hunter,Marksmanship,Sentinel,DPS,52,52,50,177195,183422,229834,0.46,65.4,302.8,52,0.0,100.0,0.0,2679.0
+set2_timed,Hunter,Survival,Pack Leader,DPS,7,7,5,146995,147684,173075,0.0,100.0,299.9,7,0.0,100.0,0.0,
+set2_timed,Hunter,Survival,Sentinel,DPS,12,12,8,166632,161431,217615,0.08,91.7,302.9,12,0.0,100.0,0.0,
+set2_timed,Mage,Arcane,Spellslinger,DPS,2,2,2,105298,105298,115130,0.5,50.0,298.5,2,0.0,100.0,0.0,
+set2_timed,Mage,Arcane,Sunfury,DPS,731,726,533,211735,217102,262695,0.46,65.5,305.9,731,0.0,100.0,0.0,3101.0
+set2_timed,Mage,Fire,Sunfury,DPS,2,2,2,133424,133424,161224,0.0,100.0,303.5,2,0.0,100.0,0.0,
+set2_timed,Mage,Frost,Spellslinger,DPS,16,16,15,139776,131730,175970,0.19,81.2,298.8,16,0.0,100.0,0.0,
+set2_timed,Monk,Brewmaster,Master of Harmony,Tank,34,34,24,96270,97290,126542,0.09,91.2,306.0,34,0.0,100.0,0.0,3288.0
+set2_timed,Monk,Brewmaster,Shado-Pan,Tank,21,21,14,93347,92454,128152,0.05,95.2,305.7,21,0.0,100.0,0.0,
+set2_timed,Monk,Mistweaver,Conduit of the Celestials,Healer,105,105,77,47691,48791,63410,0.3,73.3,304.3,105,0.0,100.0,0.0,3277.0
+set2_timed,Monk,Mistweaver,Master of Harmony,Healer,3,3,3,37007,36097,39546,0.0,100.0,307.0,3,0.0,100.0,0.0,
+set2_timed,Monk,Windwalker,Conduit of the Celestials,DPS,1,1,1,179826,179826,179826,1.0,0.0,299.0,1,0.0,100.0,0.0,
+set2_timed,Monk,Windwalker,Shado-Pan,DPS,106,106,73,173186,177909,215538,0.33,77.4,303.3,106,0.0,100.0,0.0,2703.0
+set2_timed,Paladin,Holy,Herald of the Sun,Healer,452,452,318,20006,19413,29984,0.38,71.0,305.5,452,0.0,100.0,0.0,3016.0
+set2_timed,Paladin,Holy,Lightsmith,Healer,84,84,58,42423,41724,57459,0.39,70.2,306.0,84,0.0,100.0,0.0,
+set2_timed,Paladin,Protection,Lightsmith,Tank,211,211,153,102659,101392,130741,0.05,94.8,306.0,211,0.0,100.0,0.0,3197.0
+set2_timed,Paladin,Protection,Templar,Tank,38,38,31,90061,91120,126428,0.13,86.8,303.1,38,0.0,100.0,0.0,
+set2_timed,Paladin,Retribution,Herald of the Sun,DPS,144,140,104,208740,213546,253520,0.49,66.7,307.0,144,0.0,100.0,0.0,2780.0
+set2_timed,Paladin,Retribution,Templar,DPS,117,117,95,179778,180360,241811,0.29,76.1,304.2,117,0.0,100.0,0.0,3072.0
+set2_timed,Priest,Discipline,Oracle,Healer,43,43,34,18252,18315,23191,0.23,76.7,302.1,43,0.0,100.0,0.0,
+set2_timed,Priest,Discipline,Voidweaver,Healer,18,18,12,37393,37218,47589,0.33,77.8,308.4,18,0.0,100.0,0.0,2809.0
+set2_timed,Priest,Holy,Archon,Healer,4,4,4,17751,16801,20960,0.0,100.0,306.2,4,0.0,100.0,0.0,
+set2_timed,Priest,Holy,Oracle,Healer,125,125,96,24970,24182,39625,0.19,83.2,306.7,125,0.0,100.0,0.0,2883.0
+set2_timed,Priest,Shadow,Archon,DPS,53,53,44,168191,161126,229034,0.26,81.1,301.5,53,0.0,100.0,0.0,3127.0
+set2_timed,Priest,Shadow,Voidweaver,DPS,25,25,20,173841,178649,232720,0.4,64.0,303.6,25,0.0,100.0,0.0,
+set2_timed,Rogue,Assassination,Deathstalker,DPS,81,81,63,225858,229912,274769,0.26,77.8,305.1,81,0.0,100.0,0.0,3039.0
+set2_timed,Rogue,Assassination,Fatebound,DPS,2,2,2,242764,242764,259210,0.5,50.0,306.5,2,0.0,100.0,0.0,
+set2_timed,Rogue,Outlaw,Trickster,DPS,34,34,27,201923,203598,260839,0.38,73.5,304.7,34,0.0,100.0,0.0,3396.0
+set2_timed,Rogue,Subtlety,Deathstalker,DPS,56,56,46,206910,206948,254875,0.29,73.2,304.9,56,0.0,100.0,0.0,3142.0
+set2_timed,Rogue,Subtlety,Trickster,DPS,16,16,9,178415,185274,238625,0.12,87.5,302.5,16,0.0,100.0,0.0,
+set2_timed,Shaman,Elemental,Farseer,DPS,297,297,217,207896,212823,267564,0.36,73.4,304.5,297,0.0,100.0,0.0,3188.0
+set2_timed,Shaman,Enhancement,Stormbringer,DPS,107,107,88,197456,208122,246459,0.55,60.7,303.6,107,0.0,100.0,0.0,3067.0
+set2_timed,Shaman,Restoration,Farseer,Healer,12,12,12,26577,25472,47543,0.33,75.0,301.1,12,0.0,100.0,0.0,
+set2_timed,Shaman,Restoration,Totemic,Healer,465,465,334,32728,32505,43274,0.31,75.5,305.7,465,0.0,100.0,0.0,3178.0
+set2_timed,Warlock,Affliction,Hellcaller,DPS,1,1,1,173750,173750,173750,0.0,100.0,299.0,1,0.0,100.0,0.0,
+set2_timed,Warlock,Affliction,Soul Harvester,DPS,21,21,16,143651,143726,194578,0.14,90.5,299.1,21,0.0,100.0,0.0,
+set2_timed,Warlock,Demonology,Diabolist,DPS,108,108,81,189674,196660,244583,0.39,69.4,304.3,108,0.0,100.0,0.0,2943.0
+set2_timed,Warlock,Destruction,Diabolist,DPS,29,29,26,141948,142632,199083,0.31,75.9,299.6,29,0.0,100.0,0.0,
+set2_timed,Warlock,Destruction,Hellcaller,DPS,7,7,7,140446,132138,188609,0.14,85.7,299.4,7,0.0,100.0,0.0,
+set2_timed,Warrior,Arms,Slayer,DPS,457,452,344,195543,198147,248822,0.63,58.0,306.3,457,0.0,100.0,0.0,3072.0
+set2_timed,Warrior,Fury,Mountain Thane,DPS,8,8,7,202477,212122,262033,0.62,50.0,303.4,8,0.0,100.0,0.0,
+set2_timed,Warrior,Fury,Slayer,DPS,56,56,42,212531,224075,267854,0.41,69.6,305.0,56,0.0,100.0,0.0,3283.0
+set2_timed,Warrior,Protection,Colossus,Tank,1,1,1,87567,87567,87567,0.0,100.0,300.0,1,0.0,100.0,0.0,
+set2_timed,Warrior,Protection,Mountain Thane,Tank,50,50,40,103286,104466,136657,0.02,98.0,303.2,50,0.0,100.0,0.0,
+set4_timed,DeathKnight,Blood,Deathbringer,Tank,27,27,23,119580,117452,145558,0.07,92.6,308.7,27,0.0,0.0,100.0,2874.0
+set4_timed,DeathKnight,Blood,San'layn,Tank,372,372,227,145359,145646,178654,0.04,96.5,309.9,372,0.0,0.0,100.0,3096.0
+set4_timed,DeathKnight,Frost,Deathbringer,DPS,33,33,26,206301,206492,248729,0.18,87.9,307.6,33,0.0,0.0,100.0,3130.0
+set4_timed,DeathKnight,Frost,Rider of the Apocalypse,DPS,2,2,2,189856,189856,218226,0.0,100.0,304.0,2,0.0,0.0,100.0,3277.0
+set4_timed,DeathKnight,Unholy,Rider of the Apocalypse,DPS,111,109,76,226640,225881,275957,0.2,82.9,309.0,111,0.0,0.0,100.0,3103.0
+set4_timed,DeathKnight,Unholy,San'layn,DPS,99,98,61,235062,238587,289097,0.25,78.8,308.2,99,0.0,0.0,100.0,3103.0
+set4_timed,DemonHunter,Devourer,Annihilator,DPS,88,88,60,227863,233140,273718,0.41,65.9,308.4,88,0.0,0.0,100.0,3043.0
+set4_timed,DemonHunter,Devourer,Void-Scarred,DPS,151,151,102,222459,223005,269473,0.49,62.9,309.0,151,0.0,0.0,100.0,3011.0
+set4_timed,DemonHunter,Havoc,Aldrachi Reaver,DPS,2,2,2,215627,215627,249502,0.0,100.0,306.0,2,0.0,0.0,100.0,
+set4_timed,DemonHunter,Havoc,Fel-Scarred,DPS,47,47,33,229283,230850,269497,0.38,72.3,307.3,47,0.0,0.0,100.0,2939.0
+set4_timed,DemonHunter,Vengeance,Aldrachi Reaver,Tank,1,1,1,82943,82943,82943,0.0,100.0,307.0,1,0.0,0.0,100.0,
+set4_timed,DemonHunter,Vengeance,Annihilator,Tank,99,99,65,131385,135354,168202,0.03,97.0,308.3,99,0.0,0.0,100.0,2922.0
+set4_timed,Druid,Balance,Elune's Chosen,DPS,236,234,163,223974,224760,271744,0.44,68.2,309.0,236,0.0,0.0,100.0,2975.0
+set4_timed,Druid,Feral,Druid of the Claw,DPS,36,36,23,241248,243298,300132,0.44,69.4,307.7,36,0.0,0.0,100.0,3388.0
+set4_timed,Druid,Feral,Wildstalker,DPS,5,5,4,199432,229054,252147,0.0,100.0,308.4,5,0.0,0.0,100.0,
+set4_timed,Druid,Guardian,Elune's Chosen,Tank,119,119,67,119821,117626,158548,0.09,91.6,307.7,119,0.0,0.0,100.0,3059.0
+set4_timed,Druid,Restoration,Keeper of the Grove,Healer,4,4,4,54516,55484,73711,0.0,100.0,304.5,4,0.0,0.0,100.0,2766.0
+set4_timed,Druid,Restoration,Wildstalker,Healer,27,27,18,14445,13222,23311,0.19,85.2,306.7,27,0.0,0.0,100.0,2909.0
+set4_timed,Evoker,Augmentation,Chronowarden,DPS,3,3,2,174762,169493,193017,1.0,33.3,309.7,3,0.0,0.0,100.0,
+set4_timed,Evoker,Augmentation,Scalecommander,DPS,2,2,2,229616,229616,242382,0.0,100.0,308.0,2,0.0,0.0,100.0,
+set4_timed,Evoker,Devastation,Scalecommander,DPS,94,90,62,220551,224676,263872,0.39,71.3,308.6,94,0.0,0.0,100.0,2810.0
+set4_timed,Evoker,Preservation,Chronowarden,Healer,1,1,1,84802,84802,84802,0.0,100.0,310.0,1,0.0,0.0,100.0,
+set4_timed,Evoker,Preservation,Flameshaper,Healer,87,87,52,49921,53686,66512,0.45,67.8,308.7,87,0.0,0.0,100.0,2900.0
+set4_timed,Hunter,BeastMastery,Pack Leader,DPS,168,168,119,202920,202070,244595,0.36,73.8,308.5,168,0.0,0.0,100.0,3001.0
+set4_timed,Hunter,Marksmanship,Dark Ranger,DPS,1,1,1,199122,199122,199122,0.0,100.0,306.0,1,0.0,0.0,100.0,
+set4_timed,Hunter,Marksmanship,Sentinel,DPS,188,186,128,219157,217360,257665,0.35,72.3,308.5,188,0.0,0.0,100.0,2920.0
+set4_timed,Hunter,Survival,Pack Leader,DPS,11,11,5,221282,223716,248712,0.73,63.6,307.4,11,0.0,0.0,100.0,3340.0
+set4_timed,Hunter,Survival,Sentinel,DPS,26,26,15,207182,207744,234864,0.23,76.9,310.8,26,0.0,0.0,100.0,
+set4_timed,Mage,Arcane,Spellslinger,DPS,1,1,1,190898,190898,190898,0.0,100.0,311.0,1,0.0,0.0,100.0,
+set4_timed,Mage,Arcane,Sunfury,DPS,929,911,573,240420,242555,284730,0.44,67.1,309.5,929,0.0,0.0,100.0,2982.0
+set4_timed,Mage,Fire,Frostfire,DPS,1,1,1,199122,199122,199122,0.0,100.0,306.0,1,0.0,0.0,100.0,
+set4_timed,Mage,Fire,Sunfury,DPS,6,6,6,240250,247922,271516,0.5,66.7,309.8,6,0.0,0.0,100.0,2875.0
+set4_timed,Mage,Frost,Frostfire,DPS,2,2,2,153726,153726,190805,0.5,50.0,310.5,2,0.0,0.0,100.0,
+set4_timed,Mage,Frost,Spellslinger,DPS,2,2,2,207852,207852,208995,0.5,50.0,303.5,2,0.0,0.0,100.0,
+set4_timed,Monk,Brewmaster,Master of Harmony,Tank,47,47,30,125630,120397,153985,0.11,91.5,307.8,47,0.0,0.0,100.0,3144.0
+set4_timed,Monk,Brewmaster,Shado-Pan,Tank,7,7,6,98515,100790,115432,0.14,85.7,307.1,7,0.0,0.0,100.0,2783.0
+set4_timed,Monk,Mistweaver,Conduit of the Celestials,Healer,60,60,38,51703,51020,64140,0.43,60.0,307.7,60,0.0,0.0,100.0,2989.0
+set4_timed,Monk,Mistweaver,Master of Harmony,Healer,2,2,2,54306,54306,55509,1.0,50.0,307.0,2,0.0,0.0,100.0,
+set4_timed,Monk,Windwalker,Conduit of the Celestials,DPS,58,58,37,235568,237620,273718,0.41,70.7,309.5,58,0.0,0.0,100.0,2825.0
+set4_timed,Monk,Windwalker,Shado-Pan,DPS,104,104,68,235337,245354,283168,0.48,61.5,309.2,104,0.0,0.0,100.0,2953.0
+set4_timed,Paladin,Holy,Herald of the Sun,Healer,147,147,106,22366,21814,32166,0.35,74.1,308.2,147,0.0,0.0,100.0,3089.0
+set4_timed,Paladin,Holy,Lightsmith,Healer,102,102,64,49217,47726,70134,0.38,73.5,308.8,102,0.0,0.0,100.0,3125.0
+set4_timed,Paladin,Protection,Lightsmith,Tank,91,91,63,117228,115714,144022,0.07,94.5,308.0,91,0.0,0.0,100.0,3027.0
+set4_timed,Paladin,Protection,Templar,Tank,34,34,25,108986,109640,125707,0.06,94.1,308.9,34,0.0,0.0,100.0,2736.0
+set4_timed,Paladin,Retribution,Herald of the Sun,DPS,152,152,88,236526,238297,284075,0.52,64.5,309.4,152,0.0,0.0,100.0,3075.0
+set4_timed,Paladin,Retribution,Templar,DPS,111,110,78,219729,223373,261843,0.4,65.8,308.7,111,0.0,0.0,100.0,2965.0
+set4_timed,Priest,Discipline,Oracle,Healer,24,24,21,27801,21855,24505,0.38,66.7,306.8,24,0.0,0.0,100.0,3183.0
+set4_timed,Priest,Discipline,Voidweaver,Healer,7,7,6,38933,38092,43441,0.29,71.4,306.4,7,0.0,0.0,100.0,2800.0
+set4_timed,Priest,Holy,Archon,Healer,4,4,4,24678,25928,30442,0.0,100.0,305.0,4,0.0,0.0,100.0,
+set4_timed,Priest,Holy,Oracle,Healer,69,69,48,27025,26581,41399,0.16,84.1,308.6,69,0.0,0.0,100.0,2751.0
+set4_timed,Priest,Shadow,Archon,DPS,90,90,61,222646,227448,270042,0.33,74.4,308.1,90,0.0,0.0,100.0,3050.0
+set4_timed,Priest,Shadow,Voidweaver,DPS,71,71,49,214865,218675,259784,0.48,67.6,309.5,71,0.0,0.0,100.0,3004.0
+set4_timed,Rogue,Assassination,Deathstalker,DPS,136,136,87,244601,246779,292454,0.54,63.2,308.0,136,0.0,0.0,100.0,2936.0
+set4_timed,Rogue,Assassination,Fatebound,DPS,7,7,5,242887,229641,321964,0.0,100.0,305.7,7,0.0,0.0,100.0,2904.0
+set4_timed,Rogue,Outlaw,Trickster,DPS,72,72,50,238861,239882,292376,0.44,65.3,308.6,72,0.0,0.0,100.0,3235.0
+set4_timed,Rogue,Subtlety,Deathstalker,DPS,234,231,149,234733,236116,284021,0.35,72.6,309.0,234,0.0,0.0,100.0,2916.0
+set4_timed,Rogue,Subtlety,Trickster,DPS,8,8,6,210244,179448,287324,0.38,62.5,308.9,8,0.0,0.0,100.0,
+set4_timed,Shaman,Elemental,Farseer,DPS,393,387,248,240550,240536,288963,0.52,62.3,309.2,393,0.0,0.0,100.0,2976.0
+set4_timed,Shaman,Elemental,Stormbringer,DPS,1,1,1,113850,113850,113850,0.0,100.0,308.0,1,0.0,0.0,100.0,
+set4_timed,Shaman,Enhancement,Stormbringer,DPS,126,126,78,231526,235675,280262,0.59,57.1,307.9,126,0.0,0.0,100.0,2934.0
+set4_timed,Shaman,Enhancement,Totemic,DPS,1,1,1,170535,170535,170535,1.0,0.0,304.0,1,0.0,0.0,100.0,
+set4_timed,Shaman,Restoration,Farseer,Healer,5,5,3,30507,31031,43831,0.4,60.0,304.2,5,0.0,0.0,100.0,
+set4_timed,Shaman,Restoration,Totemic,Healer,274,274,163,35791,35794,46033,0.24,79.6,307.4,274,0.0,0.0,100.0,3074.0
+set4_timed,Warlock,Affliction,Soul Harvester,DPS,28,28,22,214597,228354,258418,0.18,82.1,307.1,28,0.0,0.0,100.0,
+set4_timed,Warlock,Demonology,Diabolist,DPS,193,192,147,238014,240056,282669,0.28,74.6,308.5,193,0.0,0.0,100.0,2827.0
+set4_timed,Warlock,Destruction,Diabolist,DPS,53,53,35,229956,228615,265139,0.42,69.8,308.6,53,0.0,0.0,100.0,2907.0
+set4_timed,Warlock,Destruction,Hellcaller,DPS,6,6,4,256905,262533,277896,0.0,100.0,307.7,6,0.0,0.0,100.0,
+set4_timed,Warrior,Arms,Colossus,DPS,2,2,2,206638,206638,213621,0.5,50.0,310.5,2,0.0,0.0,100.0,
+set4_timed,Warrior,Arms,Slayer,DPS,618,617,381,230291,232112,275060,0.68,53.4,309.4,618,0.0,0.0,100.0,3058.0
+set4_timed,Warrior,Fury,Mountain Thane,DPS,6,6,6,208625,205146,237427,0.33,66.7,307.2,6,0.0,0.0,100.0,
+set4_timed,Warrior,Fury,Slayer,DPS,45,45,31,245943,246559,291913,0.36,77.8,308.5,45,0.0,0.0,100.0,3424.0
+set4_timed,Warrior,Protection,Colossus,Tank,4,4,4,142664,143358,160890,0.25,75.0,307.2,4,0.0,0.0,100.0,
+set4_timed,Warrior,Protection,Mountain Thane,Tank,57,57,47,136153,136733,161843,0.11,93.0,306.8,57,0.0,0.0,100.0,2847.0
 all,DeathKnight,Blood,(all merged),Tank,42313,42309,12719,118617,118446,157758,0.13,90.3,302.4,1818,41.1,36.5,22.4,2970.0
 all,DeathKnight,Frost,(all merged),DPS,2662,2652,1259,171709,175181,230248,0.42,71.5,298.5,120,33.3,35.8,30.8,2935.0
 all,DeathKnight,Unholy,(all merged),DPS,11629,11465,4339,192122,194265,253443,0.39,71.8,299.7,529,34.2,25.9,39.9,2956.0
@@ -327,3 +549,123 @@ timed,Warlock,Destruction,(all merged),DPS,3404,3382,1892,169367,171258,235250,0
 timed,Warrior,Arms,(all merged),DPS,36392,35467,11607,196258,199160,251887,0.69,54.3,301.5,1726,37.6,26.5,35.9,2984.0
 timed,Warrior,Fury,(all merged),DPS,2803,2794,1427,186980,191011,253599,0.47,64.8,299.7,183,37.2,35.0,27.9,3068.0
 timed,Warrior,Protection,(all merged),Tank,6956,6956,3066,111705,112559,149660,0.15,87.3,297.3,320,65.0,15.9,19.1,2900.0
+set0_timed,DeathKnight,Blood,(all merged),Tank,743,743,533,110434,111290,152005,0.05,95.7,299.7,743,100.0,0.0,0.0,2869.0
+set0_timed,DeathKnight,Frost,(all merged),DPS,40,40,37,140176,131042,201204,0.1,92.5,296.0,40,100.0,0.0,0.0,
+set0_timed,DeathKnight,Unholy,(all merged),DPS,179,177,140,167296,165337,245598,0.18,84.9,296.2,179,100.0,0.0,0.0,3176.0
+set0_timed,DemonHunter,Devourer,(all merged),DPS,233,232,183,172734,176707,236966,0.45,67.4,298.3,233,100.0,0.0,0.0,3037.0
+set0_timed,DemonHunter,Havoc,(all merged),DPS,117,117,98,152405,144233,229303,0.22,79.5,295.1,117,100.0,0.0,0.0,3115.0
+set0_timed,DemonHunter,Vengeance,(all merged),Tank,190,190,144,95758,97921,140458,0.05,96.3,295.7,190,100.0,0.0,0.0,2999.0
+set0_timed,Druid,Balance,(all merged),DPS,220,220,168,158012,158594,219446,0.35,74.1,297.0,220,100.0,0.0,0.0,2780.0
+set0_timed,Druid,Feral,(all merged),DPS,121,121,86,178459,186919,263609,0.56,62.8,298.1,121,100.0,0.0,0.0,3152.0
+set0_timed,Druid,Guardian,(all merged),Tank,261,261,210,88774,86973,125087,0.1,90.8,297.4,261,100.0,0.0,0.0,3072.0
+set0_timed,Druid,Restoration,(all merged),Healer,123,123,113,10162,8368,20820,0.39,71.5,293.1,123,100.0,0.0,0.0,2895.0
+set0_timed,Evoker,Augmentation,(all merged),DPS,18,18,13,108348,101282,185499,0.11,88.9,289.9,18,100.0,0.0,0.0,
+set0_timed,Evoker,Devastation,(all merged),DPS,84,84,71,162111,157667,221950,0.4,69.0,296.9,84,100.0,0.0,0.0,2687.0
+set0_timed,Evoker,Preservation,(all merged),Healer,86,86,63,33439,32160,54500,0.42,72.1,295.4,86,100.0,0.0,0.0,2699.0
+set0_timed,Hunter,BeastMastery,(all merged),DPS,315,311,263,145065,135974,207725,0.32,76.8,295.3,315,100.0,0.0,0.0,2980.0
+set0_timed,Hunter,Marksmanship,(all merged),DPS,92,92,82,152791,149072,220835,0.42,66.3,296.5,92,100.0,0.0,0.0,2742.0
+set0_timed,Hunter,Survival,(all merged),DPS,41,41,36,121662,111299,180482,0.32,73.2,289.8,41,100.0,0.0,0.0,
+set0_timed,Mage,Arcane,(all merged),DPS,583,575,494,167821,169351,233177,0.31,75.0,297.9,583,100.0,0.0,0.0,2961.0
+set0_timed,Mage,Fire,(all merged),DPS,16,16,15,136139,125613,209606,0.38,75.0,290.7,16,100.0,0.0,0.0,
+set0_timed,Mage,Frost,(all merged),DPS,56,56,53,118857,112848,168073,0.36,69.6,291.7,56,100.0,0.0,0.0,
+set0_timed,Monk,Brewmaster,(all merged),Tank,115,115,88,83138,84169,115574,0.13,88.7,297.1,115,100.0,0.0,0.0,
+set0_timed,Monk,Mistweaver,(all merged),Healer,256,256,180,39002,39826,54392,0.23,80.1,295.0,256,100.0,0.0,0.0,2910.0
+set0_timed,Monk,Windwalker,(all merged),DPS,153,153,117,149467,141430,227777,0.25,83.7,297.1,153,100.0,0.0,0.0,2791.0
+set0_timed,Paladin,Holy,(all merged),Healer,513,513,393,20358,18287,33098,0.29,74.9,296.6,513,100.0,0.0,0.0,2815.0
+set0_timed,Paladin,Protection,(all merged),Tank,432,432,334,88546,89155,124741,0.06,94.0,296.0,432,100.0,0.0,0.0,3029.0
+set0_timed,Paladin,Retribution,(all merged),DPS,356,353,289,151234,144462,227500,0.35,73.0,296.1,356,100.0,0.0,0.0,2963.0
+set0_timed,Priest,Discipline,(all merged),Healer,131,131,107,14137,13622,18856,0.25,79.4,292.1,131,100.0,0.0,0.0,
+set0_timed,Priest,Holy,(all merged),Healer,244,244,197,21637,20398,35329,0.16,88.1,296.1,244,100.0,0.0,0.0,2811.0
+set0_timed,Priest,Shadow,(all merged),DPS,158,157,122,160720,165438,227329,0.3,77.2,297.4,158,100.0,0.0,0.0,2782.0
+set0_timed,Rogue,Assassination,(all merged),DPS,131,131,104,186428,183243,260535,0.32,74.8,296.8,131,100.0,0.0,0.0,3240.0
+set0_timed,Rogue,Outlaw,(all merged),DPS,93,93,58,187950,199514,283358,0.52,68.8,296.2,93,100.0,0.0,0.0,3396.0
+set0_timed,Rogue,Subtlety,(all merged),DPS,160,160,128,173185,170593,242175,0.34,75.0,296.4,160,100.0,0.0,0.0,3225.0
+set0_timed,Shaman,Elemental,(all merged),DPS,408,407,327,178261,174685,252350,0.36,72.8,296.8,408,100.0,0.0,0.0,3084.0
+set0_timed,Shaman,Enhancement,(all merged),DPS,116,116,93,148707,145490,218540,0.37,70.7,292.2,116,100.0,0.0,0.0,2791.0
+set0_timed,Shaman,Restoration,(all merged),Healer,567,567,454,23440,23824,34149,0.27,78.7,295.7,567,100.0,0.0,0.0,2985.0
+set0_timed,Warlock,Affliction,(all merged),DPS,28,28,27,118267,104784,170642,0.11,92.9,292.8,28,100.0,0.0,0.0,
+set0_timed,Warlock,Demonology,(all merged),DPS,230,229,187,169158,162478,246967,0.28,80.0,296.5,230,100.0,0.0,0.0,2726.0
+set0_timed,Warlock,Destruction,(all merged),DPS,69,69,57,130898,116801,214738,0.42,71.0,291.6,69,100.0,0.0,0.0,
+set0_timed,Warrior,Arms,(all merged),DPS,649,640,480,183375,191257,246807,0.6,58.4,299.1,649,100.0,0.0,0.0,3065.0
+set0_timed,Warrior,Fury,(all merged),DPS,68,68,59,166298,170504,235868,0.29,77.9,297.5,68,100.0,0.0,0.0,3424.0
+set0_timed,Warrior,Protection,(all merged),Tank,208,208,159,102236,100700,142959,0.09,91.3,294.7,208,100.0,0.0,0.0,2967.0
+set2_timed,DeathKnight,Blood,(all merged),Tank,648,648,441,123582,123028,160940,0.05,95.4,308.0,648,0.0,100.0,0.0,3106.0
+set2_timed,DeathKnight,Frost,(all merged),DPS,43,43,32,176274,187178,233592,0.35,69.8,304.1,43,0.0,100.0,0.0,2718.0
+set2_timed,DeathKnight,Unholy,(all merged),DPS,135,135,100,202081,207410,269957,0.24,80.0,304.4,135,0.0,100.0,0.0,3106.0
+set2_timed,DemonHunter,Devourer,(all merged),DPS,176,175,130,200811,206716,253267,0.45,63.6,305.5,176,0.0,100.0,0.0,3063.0
+set2_timed,DemonHunter,Havoc,(all merged),DPS,67,67,58,173966,177426,236569,0.3,73.1,303.2,67,0.0,100.0,0.0,2952.0
+set2_timed,DemonHunter,Vengeance,(all merged),Tank,96,96,68,105631,100042,155342,0.06,93.8,305.0,96,0.0,100.0,0.0,3004.0
+set2_timed,Druid,Balance,(all merged),DPS,166,166,126,183534,190091,244696,0.42,69.3,303.7,166,0.0,100.0,0.0,2874.0
+set2_timed,Druid,Feral,(all merged),DPS,63,63,43,205439,211089,271929,0.4,66.7,304.9,63,0.0,100.0,0.0,
+set2_timed,Druid,Guardian,(all merged),Tank,131,131,98,101326,99061,138699,0.05,94.7,305.3,131,0.0,100.0,0.0,2861.0
+set2_timed,Druid,Restoration,(all merged),Healer,47,47,42,15646,10617,29018,0.4,70.2,300.3,47,0.0,100.0,0.0,
+set2_timed,Evoker,Augmentation,(all merged),DPS,4,4,4,102717,110364,115520,0.0,100.0,300.5,4,0.0,100.0,0.0,
+set2_timed,Evoker,Devastation,(all merged),DPS,48,48,31,199681,212404,247987,0.29,77.1,304.9,48,0.0,100.0,0.0,
+set2_timed,Evoker,Preservation,(all merged),Healer,82,82,60,44497,43892,62867,0.43,65.9,303.8,82,0.0,100.0,0.0,3025.0
+set2_timed,Hunter,BeastMastery,(all merged),DPS,186,185,150,175018,177256,229614,0.22,80.1,302.7,186,0.0,100.0,0.0,3014.0
+set2_timed,Hunter,Marksmanship,(all merged),DPS,52,52,50,177195,183422,229834,0.46,65.4,302.8,52,0.0,100.0,0.0,2679.0
+set2_timed,Hunter,Survival,(all merged),DPS,19,19,13,159397,148239,205852,0.05,94.7,301.8,19,0.0,100.0,0.0,
+set2_timed,Mage,Arcane,(all merged),DPS,733,728,535,211444,217063,262656,0.46,65.5,305.9,733,0.0,100.0,0.0,3101.0
+set2_timed,Mage,Fire,(all merged),DPS,2,2,2,133424,133424,161224,0.0,100.0,303.5,2,0.0,100.0,0.0,
+set2_timed,Mage,Frost,(all merged),DPS,16,16,15,139776,131730,175970,0.19,81.2,298.8,16,0.0,100.0,0.0,
+set2_timed,Monk,Brewmaster,(all merged),Tank,55,55,38,95154,97164,128113,0.07,92.7,305.9,55,0.0,100.0,0.0,3288.0
+set2_timed,Monk,Mistweaver,(all merged),Healer,108,108,80,47394,48464,63235,0.29,74.1,304.3,108,0.0,100.0,0.0,3277.0
+set2_timed,Monk,Windwalker,(all merged),DPS,107,107,74,173249,177925,215199,0.34,76.6,303.3,107,0.0,100.0,0.0,2703.0
+set2_timed,Paladin,Holy,(all merged),Healer,536,536,372,23519,20784,40532,0.39,70.9,305.6,536,0.0,100.0,0.0,3016.0
+set2_timed,Paladin,Protection,(all merged),Tank,249,249,184,100736,99710,130705,0.06,93.6,305.6,249,0.0,100.0,0.0,3197.0
+set2_timed,Paladin,Retribution,(all merged),DPS,261,257,196,195757,202528,250873,0.4,70.9,305.7,261,0.0,100.0,0.0,3024.0
+set2_timed,Priest,Discipline,(all merged),Healer,61,61,46,23900,21048,41452,0.26,77.0,304.0,61,0.0,100.0,0.0,2809.0
+set2_timed,Priest,Holy,(all merged),Healer,129,129,100,24747,23166,39386,0.19,83.7,306.7,129,0.0,100.0,0.0,2883.0
+set2_timed,Priest,Shadow,(all merged),DPS,78,78,64,170002,164522,232065,0.31,75.6,302.2,78,0.0,100.0,0.0,3127.0
+set2_timed,Rogue,Assassination,(all merged),DPS,83,83,65,226265,229912,274470,0.27,77.1,305.1,83,0.0,100.0,0.0,3039.0
+set2_timed,Rogue,Outlaw,(all merged),DPS,34,34,27,201923,203598,260839,0.38,73.5,304.7,34,0.0,100.0,0.0,3396.0
+set2_timed,Rogue,Subtlety,(all merged),DPS,72,72,55,200578,204567,250219,0.25,76.4,304.3,72,0.0,100.0,0.0,3142.0
+set2_timed,Shaman,Elemental,(all merged),DPS,297,297,217,207896,212823,267564,0.36,73.4,304.5,297,0.0,100.0,0.0,3188.0
+set2_timed,Shaman,Enhancement,(all merged),DPS,107,107,88,197456,208122,246459,0.55,60.7,303.6,107,0.0,100.0,0.0,3067.0
+set2_timed,Shaman,Restoration,(all merged),Healer,477,477,345,32574,32383,43421,0.31,75.5,305.6,477,0.0,100.0,0.0,3178.0
+set2_timed,Warlock,Affliction,(all merged),DPS,22,22,17,145019,143948,192981,0.14,90.9,299.1,22,0.0,100.0,0.0,
+set2_timed,Warlock,Demonology,(all merged),DPS,108,108,81,189674,196660,244583,0.39,69.4,304.3,108,0.0,100.0,0.0,2943.0
+set2_timed,Warlock,Destruction,(all merged),DPS,36,36,33,141656,134758,200082,0.28,77.8,299.5,36,0.0,100.0,0.0,
+set2_timed,Warrior,Arms,(all merged),DPS,457,452,344,195543,198147,248822,0.63,58.0,306.3,457,0.0,100.0,0.0,3072.0
+set2_timed,Warrior,Fury,(all merged),DPS,64,64,48,211275,222354,270864,0.44,67.2,304.8,64,0.0,100.0,0.0,3283.0
+set2_timed,Warrior,Protection,(all merged),Tank,51,51,41,102978,103808,135739,0.02,98.0,303.2,51,0.0,100.0,0.0,
+set4_timed,DeathKnight,Blood,(all merged),Tank,399,399,249,143614,144154,176350,0.04,96.2,309.9,399,0.0,0.0,100.0,3075.0
+set4_timed,DeathKnight,Frost,(all merged),DPS,35,35,27,205361,206492,247718,0.17,88.6,307.4,35,0.0,0.0,100.0,3179.0
+set4_timed,DeathKnight,Unholy,(all merged),DPS,210,205,133,230610,229951,281716,0.22,81.0,308.6,210,0.0,0.0,100.0,3103.0
+set4_timed,DemonHunter,Devourer,(all merged),DPS,239,239,159,224449,226393,272396,0.46,64.0,308.8,239,0.0,0.0,100.0,3020.0
+set4_timed,DemonHunter,Havoc,(all merged),DPS,49,49,35,228726,230850,269467,0.37,73.5,307.3,49,0.0,0.0,100.0,2939.0
+set4_timed,DemonHunter,Vengeance,(all merged),Tank,100,100,66,130901,134784,167772,0.03,97.0,308.3,100,0.0,0.0,100.0,2922.0
+set4_timed,Druid,Balance,(all merged),DPS,236,234,163,223974,224760,271744,0.44,68.2,309.0,236,0.0,0.0,100.0,2975.0
+set4_timed,Druid,Feral,(all merged),DPS,41,41,26,236148,239668,297647,0.39,73.2,307.8,41,0.0,0.0,100.0,3388.0
+set4_timed,Druid,Guardian,(all merged),Tank,119,119,67,119821,117626,158548,0.09,91.6,307.7,119,0.0,0.0,100.0,3059.0
+set4_timed,Druid,Restoration,(all merged),Healer,31,31,22,19615,15865,28976,0.16,87.1,306.5,31,0.0,0.0,100.0,2880.0
+set4_timed,Evoker,Augmentation,(all merged),DPS,5,5,4,196703,198898,232808,0.6,60.0,309.0,5,0.0,0.0,100.0,
+set4_timed,Evoker,Devastation,(all merged),DPS,94,90,62,220551,224676,263872,0.39,71.3,308.6,94,0.0,0.0,100.0,2810.0
+set4_timed,Evoker,Preservation,(all merged),Healer,88,88,53,50318,53842,66877,0.44,68.2,308.8,88,0.0,0.0,100.0,2900.0
+set4_timed,Hunter,BeastMastery,(all merged),DPS,168,168,119,202920,202070,244595,0.36,73.8,308.5,168,0.0,0.0,100.0,3001.0
+set4_timed,Hunter,Marksmanship,(all merged),DPS,189,187,129,219051,217281,257306,0.34,72.5,308.4,189,0.0,0.0,100.0,2920.0
+set4_timed,Hunter,Survival,(all merged),DPS,37,37,20,211374,213501,240788,0.38,73.0,309.8,37,0.0,0.0,100.0,3340.0
+set4_timed,Mage,Arcane,(all merged),DPS,930,912,574,240367,242525,284673,0.44,67.1,309.5,930,0.0,0.0,100.0,2982.0
+set4_timed,Mage,Fire,(all merged),DPS,7,7,7,234375,239116,270683,0.43,71.4,309.3,7,0.0,0.0,100.0,2875.0
+set4_timed,Mage,Frost,(all merged),DPS,4,4,4,180789,203249,208424,0.5,50.0,307.0,4,0.0,0.0,100.0,
+set4_timed,Monk,Brewmaster,(all merged),Tank,54,54,36,122115,118424,153098,0.11,90.7,307.7,54,0.0,0.0,100.0,3111.0
+set4_timed,Monk,Mistweaver,(all merged),Healer,62,62,40,51787,51168,63963,0.45,59.7,307.7,62,0.0,0.0,100.0,2989.0
+set4_timed,Monk,Windwalker,(all merged),DPS,162,162,102,235420,243990,279435,0.46,64.8,309.3,162,0.0,0.0,100.0,2934.0
+set4_timed,Paladin,Holy,(all merged),Healer,249,249,168,33365,28634,57045,0.36,73.9,308.4,249,0.0,0.0,100.0,3104.0
+set4_timed,Paladin,Protection,(all merged),Tank,125,125,87,114986,113866,141516,0.06,94.4,308.2,125,0.0,0.0,100.0,2930.0
+set4_timed,Paladin,Retribution,(all merged),DPS,263,262,162,229437,230729,273378,0.47,65.0,309.1,263,0.0,0.0,100.0,3049.0
+set4_timed,Priest,Discipline,(all merged),Healer,31,31,27,30314,22716,39990,0.35,67.7,306.7,31,0.0,0.0,100.0,2992.0
+set4_timed,Priest,Holy,(all merged),Healer,73,73,52,26897,26581,40635,0.15,84.9,308.4,73,0.0,0.0,100.0,2751.0
+set4_timed,Priest,Shadow,(all merged),DPS,161,158,102,219214,222780,267070,0.4,71.4,308.7,161,0.0,0.0,100.0,3029.0
+set4_timed,Rogue,Assassination,(all merged),DPS,143,143,92,244517,246401,294096,0.52,65.0,307.9,143,0.0,0.0,100.0,2933.0
+set4_timed,Rogue,Outlaw,(all merged),DPS,72,72,50,238861,239882,292376,0.44,65.3,308.6,72,0.0,0.0,100.0,3235.0
+set4_timed,Rogue,Subtlety,(all merged),DPS,242,239,155,233923,235704,284230,0.35,72.3,309.0,242,0.0,0.0,100.0,2916.0
+set4_timed,Shaman,Elemental,(all merged),DPS,394,388,249,240229,240526,288646,0.52,62.4,309.2,394,0.0,0.0,100.0,2976.0
+set4_timed,Shaman,Enhancement,(all merged),DPS,127,127,79,231045,235481,280211,0.59,56.7,307.9,127,0.0,0.0,100.0,2934.0
+set4_timed,Shaman,Restoration,(all merged),Healer,279,279,166,35696,35771,46012,0.24,79.2,307.4,279,0.0,0.0,100.0,3074.0
+set4_timed,Warlock,Affliction,(all merged),DPS,28,28,22,214597,228354,258418,0.18,82.1,307.1,28,0.0,0.0,100.0,
+set4_timed,Warlock,Demonology,(all merged),DPS,193,192,147,238014,240056,282669,0.28,74.6,308.5,193,0.0,0.0,100.0,2827.0
+set4_timed,Warlock,Destruction,(all merged),DPS,59,56,38,232696,233735,268956,0.37,72.9,308.5,59,0.0,0.0,100.0,2907.0
+set4_timed,Warrior,Arms,(all merged),DPS,620,619,383,230215,232042,275024,0.68,53.4,309.4,620,0.0,0.0,100.0,3058.0
+set4_timed,Warrior,Fury,(all merged),DPS,51,51,36,241553,244908,289374,0.35,76.5,308.4,51,0.0,0.0,100.0,3424.0
+set4_timed,Warrior,Protection,(all merged),Tank,61,61,50,136580,137912,162541,0.11,91.8,306.9,61,0.0,0.0,100.0,2847.0

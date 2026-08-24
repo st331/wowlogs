@@ -371,7 +371,12 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              proj:false,       // re-score every parse under the upcoming tuning
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"lines", trendPin:new Set(), timedOnly:true,
-             tier0:false, tier2:false, tier4:false,
+             // 4-piece on by default: it is the cohort worth looking at, and
+             // gear is known for well over half of +12 parses now. Parses
+             // without gear are excluded while it is ticked, so the sample is
+             // smaller than the unfiltered view -- the hint next to the boxes
+             // reports how much of what is on screen has gear.
+             tier0:false, tier2:false, tier4:true,
              tsort:{col:"a_v", dir:-1}};
 let hasTimed=false, hasTune=false, hasProj=false;
 let hasRating=false, hasTier=false, CHARSCORE=[];

@@ -738,9 +738,23 @@ def build_llms() -> None:
             out[c] = out[c].astype("Int64")
         return out
 
-    def with_subsets(by, tuning=False):
+    def with_subsets(by, tuning=False, sets=False):
         parts = [agg(df, by).assign(subset="all"),
                  agg(df[df["timed"] == 1], by).assign(subset="timed")]
+        if sets and "set_pieces" in df.columns:
+            # Pre-aggregated tier cohorts. Without these the only way to get a
+            # 4-piece figure was to pull all 21 raw chunks and group them,
+            # which is more than a browsing reader can do -- so it proxies with
+            # high key levels instead and reports something else. Timed only,
+            # matching the dashboard default and keeping depleted runs out.
+            gear = df[(df["timed"] == 1) & df["set_pieces"].notna()]
+            if len(gear):
+                sp = gear["set_pieces"]
+                parts += [
+                    agg(gear[sp < 2], by).assign(subset="set0_timed"),
+                    agg(gear[(sp >= 2) & (sp < 4)], by).assign(subset="set2_timed"),
+                    agg(gear[sp >= 4], by).assign(subset="set4_timed"),
+                ]
         if tuning and (df["post_tuning"] == 1).any():
             post = df[df["post_tuning"] == 1]
             parts += [agg(post, by).assign(subset="post_tuning"),
@@ -750,14 +764,85 @@ def build_llms() -> None:
         return out[["subset"] + [c for c in out.columns if c != "subset"]]
 
     spec_summary = pd.concat([
-        with_subsets(["class", "spec", "hero_talent", "role"], True),
-        with_subsets(["class", "spec", "role"], True).assign(hero_talent="(all merged)"),
+        with_subsets(["class", "spec", "hero_talent", "role"], True, sets=True),
+        with_subsets(["class", "spec", "role"], True, sets=True)
+        .assign(hero_talent="(all merged)"),
     ], ignore_index=True)
+
+    # Matched set-bonus gains, the same computation the dashboard shows.
+    # Cannot be derived from the aggregates above: comparing a spec's 4-piece
+    # mean against its no-set mean measures key level and item level as much as
+    # the bonus, because the players who have the set are further along. This
+    # holds dungeon and key level fixed instead, and is published ready-made
+    # because doing it from the raw chunks means grouping ~120k rows.
+    SB_CELL_MIN, SB_CELLS_MIN, SB_COHORT_MIN = 5, 3, 30
+
+    def set_bonus_table() -> pd.DataFrame | None:
+        if "set_pieces" not in df.columns:
+            return None
+        g = df[(df["timed"] == 1) & df["set_pieces"].notna()].copy()
+        if g.empty:
+            return None
+        sp = g["set_pieces"]
+        g["cohort"] = np.where(sp < 2, 0, np.where(sp < 4, 1, 2))
+        rows = []
+        for (cls, spec, role), grp in g.groupby(["class", "spec", "role"]):
+            n = [int((grp["cohort"] == c).sum()) for c in (0, 1, 2)]
+            med = [grp.loc[grp["cohort"] == c, "dps"].median() for c in (0, 1, 2)]
+
+            def gain(a, b):
+                """Weighted mean of per-cell median ratios, a -> b."""
+                if n[a] < SB_COHORT_MIN or n[b] < SB_COHORT_MIN:
+                    return None, 0
+                acc = wsum = cells = 0
+                for _, cell in grp.groupby(["dungeon", "key_level"]):
+                    ca = cell.loc[cell["cohort"] == a, "dps"]
+                    cb = cell.loc[cell["cohort"] == b, "dps"]
+                    if len(ca) < SB_CELL_MIN or len(cb) < SB_CELL_MIN:
+                        continue
+                    ma, mb = ca.median(), cb.median()
+                    if not ma > 0:
+                        continue
+                    w = min(len(ca), len(cb))
+                    acc += w * (mb / ma - 1)
+                    wsum += w
+                    cells += 1
+                if cells < SB_CELLS_MIN or not wsum:
+                    return None, cells
+                return round(100 * acc / wsum, 2), cells
+
+            p2, c2 = gain(0, 1)
+            p4, c4 = gain(1, 2)
+            pt, ct = gain(0, 2)
+            if p2 is None and p4 is None and pt is None:
+                continue
+            tot = sum(n) or 1
+            rows.append(dict(
+                **{"class": cls}, spec=spec, role=role,
+                parses_no_set=n[0], parses_2set=n[1], parses_4set=n[2],
+                pct_no_set=round(100 * n[0] / tot, 1),
+                pct_2set=round(100 * n[1] / tot, 1),
+                pct_4set=round(100 * n[2] / tot, 1),
+                median_dps_no_set=None if pd.isna(med[0]) else int(med[0]),
+                median_dps_2set=None if pd.isna(med[1]) else int(med[1]),
+                median_dps_4set=None if pd.isna(med[2]) else int(med[2]),
+                gain_pct_2set=p2, gain_pct_4set=p4, gain_pct_total=pt,
+                matched_cells=max(c2, c4, ct)))
+        if not rows:
+            return None
+        return (pd.DataFrame(rows)
+                .sort_values("gain_pct_total", ascending=False, na_position="last")
+                .reset_index(drop=True))
+
+    set_bonus = set_bonus_table()
 
     files: list[tuple[str, pd.DataFrame | str]] = [
         ("spec_summary.csv", spec_summary),
-        ("spec_by_key.csv", with_subsets(["class", "spec", "role", "key_level"], True)),
-        ("spec_by_dungeon.csv", with_subsets(["class", "spec", "role", "dungeon"], True)),
+        *([("set_bonus.csv", set_bonus)] if set_bonus is not None else []),
+        ("spec_by_key.csv",
+         with_subsets(["class", "spec", "role", "key_level"], True, sets=True)),
+        ("spec_by_dungeon.csv",
+         with_subsets(["class", "spec", "role", "dungeon"], True, sets=True)),
         ("spec_by_reset.csv",
          with_subsets(["class", "spec", "role", "reset_bucket", "reset_start"])),
         ("spec_by_day.csv", with_subsets(["class", "spec", "role", "date"])),
@@ -1029,6 +1114,22 @@ def build_llms() -> None:
            "median_dps, projected_median_dps, avg_dps, projected_avg_dps, "
            "median_change_pct, avg_change_pct, tuned."]
           if any(f[0] == "tuning_projection.csv" for f in files) else []),
+        f"- {BASE_URL}/llms/set_bonus.csv — what each spec gains from the "
+        "2-piece and 4-piece set bonuses, already computed. Columns: class, "
+        "spec, role, parses_no_set / parses_2set / parses_4set, pct_no_set / "
+        "pct_2set / pct_4set, median_dps_no_set / median_dps_2set / "
+        "median_dps_4set, gain_pct_2set (no-set to 2-set), gain_pct_4set "
+        "(2-set to 4-set), gain_pct_total (no-set to 4-set), matched_cells. "
+        "The gain columns are MATCHED comparisons: median against median "
+        "within the same spec, dungeon and key level, pooled across cells and "
+        "weighted by the smaller cohort. Comparing the raw median_dps columns "
+        "instead measures key level and item level as much as the bonus, "
+        "because the players who have the set are further into the season — "
+        "so quote the gain columns for the effect and the median columns only "
+        "as the underlying figures. A spec needs 30+ parses per cohort and 3+ "
+        "matched cells or its gain is blank rather than guessed; item level "
+        "and player skill still travel with having the set, so these remain an "
+        "upper bound on the bonus.",
         f"- {BASE_URL}/llms/comps.csv — the {COMPS_PER_SUBSET:,} "
         f"best-sampled per subset, one row per distinct 5-player "
         "composition, ranked by `strength`. Columns: subset, composition, "
@@ -1040,6 +1141,15 @@ def build_llms() -> None:
         "that beat the timer), and — on spec_summary / spec_by_key / "
         "spec_by_dungeon — \"post_tuning\" and \"post_tuning_timed\", which "
         "restrict to runs started after the most recent class-tuning pass.",
+        "",
+        "**Tier-set cohorts are pre-aggregated. Do not group the raw parse "
+        "chunks to get them.** spec_summary, spec_by_key and spec_by_dungeon "
+        "carry \"set0_timed\", \"set2_timed\" and \"set4_timed\": timed runs "
+        "whose report showed gear, split by how many pieces of this season's "
+        "tier set the player wore (under 2, 2-3, 4+). Every metric in the "
+        "block is there, so a question like \"rank specs by 4-piece DPS\" is "
+        "one file and one filter — subset == \"set4_timed\" — with no need to "
+        "proxy it with high key levels or to fetch parses_*.csv at all.",
         "",
         tuning_para,
         "",

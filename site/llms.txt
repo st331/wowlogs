@@ -1,6 +1,6 @@
 # Midnight Mythic+ Season 2 — dataset for LLM analysis
 
-> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 87,989 runs / 439,963 player parses, keystone levels +2-+18, 2026-08-18 to 2026-08-24. Generated 2026-08-24 05:15 UTC.
+> Per-player performance data for Mythic+ keystone runs from Warcraft Logs' Season 2 fight rankings (zone 55). 87,989 runs / 439,963 player parses, keystone levels +2-+18, 2026-08-18 to 2026-08-24. Generated 2026-08-24 07:45 UTC.
 
 The interactive dashboard at https://st331.github.io/wowlogs/ is JavaScript-only and not machine-readable; use the static files below instead. All URLs are absolute — fetch any of them directly. CSVs are comma-separated with a header row.
 
@@ -18,9 +18,12 @@ Gear was not collected for the whole season, so gear_known is well below parses 
 - https://st331.github.io/wowlogs/llms/spec_by_reset.csv — split by weekly reset (reset_bucket 0 = the reset now in progress, 1 = the one before it, ...; reset_start is that bucket's US reset date).
 - https://st331.github.io/wowlogs/llms/spec_by_day.csv — split by calendar day (UTC). Use this for day-granular questions such as "the last 3 days".
 - https://st331.github.io/wowlogs/llms/dungeon_summary.csv — per-dungeon runs, players, timed %, average duration/key/deaths, and `timer_s`: that dungeon's keystone timer.
+- https://st331.github.io/wowlogs/llms/set_bonus.csv — what each spec gains from the 2-piece and 4-piece set bonuses, already computed. Columns: class, spec, role, parses_no_set / parses_2set / parses_4set, pct_no_set / pct_2set / pct_4set, median_dps_no_set / median_dps_2set / median_dps_4set, gain_pct_2set (no-set to 2-set), gain_pct_4set (2-set to 4-set), gain_pct_total (no-set to 4-set), matched_cells. The gain columns are MATCHED comparisons: median against median within the same spec, dungeon and key level, pooled across cells and weighted by the smaller cohort. Comparing the raw median_dps columns instead measures key level and item level as much as the bonus, because the players who have the set are further into the season — so quote the gain columns for the effect and the median columns only as the underlying figures. A spec needs 30+ parses per cohort and 3+ matched cells or its gain is blank rather than guessed; item level and player skill still travel with having the set, so these remain an upper bound on the bonus.
 - https://st331.github.io/wowlogs/llms/comps.csv — the 2,000 best-sampled per subset, one row per distinct 5-player composition, ranked by `strength`. Columns: subset, composition, runs, strength, avg_key, avg_pct_under, best_pct_under, median_pct_under, key_slope, ref_key, best_time_s, best_dungeon, best_key, best_date, median_time_s, avg_deaths_per_run, timed_pct.
 
 The `subset` column is "all" (every completed run), "timed" (runs that beat the timer), and — on spec_summary / spec_by_key / spec_by_dungeon — "post_tuning" and "post_tuning_timed", which restrict to runs started after the most recent class-tuning pass.
+
+**Tier-set cohorts are pre-aggregated. Do not group the raw parse chunks to get them.** spec_summary, spec_by_key and spec_by_dungeon carry "set0_timed", "set2_timed" and "set4_timed": timed runs whose report showed gear, split by how many pieces of this season's tier set the player wore (under 2, 2-3, 4+). Every metric in the block is there, so a question like "rank specs by 4-piece DPS" is one file and one filter — subset == "set4_timed" — with no need to proxy it with high key levels or to fetch parses_*.csv at all.
 
 No class-tuning pass is currently recorded, so no post_tuning subsets are published.
 
@@ -42,7 +45,7 @@ The `composition` string is role-ordered and pipe-separated, e.g. "T:Blood Death
 
 **Combining rows — read this before adding anything up.** These files deliberately contain overlapping views of the same data, so naive sums inflate badly. Three separate traps:
 
-1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 1,729,552 parses against a true 439,963. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 439,963. "timed" is a subset of "all", never a separate population to add on.
+1. *Overlapping row sets.* spec_summary.csv holds both per-hero-talent rows and hero_talent="(all merged)" rollups, and both the "all" and "timed" subsets. Adding up every row gives 1,771,830 parses against a true 439,963. Always pick ONE subset and EITHER the merged rollups OR the per-hero rows — each of those slices sums to exactly 439,963. "timed" is a subset of "all", never a separate population to add on.
 2. *Non-additive columns.* Only `parses` is additive. `runs` counts distinct runs a spec appeared in and one run holds 5 players of different specs, so summing it across specs over-counts by up to 5x — in this dataset the 87,989 real runs sum to 434,887 across spec_summary rows. `characters` counts distinct players, who recur across dungeons, days and resets, so it double-counts the same way.
 3. *Non-poolable statistics.* Medians and p90s are exact within a row but cannot be averaged across rows; avg_dps can only be combined as a parses-weighted mean.
 
