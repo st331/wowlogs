@@ -485,11 +485,20 @@ function initData(d,cfg){
     for(const x of [...sel]) if(!ok.has(x)) sel.delete(x);};
   prune(state.cls,D.classes); prune(state.spec,D.specs); prune(state.hero,D.heroes);
   prune(state.dun,D.dungeons); prune(state.reg,D.regions);
-  // per-source defaults: period = the last month, keys, min-runs baseline
+  // per-source defaults: period = the CURRENT reset, keys, min-runs baseline.
+  // The reset now in progress is what the page opens on -- the last two weeks
+  // are what matter and older weeks mix tuning states into the averages. The
+  // character threshold scales with the narrowed sample (see effMinFor), so
+  // this does not empty the default view. Right after a reset rolls over,
+  // bucket 0 can be empty for a while; fall back to the newest bucket that
+  // holds data rather than an empty page.
   state.weeksA.clear();
   state.dayCut=0;   // day spans differ per source
-  for(const w of [0,1,2,3]) if(weekCounts.has(w)) state.weeksA.add(w);
+  if(weekCounts.has(0)) state.weeksA.add(0);
+  else if(availWeeks.length) state.weeksA.add(availWeeks[0]);
   state.weeksB.clear();
+  // compare default: A = this reset (above), B = the reset before it. Until
+  // a second reset exists, B falls back to the only bucket there is.
   const wb=availWeeks.find(w=>w>0) ?? availWeeks[0];
   if(wb!==undefined) state.weeksB.add(wb);
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
