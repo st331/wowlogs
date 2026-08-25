@@ -428,11 +428,15 @@ const SEASON={file:"data.json",
 // small); inflate them in the browser, else fall back to the plain file.
 async function loadJSON(file){
   if(typeof DecompressionStream==="function"){
-    const gz=await fetch(file+".gz");
+    // GitHub Pages serves everything with max-age=600, so a returning tab
+    // could show up to ten-minute-old data. no-cache forces a conditional
+    // request: unchanged data costs one cheap 304, fresh data arrives the
+    // moment it is deployed.
+    const gz=await fetch(file+".gz",{cache:"no-cache"});
     if(gz.ok) return new Response(
       gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
   }
-  const r=await fetch(file);
+  const r=await fetch(file,{cache:"no-cache"});
   if(!r.ok) throw new Error("HTTP "+r.status);
   return r.json();
 }
