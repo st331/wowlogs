@@ -36,6 +36,19 @@ summary .cnt{color:var(--gold); font-size:.8rem}
 .chip.on{border-color:var(--gold); color:var(--gold); background:rgba(248,183,0,.08)}
 .chip.ghosted.on{border-color:#b9b7b0; color:#d8d6cf; background:rgba(200,198,190,.10)}
 .rowflex{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:.3rem 0}
+/* checkboxes render as switches: pill track, sliding knob, gold when on */
+label.small input[type=checkbox]{appearance:none; -webkit-appearance:none;
+  width:32px; height:18px; border-radius:10px; background:var(--grid);
+  border:1px solid var(--grid); position:relative; cursor:pointer;
+  transition:background .18s,border-color .18s; vertical-align:-4px;
+  margin:0 7px 0 0; flex:none}
+label.small input[type=checkbox]::after{content:""; position:absolute;
+  top:2px; left:2px; width:12px; height:12px; border-radius:50%;
+  background:var(--muted); transition:transform .18s,background .18s}
+label.small input[type=checkbox]:checked{background:var(--gold); border-color:var(--gold)}
+label.small input[type=checkbox]:checked::after{transform:translateX(14px); background:var(--panel)}
+label.small input[type=checkbox]:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+label.small{display:inline-flex; align-items:center; cursor:pointer}
 label.small{font-size:.85rem; color:var(--ink); display:flex; gap:6px; align-items:center; cursor:pointer}
 input[type=checkbox]{accent-color:var(--gold)}
 select,input[type=number]{background:var(--panel); color:var(--ink);
@@ -163,6 +176,11 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
   <div class="side-label">Who — class, spec &amp; talents</div>
   <details><summary>Class <span class="cnt" id="cnt-cls"></span></summary><div class="chips" id="f-cls"></div></details>
   <details><summary>Spec <span class="cnt" id="cnt-spec"></span></summary><div class="chips" id="f-spec"></div></details>
+  <div class="rowflex" style="margin:.2rem 0 .5rem">
+    <label class="small" title="Keys 12–18, all completed runs, current reset, hero talents merged, DPS role, no tier filter, DPS percentile 90 — reproduces Archon's published numbers to within ~1% and their ordering at ρ≈0.95. Unchecks itself the moment any of those settings moves.">
+      <input type="checkbox" id="archon"> <b>Archon mode</b></label>
+    <span class="hint">match archon.gg's high-keys view</span>
+  </div>
   <div class="rowflex"><label class="small"><input type="checkbox" id="merge" checked> Merge hero talents into spec</label></div>
   <details id="hero-box"><summary>Hero Talent <span class="cnt" id="cnt-hero"></span></summary><div class="chips" id="f-hero"></div></details>
   <details open><summary>Role <span class="cnt" id="cnt-role"></span></summary><div class="chips" id="f-role"></div></details>
@@ -205,6 +223,9 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     <b id="minchars-v" style="color:var(--gold)">250</b>
     <span id="minchars-eff" class="hint"></span></div>
   <input type="range" id="minchars" min="1" max="1200" value="250">
+  <div style="margin-top:.6rem"><b>DPS percentile: <span id="pctl-v">50</span>th</b>
+  <input type="range" id="pctl" min="50" max="99" step="1" value="50">
+  <span class="hint">drives every DPS statistic — 50 = median, 90 ≈ Archon's ceiling view</span></div>
   <div class="hint" id="minchars-help">How many distinct players must have
     parsed a spec for it to show, counted against the view this page opens on.
     Narrowing the sample — period, key range, dungeon, region — scales the
@@ -260,11 +281,6 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       <button data-s="loss" style="display:none">Lost most</button>
     </div>
     <div class="tabs" id="tabs"></div>
-    <div class="rowflex" id="pctlbox" style="display:none">
-      <label class="small">Percentile <input type="range" id="pctl" min="50" max="99" step="1" style="vertical-align:middle;width:140px">
-      <b id="pctl-v">90</b>th</label>
-      <span class="hint">50 = median · 90 ≈ Archon's ceiling view (they use a p95 of every log; this leaderboard sample's p90 lands on the same numbers)</span>
-    </div>
     <div class="seg" id="trendseg" style="display:none"></div>
     <div class="seg" id="trendview" style="display:none;margin-left:8px"></div>
     <div id="chart"></div>
@@ -331,15 +347,10 @@ const TABS = [
    cap:"Bold number: average DPS; grey tick: median DPS. Brighter bar = higher deathless share."},
   {id:"med", label:"Median DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
    shade:"deathless", tick:"avg",
-   cap:"Bold number: median DPS; grey tick: average DPS. Brighter bar = higher deathless share."},
-  {id:"p90", label:"Percentile DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
-   shade:"deathless", tick:"med",
-   cap:"DPS at the chosen percentile of parses — set it with the slider above. "
-     +"High percentiles are the ceiling view that sites like Archon publish "
-     +"(theirs is a p95 over every uploaded log; on this leaderboard sample "
-     +"p90 lands within ~1% of it and matches its ordering at "
-     +"\u03c1\u22480.95). A high top slice with a middling median marks a "
-     +"spec that rewards its best players. Grey tick: median."},
+   cap:"DPS at the percentile the sidebar slider selects — 50 is the median, "
+     +"90 the ceiling view sites like Archon publish. Grey tick: average DPS. "
+     +"Brighter bar = higher deathless share."},
+
   {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Average deaths per run. Brighter bar = higher average DPS."},
@@ -386,7 +397,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              // smaller than the unfiltered view -- the hint next to the boxes
              // reports how much of what is on screen has gear.
              tier0:false, tier2:false, tier4:true,
-             pctl:90,
+             pctl:50,
              tsort:{col:"a_v", dir:-1}};
 let hasTimed=false, hasTune=false, hasProj=false;
 let hasRating=false, hasTier=false, CHARSCORE=[];
@@ -852,21 +863,53 @@ function buildControls(){
       $("sortseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
       render()};
   });
-  const pctlLabel=()=>"p"+state.pctl+" DPS";
-  const pctlBox=()=>{$("pctlbox").style.display=
-    (state.tab==="p90"||(state.tab==="trend"&&state.trendMetric==="p90"))?"":"none"};
   $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
   $("pctl").oninput=e=>{state.pctl=+e.target.value;
     $("pctl-v").textContent=state.pctl;
     document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
-      if(b.dataset.tid==="p90") b.textContent=pctlLabel()});
+      if(b.dataset.tid==="med") b.textContent=dpsLabel()});
     render()};
-  window.__pctlBox=pctlBox;
+  // Archon mode: one toggle that walks every relevant setting to the
+  // configuration that reproduces archon.gg's high-keys DPS table (p90 of
+  // this sample = their p95 of all logs, within ~1%). The checkbox is
+  // DERIVED state: render() re-evaluates the predicate every pass, so
+  // moving any of these settings away unchecks it by construction.
+  const archonTarget=()=>{
+    const keys=[...new Set(R.key)];
+    return {klo:Math.max(12,Math.min(...keys)), khi:Math.min(18,Math.max(...keys))};
+  };
+  window.__archonMatches=()=>{
+    const t=archonTarget();
+    return state.pctl===90 && state.klo===t.klo && state.khi===t.khi
+      && !state.timedOnly && !state.tier0 && !state.tier2 && !state.tier4
+      && state.merge && !state.compare
+      && state.role.size===1 && state.role.has("DPS")
+      && state.weeksA.size===1 && state.weeksA.has(0);
+  };
+  $("archon").onchange=e=>{
+    if(!e.target.checked){render(); return}   // predicate will clear it
+    const t=archonTarget();
+    Object.assign(state,{pctl:90, klo:t.klo, khi:t.khi, timedOnly:false,
+      tier0:false, tier2:false, tier4:false, merge:true, compare:false,
+      tab:"med", dayCut:0});
+    state.role=new Set(["DPS"]); state.weeksA=new Set([0]);
+    $("merge").checked=true; $("cmp").checked=false;
+    for(const id of ["t0","t2","t4"]) $(id).checked=false;
+    $("pctl").value=90; $("pctl-v").textContent=90;
+    $("timedseg").querySelectorAll("button").forEach(x=>
+      x.classList.toggle("on",x.dataset.t==="0"));
+    setCompare(false);
+    buildControls(); refreshPeriodUIs();
+    document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
+      b.classList.toggle("on",b.dataset.tid===state.tab&&b.closest("#tabs")!==null);
+      if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+    render();
+  };
   const tabs=$("tabs");
   tabs.innerHTML="";
   TABS.filter(t=>!t.rating||hasRating).forEach(t=>{
     const b=document.createElement("button");
-    b.textContent=t.id==="p90"?"p"+state.pctl+" DPS":t.label;
+    b.textContent=t.id==="med"?dpsLabel():t.label;
     b.dataset.tid=t.id;
     b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
@@ -879,7 +922,7 @@ function buildControls(){
   tseg.innerHTML="";
   TABS.filter(t=>!t.trend&&!t.rating).forEach(t=>{
     const b=document.createElement("button");
-    b.textContent=t.id==="p90"?"p"+state.pctl+" DPS":t.label;
+    b.textContent=t.id==="med"?dpsLabel():t.label;
     b.dataset.tid=t.id;
     b.className=t.id===state.trendMetric?"on":"";
     b.onclick=()=>{state.trendMetric=t.id;
@@ -921,6 +964,7 @@ function idxSet(sel,names){
 }
 function q50(sorted){const n=sorted.length;
   return n%2?sorted[(n-1)/2]:(sorted[n/2-1]+sorted[n/2])/2}
+function dpsLabel(){return state.pctl===50?"Median DPS":"p"+state.pctl+" DPS"}
 function qp(sorted,f){                // linear-interpolated quantile, f in (0,1)
   const x=(sorted.length-1)*f, i=Math.floor(x);
   return i+1<sorted.length?sorted[i]+(x-i)*(sorted[i+1]-sorted[i]):sorted[i]}
@@ -1037,7 +1081,7 @@ function aggregate(weeks){
   const out=new Map();
   for(const [key,g] of groups){
     g.dps.sort((a,b)=>a-b);
-    const med=q50(g.dps);
+    const med=qp(g.dps,state.pctl/100);
     // player rating comes off the character set, so a grinder with 200 runs
     // counts exactly as much as someone with one; unrated characters drop out
     let arating=NaN, mrating=NaN, rn=0;
@@ -1048,10 +1092,11 @@ function aggregate(weeks){
         arating=rs.reduce((a,b)=>a+b,0)/rs.length; mrating=q50(rs)}
     }
     let ravg=null, rmed=null;
-    if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n; rmed=q50(g.rdps)}
+    if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n;
+      rmed=qp(g.rdps,state.pctl/100)}
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
-      avg:g.sum/g.n, med, p90:qp(g.dps,state.pctl/100),
+      avg:g.sum/g.n, med,
       ravg, rmed,
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
@@ -1110,7 +1155,7 @@ function tipHTML(r,compare){
   const pj=(o,k,rk,fmt)=>o?fmt(o[k])+(state.proj?projDelta(o[k],o[rk]):""):"–";
   h+=row(state.proj?"Average DPS (proj.)":"Average DPS",
          pj(r.a,"avg","ravg",fmtInt), f(r.b,"avg",fmtInt));
-  h+=row(state.proj?"Median DPS (proj.)":"Median DPS",
+  h+=row(state.proj?dpsLabel()+" (proj.)":dpsLabel(),
          pj(r.a,"med","rmed",fmtInt), f(r.b,"med",fmtInt));
   if(state.proj&&r.a.ravg!=null){
     h+=row("Recorded average", fmtInt(r.a.ravg), "–");
@@ -1137,7 +1182,8 @@ function attachTip(el,html){
 }
 
 function render(){
-  if(window.__pctlBox) __pctlBox();
+  const am=$("archon");
+  if(am&&window.__archonMatches) am.checked=__archonMatches();
   const tab=TABS.find(t=>t.id===state.tab);
   const A=aggregate(state.weeksA);
   const B=state.compare?aggregate(state.weeksB):null;
@@ -1608,8 +1654,7 @@ function renderTrend(){
     switch(mt.id){
       case "chars": return new Set(vals).size;
       case "avg": case "adeaths": return s/n;
-      case "med": return q50([...vals].sort((a,b)=>a-b));
-      case "p90": return qp([...vals].sort((a,b)=>a-b),state.pctl/100);
+      case "med": return qp([...vals].sort((a,b)=>a-b),state.pctl/100);
       case "deathless": return 100*z/n;
     }
   };
@@ -1840,7 +1885,7 @@ function renderTable(rows,tab){
     cols=[["cls","Class","txt"],["spec","Spec","txt"]];
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
     cols.push(["a_runs","Runs"],["a_n","Parses"],["chars","Characters"],
-      ["avg","Average DPS"],["med","Median DPS"],["p90","p"+state.pctl+" DPS"],
+      ["avg","Average DPS"],["med",dpsLabel()],
       ["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
     if(hasRating) cols.push(["arating","Avg Player Rating"],["mrating","Med Player Rating"]);
@@ -1890,7 +1935,6 @@ function renderTable(rows,tab){
     if(k==="arating"||k==="mrating") return isFinite(v)?fmtInt(v):"–";
     if(k==="avg") return fmtInt(v)+(state.proj?projDelta(v,r.a.ravg):"");
     if(k==="med") return fmtInt(v)+(state.proj?projDelta(v,r.a.rmed):"");
-    if(k==="p90") return fmtInt(v);
     if(k==="adeaths") return v.toFixed(2);
     if(k==="deathless") return v.toFixed(1)+"%";
     return esc(v);
