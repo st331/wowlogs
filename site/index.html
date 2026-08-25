@@ -1559,7 +1559,11 @@ function render(){
     const t=tab.shade?(r.a[tab.shade]-smin)/(smax-smin):.72;
     const color=shade(CLASS_COLORS[r.cls]||"#999999",t);
     const row=document.createElement("div"); row.className="brow";
-    const lbl=document.createElement("div"); lbl.className="blbl"; lbl.textContent=label;
+    const lbl=document.createElement("div"); lbl.className="blbl";
+    // Inline span so the tooltip trigger is exactly the text, not the empty
+    // left portion of the right-aligned label column.
+    const lspan=document.createElement("span"); lspan.textContent=label;
+    lbl.appendChild(lspan);
     const track=document.createElement("div"); track.className="btrack";
     const bar=document.createElement("div"); bar.className="bbar";
     const bl=Math.min(zero,X(v)), br=Math.max(zero,X(v));
@@ -1605,7 +1609,7 @@ function render(){
     // Tooltip only from the bar itself or its label — not the whole row, so
     // crossing empty track space doesn't trigger it.
     const tipH=tipHTML(r,state.compare);
-    attachTip(bar,tipH); attachTip(lbl,tipH);
+    attachTip(bar,tipH); attachTip(lspan,tipH);
     chart.appendChild(row);
   }
   let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
