@@ -48,28 +48,43 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/live /tmp/out
-          # newest non-expired Pages artifact from ANY workflow in this repo
-          url=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
-                "$API/actions/artifacts?name=github-pages&per_page=5" \
-            | python3 -c '
-          import sys, json
-          arts = [a for a in json.load(sys.stdin)["artifacts"] if not a["expired"]]
-          arts.sort(key=lambda a: a["created_at"], reverse=True)
-          print(arts[0]["archive_download_url"] if arts else "")')
+          # The artifact must come from the REFRESH pipeline's latest
+          # successful run -- never "newest artifact by name". This workflow
+          # publishes an artifact under the same name, so "newest" can be our
+          # own previous deploy; seeding from it would compound whatever it
+          # carried instead of tracking the data pipeline. That exact loop
+          # served 33-hour-old data once. Walk recent successes in case the
+          # newest run's artifact has aged past its 1-day retention.
+          url=$(curl -sf -H "Authorization: Bearer $GH_TOKEN"                 "$API/actions/workflows/refresh.yml/runs?status=success&per_page=5"             | python3 -c '
+          import sys, json, urllib.request, os
+          runs = json.load(sys.stdin).get("workflow_runs", [])
+          tok = os.environ["GH_TOKEN"]; api = os.environ["API"]
+          for r in runs:
+              req = urllib.request.Request(
+                  f"{api}/actions/runs/{r["id"]}/artifacts?name=github-pages",
+                  headers={"Authorization": f"Bearer {tok}"})
+              arts = json.load(urllib.request.urlopen(req)).get("artifacts", [])
+              live = [a for a in arts if not a["expired"]]
+              if live:
+                  print(live[0]["archive_download_url"]); break')
           if [ -n "$url" ]; then
             curl -sfL -H "Authorization: Bearer $GH_TOKEN" -o /tmp/pages.zip "$url"
             unzip -q /tmp/pages.zip -d /tmp/live
             tar -xf /tmp/live/artifact.tar -C /tmp/out
-            echo "seeded from live artifact: $(du -sh /tmp/out | cut -f1)"
+            echo "seeded from refresh pipeline artifact: $(du -sh /tmp/out | cut -f1)"
           else
-            # No live artifact (expired or first run): fall back to whatever
-            # data files are committed. Stale data beats a 404, and the next
-            # scheduled refresh replaces it within two hours.
-            echo "::warning::no live Pages artifact found; deploying committed files only"
+            echo "::warning::no live refresh artifact; deploying committed files only"
           fi
-          # the pushed UI wins over whatever the artifact carried
-          cp -a site/. /tmp/out/
-          ls /tmp/out | head -20
+          # Overlay ONLY the UI. Every generated data file is git-tracked and
+          # therefore present in the checkout as a stale copy -- a plain cp of
+          # site/. once rolled the live dataset back 33 hours. The build
+          # products stay whatever the artifact carried.
+          tar -C site \
+              --exclude='./data.json' --exclude='./data.json.gz' \
+              --exclude='./llms' --exclude='./llms.txt' \
+              --exclude='./sitemap.xml' --exclude='./robots.txt' \
+              -cf - . | tar -xf - -C /tmp/out
+          ls -la /tmp/out/index.html /tmp/out/data.json.gz
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
