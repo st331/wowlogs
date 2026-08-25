@@ -177,9 +177,9 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
   <details><summary>Class <span class="cnt" id="cnt-cls"></span></summary><div class="chips" id="f-cls"></div></details>
   <details><summary>Spec <span class="cnt" id="cnt-spec"></span></summary><div class="chips" id="f-spec"></div></details>
   <div class="rowflex" style="margin:.2rem 0 .5rem">
-    <label class="small" title="Keys 12–18, all completed runs, current reset, hero talents merged, DPS role, no tier filter, DPS percentile 90 — reproduces Archon's published numbers to within ~1% and their ordering at ρ≈0.95. Unchecks itself the moment any of those settings moves.">
+    <label class="small" title="Keys 12–19, all completed runs, the last two resets (Archon's own scope: 'the top 5% of keys in the last 14 days'), hero talents merged, DPS role, no tier filter, DPS percentile 90 — reproduces their published numbers to within ~1% and their ordering at ρ≈0.95. Unchecks itself the moment any of those settings moves.">
       <input type="checkbox" id="archon"> <b>Archon mode</b></label>
-    <span class="hint">match archon.gg's high-keys view</span>
+    <span class="hint">match archon.gg's high-keys view — keys 12–19, last 14 days, p90</span>
   </div>
   <div class="rowflex"><label class="small"><input type="checkbox" id="merge" checked> Merge hero talents into spec</label></div>
   <details id="hero-box"><summary>Hero Talent <span class="cnt" id="cnt-hero"></span></summary><div class="chips" id="f-hero"></div></details>
@@ -876,7 +876,11 @@ function buildControls(){
   // moving any of these settings away unchecks it by construction.
   const archonTarget=()=>{
     const keys=[...new Set(R.key)];
-    return {klo:Math.max(12,Math.min(...keys)), khi:Math.min(18,Math.max(...keys))};
+    // Their high-keys page states its own scope: "Based on the top 5% of keys
+    // in the last 14 days", bracketed 12-19. Two reset buckets is this
+    // dataset's closest expression of a rolling 14 days.
+    return {klo:Math.max(12,Math.min(...keys)), khi:Math.min(19,Math.max(...keys)),
+            weeks:[0,1].filter(w=>weekCounts.has(w))};
   };
   window.__archonMatches=()=>{
     const t=archonTarget();
@@ -884,7 +888,8 @@ function buildControls(){
       && !state.timedOnly && !state.tier0 && !state.tier2 && !state.tier4
       && state.merge && !state.compare
       && state.role.size===1 && state.role.has("DPS")
-      && state.weeksA.size===1 && state.weeksA.has(0);
+      && state.weeksA.size===t.weeks.length
+      && t.weeks.every(w=>state.weeksA.has(w));
   };
   $("archon").onchange=e=>{
     if(!e.target.checked){render(); return}   // predicate will clear it
@@ -892,7 +897,7 @@ function buildControls(){
     Object.assign(state,{pctl:90, klo:t.klo, khi:t.khi, timedOnly:false,
       tier0:false, tier2:false, tier4:false, merge:true, compare:false,
       tab:"med", dayCut:0});
-    state.role=new Set(["DPS"]); state.weeksA=new Set([0]);
+    state.role=new Set(["DPS"]); state.weeksA=new Set(t.weeks);
     $("merge").checked=true; $("cmp").checked=false;
     for(const id of ["t0","t2","t4"]) $(id).checked=false;
     $("pctl").value=90; $("pctl-v").textContent=90;
