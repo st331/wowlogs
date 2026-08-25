@@ -129,7 +129,9 @@ input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:50%;
 .bpanel{border:1px solid var(--line); border-radius:10px; padding:8px 10px;
   margin-top:.45rem; background:rgba(255,255,255,.02)}
 /* ---------------- main ---------------- */
-main{padding:34px 42px 72px; max-width:1200px; min-width:0}
+/* Centered measure: on wide screens the content floats mid-viewport instead
+   of pinning to the sidebar with the bars starting at the screen's left edge. */
+main{padding:34px 42px 72px; max-width:1200px; min-width:0; margin:0 auto}
 @media(max-width:900px){main{padding:26px 18px 56px}}
 .hero-title{font-family:var(--font-display); font-size:2.15rem; font-weight:700;
   letter-spacing:.02em; line-height:1.15}
