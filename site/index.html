@@ -182,6 +182,9 @@ main{padding:34px 42px 72px; max-width:1200px; min-width:0}
 .tabs button:hover{color:var(--ink); background:rgba(255,255,255,.035)}
 .tabs button.on{color:var(--gold); border-bottom-color:var(--gold); font-weight:600}
 /* bars */
+/* Cap the chart so bars live in a narrow column instead of stretching across
+   wide monitors — hover targets stay compact and the eye travels less. */
+#chart{max-width:960px}
 .brow{display:grid; grid-template-columns:minmax(150px,300px) 1fr; gap:12px;
   align-items:center; padding:2.5px 6px 2.5px 2px; border-radius:8px;
   transition:background .12s}
@@ -1429,7 +1432,9 @@ function tipHTML(r,compare){
   return h+"</table>";
 }
 function attachTip(el,html){
-  el.onmousemove=e=>{
+  // Position once on entry and stay put — a tooltip that chases the cursor
+  // across the page is more distraction than help.
+  el.onmouseenter=e=>{
     const tip=$("tip");
     tip.innerHTML=html; tip.style.display="block";
     tip.style.left=Math.min(e.clientX+14,innerWidth-330)+"px";
@@ -1597,7 +1602,10 @@ function render(){
         :(rbase==null?"":projDelta(v,rbase)));
     track.appendChild(valEl);
     row.appendChild(lbl); row.appendChild(track);
-    attachTip(row,tipHTML(r,state.compare));
+    // Tooltip only from the bar itself or its label — not the whole row, so
+    // crossing empty track space doesn't trigger it.
+    const tipH=tipHTML(r,state.compare);
+    attachTip(bar,tipH); attachTip(lbl,tipH);
     chart.appendChild(row);
   }
   let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
