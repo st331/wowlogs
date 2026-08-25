@@ -1,0 +1,79 @@
+name: Deploy site (UI only)
+
+# Push-to-live for UI changes in seconds, not minutes. The refresh pipeline
+# rebuilds data before it can publish and queues behind its own schedule; a
+# CSS tweak does not need any of that. This workflow takes the newest Pages
+# artifact the refresh pipeline published (the data files exactly as they are
+# live right now), overlays the freshly pushed site/ on top, and redeploys.
+# No python, no API fetch, no cache, no lock shared with the data pipeline.
+on:
+  push:
+    branches: [claude/wow-mythic-dashboard-jv235l]
+    paths:
+      - "site/**"
+      - ".github/workflows/deploy-site.yml"
+  workflow_dispatch: {}
+
+# Its own group, and newest wins: a burst of UI pushes collapses to the last
+# one. Never shares the wowlogs-refresh group -- that lock is the main reason
+# UI deploys used to take up to 20 minutes.
+concurrency:
+  group: wowlogs-site-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read        # to download the refresh pipeline's Pages artifact
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: site
+          sparse-checkout-cone-mode: true
+
+      - name: Overlay pushed UI onto the live data
+        id: overlay
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API: https://api.github.com/repos/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/live /tmp/out
+          # newest non-expired Pages artifact from ANY workflow in this repo
+          url=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+                "$API/actions/artifacts?name=github-pages&per_page=5" \
+            | python3 -c '
+          import sys, json
+          arts = [a for a in json.load(sys.stdin)["artifacts"] if not a["expired"]]
+          arts.sort(key=lambda a: a["created_at"], reverse=True)
+          print(arts[0]["archive_download_url"] if arts else "")')
+          if [ -n "$url" ]; then
+            curl -sfL -H "Authorization: Bearer $GH_TOKEN" -o /tmp/pages.zip "$url"
+            unzip -q /tmp/pages.zip -d /tmp/live
+            tar -xf /tmp/live/artifact.tar -C /tmp/out
+            echo "seeded from live artifact: $(du -sh /tmp/out | cut -f1)"
+          else
+            # No live artifact (expired or first run): fall back to whatever
+            # data files are committed. Stale data beats a 404, and the next
+            # scheduled refresh replaces it within two hours.
+            echo "::warning::no live Pages artifact found; deploying committed files only"
+          fi
+          # the pushed UI wins over whatever the artifact carried
+          cp -a site/. /tmp/out/
+          ls /tmp/out | head -20
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/out
+      - id: deploy
+        uses: actions/deploy-pages@v4

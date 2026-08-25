@@ -47,7 +47,11 @@ on:
   push:
     branches: [claude/wow-mythic-dashboard-jv235l]
     paths:
-      - "site/**"
+      # site/** deliberately absent: UI-only pushes deploy through
+      # deploy-site.yml in seconds instead of queueing behind this pipeline.
+      # A push touching both site/ and scripts/ triggers both workflows;
+      # each publishes a complete artifact, so whichever deploys last wins
+      # with the same UI and the freshest data it knew.
       - "scripts/**"
       - "data/tuning_patches.json"
       - ".github/workflows/refresh.yml"
