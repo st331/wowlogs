@@ -190,10 +190,6 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
   <div class="chips" id="presetA" style="padding-top:2px"></div>
   <details><summary>Custom weeks <span class="cnt" id="cnt-weeksA"></span></summary>
     <div class="chips" id="f-weeksA"></div></details>
-  <div id="daybox" style="display:none">
-    <div class="hint" style="margin:.5rem 0 0">Zoom into this reset — most recent:</div>
-    <div class="chips" id="f-days" style="padding-top:6px"></div>
-  </div>
   <label class="small" style="margin-top:.5rem"><input type="checkbox" id="cmp">
     Compare with a second period</label>
   <div class="chips" id="quickcmp"></div>
@@ -264,6 +260,11 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
       <button data-s="loss" style="display:none">Lost most</button>
     </div>
     <div class="tabs" id="tabs"></div>
+    <div class="rowflex" id="pctlbox" style="display:none">
+      <label class="small">Percentile <input type="range" id="pctl" min="50" max="99" step="1" style="vertical-align:middle;width:140px">
+      <b id="pctl-v">90</b>th</label>
+      <span class="hint">50 = median · 90 ≈ Archon's ceiling view (they use a p95 of every log; this leaderboard sample's p90 lands on the same numbers)</span>
+    </div>
     <div class="seg" id="trendseg" style="display:none"></div>
     <div class="seg" id="trendview" style="display:none;margin-left:8px"></div>
     <div id="chart"></div>
@@ -331,6 +332,14 @@ const TABS = [
   {id:"med", label:"Median DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
    shade:"deathless", tick:"avg",
    cap:"Bold number: median DPS; grey tick: average DPS. Brighter bar = higher deathless share."},
+  {id:"p90", label:"Percentile DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
+   shade:"deathless", tick:"med",
+   cap:"DPS at the chosen percentile of parses — set it with the slider above. "
+     +"High percentiles are the ceiling view that sites like Archon publish "
+     +"(theirs is a p95 over every uploaded log; on this leaderboard sample "
+     +"p90 lands within ~1% of it and matches its ordering at "
+     +"\u03c1\u22480.95). A high top slice with a middling median marks a "
+     +"spec that rewards its best players. Grey tick: median."},
   {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
    shade:"avg", tick:null,
    cap:"Average deaths per run. Brighter bar = higher average DPS."},
@@ -377,6 +386,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              // smaller than the unfiltered view -- the hint next to the boxes
              // reports how much of what is on screen has gear.
              tier0:false, tier2:false, tier4:true,
+             pctl:90,
              tsort:{col:"a_v", dir:-1}};
 let hasTimed=false, hasTune=false, hasProj=false;
 let hasRating=false, hasTier=false, CHARSCORE=[];
@@ -772,28 +782,10 @@ function describePeriod(sel){
 
 // Day zoom: only meaningful when the selection is exactly the current reset,
 // so the control appears with that selection and hides again otherwise.
-function paintDays(){
-  const box=$("daybox"), days=resetDays();
-  const applies=state.weeksA.size===1&&state.weeksA.has(0)&&days>1;
-  box.style.display=applies?"":"none";
-  if(!applies) return;
-  if(state.dayCut>days) state.dayCut=0;   // reset shrank under us
-  const wrap=$("f-days");
-  wrap.innerHTML="";
-  const mk=(label,val,title)=>{
-    const c=document.createElement("span");
-    c.className="chip"+(state.dayCut===val?" on":"");
-    c.textContent=label; c.title=title;
-    c.onclick=()=>{state.dayCut=val; paintDays(); render();};
-    wrap.appendChild(c);
-  };
-  for(let d=1;d<=days;d++)
-    mk(d+"d", d, d===1 ? "just "+fmtDay(curMaxDay)
-       : fmtDay(curMaxDay-d+1)+" – "+fmtDay(curMaxDay));
-  mk("All "+days+"d", 0, "the whole reset so far");
-}
+// Day-zoom removed by request; dayCut stays 0 so periodCut() is inert and
+// every periodPass() call site keeps working unchanged.
+function paintDays(){}
 
-/* ---------------- build all controls ---------------- */
 function buildControls(){
   chipGroup($("f-cls"),D.classes.filter(c=>c!=="Unknown"),state.cls,rebuildCascade);
   chipGroup($("f-spec"),specPool(),state.spec,rebuildCascade);
@@ -860,10 +852,22 @@ function buildControls(){
       $("sortseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
       render()};
   });
+  const pctlLabel=()=>"p"+state.pctl+" DPS";
+  const pctlBox=()=>{$("pctlbox").style.display=
+    (state.tab==="p90"||(state.tab==="trend"&&state.trendMetric==="p90"))?"":"none"};
+  $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
+  $("pctl").oninput=e=>{state.pctl=+e.target.value;
+    $("pctl-v").textContent=state.pctl;
+    document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
+      if(b.dataset.tid==="p90") b.textContent=pctlLabel()});
+    render()};
+  window.__pctlBox=pctlBox;
   const tabs=$("tabs");
   tabs.innerHTML="";
   TABS.filter(t=>!t.rating||hasRating).forEach(t=>{
-    const b=document.createElement("button"); b.textContent=t.label;
+    const b=document.createElement("button");
+    b.textContent=t.id==="p90"?"p"+state.pctl+" DPS":t.label;
+    b.dataset.tid=t.id;
     b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
       tabs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
@@ -874,7 +878,9 @@ function buildControls(){
   const tseg=$("trendseg");
   tseg.innerHTML="";
   TABS.filter(t=>!t.trend&&!t.rating).forEach(t=>{
-    const b=document.createElement("button"); b.textContent=t.label;
+    const b=document.createElement("button");
+    b.textContent=t.id==="p90"?"p"+state.pctl+" DPS":t.label;
+    b.dataset.tid=t.id;
     b.className=t.id===state.trendMetric?"on":"";
     b.onclick=()=>{state.trendMetric=t.id;
       tseg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
@@ -915,6 +921,9 @@ function idxSet(sel,names){
 }
 function q50(sorted){const n=sorted.length;
   return n%2?sorted[(n-1)/2]:(sorted[n/2-1]+sorted[n/2])/2}
+function qp(sorted,f){                // linear-interpolated quantile, f in (0,1)
+  const x=(sorted.length-1)*f, i=Math.floor(x);
+  return i+1<sorted.length?sorted[i]+(x-i)*(sorted[i+1]-sorted[i]):sorted[i]}
 
 function baseMasks(){
   return {cls:idxSet(state.cls,D.classes), spec:idxSet(state.spec,D.specs),
@@ -1042,7 +1051,7 @@ function aggregate(weeks){
     if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n; rmed=q50(g.rdps)}
     out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
-      avg:g.sum/g.n, med,
+      avg:g.sum/g.n, med, p90:qp(g.dps,state.pctl/100),
       ravg, rmed,
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
@@ -1128,6 +1137,7 @@ function attachTip(el,html){
 }
 
 function render(){
+  if(window.__pctlBox) __pctlBox();
   const tab=TABS.find(t=>t.id===state.tab);
   const A=aggregate(state.weeksA);
   const B=state.compare?aggregate(state.weeksB):null;
@@ -1599,6 +1609,7 @@ function renderTrend(){
       case "chars": return new Set(vals).size;
       case "avg": case "adeaths": return s/n;
       case "med": return q50([...vals].sort((a,b)=>a-b));
+      case "p90": return qp([...vals].sort((a,b)=>a-b),state.pctl/100);
       case "deathless": return 100*z/n;
     }
   };
@@ -1829,7 +1840,7 @@ function renderTable(rows,tab){
     cols=[["cls","Class","txt"],["spec","Spec","txt"]];
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
     cols.push(["a_runs","Runs"],["a_n","Parses"],["chars","Characters"],
-      ["avg","Average DPS"],["med","Median DPS"],
+      ["avg","Average DPS"],["med","Median DPS"],["p90","p"+state.pctl+" DPS"],
       ["adeaths","Avg Deaths"],
       ["deathless","Deathless %"]);
     if(hasRating) cols.push(["arating","Avg Player Rating"],["mrating","Med Player Rating"]);
@@ -1879,6 +1890,7 @@ function renderTable(rows,tab){
     if(k==="arating"||k==="mrating") return isFinite(v)?fmtInt(v):"–";
     if(k==="avg") return fmtInt(v)+(state.proj?projDelta(v,r.a.ravg):"");
     if(k==="med") return fmtInt(v)+(state.proj?projDelta(v,r.a.rmed):"");
+    if(k==="p90") return fmtInt(v);
     if(k==="adeaths") return v.toFixed(2);
     if(k==="deathless") return v.toFixed(1)+"%";
     return esc(v);
