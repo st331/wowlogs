@@ -224,8 +224,8 @@ footer{color:var(--muted); font-size:.75rem; margin-top:2.2rem; line-height:1.6}
     <span id="minchars-eff" class="hint"></span></div>
   <input type="range" id="minchars" min="1" max="1200" value="250">
   <div style="margin-top:.6rem"><b>DPS percentile: <span id="pctl-v">50</span>th</b>
-  <input type="range" id="pctl" min="50" max="99" step="1" value="50">
-  <span class="hint">drives every DPS statistic — 50 = median, 90 ≈ Archon's ceiling view</span></div>
+  <input type="range" id="pctl" min="0" max="99" step="1" value="50">
+  <span class="hint">drives the percentile DPS everywhere it appears — chart, trend, breakdown, tooltips, Set Bonus DPS columns. Averages stay averages. 0 = worst parse, 50 = median, 90 ≈ Archon's ceiling view</span></div>
   <div class="hint" id="minchars-help">How many distinct players must have
     parsed a spec for it to show, counted against the view this page opens on.
     Narrowing the sample — period, key range, dungeon, region — scales the
@@ -344,7 +344,7 @@ const RESET_RULES = {US:[1,15], EU:[2,4]}, RESET_DEFAULT=[2,22]; // [weekday Mon
 const TABS = [
   {id:"avg", label:"Average DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
    shade:"deathless", tick:"med",
-   cap:"Bold number: average DPS; grey tick: median DPS. Brighter bar = higher deathless share."},
+   cap:"Bold number: average DPS; grey tick: {med}. Brighter bar = higher deathless share."},
   {id:"med", label:"Median DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
    shade:"deathless", tick:"avg",
    cap:"DPS at the percentile the sidebar slider selects — 50 is the median, "
@@ -352,20 +352,20 @@ const TABS = [
      +"Brighter bar = higher deathless share."},
 
   {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
-   shade:"avg", tick:null,
-   cap:"Average deaths per run. Brighter bar = higher average DPS."},
+   shade:"med", tick:null,
+   cap:"Average deaths per run. Brighter bar = higher {med}."},
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
-   shade:"avg", tick:null,
-   cap:"Share of runs where the player did not die once. Brighter bar = higher average DPS."},
+   shade:"med", tick:null,
+   cap:"Share of runs where the player did not die once. Brighter bar = higher {med}."},
   {id:"arating", label:"Avg Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
-   inlay:"dps", shade:"avg", tick:"mrating", rating:true,
-   cap:"Average Raider.IO season score of the distinct characters who played this spec under the current filters — a season total (best run in each of the 8 dungeons), not a single run's rating. Each character counts once however many times they logged, so it reads as who plays a spec, not how hard it hits. Grey tick: median. Brighter bar = higher average DPS."},
+   inlay:"dps", shade:"med", tick:"mrating", rating:true,
+   cap:"Average Raider.IO season score of the distinct characters who played this spec under the current filters — a season total (best run in each of the 8 dungeons), not a single run's rating. Each character counts once however many times they logged, so it reads as who plays a spec, not how hard it hits. Grey tick: median. Brighter bar = higher {med}."},
   {id:"mrating", label:"Median Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
-   inlay:"dps", shade:"avg", tick:"arating", rating:true,
-   cap:"Median Raider.IO season score of the distinct characters who played this spec — less swayed by a handful of very highly rated players than the average. Grey tick: average. Brighter bar = higher average DPS."},
+   inlay:"dps", shade:"med", tick:"arating", rating:true,
+   cap:"Median Raider.IO season score of the distinct characters who played this spec — less swayed by a handful of very highly rated players than the average. Grey tick: average. Brighter bar = higher {med}."},
   {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
-   inlay:"dps", shade:"avg", tick:null,
-   cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher average DPS."},
+   inlay:"dps", shade:"med", tick:null,
+   cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher {med}."},
   {id:"trend", label:"Trend", trend:true,
    cap:"Weekly {metric} for the top groups under the current filters, whole season. "+
        "Weeks with fewer than 25 parses for a group are skipped."},
@@ -401,6 +401,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              tsort:{col:"a_v", dir:-1}};
 let hasTimed=false, hasTune=false, hasProj=false;
 let hasRating=false, hasTier=false, CHARSCORE=[];
+let archonPrev=null;   // Archon-mode's "what you had before" snapshot
 // A parse's projected damage multiplier, from ITS OWN ability breakdown.
 // Applying it per row means every aggregate stays exact under any filter.
 const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
@@ -870,6 +871,7 @@ function buildControls(){
   $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
   $("pctl").oninput=e=>{state.pctl=+e.target.value;
     $("pctl-v").textContent=state.pctl;
+    TABS.find(t=>t.id==="med").label=dpsLabel();
     document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
       if(b.dataset.tid==="med") b.textContent=dpsLabel()});
     render()};
@@ -895,24 +897,56 @@ function buildControls(){
       && state.weeksA.size===t.weeks.length
       && t.weeks.every(w=>state.weeksA.has(w));
   };
-  $("archon").onchange=e=>{
-    if(!e.target.checked){render(); return}   // predicate will clear it
-    const t=archonTarget();
-    Object.assign(state,{pctl:90, klo:t.klo, khi:t.khi, timedOnly:false,
-      tier0:false, tier2:false, tier4:false, merge:true, compare:false,
-      tab:"med", dayCut:0});
-    state.role=new Set(["DPS"]); state.weeksA=new Set(t.weeks);
-    $("merge").checked=true; $("cmp").checked=false;
-    for(const id of ["t0","t2","t4"]) $(id).checked=false;
-    $("pctl").value=90; $("pctl-v").textContent=90;
+  // Turning the mode ON snapshots every setting it is about to change, so
+  // turning it OFF is a real action: it restores what you had. Without the
+  // snapshot the toggle was one-way -- "off" changed nothing, so the derived
+  // predicate immediately re-checked it, and leaving the mode by moving a
+  // setting stranded the percentile at 90.
+  const applyArchonState=(st)=>{
+    Object.assign(state,{pctl:st.pctl, klo:st.klo, khi:st.khi,
+      timedOnly:st.timedOnly, tier0:st.tier0, tier2:st.tier2, tier4:st.tier4,
+      merge:st.merge, compare:st.compare, tab:st.tab,
+      trendMetric:st.trendMetric, dayCut:0});
+    state.role=new Set(st.role); state.weeksA=new Set(st.weeksA);
+    $("merge").checked=state.merge; $("cmp").checked=state.compare;
+    $("t0").checked=state.tier0; $("t2").checked=state.tier2;
+    $("t4").checked=state.tier4;
+    $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
+    TABS.find(t=>t.id==="med").label=dpsLabel();
     $("timedseg").querySelectorAll("button").forEach(x=>
-      x.classList.toggle("on",x.dataset.t==="0"));
-    setCompare(false);
+      x.classList.toggle("on",(x.dataset.t==="1")===state.timedOnly));
+    setCompare(state.compare);
     buildControls(); refreshPeriodUIs();
-    document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
-      b.classList.toggle("on",b.dataset.tid===state.tab&&b.closest("#tabs")!==null);
+    document.querySelectorAll("#tabs button").forEach(b=>{
+      b.classList.toggle("on",b.dataset.tid===state.tab);
+      if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+    document.querySelectorAll("#trendseg button").forEach(b=>{
+      b.classList.toggle("on",b.dataset.tid===state.trendMetric);
       if(b.dataset.tid==="med") b.textContent=dpsLabel()});
     render();
+  };
+  const snap=()=>({pctl:state.pctl, klo:state.klo, khi:state.khi,
+    timedOnly:state.timedOnly, tier0:state.tier0, tier2:state.tier2,
+    tier4:state.tier4, merge:state.merge, compare:state.compare,
+    tab:state.tab, trendMetric:state.trendMetric,
+    role:[...state.role], weeksA:[...state.weeksA]});
+  $("archon").onchange=e=>{
+    if(e.target.checked){
+      archonPrev=snap();
+      const t=archonTarget();
+      applyArchonState({pctl:90, klo:t.klo, khi:t.khi, timedOnly:false,
+        tier0:false, tier2:false, tier4:false, merge:true, compare:false,
+        tab:"med", trendMetric:"med", role:["DPS"], weeksA:t.weeks});
+    }else{
+      // explicit off: back to exactly where you were. Auto-uncheck from
+      // moving a single setting never comes through here -- that path keeps
+      // your changes, this one undoes the mode wholesale.
+      applyArchonState(archonPrev || {pctl:50, klo:12, khi:19,
+        timedOnly:hasTimed, tier0:false, tier2:false, tier4:true,
+        merge:true, compare:false, tab:"med", trendMetric:"med",
+        role:[], weeksA:[0]});
+      archonPrev=null;
+    }
   };
   const tabs=$("tabs");
   tabs.innerHTML="";
@@ -1168,7 +1202,7 @@ function tipHTML(r,compare){
          pj(r.a,"med","rmed",fmtInt), f(r.b,"med",fmtInt));
   if(state.proj&&r.a.ravg!=null){
     h+=row("Recorded average", fmtInt(r.a.ravg), "–");
-    h+=row("Recorded median", fmtInt(r.a.rmed), "–");
+    h+=row("Recorded "+dpsLabel().toLowerCase(), fmtInt(r.a.rmed), "–");
   }
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
@@ -1309,7 +1343,7 @@ function render(){
       inl.style.color=ink(color);
       inl.textContent=tab.inlay==="deaths"
         ? r.a.adeaths.toFixed(2)+" avg deaths · "+r.a.deathless.toFixed(0)+"% deathless"
-        : fmtInt(r.a.avg)+" avg · "+fmtInt(r.a.med)+" median DPS"
+        : fmtInt(r.a.avg)+" avg · "+fmtInt(r.a.med)+" "+dpsLabel().toLowerCase()
           +(state.proj&&r.a.rmed!=null
             ? " (was "+fmtInt(r.a.ravg)+" / "+fmtInt(r.a.rmed)+")" : "");
       bar.appendChild(inl);
@@ -1343,7 +1377,7 @@ function render(){
     attachTip(row,tipHTML(r,state.compare));
     chart.appendChild(row);
   }
-  let cap=tab.cap;
+  let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
   if(tab.rating) cap+=" "+ratingCoverage();
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
   if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
@@ -1430,7 +1464,7 @@ function setBonusRows(){
       return cells<SET_CELLS_MIN?{pct:NaN,cells,pairs}:{pct:100*acc/wsum,cells,pairs};
     };
     const med=b=>{const v=[];for(const c of g.cells.values())v.push(...c[b]);
-      return v.length?q50(v.sort((x,y)=>x-y)):NaN};
+      return v.length?qp(v.sort((x,y)=>x-y),state.pctl/100):NaN};
     const tot=g.n[0]+g.n[1]+g.n[2];
     const g2=gain(0,1), g4=gain(1,2), gt=gain(0,2);
     if(!isFinite(g2.pct)&&!isFinite(g4.pct)&&!isFinite(gt.pct)) continue;
@@ -1463,7 +1497,8 @@ function renderSetBonus(){
   const cols=[["cls","Class","txt"],["spec","Spec","txt"]]
     .concat(state.merge?[]:[["hero","Hero Talent","txt"]])
     .concat([["tot","Parses w/ gear"],["s0","% no set"],["s2","% 2-set"],["s4","% 4-set"],
-             ["m0","DPS no set"],["m2","DPS 2-set"],["m4","DPS 4-set"],
+             ["m0",dpsLabel()+" · no set"],["m2",dpsLabel()+" · 2-set"],
+             ["m4",dpsLabel()+" · 4-set"],
              ["p2","2-set gain"],["p4","4-set gain"],["pt","Total gain"]]);
   if(!cols.some(c=>c[0]===state.ssort.col)) state.ssort={col:"pt", dir:-1};
   const {col,dir}=state.ssort;
@@ -1514,7 +1549,8 @@ function renderSetBonus(){
     +"pieces worn — under 2, 2–3, 4+ — and sum to 100%, so they can be read "
     +"across specs where raw cohort counts cannot: a spec played ten times as "
     +"often leads on every raw count whatever its players wear. "
-    +"The three DPS columns are each cohort's plain median under the current "
+    +"The three DPS columns are each cohort's plain "+dpsLabel().toLowerCase()
+    +" under the current "
     +"filters, so they can be read against one another directly — but they are "
     +"not like for like: the 4-set cohort also runs higher keys in better gear. "
     +"The gain columns are the corrected version of that same comparison. "
