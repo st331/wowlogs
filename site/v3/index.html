@@ -1,0 +1,3354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@400..800&display=swap">
+<title>Mythic+ Performance — Midnight</title>
+<style>
+/* ============ Candlelit Ledger v2 — tokens (copied verbatim) ============ */
+:root{
+  /* ground — warm graphite. NEVER blue, NEVER purple. */
+  --bg0:#181511;            /* page ground */
+  --bg-side:#11100C;        /* sidebar ground (darker rail) */
+  --surface1:#211E18;       /* panels, cards, controls, table wrap */
+  --surface2:#29251D;       /* raised: sticky table headers, inspector rail, toast */
+  /* text — three tiers */
+  --ink:#EAE7E0;            /* primary: values, cell data, active labels */
+  --ink2:#B8B2A6;           /* secondary: button text, section titles, body labels */
+  --ink3:#908B80;           /* tertiary: captions, hints, th, idle chips/tabs */
+  /* accent — champagne / candle gold. ACTIVE + key emphasis only. */
+  --accent:#E8BC57;
+  --accent-dim:rgba(232,188,87,.10);   /* active fills (seg.on, chip.on) */
+  --accent-line:rgba(232,188,87,.42);  /* active borders, hero rule head, pin tag */
+  /* semantic — text-only deltas, never fills */
+  --up:#3DDC84;  --down:#FF6B6B;
+  /* hairlines — warm-white alpha, three tiers */
+  --line0:rgba(234,227,208,.05);       /* table row rules */
+  --line1:rgba(234,227,208,.08);       /* panel/section hairlines, tab rail, grid */
+  --line2:rgba(234,227,208,.14);       /* control borders: buttons, seg, selects, inspector */
+  /* neutrals for compare-ghosts & reference ticks */
+  --ghost:rgba(200,198,190,.45);       /* Period-B ghost bars */
+  --tickref:#C9C7C2;                   /* reference tick on bars */
+  --r2:6px;  --r1:4px;
+  --font:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --font-display:'Marcellus','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+}
+*{box-sizing:border-box; margin:0}
+html{scrollbar-color:#3A362E var(--bg0)}
+body{color:var(--ink); font:14.5px/1.5 var(--font);
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  background:
+    radial-gradient(1100px 420px at 78% -120px, rgba(232,188,87,.04), transparent 62%),
+    var(--bg0);
+  background-attachment:fixed}
+a{color:var(--accent); text-decoration-color:var(--accent-line); text-underline-offset:2px}
+button,input,select{font-family:inherit}
+::selection{background:rgba(232,188,87,.28); color:#fff}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+::-webkit-scrollbar{width:10px; height:10px}
+::-webkit-scrollbar-thumb{background:#3A362E; border-radius:4px; border:2px solid #1C1914}
+::-webkit-scrollbar-thumb:hover{background:#46413A}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-corner{background:transparent}
+.layout{display:grid; grid-template-columns:300px 1fr; min-height:100vh;
+  /* paints the sidebar rail full-height even where the sticky aside box ends */
+  background:linear-gradient(90deg, var(--bg-side) 299px,
+    var(--line1) 299px 300px, transparent 300px)}
+@media(max-width:900px){.layout{grid-template-columns:1fr; background:none}}
+/* ---------------- sidebar ---------------- */
+aside{background:var(--bg-side); border-right:1px solid var(--line1); padding:20px 18px 48px}
+@media(min-width:901px){aside{position:sticky; top:0; height:100vh; overflow-y:auto}}
+.side-label{text-transform:uppercase; letter-spacing:.18em; font-size:.64rem;
+  font-weight:700; color:var(--accent); margin:1.6rem 0 .6rem; padding-top:1.15rem;
+  border-top:1px solid var(--line1)}
+details{margin:.4rem 0}
+summary{cursor:pointer; color:var(--ink); font-size:.84rem; font-weight:500;
+  padding:.42rem .65rem; background:var(--surface1); border:1px solid var(--line1);
+  border-radius:var(--r1); user-select:none; list-style:none;
+  display:flex; align-items:center; gap:.5rem; transition:border-color .13s}
+summary::-webkit-details-marker{display:none}
+summary:hover{border-color:var(--line2)}
+/* static marker swap — no rotation, no transition */
+summary::after{content:"+"; color:var(--ink3); margin-left:auto; font-size:.72rem}
+details[open] summary::after{content:"−"}
+summary .cnt{color:var(--accent); font-size:.72rem; font-weight:600}
+.chips{display:flex; flex-wrap:wrap; gap:6px; padding:9px 2px}
+.chip{font-size:.75rem; font-weight:500; line-height:1.4; padding:.26rem .6rem;
+  border-radius:var(--r1); border:1px solid rgba(234,227,208,.10);
+  background:transparent; cursor:pointer; color:var(--ink3);
+  user-select:none; transition:color .13s,border-color .13s,background-color .13s}
+.chip:hover{color:var(--ink); border-color:var(--line2)}
+.chip.on{border-color:var(--accent-line); color:var(--accent); background:var(--accent-dim)}
+.chip.ghosted.on{border-color:#8E8C86; color:#D8D6CF; background:rgba(200,198,190,.10)}
+.rowflex{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:.35rem 0}
+/* checkboxes render as switches: rectangular track, sliding square knob */
+label.small input[type=checkbox]{appearance:none; -webkit-appearance:none;
+  width:34px; height:18px; border-radius:var(--r1); background:rgba(234,227,208,.09);
+  border:1px solid var(--line2); position:relative; cursor:pointer;
+  transition:background-color .16s,border-color .16s; vertical-align:-4px;
+  margin:0; flex:none}
+label.small input[type=checkbox]::after{content:""; position:absolute;
+  top:2px; left:2px; width:12px; height:12px; border-radius:3px;
+  background:#B9B6B0; transition:transform .16s ease,background-color .16s}
+label.small input[type=checkbox]:checked{background:var(--accent); border-color:var(--accent)}
+label.small input[type=checkbox]:checked::after{transform:translateX(16px); background:var(--bg0)}
+label.small input[type=checkbox]:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+label.small{display:inline-flex; font-size:.84rem; color:var(--ink);
+  gap:7px; align-items:center; cursor:pointer}
+input[type=checkbox]{accent-color:var(--accent)}
+select,input[type=number]{background:var(--surface1); color:var(--ink);
+  border:1px solid var(--line2); border-radius:var(--r1); padding:.32rem .55rem; font-size:.85rem}
+/* range sliders — 4px thumb, no halo, color-only hover */
+input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:24px;
+  background:none; cursor:pointer; margin:.15rem 0}
+input[type=range]::-webkit-slider-runnable-track{height:4px; border-radius:2px;
+  background:rgba(234,227,208,.11)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:14px; height:14px;
+  border-radius:4px; background:var(--accent); border:2px solid var(--bg-side);
+  margin-top:-5px; transition:background-color .13s}
+input[type=range]:hover::-webkit-slider-thumb{background:#F0C868}
+input[type=range]:active::-webkit-slider-thumb{background:#F0C868}
+input[type=range]::-moz-range-track{height:4px; border-radius:2px; background:rgba(234,227,208,.11)}
+input[type=range]::-moz-range-progress{height:4px; border-radius:2px; background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
+  background:var(--accent); border:2px solid var(--bg-side)}
+.dual{position:relative; height:28px; margin:.35rem 0 .1rem}
+.dual .track{position:absolute; top:12px; left:0; right:0; height:4px;
+  border-radius:2px; background:rgba(234,227,208,.11)}
+.dual .fill{position:absolute; top:12px; height:4px; border-radius:2px;
+  background:var(--accent)}
+.dual input{position:absolute; left:0; top:0; width:100%; height:28px; margin:0;
+  -webkit-appearance:none; appearance:none; background:none; pointer-events:none}
+.dual input::-webkit-slider-runnable-track{background:transparent; height:28px}
+.dual input::-webkit-slider-thumb{-webkit-appearance:none; pointer-events:auto;
+  width:14px; height:14px; border-radius:4px; background:var(--accent);
+  border:2px solid var(--bg-side); cursor:pointer; margin-top:7px}
+.dual input::-moz-range-track{background:transparent}
+.dual input::-moz-range-progress{background:transparent}
+.dual input::-moz-range-thumb{pointer-events:auto; width:12px; height:12px;
+  border-radius:4px; background:var(--accent); border:2px solid var(--bg-side); cursor:pointer}
+.hint{color:var(--ink3); font-size:.73rem; line-height:1.5; margin-top:.15rem}
+.bpanel{border:1px solid var(--line1); border-radius:var(--r2); padding:8px 12px;
+  margin-top:.45rem; background:rgba(234,227,208,.02)}
+/* LAB — dashed quarantine frames for transient features (never accent-bordered) */
+.labpanel{border:1px dashed var(--line2); border-radius:var(--r2); background:transparent;
+  padding:8px 12px; margin-top:.45rem}
+.labrow{display:flex; align-items:center; gap:.5rem}
+.labname{font-size:.78rem; font-weight:600; color:var(--ink2)}
+.labtag{font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.14em;
+  color:var(--ink3); border:1px solid var(--line2); border-radius:var(--r1);
+  padding:.05rem .4rem; margin-left:auto}
+.labscope{font-size:.72rem; color:var(--ink3); line-height:1.45; margin:.25rem 0 .1rem}
+.labimpact{font-size:.68rem; color:var(--ink3); margin-bottom:.3rem}
+.labimpact b{color:var(--ink2); font-weight:600}
+.labpanel.dormant{opacity:.45}
+.labpanel.dormant label.small{cursor:default}
+.labbadge{font-size:.68rem; font-weight:600; color:var(--accent);
+  border:1px solid var(--accent-line); border-radius:var(--r1); padding:0 .35rem;
+  white-space:nowrap}
+.bypassed{opacity:.45; pointer-events:none}
+/* ---------------- main ---------------- */
+/* Centered measure: content floats mid-viewport; nothing runs edge to edge. */
+main{padding:34px 42px 72px; width:100%; max-width:1200px; min-width:0; margin:0 auto}
+@media(max-width:900px){main{padding:26px 18px 56px}}
+.hero-title{font-family:var(--font-display); font-size:1.9rem; font-weight:400;
+  text-transform:uppercase; letter-spacing:.14em; line-height:1.15}
+.hero-title .gold{color:var(--accent)}
+.hero-sub{color:var(--ink3); font-size:.88rem; letter-spacing:.04em; margin-top:.5rem}
+.hero-rule{height:2px; border:0; margin:18px 0 26px;
+  background:linear-gradient(90deg,var(--accent-line),rgba(232,188,87,.10) 45%,transparent 75%)}
+/* ---------------- evidence strip ---------------- */
+#strip-sentinel{height:1px}
+#estrip{position:sticky; top:0; z-index:40; background:var(--bg0);
+  border-bottom:1px solid var(--line1); padding:8px 0 0; margin-bottom:.6rem}
+#estrip.cond .ledger{display:none}
+.ledger{padding-bottom:6px}
+.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
+@media(max-width:1150px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--surface1); border:1px solid var(--line1); min-width:0;
+  border-radius:var(--r2); padding:.95rem 1.15rem .9rem}
+.kpi .l{text-transform:uppercase; letter-spacing:.15em; font-size:.62rem;
+  font-weight:600; color:var(--ink3)}
+.kpi .v{font-size:1.75rem; font-weight:700; letter-spacing:-.015em; margin-top:.3rem;
+  line-height:1.15; font-variant-numeric:tabular-nums}
+.kpi-note{color:var(--ink3); font-size:.78rem; margin-top:.7rem; line-height:1.55}
+.kpi-note b{color:var(--ink); font-weight:600}
+#k-tally{margin-top:.45rem; font-size:.74rem; color:var(--ink3)}
+#k-tally b{color:var(--ink); font-weight:600}
+.chipbar{display:flex; align-items:center; gap:8px; height:44px;
+  flex-wrap:nowrap; min-width:0; overflow-x:auto}
+.schip{background:var(--surface1); border:1px solid var(--line2); color:var(--ink2);
+  border-radius:var(--r1); padding:.3rem .7rem; font-size:.78rem; font-weight:500;
+  cursor:pointer; white-space:nowrap; display:inline-flex; align-items:baseline; gap:.45rem;
+  transition:color .13s,border-color .13s,background-color .13s}
+.schip[hidden]{display:none}
+.schip:hover{color:var(--accent); border-color:var(--accent-line)}
+.schip .k{font-size:.6rem; font-weight:600; text-transform:uppercase;
+  letter-spacing:.13em; color:var(--ink3)}
+.schip b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+.schip[aria-expanded="true"]{border-color:var(--accent-line); background:var(--accent-dim)}
+.schip[aria-expanded="true"] b{color:var(--accent)}
+.schip .star{color:var(--accent); font-size:.72rem}
+.schip.lab-amber{border-color:var(--accent-line); color:var(--accent); background:var(--accent-dim)}
+.schip.mode-badge{border-color:var(--accent-line); color:var(--accent);
+  background:var(--accent-dim); cursor:default}
+#strip-summary{font-size:.74rem; color:var(--ink3); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; min-width:0}
+.strip-seg{margin:0 !important}
+.pop{position:absolute; top:100%; margin-top:6px; background:var(--surface2);
+  border:1px solid var(--line2); border-radius:var(--r2); padding:12px 14px;
+  width:min(400px,92vw); z-index:45}
+.pop[hidden]{display:none}
+.pop .pop-title{font-size:.62rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.18em; color:var(--accent); margin-bottom:.35rem}
+#side-fallback .pop{position:static; width:auto; margin:.4rem 0; display:block}
+#side-fallback .pop[hidden]{display:block}
+#side-fallback .strip-seg{margin:.4rem 0 !important}
+/* ---------------- notice slot ---------------- */
+#notice{display:flex; align-items:center; gap:.6rem; font-size:.78rem;
+  color:var(--ink2); border:1px solid var(--line2); border-radius:var(--r1);
+  background:var(--surface1); padding:.4rem .7rem; margin:.5rem 0 0}
+#notice[hidden]{display:none}
+#notice.in{animation:slidein .16s ease}
+#notice b{color:var(--accent); font-weight:600}
+#notice .btn{padding:.2rem .55rem; font-size:.74rem}
+#notice .x{background:none; border:0; color:var(--ink3); cursor:pointer;
+  padding:.1rem .4rem; border-radius:var(--r1); margin-left:auto; line-height:1}
+#notice .x:hover{color:var(--ink); background:rgba(234,227,208,.07)}
+@keyframes slidein{from{opacity:0; transform:translateY(-4px)} to{opacity:1; transform:none}}
+.archoncard{border:1px solid var(--line2); border-radius:var(--r2);
+  background:var(--surface1); padding:.7rem .9rem}
+/* ---------------- sections — static marker + champagne state tick ---------------- */
+.sec{display:flex; align-items:baseline; gap:.75rem; margin:2.6rem 0 1rem;
+  padding-bottom:.55rem; border-bottom:1px solid var(--line1);
+  cursor:pointer; user-select:none; position:relative}
+.sec .mk{width:.85rem; flex:0 0 auto; color:var(--ink3); font-size:.72rem}
+.sec .mk::before{content:"−"}
+.sec.closed .mk::before{content:"+"}
+.sec::after{content:""; position:absolute; left:0; bottom:-1px; width:56px; height:2px;
+  background:var(--accent); opacity:.85; transition:width .16s ease, opacity .16s ease}
+.sec.closed::after{width:20px; opacity:.35}
+.sec:hover .t{color:var(--ink)}
+.sec:hover .mk{color:var(--ink2)}
+.sec.closed{margin-bottom:.4rem}
+.secbody[hidden]{display:none}
+.sec .t{text-transform:uppercase; letter-spacing:.22em; font-size:.8rem;
+  font-weight:700; color:var(--ink2); transition:color .13s}
+.sec .s{color:var(--ink3); font-size:.76rem}
+/* ---------------- segments & tabs ---------------- */
+.seg{display:inline-flex; border:1px solid var(--line2); border-radius:var(--r1);
+  overflow:hidden; margin:.3rem 0 .7rem; flex-wrap:wrap; background:rgba(234,227,208,.02)}
+.seg button{background:transparent; color:var(--ink3); border:0; padding:.42rem .95rem;
+  font-size:.8rem; font-weight:500; cursor:pointer; transition:color .13s}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--accent-dim); color:var(--accent); font-weight:600;
+  box-shadow:inset 0 0 0 1px var(--accent-line)}
+.strip-seg button{padding:.3rem .7rem; font-size:.76rem}
+.tabs{display:flex; gap:2px; flex-wrap:wrap; border-bottom:1px solid var(--line1); margin-bottom:16px}
+.tabs button{background:none; border:0; color:var(--ink3); padding:.5rem .85rem;
+  font-size:.84rem; font-weight:500; cursor:pointer; border-bottom:2px solid transparent;
+  border-radius:0; margin-bottom:-1px; transition:color .13s}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--accent); border-bottom-color:var(--accent); font-weight:600}
+/* ---------------- chart bars — flat, bounded, no radius ---------------- */
+#chart{max-width:960px}
+.brow{display:grid; grid-template-columns:minmax(150px,300px) 1fr; gap:12px;
+  align-items:center; padding:2.5px 6px 2.5px 2px; border-radius:0}
+.blbl{text-align:right; font-size:.78rem; color:var(--ink3); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; transition:color .12s}
+.brow.hot .blbl{color:var(--ink)}
+.btrack{position:relative; height:20px}
+.bbar{position:absolute; top:0; bottom:0; border-radius:0; min-width:2px}
+.cmp .bbar{bottom:auto; height:12px}
+.bghost{position:absolute; top:14px; height:5px; border-radius:0;
+  background:var(--ghost); min-width:2px}
+.binlay{position:absolute; left:8px; top:50%; transform:translateY(-50%);
+  font-size:.67rem; font-weight:500; white-space:nowrap; pointer-events:none; z-index:1}
+.cmp .binlay{top:6px}
+.btick{position:absolute; top:-2px; bottom:-2px; width:2.5px; background:var(--tickref);
+  opacity:.9; border-radius:1px}
+.bval{position:absolute; top:50%; transform:translateY(-50%);
+  font-size:.8rem; font-weight:650; color:var(--ink); white-space:nowrap;
+  padding-left:8px; font-variant-numeric:tabular-nums}
+.delta{font-size:.72rem; font-weight:700; margin-left:6px; font-variant-numeric:tabular-nums}
+.delta.up{color:var(--up)} .delta.down{color:var(--down)}
+td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
+.nsm{font-size:.68rem; color:var(--ink3); font-weight:400; margin-left:6px}
+.caption{color:var(--ink3); font-size:.76rem; margin-top:.8rem; line-height:1.6}
+.confound{border:1px dashed var(--line2); border-radius:var(--r1); color:var(--ink3);
+  font-size:.74rem; padding:.35rem .6rem; margin:.3rem 0; line-height:1.5}
+/* ---------------- tables + static sort edge rules ---------------- */
+.tblwrap{overflow-x:auto; border:1px solid var(--line1); border-radius:var(--r2);
+  background:var(--surface1)}
+table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700px}
+.data th{position:sticky; top:0; z-index:1; background:var(--surface2); color:var(--ink3);
+  text-transform:uppercase; font-size:.63rem; letter-spacing:.11em; font-weight:600;
+  padding:.6rem .75rem; text-align:right; cursor:pointer; user-select:none;
+  white-space:nowrap; box-shadow:inset 0 -1px 0 var(--line2); transition:color .12s}
+.data th:hover{color:var(--ink)}
+.data th.txt{text-align:left}
+#settbl th{white-space:normal}
+.data th.sorted{color:var(--accent)}
+.data th.sorted.desc{box-shadow:inset 0 -2px 0 var(--accent)}  /* underline = descending */
+.data th.sorted.asc{box-shadow:inset 0 2px 0 var(--accent)}    /* overline  = ascending  */
+.data td{padding:.44rem .75rem; border-top:1px solid var(--line0);
+  text-align:right; font-variant-numeric:tabular-nums}
+.data tbody tr{transition:background-color .1s}
+.data tbody tr:hover{background:rgba(234,227,208,.03)}
+.data td.txt{text-align:left; white-space:nowrap}
+.data tr.pinrow td{cursor:pointer}
+.classdot{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:8px}
+.comp{display:flex; flex-wrap:wrap; gap:.15rem .5rem; white-space:normal}
+.comp span{font-size:.8rem; white-space:nowrap}
+.comp .role{color:var(--ink3); font-size:.66rem; text-transform:uppercase;
+  letter-spacing:.06em; margin-right:.15rem}
+#pulsetbl td.spark{padding:.2rem .75rem}
+#pulsetbl td.spark svg{display:block}
+footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
+  border-top:1px solid var(--line1); padding-top:1.2rem}
+/* loading — no spinner: a sliding accent segment on a hairline track */
+#loading{display:flex; align-items:center; gap:.8rem; padding:90px 40px;
+  color:var(--ink3); font-size:.95rem}
+#loading::before{content:""; width:120px; height:2px; flex:none;
+  background:linear-gradient(90deg,var(--accent),var(--accent)) no-repeat 0 0/40px 2px,
+    rgba(234,227,208,.08);
+  animation:loadslide 1s ease-in-out infinite alternate}
+@keyframes loadslide{to{background-position:80px 0,0 0}}
+.btn{background:var(--surface1); border:1px solid var(--line2); color:var(--ink2);
+  border-radius:var(--r1); padding:.45rem .85rem; cursor:pointer; font-size:.84rem;
+  font-weight:500; transition:border-color .13s, color .13s}
+.btn:hover{border-color:var(--accent-line); color:var(--accent)}
+.btn:disabled{opacity:.5; cursor:default}
+#trendbox svg{display:block; width:100%}
+#trendbox text{font:11px var(--font)}
+#trendbox [data-si]{cursor:pointer}
+#trendbox path,#trendbox text,#trendbox circle{transition:opacity .12s}
+.tgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px}
+.tcard{border:1px solid var(--line1); border-radius:var(--r2); padding:10px 12px 6px;
+  background:var(--surface1); transition:border-color .13s}
+.tcard:hover{border-color:var(--line2)}
+.tcard .tname{font-size:.75rem; font-weight:600; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; margin-bottom:3px}
+.tcard .tval{color:var(--ink3); font-size:.7rem; font-weight:400}
+.tcard svg{display:block; width:100%}
+/* ---------------- spec dossier dock — the signature interaction ---------------- */
+#dossier-pos{position:fixed; left:0; right:0; bottom:0; z-index:50; display:flex;
+  justify-content:center; padding:0 42px; pointer-events:none}  /* inert positioner */
+@media(max-width:900px){#dossier-pos{padding:0 18px}}
+#dossier{pointer-events:auto; width:100%; max-width:1116px;     /* = 1200 − 2×42 */
+  background:var(--surface2); border:1px solid var(--line2); border-bottom:0;
+  border-radius:var(--r2) var(--r2) 0 0;                        /* top corners only */
+  padding:.75rem 1.1rem .85rem; font-size:.78rem; max-height:38vh; overflow-y:auto}
+#dossier[hidden]{display:none}
+#dossier.pinned{border-color:var(--accent-line)}
+#dossier.in{animation:slidein2 .16s ease}
+@keyframes slidein2{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+.dosshead{display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; margin-bottom:.35rem}
+.pintag{font-size:.72rem; color:var(--accent); border:1px solid var(--accent-line);
+  border-radius:var(--r1); padding:.1rem .5rem; display:inline-flex; align-items:center; gap:.4rem}
+.pintag .x{background:none; border:0; color:var(--ink3); cursor:pointer; padding:0 .15rem;
+  border-radius:var(--r1); font-size:.8rem; line-height:1}
+.pintag .x:hover{color:var(--ink)}
+.dosshint{color:var(--ink3); font-size:.7rem; margin-left:auto}
+.dosstbl{border-collapse:collapse}
+.dosstbl th{font-size:.72rem; font-weight:600; text-align:left; color:var(--ink);
+  padding:.15rem 1.4rem .25rem 0; white-space:nowrap}
+.dosstbl th.preview{color:var(--ink3); font-weight:500}
+.dosstbl td{padding:.08rem 1.4rem .08rem 0; color:var(--ink); text-align:left;
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+.dosstbl td:first-child,.dosstbl th:first-child{color:var(--ink3); font-weight:400;
+  padding-right:1rem}
+.dosstbl .bcell{color:var(--ink3)}
+.dossscope{color:var(--ink3); font-size:.7rem; margin-top:.45rem}
+/* ---------------- update toast ---------------- */
+#upd-toast{position:fixed; right:20px; bottom:20px; z-index:60; display:flex;
+  align-items:center; gap:.55rem; font-size:.84rem; cursor:pointer;
+  background:var(--surface2); border:1px solid var(--accent-line);
+  border-radius:var(--r2); padding:.65rem .45rem .65rem .95rem;
+  animation:toastin .16s ease}
+#upd-toast[hidden]{display:none}
+#upd-toast b{color:var(--accent); font-weight:600}
+#upd-toast span{color:var(--ink3)}
+#upd-toast .x{background:none; border:0; color:var(--ink3); font-size:.95rem;
+  cursor:pointer; padding:.15rem .5rem; border-radius:var(--r1); line-height:1}
+#upd-toast .x:hover{color:var(--ink); background:rgba(234,227,208,.07)}
+@keyframes toastin{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside id="side" style="display:none">
+  <button class="btn" style="width:100%" onclick="location.reload()">↺ Reset filters</button>
+  <div id="side-fallback" hidden>
+    <div class="side-label">Scope — from the strip</div>
+  </div>
+
+  <div class="side-label">Who</div>
+  <details><summary>Class <span class="cnt" id="cnt-cls"></span></summary><div class="chips" id="f-cls"></div></details>
+  <details><summary>Spec <span class="cnt" id="cnt-spec"></span></summary><div class="chips" id="f-spec"></div></details>
+  <div class="rowflex"><label class="small"><input type="checkbox" id="merge" checked> Merge hero talents into spec</label></div>
+  <details id="hero-box"><summary>Hero Talent <span class="cnt" id="cnt-hero"></span></summary><div class="chips" id="f-hero"></div></details>
+  <details open><summary>Role <span class="cnt" id="cnt-role"></span></summary><div class="chips" id="f-role"></div></details>
+  <div class="rowflex">
+    <label class="small"><input type="checkbox" id="melee"> Melee</label>
+    <label class="small"><input type="checkbox" id="ranged"> Ranged</label>
+    <span class="hint">both/neither = no filter</span>
+  </div>
+
+  <div class="side-label">Archon</div>
+  <div class="rowflex" style="margin:.2rem 0 .5rem">
+    <label class="small" title="Keys 12–19, all completed runs, the last two resets (Archon's own scope: 'the top 5% of keys in the last 14 days'), hero talents merged, DPS role, no tier filter, DPS percentile 90 — reproduces their published numbers to within ~1% and their ordering at ρ≈0.95. Unchecks itself the moment any of those settings moves.">
+      <input type="checkbox" id="archon"> <b>Archon mode</b></label>
+    <span class="hint">replicate archon.gg's high-keys table — per-spec elite key floor, p85, last 14 days</span>
+  </div>
+
+  <div class="side-label">Cohort</div>
+  <div class="rowflex" id="tierbox">
+    <label class="small"><input type="checkbox" id="t0"> No set bonus</label>
+    <label class="small"><input type="checkbox" id="t2"> Season 2 2-piece</label>
+    <label class="small"><input type="checkbox" id="t4"> Season 2 4-piece</label>
+    <span class="hint" id="tierhint"></span>
+  </div>
+
+  <div class="side-label">Where</div>
+  <details><summary>Dungeon <span class="cnt" id="cnt-dun"></span></summary><div class="chips" id="f-dun"></div></details>
+  <details><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
+
+  <div class="side-label">Quality</div>
+  <div>Minimum characters:
+    <b id="minchars-v" style="color:var(--accent)">250</b>
+    <span id="minchars-eff" class="hint"></span></div>
+  <input type="range" id="minchars" min="1" max="1200" value="250">
+  <div class="hint" id="minchars-help">How many distinct players must have
+    parsed a spec for it to show, counted against the view this page opens on.
+    Narrowing the sample — period, key range, dungeon, region — scales the
+    threshold down to match, so roughly the same specs stay listed. Role,
+    melee/ranged and un-merging hero talents change which specs are listed
+    rather than the sample behind them, so those leave the threshold alone and
+    the list is free to grow or shrink. Drag to show more or fewer.</div>
+  <div style="margin-top:.7rem">Min runs per comp:
+    <b id="compmin-v" style="color:var(--accent)">20</b></div>
+  <input type="range" id="compmin" min="1" max="100" value="20">
+  <div class="hint">A composition needs this many runs to appear in Top Comps —
+    raise it to filter out one-off groups.</div>
+
+  <div class="side-label">⚗ Lab</div>
+  <div id="labbox">
+    <div class="labpanel" id="tunebox" data-lab="posttune">
+      <div class="labrow"><span class="labname">Post-tuning filter</span><span class="labtag" id="tag-posttune">TEMP</span></div>
+      <div class="labscope" id="scope-posttune"></div>
+      <div class="labimpact" id="imp-posttune"></div>
+      <label class="small"><input type="checkbox" id="posttune"> Since latest tuning
+        <span class="hint" id="tunehint"></span></label>
+    </div>
+    <div class="labpanel" id="projbox" data-lab="projection">
+      <div class="labrow"><span class="labname">Tuning projection</span><span class="labtag" id="tag-projection">TEMP</span></div>
+      <div class="labscope" id="scope-projection"></div>
+      <div class="labimpact" id="imp-projection"></div>
+      <label class="small"><input type="checkbox" id="projcb"> 🔮 Project upcoming tuning
+        <span class="hint" id="projhint"></span></label>
+    </div>
+    <div class="labpanel" id="ghostbox" data-lab="pctlghost">
+      <div class="labrow"><span class="labname">Percentile ghost-compare</span><span class="labtag" id="tag-pctlghost">TEMP</span></div>
+      <div class="labscope" id="scope-pctlghost"></div>
+      <div class="labimpact" id="imp-pctlghost"></div>
+      <label class="small"><input type="checkbox" id="ghostcb-lab"> Ghost at p<span id="pctlB-v2">30</span></label>
+    </div>
+    <div class="labpanel" id="pinbox" data-lab="pintray">
+      <div class="labrow"><span class="labname">Dossier pin tray</span><span class="labtag" id="tag-pintray">TEMP</span></div>
+      <div class="labscope" id="scope-pintray"></div>
+      <div class="labimpact" id="imp-pintray"></div>
+      <button class="btn" id="pin-clear" style="padding:.25rem .6rem; font-size:.74rem">Clear pins</button>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. Hover any week chip for its dates and volume.</p>
+</aside>
+
+<main>
+  <div class="hero-title">⚔️ Mythic+ <span class="gold">Performance</span></div>
+  <div class="hero-sub" id="hero-sub">Midnight Season 2 · built from Warcraft Logs fight rankings</div>
+  <div class="hero-rule"></div>
+
+  <div id="loading">Loading data…</div>
+  <div id="app" style="display:none">
+
+    <div id="strip-sentinel"></div>
+    <div id="estrip">
+      <div class="ledger" id="ledger">
+        <div class="kpis">
+          <div class="kpi"><div class="l">Dungeon runs</div><div class="v" id="k-runs">–</div></div>
+          <div class="kpi"><div class="l">Player parses</div><div class="v" id="k-parses">–</div></div>
+          <div class="kpi"><div class="l">Groups compared</div><div class="v" id="k-groups">–</div></div>
+          <div class="kpi"><div class="l">Run dates</div><div class="v" id="k-dates">–</div></div>
+        </div>
+        <div id="k-tally"></div>
+      </div>
+      <div class="chipbar" id="chipbar">
+        <button class="schip" id="chip-period" aria-haspopup="dialog" aria-expanded="false"></button>
+        <button class="schip" id="chip-pctl" aria-haspopup="dialog" aria-expanded="false"></button>
+        <button class="schip" id="chip-keys" aria-haspopup="dialog" aria-expanded="false"></button>
+        <span id="timed-home"></span>
+        <div class="seg strip-seg" id="timedseg">
+          <button data-t="0" class="on">All completed</button>
+          <button data-t="1">⏱ Timed only</button>
+        </div>
+        <button class="schip lab-amber" id="chip-lab" hidden title="A Lab filter deviates from its default — see the ⚗ Lab panel in the sidebar">⚗ LAB</button>
+        <span class="schip mode-badge" id="chip-archon" hidden>⚔ Archon replica</span>
+        <span id="strip-summary" hidden></span>
+      </div>
+      <div class="pop" id="pop-period" role="dialog" aria-label="Time period" hidden>
+        <div class="pop-title">Period A</div>
+        <div class="chips" id="presetA" style="padding-top:2px"></div>
+        <details><summary>Custom weeks <span class="cnt" id="cnt-weeksA"></span></summary>
+          <div class="chips" id="f-weeksA"></div></details>
+        <label class="small" style="margin-top:.5rem"><input type="checkbox" id="cmp">
+          Compare with a second period</label>
+        <div class="chips" id="quickcmp"></div>
+        <div id="blockB" class="bpanel" style="display:none">
+          <div class="hint" style="margin:0 0 .1rem">Period B — drawn as grey ghost bars</div>
+          <div class="chips" id="presetB" style="padding-top:2px"></div>
+          <details><summary>Custom weeks (B) <span class="cnt" id="cnt-weeksB"></span></summary>
+            <div class="chips" id="f-weeksB"></div></details>
+        </div>
+      </div>
+      <div class="pop" id="pop-pctl" role="dialog" aria-label="DPS percentile" hidden>
+        <div class="pop-title">Lens</div>
+        <div><b>DPS percentile: <span id="pctl-v">50</span>th</b></div>
+        <input type="range" id="pctl" min="0" max="99" step="1" value="50">
+        <span class="hint">drives the percentile DPS everywhere it appears — chart, trend,
+          breakdown, the dossier, Set Bonus DPS columns. Averages stay averages. 0 = worst
+          parse, 50 = median, 90 ≈ Archon's ceiling view</span>
+        <div class="rowflex" style="margin-top:.55rem">
+          <button class="btn" id="me-save" style="padding:.25rem .6rem; font-size:.74rem"
+            title="Store this percentile as your personal lens (saved in this browser)">★ Save as Me</button>
+          <span class="chip" id="me-chip" hidden></span>
+        </div>
+        <div class="rowflex" style="margin-top:.45rem">
+          <label class="small"><input type="checkbox" id="ghostcb">
+            vs p<span id="pctlB-v">30</span> ghost</label>
+          <span class="hint" id="ghost-note">grey ghost at a second percentile — same period</span>
+        </div>
+        <input type="range" id="pctlB" min="0" max="99" step="1" value="30">
+      </div>
+      <div class="pop" id="pop-keys" role="dialog" aria-label="Key level range" hidden>
+        <div class="pop-title">Key levels</div>
+        <div>Key Level: <b id="keys-v" style="color:var(--accent)"></b></div>
+        <div class="dual">
+          <div class="track"></div><div class="fill" id="key-fill"></div>
+          <input type="range" id="klo"><input type="range" id="khi">
+        </div>
+      </div>
+    </div>
+
+    <div id="notice" hidden><span id="notice-txt"></span><span id="notice-act"></span>
+      <button class="x" aria-label="Dismiss notice">✕</button></div>
+    <div class="kpi-note" id="period-note"></div>
+
+    <div class="sec" data-sec="pulse"><span class="mk"></span><span class="t">Pulse</span><span class="s" id="pulse-sub"></span></div>
+    <div class="secbody" id="sec-pulse">
+      <div id="pulse-banners"></div>
+      <div id="pulsebox"></div>
+      <div class="caption" id="pulse-caption"></div>
+    </div>
+
+    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s">hover a bar to preview it in the dossier — click to pin</span></div>
+    <div class="secbody" id="sec-overview">
+    <div class="seg" id="sortseg">
+      <button data-s="desc" class="on">Highest first</button>
+      <button data-s="asc">Lowest first</button>
+      <button data-s="name">Name A → Z</button>
+      <button data-s="gain" style="display:none">Gained most</button>
+      <button data-s="loss" style="display:none">Lost most</button>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="chart"></div>
+    <div class="caption" id="chart-caption"></div>
+    </div>
+
+    <div class="sec" data-sec="trajectory"><span class="mk"></span><span class="t">Trajectory</span><span class="s" id="traj-sub"></span></div>
+    <div class="secbody" id="sec-trajectory">
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center">
+      <div class="seg" id="trendseg" style="margin:.3rem 0 .7rem"></div>
+      <div class="seg" id="trendview" style="margin:.3rem 0 .7rem"></div>
+      <div class="seg" id="normseg" style="margin:.3rem 0 .7rem"></div>
+      <div class="seg" id="slopeseg" style="margin:.3rem 0 .7rem">
+        <button id="slopebtn" title="Rank the series by their season slope — who is climbing fastest">↗ Slope sort</button>
+      </div>
+    </div>
+    <div id="trendbox"></div>
+    <div class="caption" id="trend-caption"></div>
+    </div>
+
+    <div class="sec" data-sec="breakdown"><span class="mk"></span><span class="t">Breakdown</span><span class="s" id="tbl-sub"></span></div>
+    <div class="secbody" id="sec-breakdown">
+    <div class="tblwrap"><table class="data" id="tbl"></table></div>
+    </div>
+
+    <div class="sec" data-sec="setbonus" id="setbonus-head"><span class="mk"></span><span class="t">Set Bonus Gain</span>
+      <span class="s" id="set-sub"></span></div>
+    <div class="secbody" id="sec-setbonus">
+    <div class="tblwrap"><table class="data" id="settbl"></table></div>
+    <div class="caption" id="set-caption"></div>
+    </div>
+
+    <div class="sec" data-sec="comps"><span class="mk"></span><span class="t">Top Comps</span>
+      <span class="s" id="comps-sub"></span></div>
+    <div class="secbody" id="sec-comps">
+    <div class="tblwrap"><table class="data" id="comps"></table></div>
+    <div class="caption" id="comps-caption"></div>
+    </div>
+
+    <footer>
+      DPS is per-player overall damage ÷ run duration; deaths are parsed from each report's
+      death events. <span id="foot-src">Data is the top ~1,000 runs per dungeon × key level
+      from Warcraft Logs fight rankings (~200 below +10, where the leaderboards are
+      bottomless) — read it as "what strong runs pull", not a population census.</span>
+      Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC).
+      <span id="built"></span>
+      <br>Machine-readable data for AI agents:
+      <a href="../llms.txt">llms.txt</a> · <a href="../llms/">HTML tables</a> ·
+      <a href="../data.json.gz">data.json.gz</a> — <span id="stamp"></span>
+    </footer>
+  </div>
+</main>
+</div>
+
+<div id="dossier-pos"><div id="dossier" hidden></div></div>
+
+<div id="upd-toast" hidden role="status" title="Click to reload">
+  <b>New version available</b><span>— click to reload</span>
+  <button class="x" aria-label="Dismiss">✕</button>
+</div>
+<script>
+"use strict";
+const CLASS_COLORS = {
+  DeathKnight:"#C41E3A", DemonHunter:"#A330C9", Druid:"#FF7C0A", Evoker:"#33937F",
+  Hunter:"#AAD372", Mage:"#3FC7EB", Monk:"#00FF98", Paladin:"#F48CBA",
+  Priest:"#DCDCE2", Rogue:"#FFF468", Shaman:"#0070DD", Warlock:"#8788EE",
+  Warrior:"#C69B6D", Unknown:"#999999"};
+const MELEE = new Set(["DeathKnight|Blood","DeathKnight|Frost","DeathKnight|Unholy",
+  "DemonHunter|Devourer","DemonHunter|Havoc","DemonHunter|Vengeance","Druid|Feral",
+  "Druid|Guardian","Hunter|Survival","Monk|Brewmaster","Monk|Mistweaver","Monk|Windwalker",
+  "Paladin|Holy","Paladin|Protection","Paladin|Retribution","Rogue|Assassination",
+  "Rogue|Outlaw","Rogue|Subtlety","Shaman|Enhancement","Warrior|Arms","Warrior|Fury",
+  "Warrior|Protection"]);
+const RANGED = new Set(["Druid|Balance","Druid|Restoration","Evoker|Augmentation",
+  "Evoker|Devastation","Evoker|Preservation","Hunter|BeastMastery","Hunter|Marksmanship",
+  "Mage|Arcane","Mage|Fire","Mage|Frost","Priest|Discipline","Priest|Holy","Priest|Shadow",
+  "Shaman|Elemental","Shaman|Restoration","Warlock|Affliction","Warlock|Demonology",
+  "Warlock|Destruction"]);
+const RESET_RULES = {US:[1,15], EU:[2,4]}, RESET_DEFAULT=[2,22]; // [weekday Mon=0, hour UTC]
+
+const TABS = [
+  {id:"avg", label:"Average DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
+   shade:"deathless", tick:"med",
+   cap:"Bold number: average DPS; grey tick: {med}. Brighter bar = higher deathless share."},
+  {id:"med", label:"Median DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
+   shade:"deathless", tick:"avg",
+   cap:"DPS at the percentile the Lens chip selects — 50 is the median, "
+     +"90 the ceiling view sites like Archon publish. Grey tick: average DPS. "
+     +"Brighter bar = higher deathless share."},
+
+  {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
+   shade:"med", tick:null,
+   cap:"Average deaths per run. Brighter bar = higher {med}."},
+  {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
+   shade:"med", tick:null,
+   cap:"Share of runs where the player did not die once. Brighter bar = higher {med}."},
+  {id:"arating", label:"Avg Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
+   inlay:"dps", shade:"med", tick:"mrating", rating:true,
+   cap:"Average Raider.IO season score of the distinct characters who played this spec under the current filters — a season total (best run in each of the 8 dungeons), not a single run's rating. Each character counts once however many times they logged, so it reads as who plays a spec, not how hard it hits. Grey tick: median. Brighter bar = higher {med}."},
+  {id:"mrating", label:"Median Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
+   inlay:"dps", shade:"med", tick:"arating", rating:true,
+   cap:"Median Raider.IO season score of the distinct characters who played this spec — less swayed by a handful of very highly rated players than the average. Grey tick: average. Brighter bar = higher {med}."},
+  {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
+   inlay:"dps", shade:"med", tick:null,
+   cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher {med}."},
+  // The Trend entry left the tab row — Trajectory is a peer section now — but the
+  // entry object stays: its cap feeds trendCap() and old state may still name it.
+  {id:"trend", label:"Trend", trend:true,
+   cap:"Weekly {metric} for the top groups under the current filters, whole season. "+
+       "Weeks with fewer than 25 parses for a group are skipped."},
+];
+const CHART_MAX = 40;
+const TREND_MAX = 16;
+
+let D=null, R=null, N=0, runCount=0;
+let availWeeks=[], weekCounts=new Map(), usB0=0;
+let curMinDay=0, curMaxDay=-1;   // day span covered by the current reset
+const EMPTY=new Set(); let lastEffMin=0;
+// The filter state the page opens on. The minimum-characters threshold means
+// "this many players under the default view", so the default view is the
+// yardstick every other selection is measured against.
+let DEF=null, refMemo=new Map();
+let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
+             role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
+             klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
+             dayCut:0,   // 0 = whole reset; N = most recent N days of it
+             compMin:20, csort:{col:"strength", dir:-1},
+             ssort:{col:"pt", dir:-1},
+             postTune:true,    // default: only runs after the latest tuning
+             proj:false,       // re-score every parse under the upcoming tuning
+             minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
+             trendView:"lines", trendPin:new Set(), timedOnly:true,
+             // 4-piece on by default: it is the cohort worth looking at, and
+             // gear is known for well over half of +12 parses now. Parses
+             // without gear are excluded while it is ticked, so the sample is
+             // smaller than the unfiltered view -- the hint next to the boxes
+             // reports how much of what is on screen has gear.
+             tier0:false, tier2:false, tier4:true,
+             pctl:50, elite:false,
+             tsort:{col:"a_v", dir:-1},
+             // v3 additions — every one defaults to "exactly today's behavior"
+             pctlGhost:false, pctlB:30,           // percentile ghost-compare (XOR w/ cmp)
+             normSeg:"dps", slopeSort:false,      // Trajectory normalization + ordering
+             pins:[],                             // dossier pins (≤3 group keys)
+             psort:{col:"dpct", dir:-1}};         // Pulse board sort
+let hasTimed=false, hasTune=false, hasProj=false;
+let hasRating=false, hasTier=false, CHARSCORE=[];
+let archonPrev=null;   // Archon-mode's "what you had before" snapshot
+// elite = the Archon-replica statistic path is active. Only the mode toggle
+// sets it; render() clears it whenever the mode's other settings diverge.
+// A parse's projected damage multiplier, from ITS OWN ability breakdown.
+// Applying it per row means every aggregate stays exact under any filter.
+const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
+// tmul 0 marks a parse whose WCL report is gone, so it has no breakdown to
+// re-score. Excluded from both sides while projecting, never silently kept.
+const projSkip=i=>hasProj&&state.proj&&R.tmul[i]===0;
+const dpsAt=i=>R.dps[i]*projMul(i);
+
+const $=id=>document.getElementById(id);
+function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function fmtDay(d){const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*864e5);
+  return t.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"})}
+function cap1(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s}
+
+/* ---------------- season data source ---------------- */
+const SEASON={file:"../data.json",
+  sub:"Midnight Season 2 · built from Warcraft Logs fight rankings",
+  foot:'Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs fight '
+      +'rankings (~200 below +10, where the leaderboards are bottomless) — read it as '
+      +'"what strong runs pull", not a population census.',
+  // thresholds scale to the period, so these are season-wide starting points
+  minchars:250, maxchars:1200};
+
+// Large datasets are published pre-gzipped (the deploy artifact has to stay
+// small); inflate them in the browser, else fall back to the plain file.
+async function loadJSON(file){
+  if(typeof DecompressionStream==="function"){
+    // GitHub Pages serves everything with max-age=600, so a returning tab
+    // could show up to ten-minute-old data. no-cache forces a conditional
+    // request: unchanged data costs one cheap 304, fresh data arrives the
+    // moment it is deployed.
+    const gz=await fetch(file+".gz",{cache:"no-cache"});
+    if(gz.ok) return new Response(
+      gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
+  }
+  const r=await fetch(file,{cache:"no-cache"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+
+function loadSeason(){
+  const cfg=SEASON;
+  $("loading").textContent="Loading data…";
+  $("loading").style.display=""; $("app").style.display="none";
+  const got=loadJSON(cfg.file);
+  got.then(d=>initData(d,cfg)).catch(e=>{
+    $("loading").textContent="Failed to load data: "+e;
+  });
+}
+
+function initData(d,cfg){
+  D=d; R=d.rows; N=R.dps.length;
+  runCount=0;
+  for(let i=0;i<N;i++) if(R.run[i]>=runCount) runCount=R.run[i]+1;
+  R.atk = new Int8Array(N);
+  window.clsSpecs=new Map(); window.csHeroes=new Map();
+  for(let i=0;i<N;i++){
+    const cn=d.classes[R.cls[i]], sn=d.specs[R.spec[i]], hn=d.heroes[R.hero[i]];
+    const k=cn+"|"+sn;
+    R.atk[i]=MELEE.has(k)?1:RANGED.has(k)?2:0;
+    if(!clsSpecs.has(cn)) clsSpecs.set(cn,new Set());
+    clsSpecs.get(cn).add(sn);
+    if(!csHeroes.has(k)) csHeroes.set(k,new Set());
+    if(hn!=="Unknown") csHeroes.get(k).add(hn);
+  }
+  buildRuns();
+  computeResetBuckets();
+  // Raider.IO season score per character, indexed by the same char id the rows
+  // carry. Enrichment is a slow background sweep, so partial coverage is the
+  // normal state and the metric appears as soon as anyone is rated.
+  // Gear only started being captured partway through the season, so most
+  // historical parses carry -1 (report had no gear). The filter appears only
+  // when something is actually known, and says how much.
+  hasTier=!!(R.tier&&R.tier.some(v=>v>=0));
+  $("tierbox").style.display=hasTier?"":"none";
+
+  CHARSCORE=d.charscore||[];
+  hasRating=CHARSCORE.some(v=>v>=0);
+  hasTune=!!(d.tuning&&R.post);
+  state.postTune=hasTune;
+  if(hasTune){
+    const t=d.tuning;
+    $("tunehint").textContent="("+t.date+" · "+fmtInt(t.runs)+" parses)";
+    $("tunebox").title="Only runs that started after the "+t.label+" went live "
+      +"on that run's own region. "+(t.note||"");
+  }
+  $("posttune").checked=state.postTune;
+  $("posttune").disabled=!hasTune;
+  hasProj=!!(D.projection&&R.tmul);
+  if(!hasProj){state.proj=false; $("projcb").checked=false; $("projcb").disabled=true}
+  else{
+    const P=D.projection;
+    $("projhint").textContent=P.label+" · "+P.parses.toLocaleString("en-US")
+      +" parses affected";
+    $("projcb").checked=state.proj; $("projcb").disabled=false;
+    $("posttune").disabled=state.proj;
+  }
+  hasTimed=false;
+  if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
+  $("timedseg").style.display=hasTimed?"":"none";
+  state.timedOnly=hasTimed;
+  $("timedseg").querySelectorAll("button").forEach(x=>
+    x.classList.toggle("on",(x.dataset.t==="1")===state.timedOnly));
+  // selections carry over between sources only where the names still exist
+  const prune=(sel,names)=>{const ok=new Set(names);
+    for(const x of [...sel]) if(!ok.has(x)) sel.delete(x);};
+  prune(state.cls,D.classes); prune(state.spec,D.specs); prune(state.hero,D.heroes);
+  prune(state.dun,D.dungeons); prune(state.reg,D.regions);
+  // per-source defaults: period = the CURRENT reset, keys, min-runs baseline.
+  // The reset now in progress is what the page opens on -- the last two weeks
+  // are what matter and older weeks mix tuning states into the averages. The
+  // character threshold scales with the narrowed sample (see effMinFor), so
+  // this does not empty the default view. Right after a reset rolls over,
+  // bucket 0 can be empty for a while; fall back to the newest bucket that
+  // holds data rather than an empty page.
+  state.weeksA.clear();
+  state.dayCut=0;   // day spans differ per source
+  if(weekCounts.has(0)) state.weeksA.add(0);
+  else if(availWeeks.length) state.weeksA.add(availWeeks[0]);
+  state.weeksB.clear();
+  // compare default: A = this reset (above), B = the reset before it. Until
+  // a second reset exists, B falls back to the only bucket there is.
+  const wb=availWeeks.find(w=>w>0) ?? availWeeks[0];
+  if(wb!==undefined) state.weeksB.add(wb);
+  const keys=[...new Set(R.key)].sort((a,b)=>a-b);
+  const kmin=keys[0], kmax=keys[keys.length-1];
+  // Every key level stays selectable; the default opens on a six-wide band
+  // ending one below the highest key anyone has logged. Anchoring to the top
+  // rather than a fixed floor keeps the default view on current content as the
+  // season climbs, and the very top bracket is dropped because it is usually a
+  // handful of runs that add noise without adding signal.
+  state.khi=Math.max(kmax-1,kmin);
+  state.klo=Math.max(state.khi-5,kmin);
+  state.minchars=cfg.minchars;
+  $("minchars").max=cfg.maxchars;
+  $("minchars").value=state.minchars;
+  $("minchars-v").textContent=state.minchars;
+  for(const [id,key] of [["t0","tier0"],["t2","tier2"],["t4","tier4"]]){
+    const el=$(id); if(!el) continue;
+    el.checked=state[key];
+    el.onchange=()=>{state[key]=el.checked; render()};
+  }
+  DEF={klo:state.klo, khi:state.khi, timedOnly:state.timedOnly,
+       postTune:state.postTune};
+  refMemo=new Map();
+  state.compare=false; $("cmp").checked=false;
+  meInit();
+  buildControls();
+  $("hero-sub").textContent=cfg.sub;
+  $("foot-src").textContent=cfg.foot;
+  document.title="Mythic+ Performance — "+(d.season||"Midnight");
+  $("loading").style.display="none";
+  $("app").style.display=""; $("side").style.display="";
+  $("built").textContent=" Data built "+d.built+".";
+  $("stamp").textContent="data built "+d.built;
+  setCompare(false);   // also resets gain/loss sort state, then renders
+  requestAnimationFrame(checkStrip);
+}
+
+$("posttune").onchange=e=>{state.postTune=e.target.checked; render()};
+$("projcb").onchange=e=>{
+  state.proj=e.target.checked;
+  // the projection is only defined for runs after the last tuning pass, so
+  // turning it on pins the period filter there
+  if(state.proj){state.postTune=true; $("posttune").checked=true}
+  $("posttune").disabled=state.proj||!hasTune;
+  $("tunebox").style.opacity=state.proj?.55:1;
+  render();
+};
+$("compmin").oninput=e=>{state.compMin=+e.target.value;
+  $("compmin-v").textContent=state.compMin; render()};
+$("timedseg").querySelectorAll("button").forEach(b=>{
+  b.onclick=()=>{
+    const want=b.dataset.t==="1";
+    if(state.timedOnly===want) return;
+    state.timedOnly=want;
+    $("timedseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+    render();
+  };
+});
+// The Trajectory SVG and the Pulse sparklines size themselves off their box,
+// so any resize re-renders (debounced through rAF).
+let __rsz=0;
+window.addEventListener("resize",()=>{ if(!D) return;
+  cancelAnimationFrame(__rsz);
+  __rsz=requestAnimationFrame(()=>{checkStrip(); render();});
+});
+// Section headers fold their body away. The sliders live in the sidebar, so
+// collapsing the upper sections brings Top Comps up next to them and you can
+// watch the comps react while you drag. Choices persist per browser;
+// localStorage can throw (private windows, blocked site data), so every access
+// is guarded and a failure just means the sections open normally.
+const SEC_KEY="wowlogs.collapsed";
+function readCollapsed(){
+  try{ return new Set(JSON.parse(localStorage.getItem(SEC_KEY)||"[]")) }
+  catch(e){ return new Set() }
+}
+function applyCollapsed(){
+  const shut=readCollapsed();
+  document.querySelectorAll(".sec[data-sec]").forEach(h=>{
+    const id=h.dataset.sec, body=document.getElementById("sec-"+id);
+    const closed=shut.has(id);
+    h.classList.toggle("closed",closed);
+    h.setAttribute("aria-expanded",String(!closed));
+    if(body) body.hidden=closed;
+  });
+}
+document.querySelectorAll(".sec[data-sec]").forEach(h=>{
+  h.setAttribute("role","button");
+  h.setAttribute("tabindex","0");
+  const toggle=()=>{
+    const shut=readCollapsed(), id=h.dataset.sec;
+    shut.has(id) ? shut.delete(id) : shut.add(id);
+    try{ localStorage.setItem(SEC_KEY,JSON.stringify([...shut])) }catch(e){}
+    applyCollapsed();
+  };
+  h.onclick=toggle;
+  h.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle() } };
+});
+applyCollapsed();
+
+// One entry per run: its duration, where/when it happened, and the full
+// 5-player composition. Built once per dataset because none of it depends on
+// the filters — only which runs qualify does.
+let RUNS=[];
+function buildRuns(){
+  RUNS=new Array(runCount);
+  for(let i=0;i<N;i++){
+    const r=R.run[i];
+    let o=RUNS[r];
+    if(!o) o=RUNS[r]={dur:R.dur?R.dur[i]:0, kdur:R.kdur?R.kdur[i]:0,
+                      dun:R.dun[i], key:R.key[i],
+                      day:R.day[i], deaths:0, comp:[]};
+    o.deaths+=R.deaths[i];
+    o.comp.push({cls:R.cls[i], spec:R.spec[i], role:R.role[i]});
+  }
+  const rank={Tank:0, Healer:1, DPS:2};
+  for(const o of RUNS){
+    if(!o) continue;
+    o.comp.sort((a,b)=>(rank[D.roles[a.role]] ?? 3)-(rank[D.roles[b.role]] ?? 3)
+      || D.classes[a.cls].localeCompare(D.classes[b.cls])
+      || D.specs[a.spec].localeCompare(D.specs[b.spec]));
+    o.key_ = o.comp.map(c=>c.cls*100+c.spec).join(",");
+    // how far under the dungeon timer the run finished; absolute clock times
+    // are meaningless across dungeons, this is comparable everywhere
+    const par=(D.pars||[])[o.dun]||0;
+    o.pct = (par && o.kdur) ? (par-o.kdur)/par*100 : null;
+  }
+}
+function fmtDur(sec){
+  const m=Math.floor(sec/60), r=Math.round(sec%60);
+  return m+":"+String(r).padStart(2,"0");
+}
+function computeResetBuckets(){
+  const epoch=new Date(D.epoch+"T00:00:00Z"), now=new Date();
+  const bounds={};
+  D.regions.forEach((reg,ri)=>{
+    const [wd,hh]=RESET_RULES[reg]||RESET_DEFAULT;
+    const b=new Date(now); b.setUTCHours(hh,0,0,0);
+    const shift=(((b.getUTCDay()+6)%7)-wd+7)%7;
+    b.setUTCDate(b.getUTCDate()-shift);
+    if(b>now) b.setUTCDate(b.getUTCDate()-7);
+    bounds[ri]=Math.floor((b-epoch)/864e5);
+  });
+  R.rbucket=new Int16Array(N);
+  for(let i=0;i<N;i++){
+    const d0=R.day[i];
+    if(d0<0){R.rbucket[i]=999; continue}
+    const b0=bounds[R.reg[i]];
+    R.rbucket[i]=d0>=b0?0:Math.ceil((b0-d0)/7);
+  }
+  usB0=bounds[D.regions.indexOf("US")] ?? Object.values(bounds)[0];
+  weekCounts=new Map();
+  for(let i=0;i<N;i++) if(R.rbucket[i]<999)
+    weekCounts.set(R.rbucket[i],(weekCounts.get(R.rbucket[i])||0)+1);
+  availWeeks=[...weekCounts.keys()].sort((a,b)=>a-b);
+  // day span of the current reset, anchored on the latest day that HAS data
+  // (so "last 1 day" is never empty just because today's logs aren't in yet)
+  curMinDay=1e9; curMaxDay=-1;
+  for(let i=0;i<N;i++) if(R.rbucket[i]===0&&R.day[i]>=0){
+    if(R.day[i]<curMinDay) curMinDay=R.day[i];
+    if(R.day[i]>curMaxDay) curMaxDay=R.day[i];
+  }
+  if(curMaxDay<0) curMinDay=0;
+}
+// how many days back the current-reset zoom covers, 0 when it doesn't apply:
+// only a selection of exactly "this reset" can be narrowed to days
+function periodCut(weeks){
+  return (state.dayCut>0&&weeks.size===1&&weeks.has(0)&&curMaxDay>=0)
+    ? state.dayCut : 0;
+}
+function periodPass(i,weeks,cut){
+  if(weeks.size&&!weeks.has(R.rbucket[i])) return false;
+  if(cut&&R.day[i]<curMaxDay-cut+1) return false;
+  return true;
+}
+function resetDays(){return curMaxDay<0?0:curMaxDay-curMinDay+1}
+
+/* ---------------- filter option pools ---------------- */
+function specPool(){
+  if(!state.cls.size) return D.specs;
+  const s=new Set();
+  for(const c of state.cls) (clsSpecs.get(c)||new Set()).forEach(x=>s.add(x));
+  return D.specs.filter(x=>s.has(x));
+}
+function heroPool(){
+  const classes=state.cls.size?[...state.cls]:D.classes;
+  const s=new Set();
+  for(const c of classes)
+    for(const sp of (state.spec.size?[...state.spec]:(clsSpecs.get(c)||[])))
+      (csHeroes.get(c+"|"+sp)||new Set()).forEach(x=>s.add(x));
+  return D.heroes.filter(x=>s.has(x));
+}
+function rebuildCascade(){
+  const sp=new Set(specPool());
+  for(const x of [...state.spec]) if(!sp.has(x)) state.spec.delete(x);
+  chipGroup($("f-spec"),[...sp],state.spec,rebuildCascade);
+  const hp=new Set(heroPool());
+  for(const x of [...state.hero]) if(!hp.has(x)) state.hero.delete(x);
+  chipGroup($("f-hero"),[...hp],state.hero);
+}
+
+/* ---------------- generic controls ---------------- */
+function chipGroup(el, items, sel, onchange, ghosted){
+  el.innerHTML="";
+  items.forEach(name=>{
+    const c=document.createElement("span");
+    c.className="chip"+(ghosted?" ghosted":"")+(sel.has(name)?" on":"");
+    c.textContent=name;
+    c.onclick=()=>{sel.has(name)?sel.delete(name):sel.add(name);
+      c.classList.toggle("on"); if(onchange)onchange(); syncCounts(); render();};
+    el.appendChild(c);
+  });
+  syncCounts();
+}
+function syncCounts(){
+  const pairs=[["cnt-cls",state.cls],["cnt-spec",state.spec],["cnt-hero",state.hero],
+    ["cnt-dun",state.dun],["cnt-role",state.role],["cnt-reg",state.reg],
+    ["cnt-weeksA",state.weeksA],["cnt-weeksB",state.weeksB]];
+  for(const [id,s] of pairs){const e=$(id); if(e) e.textContent=s.size?s.size+" ✓":"";}
+}
+
+/* ---------------- period controls ---------------- */
+function weekLabel(w){return w===0?"This reset":fmtDay(usB0-7*w)}
+function weekTitle(w){
+  const start=usB0-7*w;
+  return (w===0?"since "+fmtDay(start):fmtDay(start)+" – "+fmtDay(start+7))
+    +" · "+(weekCounts.get(w)||0).toLocaleString("en-US")+" parses"
+    +(w>0?" · "+w+" reset"+(w>1?"s":"")+" ago":"");
+}
+const PRESETS=[
+  ["All season", ()=>[]],
+  ["This reset", ()=>[0]],
+  ["Last reset", ()=>[1]],
+  ["Last month", ()=>[0,1,2,3]],
+  ["Prev month", ()=>[4,5,6,7]],
+  ["Last 2 months", ()=>[0,1,2,3,4,5,6,7]],
+];
+function presetWeeks(make){return make().filter(w=>weekCounts.has(w))}
+function setsEqual(a,b){if(a.size!==b.size)return false; for(const x of a) if(!b.has(x))return false; return true}
+
+function buildPeriodUI(prefix, sel, ghosted){
+  const pbox=$("preset"+prefix), wbox=$("f-weeks"+prefix);
+  const paint=()=>{
+    pbox.innerHTML="";
+    for(const [name,make] of PRESETS){
+      const target=new Set(presetWeeks(make));
+      if(name!=="All season" && !target.size) continue;   // no data for that span
+      const c=document.createElement("span");
+      c.className="chip"+(ghosted?" ghosted":"")+(setsEqual(sel,target)?" on":"");
+      c.textContent=name;
+      if(name!=="All season"){
+        const ws=[...target].sort((a,b)=>a-b);
+        c.title=fmtDay(usB0-7*Math.max(...ws))+" → "+(ws.includes(0)?"now":fmtDay(usB0-7*Math.min(...ws)+7));
+      } else c.title="no time filter";
+      c.onclick=()=>{sel.clear(); target.forEach(w=>sel.add(w)); refreshPeriodUIs(); render();};
+      pbox.appendChild(c);
+    }
+    wbox.innerHTML="";
+    for(const w of availWeeks){
+      const c=document.createElement("span");
+      c.className="chip"+(ghosted?" ghosted":"")+(sel.has(w)?" on":"");
+      c.textContent=weekLabel(w); c.title=weekTitle(w);
+      c.onclick=()=>{sel.has(w)?sel.delete(w):sel.add(w); refreshPeriodUIs(); render();};
+      wbox.appendChild(c);
+    }
+  };
+  return paint;
+}
+let paintA=null, paintB=null;
+function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); paintDays(); syncCounts();}
+function describePeriod(sel){
+  let base=null;
+  for(const [name,make] of PRESETS)
+    if(setsEqual(sel,new Set(presetWeeks(make)))) {base=name.toLowerCase(); break}
+  if(base===null) base=sel.size+" week"+(sel.size>1?"s":"");
+  const cut=periodCut(sel);
+  return cut ? base+" · last "+cut+" day"+(cut>1?"s":"") : base;
+}
+
+// Day zoom: only meaningful when the selection is exactly the current reset,
+// so the control appears with that selection and hides again otherwise.
+// Day-zoom removed by request; dayCut stays 0 so periodCut() is inert and
+// every periodPass() call site keeps working unchanged.
+function paintDays(){}
+
+/* ---------------- notices — one line for every programmatic rewrite ---------------- */
+let pendingNotice=null;   // shown once on the next render
+let stickyNotice=null;    // survives renders (Archon restore offer)
+function renderNotice(){
+  const n=$("notice"), txt=$("notice-txt"), act=$("notice-act");
+  const msg=pendingNotice||stickyNotice;
+  pendingNotice=null;
+  if(!msg){n.hidden=true; return}
+  txt.innerHTML=msg.html;
+  act.innerHTML="";
+  if(msg.restore&&archonPrev){
+    const b=document.createElement("button"); b.className="btn";
+    b.textContent="Restore my pre-Archon filters";
+    b.onclick=()=>{ const p=archonPrev; stickyNotice=null;
+      applyArchonState(p); archonPrev=null; };
+    act.appendChild(b);
+  }
+  if(n.hidden){ n.hidden=false; n.classList.remove("in");
+    void n.offsetWidth; n.classList.add("in"); }
+}
+$("notice").querySelector(".x").onclick=()=>{
+  pendingNotice=null; stickyNotice=null; $("notice").hidden=true;};
+
+/* ---------------- ★Me preset (opt-in, storage-guarded) ---------------- */
+let mePctl=null;
+function meInit(){
+  try{const v=localStorage.getItem("wowlogs.me.pctl");
+    if(v!=null&&v!=="") mePctl=Math.max(0,Math.min(99,+v));}catch(e){}
+  meSync();
+}
+function meSync(){
+  const c=$("me-chip");
+  if(mePctl==null||isNaN(mePctl)){c.hidden=true; return}
+  c.hidden=false; c.textContent="★ Me · p"+mePctl;
+  c.classList.toggle("on",state.pctl===mePctl);
+}
+$("me-save").onclick=()=>{ mePctl=state.pctl;
+  try{localStorage.setItem("wowlogs.me.pctl",String(mePctl))}catch(e){}
+  meSync(); renderStrip(); };
+$("me-chip").onclick=()=>{ if(mePctl!=null&&!isNaN(mePctl)) setPctl(mePctl); };
+
+/* ---------------- percentile lens + ghost (one-ghost XOR) ---------------- */
+function dpsLabel(){return state.pctl===50?"Median DPS":"p"+state.pctl+" DPS"}
+function ghostKind(){
+  return state.compare?"period":(state.pctlGhost&&!state.elite?"pctl":null);
+}
+function setPctl(v){
+  state.pctl=v;
+  $("pctl").value=v; $("pctl-v").textContent=v;
+  TABS.find(t=>t.id==="med").label=dpsLabel();
+  document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
+    if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+  meSync();
+  render();
+}
+function setPctlGhost(on){
+  state.pctlGhost=on;
+  if(on&&state.compare){
+    state.compare=false; $("cmp").checked=false;
+    $("blockB").style.display="none"; refreshPeriodUIs();
+    pendingNotice={html:"One ghost at a time — <b>period compare off</b>, percentile ghost on (vs p"+state.pctlB+")."};
+  }
+  $("ghostcb").checked=on; $("ghostcb-lab").checked=on;
+  render();
+}
+$("ghostcb").onchange=e=>setPctlGhost(e.target.checked);
+$("ghostcb-lab").onchange=e=>setPctlGhost(e.target.checked);
+$("pctlB").oninput=e=>{state.pctlB=+e.target.value;
+  $("pctlB-v").textContent=state.pctlB; $("pctlB-v2").textContent=state.pctlB;
+  render();};
+
+/* ---------------- LAB — manifest-driven transient home (E01, mechanized) ----------------
+   One entry per transient feature. Adding an entry births its frame, its scope
+   fragment and its amber stamping; deleting the entry retires all of it. A gate
+   that fails renders the frame DORMANT (greyed, labeled) — visibly distinct
+   from removed. Loose checkboxes outside this manifest are forbidden. */
+const LAB_FEATURES=[
+  {id:"posttune", name:"Post-tuning filter", el:"tunebox",
+   gate:()=>hasTune,
+   deviates:()=>hasTune&&!state.postTune,
+   scopeFrag:()=>!hasTune?"dormant — this payload carries no tuning cutoff"
+     :(state.postTune?"runs since the latest tuning only":"all runs — pre-tuning included"),
+   nImpact:()=>{
+     if(!hasTune) return "—";
+     let pre=0; const m=baseMasks();
+     const save=state.postTune; state.postTune=false;   // count what the filter removes
+     const cut=periodCut(state.weeksA);
+     for(let i=0;i<N;i++){
+       if(R.post[i]===1) continue;
+       if(!periodPass(i,state.weeksA,cut)) continue;
+       if(rowPass(i,m)) pre++;
+     }
+     state.postTune=save;
+     return "<b>"+fmtInt(pre)+"</b> pre-tuning parses in view";
+   },
+   badgeSections:["pulse","overview","trajectory","breakdown","setbonus","comps"]},
+  {id:"projection", name:"Tuning projection", el:"projbox",
+   gate:()=>hasProj,
+   deviates:()=>hasProj&&state.proj,
+   scopeFrag:()=>!hasProj?"dormant — no projection in this payload"
+     :(state.proj?"every DPS figure re-scored under "+esc(D.projection.label):"recorded numbers"),
+   nImpact:()=>hasProj?"<b>"+fmtInt(D.projection.parses)+"</b> parses affected":"—",
+   badgeSections:["pulse","overview","trajectory","breakdown","setbonus","comps"]},
+  {id:"pctlghost", name:"Percentile ghost-compare", el:"ghostbox",
+   gate:()=>true,
+   deviates:()=>state.pctlGhost&&!state.elite,
+   scopeFrag:()=>state.elite?"suspended — the Archon replica fixes p85"
+     :(state.pctlGhost?"grey ghost at p"+state.pctlB+" beside the p"+state.pctl+" lens"
+       :"off — one lens only"),
+   nImpact:()=>state.pctlGhost&&!state.elite?"second lens pass over every group in view":"—",
+   badgeSections:["overview","breakdown"]},
+  {id:"pintray", name:"Dossier pin tray", el:"pinbox",
+   gate:()=>true,
+   deviates:()=>false,
+   scopeFrag:()=>state.pins.length
+     ?state.pins.length+" spec"+(state.pins.length>1?"s":"")+" pinned to the dock"
+     :"empty — click a bar or a table row to pin a spec",
+   nImpact:()=>"<b>"+state.pins.length+"</b> of 3 slots used",
+   badgeSections:[]},
+];
+function labDeviating(){return LAB_FEATURES.filter(f=>f.deviates())}
+function renderLab(){
+  // retirement: frames without a manifest entry vanish
+  const ids=new Set(LAB_FEATURES.map(f=>f.el));
+  document.querySelectorAll("#labbox .labpanel").forEach(p=>{
+    p.style.display=ids.has(p.id)?"":"none";});
+  for(const f of LAB_FEATURES){
+    const p=$(f.el); if(!p) continue;
+    const dormant=!f.gate();
+    p.classList.toggle("dormant",dormant);
+    const tag=$("tag-"+f.id);
+    if(tag){tag.textContent=dormant?"DORMANT":(f.deviates()?"⚗ ACTIVE":"TEMP");
+      tag.style.color=f.deviates()?"var(--accent)":"";
+      tag.style.borderColor=f.deviates()?"var(--accent-line)":"";}
+    const sc=$("scope-"+f.id); if(sc) sc.textContent=f.scopeFrag().replace(/<[^>]*>/g,"");
+    const im=$("imp-"+f.id); if(im) im.innerHTML="affects: "+f.nImpact();
+    p.querySelectorAll("input").forEach(inp=>{
+      if(f.id==="posttune") inp.disabled=dormant||state.proj;
+      else if(f.id==="pctlghost") inp.disabled=state.elite;
+      else inp.disabled=dormant;
+    });
+  }
+  $("ghostcb-lab").checked=state.pctlGhost;
+  $("ghostcb").checked=state.pctlGhost;
+  $("ghostcb").disabled=state.elite;
+  $("pctlB").disabled=state.elite;
+  $("ghost-note").textContent=state.elite
+    ?"fixed p85 under the Archon replica"
+    :"grey ghost at a second percentile — same period";
+  $("pin-clear").style.display=state.pins.length?"":"none";
+}
+$("pin-clear").onclick=()=>{state.pins=[]; renderDossier(); renderLab();};
+
+/* ---------------- scopeLine(section) — one recipe → one rendered truth ----------------
+   Every scope sentence on the page is generated here from the live state; the
+   only hand-written prose left is static help text (minchars-help, methodology,
+   footer). When a filter appears or retires, every sentence updates itself. */
+function scopeBits(section){
+  const b=[];
+  b.push(esc(describePeriod(state.weeksA)));
+  const gk=ghostKind();
+  if(gk==="period") b.push("vs "+esc(describePeriod(state.weeksB))+" (grey ghost)");
+  else if(gk==="pctl"&&(section==="overview"||section==="breakdown"))
+    b.push("vs p"+state.pctlB+" (grey ghost)");
+  b.push(state.elite?"per-spec elite key floors":"keys +"+state.klo+"–+"+state.khi);
+  if(state.timedOnly&&!state.elite) b.push("timed only");
+  if(hasTier&&(state.tier0||state.tier2||state.tier4)&&section!=="setbonus"&&!state.elite){
+    b.push("🛡 "+[state.tier0?"no set":null,state.tier2?"2-piece":null,
+      state.tier4?"4-piece":null].filter(Boolean).join(" or "));
+  }
+  if(state.role.size&&state.role.size<3) b.push(esc([...state.role].sort().join("/")));
+  if(state.melee!==state.ranged) b.push(state.melee?"melee":"ranged");
+  if(state.cls.size) b.push(state.cls.size<=2?esc([...state.cls].join(", ")):state.cls.size+" classes");
+  if(state.spec.size) b.push(state.spec.size<=2?esc([...state.spec].join(", ")+" spec"):state.spec.size+" specs");
+  if(state.dun.size) b.push(state.dun.size===1?esc([...state.dun][0]):state.dun.size+" dungeons");
+  if(state.reg.size) b.push(esc([...state.reg].sort().join("/")));
+  b.push(state.elite?"p85 lens (fixed)":(state.pctl===50?"p50 (median) lens":"p"+state.pctl+" lens"));
+  for(const f of labDeviating())
+    if(f.badgeSections.includes(section))
+      b.push('<span class="labbadge">⚗ '+esc(f.name.toLowerCase())+'</span>');
+  return b;
+}
+function scopeTail(section){return scopeBits(section).join(" · ")}
+function whoWhereBits(){
+  const b=[];
+  if(state.cls.size) b.push(state.cls.size<=2?esc([...state.cls].join(", ")):state.cls.size+" classes");
+  if(state.spec.size) b.push(state.spec.size<=2?esc([...state.spec].join(", ")+" spec"):state.spec.size+" specs");
+  if(state.dun.size) b.push(state.dun.size===1?esc([...state.dun][0]):state.dun.size+" dungeons");
+  if(state.reg.size) b.push(esc([...state.reg].sort().join("/")));
+  if(state.melee!==state.ranged) b.push(state.melee?"melee":"ranged");
+  return b;
+}
+function scopeLine(section,x){
+  x=x||{};
+  switch(section){
+  case "page":{
+    // the period note — same content and order as always, generated not hand-written
+    return (state.proj&&D.projection
+        ? '<b class="delta up" style="font-size:.95em">🔮 Projected: '
+          +esc(D.projection.label)+'.</b> Every DPS figure is that parse\'s own '
+          +'ability breakdown re-scored under the announced changes, so the '
+          +'projection tracks whatever filters are set. Badges show the change '
+          +'against the recorded number. '
+        : "")
+      +(state.postTune?"<b>Post-tuning runs only.</b> ":"")
+      +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
+      +((state.tier0||state.tier2||state.tier4)&&[state.tier0,state.tier2,state.tier4]
+          .filter(Boolean).length===1
+          ? "<b>Note:</b> parses split cleanly across the three cohorts, but "
+            +"characters and runs do not — a player who picks up their 4-set "
+            +"mid-week appears in two of them, and one run can hold two of the "
+            +"same spec on different pieces. Only the Parses column adds up. "
+          : "")
+      +((state.tier0||state.tier2||state.tier4)?"<b>🛡 "
+          +[state.tier0?"no set":null,state.tier2?"2-piece":null,state.tier4?"4-piece":null]
+            .filter(Boolean).join(" or ")
+          +" only</b> (parses without gear data excluded). ":"")
+      +(state.compare
+      ? "Period <b>A</b>: "+esc(describePeriod(state.weeksA))+" (solid, class colors) &nbsp;·&nbsp; "
+        +"Period <b>B</b>: "+esc(describePeriod(state.weeksB))+" (grey ghost bars) — KPIs show period A. "
+        +(x.B?fmtInt(x.B.parses)+" parses in B.":"")
+      : (state.pctlGhost&&!state.elite
+        ? "Lens <b>"+dpsLabel()+"</b> (solid) &nbsp;·&nbsp; ghost at <b>p"+state.pctlB
+          +"</b> (grey) — same period, second percentile pass. "
+        : "")
+        +"Period: "+esc(describePeriod(state.weeksA)));
+  }
+  case "archon":{
+    const A=x.A||{};
+    return "<b>⚔ Archon replica:</b> per spec, the top decile of key "
+      +"levels, then p85 DPS within — the moving elite frontier their table "
+      +"tracks. Key/period/min-character controls are bypassed while active"
+      +(eliteHidden?"; "+eliteHidden+" spec"+(eliteHidden>1?"s":"")
+        +" hidden for having under "+50+" qualifying parses":"")+". "
+      +"Window: last "+ELITE_DAYS+" days"
+      +((A.dmax!=null&&A.dmax>=0)?" ("+fmtDay(A.dmin)+" – "+fmtDay(A.dmax)+")":"")+". "
+      +"Who/Where filters still apply"
+      +(whoWhereBits().length?" — "+whoWhereBits().join(" · "):"")
+      +". Movement (Pulse) is unavailable: the elite path has no period axis.";
+  }
+  case "pulse":{
+    const P=x;
+    const wa=(P.dmaxA>=0?fmtDay(P.dminA)+" – "+fmtDay(P.dmaxA):"—");
+    const wb=(P.b1!==undefined&&P.dmaxB>=0?fmtDay(P.dminB)+" – "+fmtDay(P.dmaxB):"—");
+    return "Δ at <b>"+esc(dpsLabel())+"</b>: this reset "+wa+" (n <b>"+fmtInt(P.nA)+"</b>)"
+      +(P.b1!==undefined?" vs previous reset "+wb+" (n <b>"+fmtInt(P.nB)+"</b>)":" — no previous reset yet")
+      +" — the board's own baseline, independent of the compare toggle · "
+      +scopeBits("pulse").slice(1).join(" · ");
+  }
+  case "overview": return " — "+scopeTail("overview");
+  case "trajectory": return "Whole season · "+scopeBits("trajectory").slice(1).join(" · ");
+  case "breakdown":{
+    const compare=!!ghostKind();
+    return "every "+(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
+      +" group with ≥ "+lastEffMin+" distinct characters under these filters"
+      +(compare?" — "+esc(x.metricLabel||"")+" for A and B; click a column to sort":" — click a column to sort")
+      +" · "+scopeTail("breakdown");
+  }
+  case "setbonus":{
+    return (x.n?x.n+" specs with enough matched runs — click a column to sort"
+      :"not enough matched runs yet")
+      +" · "+scopeBits("setbonus").join(" · ");
+  }
+  case "comps":{
+    return fmtInt(x.n)+(x.n===1?" comp with ":" comps with ")
+      +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(x.all)
+      +" distinct — ranked by strength, click a column to sort · min "
+      +state.compMin+" runs · "+scopeTail("comps");
+  }
+  }
+  return "";
+}
+</script>
+<script>
+"use strict";
+/* ---------------- evidence-strip popovers (relocated original DOM) ---------------- */
+let openPop=null, popChip=null;
+function popTrap(pop,e){
+  const f=[...pop.querySelectorAll("button,input,select,summary")]
+    .filter(x=>!x.disabled&&x.offsetParent!==null);
+  if(!f.length) return;
+  const first=f[0], last=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault(); last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault(); first.focus();}
+}
+function closePop(focusChip){
+  if(!openPop) return;
+  openPop.hidden=true;
+  popChip.setAttribute("aria-expanded","false");
+  if(focusChip) popChip.focus({preventScroll:true});
+  openPop=null; popChip=null;
+}
+function bindPop(chipId,popId){
+  const chip=$(chipId), pop=$(popId);
+  chip.addEventListener("click",e=>{
+    e.stopPropagation();
+    if(stripFallback) return;            // controls live in the sidebar right now
+    if(openPop===pop){closePop(false); return}
+    closePop(false);
+    pop.hidden=false;
+    chip.setAttribute("aria-expanded","true");
+    const sr=$("estrip").getBoundingClientRect(), cr=chip.getBoundingClientRect();
+    const left=cr.left-sr.left;
+    const maxL=Math.max(0,sr.width-Math.min(pop.offsetWidth,sr.width)-2);
+    pop.style.left=Math.max(0,Math.min(left,maxL))+"px";
+    openPop=pop; popChip=chip;
+    const f=pop.querySelector("input:not([disabled]),button,select,summary");
+    if(f) f.focus({preventScroll:true});
+  });
+  pop.addEventListener("click",e=>e.stopPropagation());
+  pop.addEventListener("keydown",e=>{ if(e.key==="Tab") popTrap(pop,e); });
+}
+bindPop("chip-period","pop-period");
+bindPop("chip-pctl","pop-pctl");
+bindPop("chip-keys","pop-keys");
+document.addEventListener("click",()=>closePop(false));
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  if(openPop){closePop(true); return}
+  if(dossierPreview){dossierPreview=null; renderDossier(); return}
+  if(state.pins.length){state.pins.pop(); renderDossier(); renderLab();}
+});
+// condensed state: scrolled past the ledger → 44px chip bar only
+(function(){
+  const sent=$("strip-sentinel");
+  if(!("IntersectionObserver" in window)) return;
+  new IntersectionObserver(en=>{
+    $("estrip").classList.toggle("cond",!en[0].isIntersecting);
+  },{threshold:0}).observe(sent);
+})();
+/* Strip overflow fallback: the chip bar never wraps. If it cannot fit on one
+   row, the popover panels fall back to always-open sidebar blocks and the
+   strip shows a read-only summary of what they hold. */
+let stripFallback=false;
+function checkStrip(){
+  if(!D) return;
+  const bar=$("chipbar"), fb=$("side-fallback"), seg=$("timedseg");
+  const panels=[$("pop-period"),$("pop-pctl"),$("pop-keys")];
+  // restore the strip layout to measure it honestly; no paint happens
+  // mid-block, so this cannot flicker
+  for(const id of ["chip-period","chip-pctl","chip-keys"]) $(id).style.display="";
+  $("strip-summary").hidden=true;
+  if(seg.parentElement!==$("chipbar"))
+    $("timed-home").insertAdjacentElement("afterend",seg);
+  const over=bar.scrollWidth>bar.clientWidth+2;
+  if(over){
+    if(!stripFallback) closePop(false);
+    stripFallback=true;
+    for(const p of panels){ if(p.parentElement!==fb){p.hidden=false; fb.appendChild(p);} }
+    fb.appendChild(seg);
+    fb.hidden=false;
+    for(const id of ["chip-period","chip-pctl","chip-keys"]) $(id).style.display="none";
+    $("strip-summary").hidden=false;
+  }else{
+    if(stripFallback){
+      for(const p of panels){p.hidden=true; $("estrip").appendChild(p);}
+      fb.hidden=true;
+    }
+    stripFallback=false;
+  }
+}
+function renderStrip(){
+  const gk=ghostKind();
+  $("chip-period").innerHTML='<span class="k">Period</span> <b>'
+    +(state.compare?"A vs B":esc(cap1(describePeriod(state.weeksA))))+'</b>';
+  const pl=(state.elite?"p85 · fixed":(state.pctl===50?"p50 · median":"p"+state.pctl))
+    +(gk==="pctl"?" vs p"+state.pctlB:"");
+  $("chip-pctl").innerHTML='<span class="k">Lens</span> <b>'+pl+'</b>'
+    +(mePctl!=null&&!isNaN(mePctl)?' <span class="star" title="★Me saved · p'+mePctl+'">★</span>':'');
+  $("chip-keys").innerHTML='<span class="k">Keys</span> <b>'
+    +(state.elite?"elite floors":"+"+state.klo+"–"+state.khi)+'</b>';
+  $("chip-lab").hidden=!labDeviating().length;
+  $("chip-archon").hidden=!state.elite;
+  // Archon greys the controls its elite path bypasses — strip and sidebar
+  for(const id of ["chip-keys","chip-period","timedseg","tierbox","minchars"])
+    { const el=$(id); if(el) el.classList.toggle("bypassed",state.elite); }
+  $("strip-summary").textContent="Period "+describePeriod(state.weeksA)
+    +(state.compare?" vs "+describePeriod(state.weeksB):"")
+    +" · lens p"+state.pctl+(gk==="pctl"?" vs p"+state.pctlB:"")
+    +" · keys +"+state.klo+"–+"+state.khi
+    +(hasTimed?(state.timedOnly?" · timed only":" · all completed"):"")
+    +" — controls in the sidebar";
+  requestAnimationFrame(checkStrip);
+}
+$("chip-lab").onclick=()=>{$("labbox").scrollIntoView({behavior:"smooth",block:"center"})};
+
+function buildControls(){
+  chipGroup($("f-cls"),D.classes.filter(c=>c!=="Unknown"),state.cls,rebuildCascade);
+  chipGroup($("f-spec"),specPool(),state.spec,rebuildCascade);
+  chipGroup($("f-hero"),heroPool(),state.hero);
+  chipGroup($("f-dun"),D.dungeons,state.dun);
+  chipGroup($("f-role"),["DPS","Healer","Tank"],state.role);
+  chipGroup($("f-reg"),D.regions,state.reg);
+
+  // key range (dual slider, clamped)
+  const keys=[...new Set(R.key)].sort((a,b)=>a-b);
+  const kmin=keys[0], kmax=keys[keys.length-1];
+  state.klo=Math.max(kmin,state.klo); state.khi=Math.min(kmax,state.khi);
+  if(state.klo>state.khi){state.klo=kmin; state.khi=kmax}
+  for(const s of ["klo","khi"]){$(s).min=kmin; $(s).max=kmax; $(s).step=1}
+  $("klo").value=state.klo; $("khi").value=state.khi;
+  const paintKeys=()=>{
+    $("keys-v").textContent="+"+state.klo+" – +"+state.khi;
+    const f=$("key-fill"), span=kmax-kmin||1;
+    f.style.left=((state.klo-kmin)/span*100)+"%";
+    f.style.width=((state.khi-state.klo)/span*100)+"%";
+  };
+  paintKeys();
+  $("klo").oninput=e=>{state.klo=Math.min(+e.target.value,state.khi);
+    e.target.value=state.klo; paintKeys(); render();};
+  $("khi").oninput=e=>{state.khi=Math.max(+e.target.value,state.klo);
+    e.target.value=state.khi; paintKeys(); render();};
+
+  // periods
+  paintA=buildPeriodUI("A",state.weeksA,false);
+  paintB=buildPeriodUI("B",state.weeksB,true);
+  refreshPeriodUIs();
+  $("cmp").onchange=e=>{setCompare(e.target.checked)};
+  const QUICK=[
+    ["This vs last reset",[0],[1]],
+    ["Last vs prev month",[0,1,2,3],[4,5,6,7]],
+  ];
+  const qbox=$("quickcmp");
+  qbox.innerHTML="";
+  for(const [name,a,b] of QUICK){
+    const av=a.filter(w=>weekCounts.has(w)), bv=b.filter(w=>weekCounts.has(w));
+    if(!av.length||!bv.length) continue;
+    const c=document.createElement("span");
+    c.className="chip"; c.textContent="⚡ "+name;
+    c.title="one click: sets both periods and turns compare on";
+    c.onclick=()=>{
+      state.weeksA=new Set(av); state.weeksB=new Set(bv);
+      paintA=buildPeriodUI("A",state.weeksA,false);
+      paintB=buildPeriodUI("B",state.weeksB,true);
+      $("cmp").checked=true;
+      pendingNotice={html:"⚡ Quick compare — period <b>A</b> and <b>B</b> rewritten ("
+        +esc(name.toLowerCase())+"), compare on."};
+      setCompare(true);
+    };
+    qbox.appendChild(c);
+  }
+
+  $("merge").onchange=e=>{state.merge=e.target.checked;
+    $("hero-box").style.display=state.merge?"none":""; render()};
+  $("hero-box").style.display=state.merge?"none":"";
+  $("melee").onchange=e=>{state.melee=e.target.checked; render()};
+  $("ranged").onchange=e=>{state.ranged=e.target.checked; render()};
+  $("minchars").oninput=e=>{state.minchars=+e.target.value;
+    $("minchars-v").textContent=state.minchars; render()};
+
+  $("sortseg").querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{state.sort=b.dataset.s;
+      $("sortseg").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+  });
+  $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
+  $("pctl").oninput=e=>setPctl(+e.target.value);
+  $("pctlB").value=state.pctlB;
+  $("pctlB-v").textContent=state.pctlB; $("pctlB-v2").textContent=state.pctlB;
+  $("archon").onchange=e=>{
+    if(e.target.checked){
+      archonPrev=snap();
+      const t=archonTarget();
+      pendingNotice={html:"<b>⚔ Archon replica on.</b> Filters snapshotted — switching it off restores them."};
+      applyArchonState({pctl:85, elite:true, klo:t.kmin, khi:t.kmax,
+        timedOnly:false, tier0:false, tier2:false, tier4:false, merge:true,
+        compare:false, tab:"med", trendMetric:"med", role:["DPS"],
+        weeksA:t.weeks});
+    }else{
+      // explicit off: back to exactly where you were. Auto-uncheck from
+      // moving a single setting never comes through here -- that path keeps
+      // your changes, this one undoes the mode wholesale.
+      stickyNotice=null;
+      pendingNotice={html:"Archon replica off — pre-Archon filters restored."};
+      applyArchonState(archonPrev || {elite:false, pctl:50, klo:12, khi:19,
+        timedOnly:hasTimed, tier0:false, tier2:false, tier4:true,
+        merge:true, compare:false, tab:"med", trendMetric:"med",
+        role:[], weeksA:[0]});
+      archonPrev=null;
+    }
+  };
+  const tabs=$("tabs");
+  tabs.innerHTML="";
+  // the Trend entry is filtered out of the tab rail: Trajectory is a peer section
+  TABS.filter(t=>!t.trend&&(!t.rating||hasRating)).forEach(t=>{
+    const b=document.createElement("button");
+    b.textContent=t.id==="med"?dpsLabel():t.label;
+    b.dataset.tid=t.id;
+    b.className=t.id===state.tab?"on":"";
+    b.onclick=()=>{state.tab=t.id;
+      tabs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+    tabs.appendChild(b);
+  });
+  // trajectory metric picker: one entry per metric tab
+  const tseg=$("trendseg");
+  tseg.innerHTML="";
+  TABS.filter(t=>!t.trend&&!t.rating).forEach(t=>{
+    const b=document.createElement("button");
+    b.textContent=t.id==="med"?dpsLabel():t.label;
+    b.dataset.tid=t.id;
+    b.className=t.id===state.trendMetric?"on":"";
+    b.onclick=()=>{state.trendMetric=t.id;
+      tseg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+    tseg.appendChild(b);
+  });
+  // overlay (one chart) vs grid (a mini-chart per group)
+  const tview=$("trendview");
+  tview.innerHTML="";
+  for(const [id,label] of [["lines","☰ Overlay"],["grid","▦ Grid"]]){
+    const b=document.createElement("button"); b.textContent=label;
+    b.className=id===state.trendView?"on":"";
+    b.onclick=()=>{state.trendView=id;
+      tview.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+    tview.appendChild(b);
+  }
+  // normalization: raw metric | rank among peers | share of characters
+  const nseg=$("normseg");
+  nseg.innerHTML="";
+  for(const [id,label] of [["dps","DPS"],["rank","Rank"],["share","Share"]]){
+    const b=document.createElement("button"); b.textContent=label;
+    b.dataset.nid=id;
+    b.className=id===state.normSeg?"on":"";
+    b.onclick=()=>{state.normSeg=id;
+      nseg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+    nseg.appendChild(b);
+  }
+  $("slopebtn").classList.toggle("on",state.slopeSort);
+  $("slopebtn").onclick=()=>{state.slopeSort=!state.slopeSort;
+    $("slopebtn").classList.toggle("on",state.slopeSort); render();};
+}
+// Archon mode: one toggle that walks every relevant setting to the
+// configuration that reproduces archon.gg's high-keys DPS table. The checkbox
+// is DERIVED state: render() re-evaluates the predicate every pass, so moving
+// any of these settings away unchecks it by construction.
+function archonTarget(){
+  const keys=[...new Set(R.key)];
+  // The replica path picks its own per-spec key floors and 14-day window,
+  // so the mode parks the shared controls at full range -- they are
+  // bypassed, and leaving them mid-range would misleadingly suggest they
+  // apply. Moving any of them exits the mode, which un-bypasses them.
+  return {kmin:Math.min(...keys), kmax:Math.max(...keys),
+          weeks:[...weekCounts.keys()]};
+}
+window.__archonMatches=()=>{
+  const t=archonTarget();
+  return state.elite && state.pctl===85
+    && state.klo===t.kmin && state.khi===t.kmax
+    && !state.timedOnly && !state.tier0 && !state.tier2 && !state.tier4
+    && state.merge && !state.compare
+    && state.role.size===1 && state.role.has("DPS");
+};
+// Turning the mode ON snapshots every setting it is about to change, so
+// turning it OFF is a real action: it restores what you had. Without the
+// snapshot the toggle was one-way -- "off" changed nothing, so the derived
+// predicate immediately re-checked it, and leaving the mode by moving a
+// setting stranded the percentile at 90.
+function applyArchonState(st){
+  Object.assign(state,{pctl:st.pctl, elite:!!st.elite, klo:st.klo, khi:st.khi,
+    timedOnly:st.timedOnly, tier0:st.tier0, tier2:st.tier2, tier4:st.tier4,
+    merge:st.merge, compare:st.compare, tab:st.tab,
+    trendMetric:st.trendMetric, dayCut:0});
+  state.role=new Set(st.role); state.weeksA=new Set(st.weeksA);
+  $("merge").checked=state.merge; $("cmp").checked=state.compare;
+  $("t0").checked=state.tier0; $("t2").checked=state.tier2;
+  $("t4").checked=state.tier4;
+  $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
+  TABS.find(t=>t.id==="med").label=dpsLabel();
+  $("timedseg").querySelectorAll("button").forEach(x=>
+    x.classList.toggle("on",(x.dataset.t==="1")===state.timedOnly));
+  setCompare(state.compare);
+  buildControls(); refreshPeriodUIs();
+  document.querySelectorAll("#tabs button").forEach(b=>{
+    b.classList.toggle("on",b.dataset.tid===state.tab);
+    if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+  document.querySelectorAll("#trendseg button").forEach(b=>{
+    b.classList.toggle("on",b.dataset.tid===state.trendMetric);
+    if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+  render();
+}
+function snap(){return {pctl:state.pctl, elite:state.elite, klo:state.klo, khi:state.khi,
+  timedOnly:state.timedOnly, tier0:state.tier0, tier2:state.tier2,
+  tier4:state.tier4, merge:state.merge, compare:state.compare,
+  tab:state.tab, trendMetric:state.trendMetric,
+  role:[...state.role], weeksA:[...state.weeksA]}}
+function setCompare(on){
+  state.compare=on;
+  if(on&&state.pctlGhost){
+    state.pctlGhost=false;
+    $("ghostcb").checked=false; $("ghostcb-lab").checked=false;
+    pendingNotice={html:"One ghost at a time — <b>percentile ghost off</b>, period compare on."};
+  }
+  $("blockB").style.display=on?"":"none";
+  refreshPeriodUIs();
+  $("sortseg").querySelectorAll("button").forEach(b=>{
+    if(b.dataset.s==="gain"||b.dataset.s==="loss") b.style.display=on?"":"none";
+  });
+  if(!on&&(state.sort==="gain"||state.sort==="loss")){
+    state.sort="desc";
+    $("sortseg").querySelectorAll("button").forEach(x=>
+      x.classList.toggle("on",x.dataset.s==="desc"));
+  }
+  render();
+}
+
+/* ---------------- aggregation ---------------- */
+function idxSet(sel,names){
+  if(!sel.size) return null;
+  return new Set([...sel].map(s=>names.indexOf(s)));
+}
+function q50(sorted){const n=sorted.length;
+  return n%2?sorted[(n-1)/2]:(sorted[n/2-1]+sorted[n/2])/2}
+function qp(sorted,f){                // linear-interpolated quantile, f in (0,1)
+  const x=(sorted.length-1)*f, i=Math.floor(x);
+  return i+1<sorted.length?sorted[i]+(x-i)*(sorted[i+1]-sorted[i]):sorted[i]}
+
+function baseMasks(){
+  return {cls:idxSet(state.cls,D.classes), spec:idxSet(state.spec,D.specs),
+    hero:idxSet(state.hero,D.heroes), dun:idxSet(state.dun,D.dungeons),
+    role:idxSet(state.role,D.roles), reg:idxSet(state.reg,D.regions),
+    atk:state.melee!==state.ranged?(state.melee?1:2):0};
+}
+// 2-piece means the 2-set bonus and NOT the 4-set; 4-piece means four or
+// more. Kept disjoint so ticking both is a union rather than a contradiction,
+// and so the two can be compared against each other, which is the point.
+// A parse whose report carried no gear (-1) is excluded whenever either box is
+// ticked: it is unknown, not "no set", and counting it either way is a guess.
+function tierPass(i){
+  // no gear in the payload at all: the boxes are hidden, so they must not
+  // filter either -- tier4 defaults to on, and honouring it here would turn
+  // a gear-less build into an empty page with the cause invisible
+  if(!hasTier) return true;
+  if(!state.tier0&&!state.tier2&&!state.tier4) return true;
+  const t=R.tier?R.tier[i]:-1;
+  if(t<0) return false;
+  return setBucket(t)>=0&&[state.tier0,state.tier2,state.tier4][setBucket(t)];
+}
+// Three disjoint cohorts: no bonus, the 2-set only, the 4-set. Disjoint so the
+// checkboxes union instead of contradicting, and so the gain from one to the
+// next is a comparison between separate populations rather than nested ones.
+function setBucket(t){ return t<0?-1 : t<2?0 : t<4?1 : 2; }
+function rowPass(i,m,anyTier){
+  if(state.postTune&&R.post[i]!==1) return false;
+  if(state.timedOnly&&R.timed[i]!==1) return false;
+  // anyTier: the set-bonus table needs the cohorts the checkboxes filter away
+  if(!anyTier&&!tierPass(i)) return false;
+  if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
+  if(m.cls&&!m.cls.has(R.cls[i])) return false;
+  if(m.spec&&!m.spec.has(R.spec[i])) return false;
+  if(!state.merge&&m.hero&&!m.hero.has(R.hero[i])) return false;
+  if(m.dun&&!m.dun.has(R.dun[i])) return false;
+  if(m.role&&!m.role.has(R.role[i])) return false;
+  if(m.atk&&R.atk[i]!==m.atk) return false;
+  if(m.reg&&!m.reg.has(R.reg[i])) return false;
+  return true;
+}
+function groupKey(i){
+  return state.merge ? R.cls[i]*100+R.spec[i] : (R.cls[i]*100+R.spec[i])*200+R.hero[i];
+}
+// Distinct characters under the DEFAULT view, but honouring whichever of
+// role / melee-ranged is currently picked.
+//
+// Those two — and unmerging hero talents — change *which entities* the page
+// lists, so the list is meant to grow or shrink with them and the threshold
+// must hold still. Everything else (period, key range, dungeon, region,
+// timed-only, post-tuning, class, spec) only narrows the *sample* behind the
+// same entities, so the threshold scales down with the sample and roughly the
+// same rows stay on screen. Unmerging needs no special case: it regroups rows
+// without removing any, so it moves neither pool.
+function refChars(){
+  if(!DEF) return 0;
+  const key=[...state.role].sort().join(",")+"|"+state.melee+"|"+state.ranged;
+  const hit=refMemo.get(key);
+  if(hit!==undefined) return hit;
+  const role=idxSet(state.role,D.roles);
+  const atk=state.melee!==state.ranged?(state.melee?1:2):0;
+  const seen=new Set();
+  for(let i=0;i<N;i++){
+    if(DEF.postTune&&R.post[i]!==1) continue;
+    if(DEF.timedOnly&&R.timed[i]!==1) continue;
+    if(R.key[i]<DEF.klo||R.key[i]>DEF.khi) continue;
+    if(role&&!role.has(R.role[i])) continue;
+    if(atk&&R.atk[i]!==atk) continue;
+    if(projSkip(i)) continue;
+    seen.add(R.char[i]);
+  }
+  refMemo.set(key,seen.size);
+  return seen.size;
+}
+// How many distinct characters a group needs, given the size of the pool the
+// current selection leaves behind. Equals the slider exactly on a default
+// load, because there the pool IS the reference.
+function effMinFor(pool){
+  const ref=refChars();
+  return ref>0 ? Math.max(1,Math.round(state.minchars*pool/ref))
+               : state.minchars;
+}
+// Archon-replica statistics. Their DPS column is a p95 over the top 5% of
+// keys per spec, a moving elite frontier -- no fixed key range can track it as
+// the season climbs (measured: the fixed 12-19 p90 acquired a systematic
+// tilt, over-ranking low-population specs by up to 6 places). This path
+// reproduces their number from this dataset's side: per spec, keep the top
+// decile of key levels, then take p85 within -- verified against their live
+// table at Spearman 0.960 with a median level ratio of 1.01, every spec
+// within +-4.8%. It must bypass the key clamp, the period buckets and the
+// min-characters gate (their floors and thin elite pools break under all
+// three -- keeping the clamp alone degrades the match to 0.950/1.05), so it
+// is a dedicated pass rather than a filter preset.
+const ELITE_KEEP=0.10, ELITE_PCTL=0.85, ELITE_MIN=50, ELITE_DAYS=14;
+let eliteHidden=0;
+function aggregateElite(){
+  const m=baseMasks();
+  const maxDay=curMaxDay>=0?curMaxDay:Math.max(...R.day);
+  const dayLo=maxDay-(ELITE_DAYS-1);
+  const pass=i=>{
+    if(R.day[i]<dayLo) return false;
+    if(projSkip(i)) return false;
+    if(m.cls&&!m.cls.has(R.cls[i])) return false;
+    if(m.spec&&!m.spec.has(R.spec[i])) return false;
+    if(!state.merge&&m.hero&&!m.hero.has(R.hero[i])) return false;
+    if(m.dun&&!m.dun.has(R.dun[i])) return false;
+    if(m.role&&!m.role.has(R.role[i])) return false;
+    if(m.atk&&R.atk[i]!==m.atk) return false;
+    if(m.reg&&!m.reg.has(R.reg[i])) return false;
+    return true;
+  };
+  // pass 1: per-group key histogram -> the floor that keeps the top decile
+  const hist=new Map();
+  for(let i=0;i<N;i++){
+    if(!pass(i)) continue;
+    const k=groupKey(i);
+    let h=hist.get(k); if(!h){h=new Uint32Array(40); h.n=0; hist.set(k,h)}
+    h[Math.min(R.key[i],39)]++; h.n++;
+  }
+  const floor=new Map();
+  for(const [k,h] of hist){
+    if(h.n<ELITE_MIN) continue;
+    let cum=0;
+    for(let lv=39;lv>=0;lv--){cum+=h[lv];
+      if(cum>=ELITE_KEEP*h.n){floor.set(k,lv); break}}
+  }
+  // pass 2: keep rows at or above their group's floor
+  const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
+  const runSeen=new Uint8Array(runCount), charSeen=new Set();
+  for(let i=0;i<N;i++){
+    if(!pass(i)) continue;
+    const k=groupKey(i), fl=floor.get(k);
+    if(fl===undefined||R.key[i]<fl) continue;
+    parses++;
+    if(!runSeen[R.run[i]]){runSeen[R.run[i]]=1; runs++}
+    if(R.day[i]>=0){if(R.day[i]<dmin)dmin=R.day[i]; if(R.day[i]>dmax)dmax=R.day[i]}
+    let g=groups.get(k);
+    if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
+             n:0,sum:0,dsum:0,dzero:0,dps:[],rsum:0,rdps:[],chars:new Set(),
+             runs:new Set(),floorK:fl};
+      groups.set(k,g)}
+    const dv=dpsAt(i);
+    g.n++; g.sum+=dv; g.dsum+=R.deaths[i];
+    if(R.deaths[i]===0) g.dzero++;
+    g.dps.push(dv); g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
+    g.chars.add(R.char[i]); charSeen.add(R.char[i]); g.runs.add(R.run[i]);
+  }
+  eliteHidden=0;
+  const out=new Map();
+  for(const [k,g] of groups){
+    if(g.n<ELITE_MIN){eliteHidden++; continue}   // thin elite pool: hide, never guess
+    g.dps.sort((a,b)=>a-b);
+    const med=qp(g.dps,ELITE_PCTL);
+    let ravg=null,rmed=null;
+    if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n;
+      rmed=qp(g.rdps,ELITE_PCTL)}
+    out.set(k,{cls:D.classes[g.cls],spec:D.specs[g.spec],
+      hero:g.hero<0?"":D.heroes[g.hero], n:g.n, runs:g.runs.size,
+      avg:g.sum/g.n, med, ravg, rmed,
+      adeaths:g.dsum/g.n, deathless:100*g.dzero/g.n,
+      chars:g.chars.size, arating:NaN, mrating:NaN, rn:0, floorK:g.floorK});
+  }
+  return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
+}
+
+function aggregate(weeks){
+  if(state.elite) return aggregateElite();
+  const m=baseMasks(), cut=periodCut(weeks);
+  const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
+  const runSeen=new Uint8Array(runCount), charSeen=new Set();
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)) continue;
+    if(!periodPass(i,weeks,cut)) continue;
+    if(projSkip(i)) continue;
+    parses++;
+    if(!runSeen[R.run[i]]){runSeen[R.run[i]]=1; runs++}
+    if(R.day[i]>=0){if(R.day[i]<dmin)dmin=R.day[i]; if(R.day[i]>dmax)dmax=R.day[i];}
+    const key=groupKey(i);
+    let g=groups.get(key);
+    if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
+             n:0,sum:0,dsum:0,dzero:0,dps:[],rsum:0,rdps:[],chars:new Set(),
+             runs:new Set()};
+           groups.set(key,g)}
+    const dv=dpsAt(i);
+    g.n++; g.sum+=dv; g.dsum+=R.deaths[i];
+    if(R.deaths[i]===0) g.dzero++;
+    g.dps.push(dv);
+    // recorded (un-projected) figures, so the toggle can show a delta
+    g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
+    g.chars.add(R.char[i]); charSeen.add(R.char[i]);
+    // parses and runs differ: two of the same spec in one group is two parses
+    // of one run. The column said "Runs" and showed parses.
+    g.runs.add(R.run[i]);
+  }
+  const out=new Map();
+  const wantGhost=state.pctlGhost&&!state.elite;
+  for(const [key,g] of groups){
+    g.dps.sort((a,b)=>a-b);
+    const med=qp(g.dps,state.pctl/100);
+    // the percentile ghost is a SECOND qp() pass over the same sorted pool —
+    // same period, same rows, different lens
+    const med2=wantGhost?qp(g.dps,state.pctlB/100):null;
+    // player rating comes off the character set, so a grinder with 200 runs
+    // counts exactly as much as someone with one; unrated characters drop out
+    let arating=NaN, mrating=NaN, rn=0;
+    if(hasRating){
+      const rs=[];
+      for(const c of g.chars){const v=CHARSCORE[c]; if(v>=0) rs.push(v)}
+      if(rs.length){rs.sort((a,b)=>a-b); rn=rs.length;
+        arating=rs.reduce((a,b)=>a+b,0)/rs.length; mrating=q50(rs)}
+    }
+    let ravg=null, rmed=null;
+    if(state.proj){g.rdps.sort((a,b)=>a-b); ravg=g.rsum/g.n;
+      rmed=qp(g.rdps,state.pctl/100)}
+    out.set(key,{cls:D.classes[g.cls],spec:D.specs[g.spec],
+      hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
+      avg:g.sum/g.n, med, med2,
+      ravg, rmed,
+      adeaths:g.dsum/g.n,
+      deathless:100*g.dzero/g.n,
+      chars:g.chars.size, runs:g.runs.size, arating, mrating, rn});
+  }
+  return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
+}
+// The percentile ghost's "period B": the same aggregation viewed at p_B.
+// Sharing every other stat keeps the one-ghost renderer identical for both.
+function synthPctlB(A){
+  const g2=new Map();
+  for(const [k,a] of A.groups) g2.set(k,Object.assign({},a,{med:a.med2!=null?a.med2:a.med}));
+  return {groups:g2, parses:A.parses, runs:A.runs, chars:A.chars,
+          dmin:A.dmin, dmax:A.dmax, runSeen:A.runSeen, synthetic:true};
+}
+
+// Ratings arrive over hours, heaviest loggers first, so a partial sweep reads
+// high: the players with the most logged runs are the better-rated ones. The
+// number is not wrong, but it is not yet the whole population either.
+function ratingCoverage(){
+  const n=CHARSCORE.length, r=CHARSCORE.reduce((a,v)=>a+(v>=0),0);
+  if(!n) return "";
+  const pct=100*r/n;
+  return "Ratings cover "+fmtInt(r)+" of "+fmtInt(n)+" characters ("+pct.toFixed(1)+"%)"
+    +(pct<80?"; the sweep fills in heaviest-logged first, so a partial one reads high."
+            :".");
+}
+
+/* ---------------- rendering ---------------- */
+function shade(base,t){
+  const mix=(c1,c2,k)=>c1.map((v,i)=>Math.round(v+(c2[i]-v)*k));
+  const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+  const lo=mix(rgb(base),rgb("#181511"),.60), hi=mix(rgb(base),[255,255,255],.20);
+  return "rgb("+mix(lo,hi,t).join(",")+")";
+}
+function ink(rgbStr){
+  const [r,g,b]=rgbStr.match(/\d+/g).map(Number);
+  return (0.2126*r+0.7152*g+0.0722*b)/255>0.45?"#1f1e1d":"#fff";
+}
+function deltaHTML(a,b,tab){
+  if(b==null||!isFinite(b)) return '<span class="delta na">new</span>';
+  if(Math.abs(b)<1e-9) return '<span class="delta na">–</span>';
+  const d=(a-b)/Math.abs(b);
+  const cls=(d>=0)===tab.betterUp?"up":"down";
+  const s=(d>=0?"+":"")+(d*100).toFixed(1)+"%";
+  return `<span class="delta ${cls}">${s}</span>`;
+}
+// projected-vs-recorded chip; `up` is green because more DPS is better
+function projDelta(now,was){
+  if(was==null||!isFinite(was)||Math.abs(was)<1e-9) return "";
+  const d=(now-was)/Math.abs(was);
+  if(Math.abs(d)<5e-5) return '<span class="delta na">0.0%</span>';
+  return '<span class="delta '+(d>=0?"up":"down")+'">'
+    +(d>=0?"+":"")+(d*100).toFixed(1)+'%</span>';
+}
+
+let lastRows=[], lastA=null, lastB=null, lastGhost=null, lastCompM=null;
+
+function render(){
+  const am=$("archon");
+  if(am&&window.__archonMatches){
+    const ok=__archonMatches();
+    am.checked=ok;
+    if(!ok&&state.elite){
+      state.elite=false;   // leaving the mode restores standard stats
+      // auto-uncheck keeps the user's changes; the notice offers the snapshot back
+      if(archonPrev) stickyNotice={html:"<b>⚔ Archon replica exited</b> — a covered "
+        +"setting moved off the replica. Your changes are kept.", restore:true};
+    }
+  }
+  const tab=TABS.find(t=>t.id===state.tab&&!t.trend)||TABS.find(t=>t.id==="med");
+  state.tab=tab.id;
+  const gk=ghostKind();
+  const A=aggregate(state.weeksA);
+  let B=null;
+  if(gk==="period") B=aggregate(state.weeksB);
+  else if(gk==="pctl") B=synthPctlB(A);
+
+  // The slider is the threshold for the default view. Narrowing the sample —
+  // a shorter period, fewer key levels, one dungeon, one region — scales it
+  // down by the same factor, so the chart keeps roughly the row count it
+  // opened with instead of emptying out. Each period scales by its own share,
+  // which matters in compare mode. Characters, not parses, set the ratio: a
+  // short window holds proportionally fewer runs per player than a season.
+  const effMinA=effMinFor(A.chars), effMinB=(gk==="period"&&B)?effMinFor(B.chars):effMinA;
+  lastEffMin=effMinA;
+  $("minchars-eff").textContent =
+    effMinA!==state.minchars ? "→ ≥ "+effMinA.toLocaleString("en-US")+" here" : "";
+
+  // join
+  const rows=[];
+  for(const [key,a] of A.groups){
+    const b=B?B.groups.get(key)||null:null;
+    if(!state.elite&&a.chars<effMinA&&!(b&&b.chars>=effMinB)) continue;
+    rows.push({key, cls:a.cls, spec:a.spec, hero:a.hero, a, b});
+  }
+  lastRows=rows; lastA=A; lastB=B; lastGhost=gk;
+
+  // ---- evidence strip: KPI ledger (period A) + tally + chips ----
+  $("k-runs").textContent=fmtInt(A.runs);
+  $("k-parses").textContent=fmtInt(A.parses);
+  $("k-groups").textContent=fmtInt(rows.length);
+  $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
+  $("k-tally").innerHTML="<b>"+fmtInt(rows.length)+"</b> of "+fmtInt(A.groups.size)
+    +" groups shown (≥ "+fmtInt(state.elite?ELITE_MIN:effMinA)
+    +(state.elite?" qualifying parses":" distinct characters")+")";
+  renderStrip();
+
+  // ---- notice slot ----
+  renderNotice();
+
+  // ---- period note / Archon scope card — generated, never hand-written ----
+  const pn=$("period-note");
+  pn.classList.toggle("archoncard",state.elite);
+  pn.innerHTML=state.elite?scopeLine("archon",{A}):scopeLine("page",{B});
+
+  // ---- comp model first: Pulse and the dossier state comp presence ----
+  lastCompM=compModel(A);
+
+  // ---- Pulse (its own printed baseline; greyed wholesale under Archon) ----
+  renderPulse();
+
+  // gain/loss sorts exist whenever a ghost is active — period OR percentile
+  $("sortseg").querySelectorAll("button").forEach(b=>{
+    if(b.dataset.s==="gain"||b.dataset.s==="loss") b.style.display=gk?"":"none";
+  });
+  if(!gk&&(state.sort==="gain"||state.sort==="loss")){
+    state.sort="desc";
+    $("sortseg").querySelectorAll("button").forEach(x=>
+      x.classList.toggle("on",x.dataset.s==="desc"));
+  }
+
+  renderChart(rows,tab,gk,effMinA);
+  renderTrend();
+  renderComps(lastCompM);
+  renderTable(rows,tab);
+  renderSetBonus();
+  updateTierHint();
+  renderLab();
+  renderDossier();
+}
+
+function renderChart(rows,tab,gk,effMinA){
+  // the ghost draws on the chart when a period ghost is active, or when the
+  // percentile ghost is active and the metric is the percentile lens itself
+  const drawGhost=gk==="period"||(gk==="pctl"&&tab.id==="med");
+  // order + rank (rank always by A value of this tab, best first — ranks
+  // anchor to the primary lens, so bars never shuffle when a ghost toggles)
+  const col=tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id;
+  let ranked=rows;
+  ranked.sort((x,y)=>y.a[col]-x.a[col]);
+  ranked.forEach((r,i)=>r.rank=i+1);
+  let view=ranked.slice(0,CHART_MAX);
+  const pct=r=>r.b&&Math.abs(r.b[col])>1e-9?(r.a[col]-r.b[col])/Math.abs(r.b[col]):null;
+  if(state.sort==="asc") view=[...view].sort((x,y)=>x.a[col]-y.a[col]);
+  else if(state.sort==="name") view=[...view].sort((x,y)=>
+    (x.cls+x.spec+x.hero).localeCompare(y.cls+y.spec+y.hero));
+  else if(state.sort==="gain") view=[...view].sort((x,y)=>(pct(y)??-1e9)-(pct(x)??-1e9));
+  else if(state.sort==="loss") view=[...view].sort((x,y)=>(pct(x)??1e9)-(pct(y)??1e9));
+
+  // shared x-scale
+  let lo=0, hi=1;
+  for(const r of view){
+    const c=[r.a[col]];
+    if(tab.tick&&!drawGhost) c.push(r.a[tab.tick]||0);
+    if(r.b&&drawGhost) c.push(r.b[col]);
+    for(const v of c){if(v<lo)lo=v; if(v>hi)hi=v;}
+  }
+  hi*=1.16; if(lo<0)lo*=1.16;
+  const X=v=>(v-lo)/(hi-lo)*100, zero=X(0);
+
+  let smin=1e18,smax=-1e18;
+  if(tab.shade){for(const r of view){smin=Math.min(smin,r.a[tab.shade]);smax=Math.max(smax,r.a[tab.shade])}
+    if(smax<=smin){smin-=1;smax+=1}}
+
+  const chart=$("chart");
+  chart.className=drawGhost?"cmp":"";
+  chart.innerHTML="";
+  if(!view.length){
+    chart.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups match '
+      +'the current filters — widen the filters or lower the minimum-characters threshold '
+      +'(≥ '+effMinA+' here).</div>';
+  }
+  for(const r of view){
+    const v=r.a[col];
+    const label=r.rank+". "+r.cls+" "+r.spec+(r.hero?" — "+r.hero:"");
+    const t=tab.shade?(r.a[tab.shade]-smin)/(smax-smin):.72;
+    const color=shade(CLASS_COLORS[r.cls]||"#999999",t);
+    const row=document.createElement("div"); row.className="brow";
+    const lbl=document.createElement("div"); lbl.className="blbl";
+    // Inline span so the dossier trigger is exactly the text, not the empty
+    // left portion of the right-aligned label column.
+    const lspan=document.createElement("span"); lspan.textContent=label;
+    lbl.appendChild(lspan);
+    const track=document.createElement("div"); track.className="btrack";
+    const bar=document.createElement("div"); bar.className="bbar";
+    const bl=Math.min(zero,X(v)), br=Math.max(zero,X(v));
+    bar.style.left=bl+"%"; bar.style.width=Math.max(br-bl,.2)+"%";
+    bar.style.background=color;
+    if(tab.inlay&&!drawGhost){
+      const inl=document.createElement("span"); inl.className="binlay";
+      inl.style.color=ink(color);
+      inl.textContent=tab.inlay==="deaths"
+        ? r.a.adeaths.toFixed(2)+" avg deaths · "+r.a.deathless.toFixed(0)+"% deathless"
+        : fmtInt(r.a.avg)+" avg · "+fmtInt(r.a.med)+" "+dpsLabel().toLowerCase()
+          +(state.proj&&r.a.rmed!=null
+            ? " (was "+fmtInt(r.a.ravg)+" / "+fmtInt(r.a.rmed)+")" : "");
+      bar.appendChild(inl);
+    }
+    track.appendChild(bar);
+    let ghostEnd=0;
+    if(drawGhost&&r.b&&isFinite(r.b[col])){
+      const gv=r.b[col];
+      const gl=Math.min(zero,X(gv)), gr=Math.max(zero,X(gv));
+      const gh=document.createElement("div"); gh.className="bghost";
+      gh.style.left=gl+"%"; gh.style.width=Math.max(gr-gl,.2)+"%";
+      track.appendChild(gh);
+      ghostEnd=gr;
+    }
+    if(tab.tick&&!drawGhost){
+      const tk=document.createElement("div"); tk.className="btick";
+      tk.style.left=X(r.a[tab.tick]||0)+"%";
+      track.appendChild(tk);
+    }
+    const valEl=document.createElement("span"); valEl.className="bval";
+    const anchor=Math.max(br, ghostEnd,
+      tab.tick&&!drawGhost?X(r.a[tab.tick]||0):0);
+    valEl.style.left=anchor+"%";
+    const rbase=state.proj?r.a[col==="avg"?"ravg"
+                              :col==="med"?"rmed":null]:null;
+    valEl.innerHTML=esc(tab.fmt(v))
+      +(drawGhost?deltaHTML(r.a[col], r.b?r.b[col]:null, tab)
+        :(rbase==null?"":projDelta(v,rbase)));
+    track.appendChild(valEl);
+    row.appendChild(lbl); row.appendChild(track);
+    // Dossier triggers hug the content: the bar itself and the label text —
+    // never the whole row, so crossing empty track space stays inert.
+    wireDock(row,[bar,lspan],r.key);
+    chart.appendChild(row);
+  }
+  let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
+  if(tab.rating) cap+=" "+ratingCoverage();
+  if(gk==="period") cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
+  else if(gk==="pctl"&&drawGhost) cap="Solid bar: "+dpsLabel()+" · grey ghost: p"
+    +state.pctlB+" DPS · % badge: change vs p"+state.pctlB+". "+cap;
+  if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
+  $("chart-caption").innerHTML=esc(cap)+scopeLine("overview");
+}
+
+// Coverage across what is actually on screen, not across the whole payload.
+// Gear was backfilled for +12 and up, so at low key levels only runs collected
+// since capture began have it -- around 1% against 30-70% higher up. A global
+// figure would hide that exactly where it matters most.
+function updateTierHint(){
+  if(!hasTier) return;
+  const m=baseMasks();
+  let seen=0, known=0;
+  for(let i=0;i<N;i++){
+    if(!periodPass(i,state.weeksA,periodCut(state.weeksA))) continue;
+    if(!rowPass(i,m,true)) continue;
+    seen++; if(R.tier[i]>=0) known++;
+  }
+  const pct=seen?100*known/seen:0;
+  $("tierhint").textContent = seen
+    ? "gear known for "+pct.toFixed(1)+"% of parses in view ("+fmtInt(known)+")"
+      +(pct<10?" — thin here; the backfill covered +12 and up":"")
+    : "";
+}
+
+/* ---------------- Pulse — the movers board (section #1) ----------------
+   Answers "is the meta moving" against its OWN printed baseline: the current
+   reset vs the previous one, both windows' dates and sample sizes stated. The
+   compare toggle never touches it. */
+function aggregatePulse(){
+  const b0=weekCounts.has(0)?0:(availWeeks[0]??0);
+  const b1=availWeeks.find(w=>w>b0);
+  const m=baseMasks();
+  const G=new Map(); const charsA=new Set(), charsB=new Set();
+  let nA=0,nB=0, dminA=1e9,dmaxA=-1, dminB=1e9,dmaxB=-1;
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)) continue;
+    if(projSkip(i)) continue;
+    const w=R.rbucket[i]; if(w>=999) continue;
+    const key=groupKey(i);
+    let g=G.get(key);
+    if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
+      an:0,adps:[],adeath:0,ach:new Set(), bn:0,bdps:[],bch:new Set(), wk:new Map()};
+      G.set(key,g)}
+    const dv=dpsAt(i);
+    let bag=g.wk.get(w); if(!bag){bag=[]; g.wk.set(w,bag)} bag.push(dv);
+    if(w===b0){
+      g.an++; g.adps.push(dv); g.adeath+=R.deaths[i]; g.ach.add(R.char[i]);
+      charsA.add(R.char[i]); nA++;
+      if(R.day[i]>=0){if(R.day[i]<dminA)dminA=R.day[i]; if(R.day[i]>dmaxA)dmaxA=R.day[i];}
+    }else if(w===b1){
+      g.bn++; g.bdps.push(dv); g.bch.add(R.char[i]);
+      charsB.add(R.char[i]); nB++;
+      if(R.day[i]>=0){if(R.day[i]<dminB)dminB=R.day[i]; if(R.day[i]>dmaxB)dmaxB=R.day[i];}
+    }
+  }
+  return {G,b0,b1,charsA:charsA.size,charsB:charsB.size,nA,nB,
+          dminA,dmaxA,dminB,dmaxB};
+}
+const PULSE_THIN_N=25;   // per-row: a baseline this thin greys the delta (never blanks it)
+function pulseSpark(g,color){
+  const wks=[...availWeeks].sort((a,b)=>b-a);   // oldest → newest, left → right
+  const pts=[];
+  wks.forEach((w,xi)=>{
+    const bag=g.wk.get(w);
+    if(bag&&bag.length>=PULSE_THIN_N)
+      pts.push({xi,v:qp([...bag].sort((a,b)=>a-b),state.pctl/100)});
+  });
+  if(pts.length<2) return '<span class="nsm">–</span>';
+  let mn=1e18,mx=-1e18;
+  for(const p of pts){if(p.v<mn)mn=p.v; if(p.v>mx)mx=p.v;}
+  if(mx<=mn){mn-=1;mx+=1}
+  const W=120,H=26,px=3,py=3;
+  const xs=xi=>px+(W-2*px)*(wks.length<2?0.5:xi/(wks.length-1));
+  const ys=v=>py+(H-2*py)*(1-(v-mn)/(mx-mn));
+  const d=pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">'
+    +'<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="1.8"/></svg>';
+}
+function renderPulse(){
+  const box=$("pulsebox"), ban=$("pulse-banners");
+  if(state.elite){
+    ban.innerHTML="";
+    box.innerHTML='<div class="caption" style="padding:1rem 0; opacity:.6">'
+      +'Movement unavailable in the Archon replica — the elite path has no period axis. '
+      +'Leave the replica to see reset-over-reset movers.</div>';
+    $("pulse-sub").innerHTML='<span class="delta na">greyed under Archon</span>';
+    $("pulse-caption").textContent="";
+    return;
+  }
+  const P=aggregatePulse();
+  const effP=effMinFor(P.charsA);
+  const young=resetDays()>0&&resetDays()<3;
+  const presence=lastCompM?lastCompM.presence:new Map();
+  const Q=lastCompM?lastCompM.Q:0;
+  const rows=[];
+  for(const [key,g] of P.G){
+    if(!g.an||g.ach.size<effP) continue;
+    g.adps.sort((a,b)=>a-b);
+    const medA=qp(g.adps,state.pctl/100);
+    let medB=NaN;
+    if(g.bn){g.bdps.sort((a,b)=>a-b); medB=qp(g.bdps,state.pctl/100)}
+    const dpct=isFinite(medB)&&Math.abs(medB)>1e-9?100*(medA-medB)/Math.abs(medB):NaN;
+    const clsName=D.classes[g.cls], specName=D.specs[g.spec];
+    const shareA=P.charsA?100*g.ach.size/P.charsA:NaN;
+    const shareB=P.charsB?100*g.bch.size/P.charsB:NaN;
+    rows.push({key, cls:clsName, spec:specName,
+      hero:g.hero>=0?D.heroes[g.hero]:"",
+      medA, medB, dpct, nA:g.an, nB:g.bn,
+      adeaths:g.adeath/g.an,
+      shareA, shareB, dshare:isFinite(shareB)?shareA-shareB:NaN,
+      pres:presence.get(g.cls*100+g.spec)||0,
+      thin:young||g.bn<PULSE_THIN_N, g});
+  }
+  // ranks anchored to the lens metric in each window
+  const byA=[...rows].sort((a,b)=>b.medA-a.medA);
+  byA.forEach((r,i)=>r.rankA=i+1);
+  const byB=[...rows].filter(r=>isFinite(r.medB)).sort((a,b)=>b.medB-a.medB);
+  byB.forEach((r,i)=>r.rankB=i+1);
+  for(const r of rows) r.drank=(r.rankB!=null&&r.rankA!=null)?r.rankB-r.rankA:NaN;
+
+  // confound banners — generated, only when the confound is live
+  const banners=[];
+  if(young) banners.push("⚠ This reset is only "+resetDays()+" day"
+    +(resetDays()>1?"s":"")+" old — Δ figures are early and greyed, not suppressed.");
+  const multiReg=(!state.reg.size&&D.regions.length>1)||state.reg.size>1;
+  if(multiReg&&curMaxDay>=0&&(curMaxDay-usB0)<2)
+    banners.push("⚠ Regional reset windows overlap right now (US Tue · EU Wed · Asia ~Wed) — "
+      +"the youngest days of “this reset” mix regions whose week started at different times.");
+  if(hasTune&&state.postTune&&P.b1!==undefined)
+    banners.push("⚗ The post-tuning filter is on — if the cutoff falls inside the baseline "
+      +"reset, the previous-reset window is truncated.");
+  ban.innerHTML=banners.map(b=>'<div class="confound">'+b+'</div>').join("");
+
+  $("pulse-sub").innerHTML=scopeLine("pulse",P);
+  if(!rows.length){
+    box.innerHTML='<div class="caption" style="padding:1rem 0">No groups pass the '
+      +'minimum-characters threshold in the current reset (≥ '+effP+' here).</div>';
+    $("pulse-caption").textContent="";
+    return;
+  }
+  const COLS=[["spec","Spec","txt"],["dpct","Δ% "+dpsLabel()],["rankA","Rank"],
+    ["adeaths","Avg deaths"],["spark","Season","spk"],["pres","Comps"],
+    ["dshare","Roster Δ"]];
+  if(!COLS.some(c=>c[0]===state.psort.col)) state.psort={col:"dpct",dir:-1};
+  const {col,dir}=state.psort;
+  const val=(r,k)=>k==="spec"?(r.cls+" "+r.spec+r.hero):k==="spark"?0:r[k];
+  const sorted=[...rows].sort((a,b)=>{
+    const x=val(a,col), y=val(b,col);
+    if(typeof x==="string") return x.localeCompare(y)*dir;
+    const nx=typeof x==="number"&&isNaN(x), ny=typeof y==="number"&&isNaN(y);
+    if(nx||ny) return nx&&ny?0:(nx?1:-1);   // dashes park last either way
+    return (x-y)*dir;
+  });
+  let h='<div class="tblwrap"><table class="data" id="pulsetbl"><thead><tr>';
+  for(const [k,label,txt] of COLS)
+    h+='<th class="'+(txt==="txt"?"txt ":"")+(k===col?"sorted "+(dir<0?"desc":"asc"):"")
+      +'" data-c="'+k+'">'+label+'</th>';
+  h+="</tr></thead><tbody>";
+  for(const r of sorted){
+    const color=CLASS_COLORS[r.cls]||"#999";
+    const dCls=r.thin?"na":(r.dpct>=0?"up":"down");
+    h+='<tr class="pinrow" data-key="'+r.key+'">'
+      +'<td class="txt"><span class="classdot" style="background:'+color+'"></span>'
+      +esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+'</td>'
+      +'<td>'+(isFinite(r.dpct)
+        ?'<span class="delta '+dCls+'">'+(r.dpct>=0?"+":"")+r.dpct.toFixed(1)+'%</span>'
+        :'<span class="delta na">new</span>')
+      +'<span class="nsm">n '+fmtInt(r.nA)+' / '+(r.nB?fmtInt(r.nB):"–")+'</span></td>'
+      +'<td>#'+r.rankA+(isFinite(r.drank)&&r.drank!==0
+        ?' <span class="delta '+(r.thin?"na":(r.drank>0?"up":"down"))+'">'
+          +(r.drank>0?"+":"")+r.drank+'</span>'
+        :' <span class="delta na">=</span>')+'</td>'
+      +'<td>'+r.adeaths.toFixed(2)+'</td>'
+      +'<td class="spark">'+pulseSpark(r.g,color)+'</td>'
+      +'<td>'+(Q?("in "+r.pres+" of "+Q):"–")
+        +'<span class="nsm">qualifying comps</span></td>'
+      +'<td>'+(isFinite(r.dshare)
+        ?'<span class="delta '+(r.thin?"na":(r.dshare>=0?"up":"down"))+'">'
+          +(r.dshare>=0?"+":"")+r.dshare.toFixed(2)+'pp</span>'
+        :'<span class="delta na">–</span>')
+      +'<span class="nsm">'+(isFinite(r.shareA)?r.shareA.toFixed(1)+"% of chars":"")+'</span></td>'
+      +'</tr>';
+  }
+  box.innerHTML=h+"</tbody></table></div>";
+  box.querySelectorAll("th").forEach(th=>{
+    th.onclick=()=>{
+      const c=th.dataset.c; if(c==="spark") return;
+      state.psort={col:c, dir:state.psort.col===c?-state.psort.dir:-1};
+      renderPulse();
+    };
+  });
+  box.querySelectorAll("tr.pinrow").forEach(tr=>{
+    const key=+tr.dataset.key;
+    tr.onclick=()=>pinSpec(key);
+    tr.onmouseenter=()=>{dossierPreview={key}; renderDossier();};
+    tr.onmouseleave=()=>{if(dossierPreview&&dossierPreview.key===key){
+      dossierPreview=null; renderDossier();}};
+  });
+  $("pulse-caption").textContent=
+    "Δ% compares "+dpsLabel().toLowerCase()+" in the current reset against the previous "
+    +"one — both windows and sample sizes are printed above, and no toggle redefines "
+    +"them. Rank is the position at the current lens now; its badge is places moved "
+    +"since last reset. Season is the whole-season weekly "+dpsLabel().toLowerCase()
+    +" sparkline (weeks under "+PULSE_THIN_N+" parses skipped). Comps counts the "
+    +"qualifying comps (min "+state.compMin+" runs) this spec appears in — the "
+    +"denominator is every qualifying comp, not a top list. Roster Δ is the change in "
+    +"this spec's share of distinct logged characters, in percentage points. Grey "
+    +"deltas mean a thin baseline (under "+PULSE_THIN_N+" parses) or a very young "
+    +"reset — shown anyway, never blanked. Click a row to pin it to the dossier.";
+}
+</script>
+<script>
+"use strict";
+/* ---------------- spec dossier dock — click-pin inspector (≤3 pins) ----------------
+   Replaces every cursor tooltip: hovering a trigger previews the subject in a
+   measure-aligned dock at the viewport bottom; clicking pins it (up to three,
+   duel-view with row-aligned metrics). The dock never follows the cursor. */
+let dossierPreview=null;   // {key} for a spec, or {custom:{title,rows:[[k,v],..]}}
+let dossierOpen=false;
+function pinSpec(key){
+  const i=state.pins.indexOf(key);
+  if(i>=0) state.pins.splice(i,1);
+  else{ if(state.pins.length>=3) state.pins.shift(); state.pins.push(key); }
+  renderDossier(); renderLab();
+}
+function wireDock(row,els,key){
+  const enter=()=>{ if(row) row.classList.add("hot");
+    dossierPreview={key}; renderDossier(); };
+  const leave=()=>{ if(row) row.classList.remove("hot");
+    if(dossierPreview&&dossierPreview.key===key){dossierPreview=null; renderDossier();} };
+  for(const el of els){
+    el.addEventListener("mouseenter",enter);
+    el.addEventListener("mouseleave",leave);
+    el.addEventListener("click",()=>pinSpec(key));
+    el.style.cursor="pointer";
+  }
+}
+function dockCard(key){
+  const r=lastRows.find(x=>x.key===key);
+  if(r) return r;
+  const a=lastA&&lastA.groups.get(key);
+  if(a) return {key, cls:a.cls, spec:a.spec, hero:a.hero, a,
+                b:lastB?lastB.groups.get(key)||null:null};
+  return null;
+}
+function dockMetricRows(){
+  const rows=[
+    ["Runs", c=>fmtInt(c.a.runs)],
+    ["Parses", c=>fmtInt(c.a.n)],
+    ["Unique characters", c=>fmtInt(c.a.chars)],
+    [state.proj?"Average DPS (proj.)":"Average DPS",
+      c=>fmtInt(c.a.avg)+(state.proj?projDelta(c.a.avg,c.a.ravg):"")],
+    [state.proj?dpsLabel()+" (proj.)":dpsLabel(),
+      c=>fmtInt(c.a.med)+(state.proj?projDelta(c.a.med,c.a.rmed):"")],
+  ];
+  if(state.proj) rows.push(
+    ["Recorded average", c=>c.a.ravg!=null?fmtInt(c.a.ravg):"–"],
+    ["Recorded "+dpsLabel().toLowerCase(), c=>c.a.rmed!=null?fmtInt(c.a.rmed):"–"]);
+  rows.push(
+    ["Average deaths", c=>c.a.adeaths.toFixed(2)],
+    ["Deathless runs", c=>c.a.deathless.toFixed(1)+"%"]);
+  if(hasRating) rows.push(
+    ["Average player rating", c=>isFinite(c.a.arating)?fmtInt(c.a.arating):"–"],
+    ["Median player rating", c=>isFinite(c.a.mrating)?fmtInt(c.a.mrating):"–"],
+    ["Rated characters", c=>fmtInt(c.a.rn)]);
+  rows.push(
+    ["Comp presence", c=>{
+      if(!lastCompM||!lastCompM.Q) return "–";
+      const ci=D.classes.indexOf(c.cls), si=D.specs.indexOf(c.spec);
+      const k=(lastCompM.presence.get(ci*100+si)||0);
+      return "in "+k+" of "+lastCompM.Q+" qualifying comps";
+    }],
+    ["Roster share", c=>lastA&&lastA.chars
+      ?(100*c.a.chars/lastA.chars).toFixed(1)+"% of characters":"–"]);
+  return rows;
+}
+function dockBVal(c,label){
+  // period-B / percentile-ghost column values for the few metrics a ghost defines
+  if(!c.b) return null;
+  const map={"Runs":x=>fmtInt(x.runs),"Parses":x=>fmtInt(x.n),
+    "Unique characters":x=>fmtInt(x.chars),"Average deaths":x=>x.adeaths.toFixed(2),
+    "Deathless runs":x=>x.deathless.toFixed(1)+"%"};
+  if(label.startsWith("Average DPS")) return fmtInt(c.b.avg);
+  if(label.startsWith(dpsLabel())) return fmtInt(c.b.med);
+  const f=map[label];
+  return f?f(c.b):null;
+}
+function renderDossier(){
+  const box=$("dossier");
+  const pins=state.pins.map(k=>[k,dockCard(k)]);
+  const prevKey=dossierPreview&&dossierPreview.key!=null
+    &&!state.pins.includes(dossierPreview.key)?dossierPreview.key:null;
+  const prevCard=prevKey!=null?dockCard(prevKey):null;
+  const custom=dossierPreview&&dossierPreview.custom||null;
+  const any=pins.length||prevCard||custom;
+  if(!any){box.hidden=true; dossierOpen=false; return}
+  box.classList.toggle("pinned",pins.length>0);
+  let h='<div class="dosshead">';
+  for(const [k,c] of pins){
+    const name=c?c.cls+" "+c.spec+(c.hero?" — "+c.hero:""):"(not in view)";
+    const color=c?(CLASS_COLORS[c.cls]||"#999"):"#666";
+    h+='<span class="pintag"><span class="classdot" style="background:'+color
+      +'; margin-right:0"></span>PINNED · '+esc(name)
+      +'<button class="x" data-unpin="'+k+'" aria-label="Unpin">×</button></span>';
+  }
+  if(custom) h+='<span style="color:var(--ink3)">'+esc(custom.title)+'</span>';
+  else if(prevCard) h+='<span style="color:var(--ink3)">previewing '
+    +esc(prevCard.cls+" "+prevCard.spec+(prevCard.hero?" — "+prevCard.hero:""))
+    +' — click to pin</span>';
+  h+='<span class="dosshint">Esc unpins · ≤3 pins</span></div>';
+  if(custom){
+    h+='<table class="dosstbl"><tbody>';
+    for(const [k,v] of custom.rows)
+      h+='<tr><td>'+esc(k)+'</td><td>'+esc(v)+'</td></tr>';
+    h+='</tbody></table>';
+  }else{
+    const cards=pins.map(([k,c])=>c).filter(Boolean);
+    if(prevCard) cards.push(prevCard);
+    const ghost=lastGhost;
+    h+='<div style="overflow-x:auto"><table class="dosstbl"><thead><tr><th></th>';
+    for(const c of cards){
+      const isPrev=c===prevCard;
+      h+='<th'+(isPrev?' class="preview"':'')+'><span class="classdot" style="background:'
+        +(CLASS_COLORS[c.cls]||"#999")+'"></span>'
+        +esc(c.cls+" "+c.spec+(c.hero?" — "+c.hero:""))
+        +(ghost?' <span class="nsm">A'+(dockGhostLabel())+'</span>':'')+'</th>';
+    }
+    h+='</tr></thead><tbody>';
+    for(const [label,f] of dockMetricRows()){
+      h+='<tr><td>'+esc(label)+'</td>';
+      for(const c of cards){
+        let cell=f(c);
+        if(ghost){const bv=dockBVal(c,label);
+          if(bv!=null) cell+=' <span class="bcell">/ '+bv+'</span>';}
+        h+='<td>'+cell+'</td>';
+      }
+      h+='</tr>';
+    }
+    h+='</tbody></table></div>';
+  }
+  h+='<div class="dossscope">'+(state.elite
+      ?"Archon replica window — last "+ELITE_DAYS+" days"
+      :"Period A: "+esc(describePeriod(state.weeksA)))
+    +(lastA&&lastA.dmax>=0?" · "+fmtDay(lastA.dmin)+" – "+fmtDay(lastA.dmax):"")
+    +(lastGhost==="period"?" · B: "+esc(describePeriod(state.weeksB))+" (grey)":"")
+    +(lastGhost==="pctl"?" · grey: p"+state.pctlB:"")
+    +" · "+dpsLabel()+" lens</div>";
+  box.innerHTML=h;
+  box.querySelectorAll("[data-unpin]").forEach(b=>{
+    b.onclick=e=>{e.stopPropagation();
+      const k=+b.dataset.unpin;
+      const i=state.pins.indexOf(k);
+      if(i>=0) state.pins.splice(i,1);
+      renderDossier(); renderLab();};
+  });
+  if(box.hidden){ box.hidden=false; box.classList.remove("in");
+    void box.offsetWidth; box.classList.add("in"); dossierOpen=true; }
+}
+function dockGhostLabel(){
+  return lastGhost==="period"?" / B":(lastGhost==="pctl"?" / p"+state.pctlB:"");
+}
+
+/* ---------------- top comps ---------------- */
+const COMPS_MAX=25;
+/* ---------------- set bonus gain ---------------- */
+// Minimum parses in a (dungeon, key level) cell before that cell's medians are
+// allowed to contribute, and minimum matched cells before a spec gets a number.
+const SET_CELL_MIN = 5, SET_CELLS_MIN = 3, SET_BUCKET_MIN = 30;
+
+// The naive answer -- average DPS of 4-set players minus average DPS of the
+// rest -- is badly confounded. People who have the 4-set have been playing
+// longer, so they are in higher keys, in better gear, and are better players.
+// Comparing them directly measures all of that at once and calls it a set
+// bonus.
+//
+// So the comparison is matched: within one spec, within one dungeon, at one
+// key level, median DPS of one cohort against the next. Every cell is a
+// like-for-like slice, and the per-cell ratios are then pooled weighted by the
+// smaller cohort, which is what the estimate is actually built on.
+//
+// This removes dungeon and key level. It does NOT remove item level or player
+// skill, which still correlate with having the set, so these figures remain an
+// upper bound on the true bonus rather than a measurement of it.
+function setBonusRows(){
+  if(!hasTier) return [];
+  const m=baseMasks(), G=new Map();
+  const cut=periodCut(state.weeksA);
+  for(let i=0;i<N;i++){
+    const b=setBucket(R.tier[i]);
+    if(b<0) continue;                      // no gear on this report
+    if(!periodPass(i,state.weeksA,cut)) continue;   // caption says "current filters"
+    if(projSkip(i)) continue;              // same projection contract as aggregate()
+    if(!rowPass(i,m,true)) continue;       // every filter EXCEPT the tier boxes
+    const gk=groupKey(i);
+    let g=G.get(gk);
+    if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
+             n:[0,0,0], cells:new Map()}; G.set(gk,g)}
+    g.n[b]++;
+    const ck=R.dun[i]*100+R.key[i];
+    let c=g.cells.get(ck);
+    if(!c){c=[[],[],[]]; g.cells.set(ck,c)}
+    c[b].push(dpsAt(i));
+  }
+  const out=[];
+  for(const g of G.values()){
+    // pooled ratio between two cohorts across every cell that holds both
+    const gain=(a,b)=>{
+      if(g.n[a]<SET_BUCKET_MIN||g.n[b]<SET_BUCKET_MIN) return {pct:NaN,cells:0,pairs:0};
+      let wsum=0, acc=0, cells=0, pairs=0;
+      for(const c of g.cells.values()){
+        if(c[a].length<SET_CELL_MIN||c[b].length<SET_CELL_MIN) continue;
+        const ma=q50([...c[a]].sort((x,y)=>x-y)), mb=q50([...c[b]].sort((x,y)=>x-y));
+        if(!(ma>0)) continue;
+        const w=Math.min(c[a].length,c[b].length);
+        acc+=w*(mb/ma-1); wsum+=w; cells++; pairs+=w;
+      }
+      return cells<SET_CELLS_MIN?{pct:NaN,cells,pairs}:{pct:100*acc/wsum,cells,pairs};
+    };
+    const med=b=>{const v=[];for(const c of g.cells.values())v.push(...c[b]);
+      return v.length?qp(v.sort((x,y)=>x-y),state.pctl/100):NaN};
+    const tot=g.n[0]+g.n[1]+g.n[2];
+    const g2=gain(0,1), g4=gain(1,2), gt=gain(0,2);
+    if(!isFinite(g2.pct)&&!isFinite(g4.pct)&&!isFinite(gt.pct)) continue;
+    out.push({cls:D.classes[g.cls], spec:D.specs[g.spec],
+      hero:g.hero<0?"":D.heroes[g.hero],
+      n0:g.n[0], n2:g.n[1], n4:g.n[2], tot,
+      // adoption as shares of THIS spec's gear-known parses, all three of
+      // them, summing to 100. Raw cohort counts cannot be read across specs --
+      // a spec played ten times as much leads on every one of them regardless
+      // of how its players gear -- so the only raw number kept is the total,
+      // which says how much evidence sits behind the shares.
+      s0:tot?100*g.n[0]/tot:NaN,
+      s2:tot?100*g.n[1]/tot:NaN, s4:tot?100*g.n[2]/tot:NaN,
+      m0:med(0), m2:med(1), m4:med(2),
+      p2:g2.pct, p4:g4.pct, pt:gt.pct,
+      cells:Math.max(g2.cells,g4.cells,gt.cells)});
+  }
+  return out;
+}
+
+function renderSetBonus(){
+  const host=$("settbl"), head=$("setbonus-head");
+  const shown=hasTier;
+  // Only force display when hiding. Clearing it back to "" lets the [hidden]
+  // attribute that applyCollapsed() sets keep control of the collapse.
+  head.style.display=shown?"":"none";
+  $("sec-setbonus").style.display=shown?"":"none";
+  if(!shown){host.innerHTML=""; return}
+  const rows=setBonusRows();
+  const cols=[["cls","Class","txt"],["spec","Spec","txt"]]
+    .concat(state.merge?[]:[["hero","Hero Talent","txt"]])
+    .concat([["tot","Parses w/ gear"],["s0","% no set"],["s2","% 2-set"],["s4","% 4-set"],
+             ["m0",dpsLabel()+" · no set"],["m2",dpsLabel()+" · 2-set"],
+             ["m4",dpsLabel()+" · 4-set"],
+             ["p2","2-set gain"],["p4","4-set gain"],["pt","Total gain"]]);
+  if(!cols.some(c=>c[0]===state.ssort.col)) state.ssort={col:"pt", dir:-1};
+  const {col,dir}=state.ssort;
+  // a spec without enough matched cells carries NaN; park those at the bottom
+  // whichever way the column is pointing rather than letting them interleave
+  const sorted=[...rows].sort((a,b)=>{
+    const x=a[col], y=b[col];
+    if(typeof x==="string") return x.localeCompare(y)*dir;
+    const nx=typeof x==="number"&&isNaN(x), ny=typeof y==="number"&&isNaN(y);
+    if(nx||ny) return nx&&ny?0:(nx?1:-1);   // dashes last, ascending or not
+    return (x-y)*dir;
+  });
+  $("set-sub").innerHTML=scopeLine("setbonus",{n:rows.length});
+  const pc=v=>isFinite(v)?'<span class="delta '+(v>=0?"up":"down")+'">'
+      +(v>=0?"+":"")+v.toFixed(1)+"%</span>":"–";
+  const n=v=>isFinite(v)?fmtInt(v):"–";
+  const cell=(k,r)=>{
+    if(k==="cls"||k==="spec"||k==="hero") return esc(r[k]);
+    if(k==="p2"||k==="p4"||k==="pt") return pc(r[k]);
+    if(k==="s0"||k==="s2"||k==="s4") return isFinite(r[k])?r[k].toFixed(1)+"%":"–";
+    return n(r[k]);
+  };
+  let h='<thead><tr>';
+  for(const [k,label,txt] of cols)
+    h+=`<th class="${txt||""} ${k===col?"sorted "+(dir<0?"desc":"asc"):""}" data-c="${k}">${label}</th>`;
+  h+='</tr></thead><tbody>';
+  for(const r of sorted){
+    h+="<tr>";
+    for(const [k,,txt] of cols) h+=`<td class="${txt||""}">${cell(k,r)}</td>`;
+    h+="</tr>";
+  }
+  host.innerHTML=h+"</tbody>";
+  host.querySelectorAll("th").forEach(th=>{
+    th.onclick=()=>{
+      const c=th.dataset.c;
+      state.ssort={col:c, dir:state.ssort.col===c?-state.ssort.dir:-1};
+      renderSetBonus();
+    };
+  });
+  const known=R.tier.reduce((a,v)=>a+(v>=0),0);
+  $("set-caption").textContent=
+    "Parses w/ gear counts this spec's parses whose report showed equipment — "
+    +"the evidence behind the row (parses, not runs: two of the same spec in "
+    +"one run is two parses). The three shares split it by Season 2 tier "
+    +"pieces worn — under 2, 2–3, 4+ — and sum to 100%, so they can be read "
+    +"across specs where raw cohort counts cannot: a spec played ten times as "
+    +"often leads on every raw count whatever its players wear. "
+    +"The three DPS columns are each cohort's plain "+dpsLabel().toLowerCase()
+    +" under the current "
+    +"filters, so they can be read against one another directly — but they are "
+    +"not like for like: the 4-set cohort also runs higher keys in better gear. "
+    +"The gain columns are the corrected version of that same comparison. "
+    +"Gain from 2-set compares no-set against 2-set; gain from 4-set compares "
+    +"2-set against 4-set; total compares no-set against 4-set. Each is a "
+    +"matched comparison — median against median within the same spec, dungeon "
+    +"and key level, pooled across cells and weighted by the smaller cohort — "
+    +"so dungeon and key level are held fixed rather than averaged over. Item "
+    +"level and player skill still travel with having the set, so treat these "
+    +"as an upper bound on the bonus, not a measurement of it. A spec needs "
+    +SET_BUCKET_MIN+"+ parses per cohort and "+SET_CELLS_MIN+"+ matched cells "
+    +"of "+SET_CELL_MIN+"+ parses each. Gear is known for "
+    +(100*known/R.tier.length).toFixed(1)+"% of parses; the tier checkboxes do "
+    +"not apply here, since this table needs all three cohorts. No set means "
+    +"no Season 2 set on a report whose gear is visible — an old tier kept on "
+    +"is still no set — never a report whose gear is unknown.";
+}
+
+// Strength answers "how well did this comp play, for the difficulty it
+// played at", then deliberately rewards difficulty on top.
+//
+//   1. Fit margin ~ key level over the qualifying runs. The keystone timer
+//      does not move with key level, so margin falls steadily as keys rise
+//      (about a point per level); subtracting the fitted expectation puts a
+//      typical run at every key on zero.
+//   2. Add a difficulty credit of |slope| per key level above the mean key,
+//      so a typical +20 outscores a typical +15 by roughly what those five
+//      levels of difficulty cost in margin.
+//   3. Shrink each comp's mean toward zero by its run count, so a single
+//      lucky pull cannot top the table.
+// The model is computed once per render (compModel) because the Pulse board
+// and the dossier also state comp presence — always against the denominator
+// of ALL qualifying comps, never a top-25.
+function compModel(A){
+  const K=5;
+  const qual=[];
+  for(let r=0;r<runCount;r++){
+    if(!A.runSeen[r]) continue;
+    const o=RUNS[r];
+    if(o&&o.pct!==null) qual.push(o);
+  }
+  let n=0,sx=0,sy=0,sxx=0,sxy=0;
+  for(const o of qual){n++; sx+=o.key; sy+=o.pct; sxx+=o.key*o.key; sxy+=o.key*o.pct}
+  const den=n*sxx-sx*sx;
+  const slope=(n>=10&&Math.abs(den)>1e-9)?(n*sxy-sx*sy)/den:0;
+  const icpt=n?(sy-slope*sx)/n:0, refKey=n?sx/n:0, W=Math.abs(slope);
+  const score=o=>(o.pct-(icpt+slope*o.key))+W*(o.key-refKey);
+
+  const byComp=new Map();
+  for(const o of qual){
+    let e=byComp.get(o.key_);
+    if(!e){e={best:o,scores:[],pcts:[],keys:[],deaths:0}; byComp.set(o.key_,e)}
+    e.scores.push(score(o)); e.pcts.push(o.pct); e.keys.push(o.key);
+    e.deaths+=o.deaths;
+    if(score(o)>score(e.best)) e.best=o;
+  }
+  const all=[...byComp.values()];
+  const rows=all.filter(e=>e.scores.length>=state.compMin).map(e=>{
+    const m=e.scores.length, sum=e.scores.reduce((a,b)=>a+b,0);
+    return {
+      strength:sum/(m+K),                       // shrunk toward 0 = typical run
+      best:Math.max(...e.pcts), median:q50([...e.pcts].sort((a,b)=>a-b)),
+      avgkey:e.keys.reduce((a,b)=>a+b,0)/m, n:m,
+      kdur:e.best.kdur, dun:D.dungeons[e.best.dun], key:e.best.key,
+      deaths:e.deaths/m, day:e.best.day, comp:e.best.comp,
+    };
+  });
+  // comp presence: for each spec, how many QUALIFYING comps it appears in —
+  // the denominator is every comp passing the min-runs slider
+  const presence=new Map();
+  for(const e of all){
+    if(e.scores.length<state.compMin) continue;
+    const seen=new Set();
+    for(const c of e.best.comp){
+      const k=c.cls*100+c.spec;
+      if(!seen.has(k)){seen.add(k); presence.set(k,(presence.get(k)||0)+1);}
+    }
+  }
+  return {rows, all, W, refKey, presence, Q:rows.length};
+}
+
+function renderComps(model){
+  const {rows, all, W, refKey}=model;
+  const t=$("comps");
+  if(!rows.length){
+    t.innerHTML="";
+    $("comps-sub").textContent=all.length
+      ? "no comp has "+state.compMin+"+ runs under these filters"
+      : "no timed-clock runs match the current filters";
+    $("comps-caption").textContent="";
+    return;
+  }
+  const COLS=[["rank","#","txt"],["comp","Composition","txt"],
+    ["strength","Strength"],["avgkey","Avg key"],["best","Best"],
+    ["median","Median"],["n","Runs"],["deaths","Deaths"],
+    ["kdur","Best time"],["dun","Dungeon","txt"],["key","Key"],
+    ["day","Date","txt"]];
+  if(!COLS.some(c=>c[0]===state.csort.col)) state.csort={col:"strength",dir:-1};
+  rows.sort((a,b)=>b.strength-a.strength).forEach((r,i)=>r.rank=i+1);
+  const {col,dir}=state.csort;
+  const val=(r,k)=>k==="comp"
+    ? r.comp.map(c=>D.specs[c.spec]+D.classes[c.cls]).join()
+    : k==="dun" ? r.dun : r[k];
+  const sorted=[...rows].sort((a,b)=>{
+    const x=val(a,col), y=val(b,col);
+    return (typeof x==="string"?x.localeCompare(y):x-y)*dir;
+  }).slice(0,COMPS_MAX);
+  const pctCell=v=>'<b class="delta '+(v>=0?"up":"down")+'">'+v.toFixed(1)+'%</b>';
+  let h="<thead><tr>";
+  for(const [k,label,txt] of COLS)
+    h+=`<th class="${txt||""} ${k===col?"sorted "+(dir<0?"desc":"asc"):""}" data-c="${k}">${label}</th>`;
+  h+="</tr></thead><tbody>";
+  for(const r of sorted){
+    const comp=r.comp.map(c=>{
+      const cn=D.classes[c.cls];
+      return '<span style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
+        +'<span class="role">'+esc((D.roles[c.role]||"?").slice(0,1))+'</span>'
+        +esc(D.specs[c.spec]+" "+cn)+'</span>';
+    }).join("");
+    h+='<tr><td class="txt">'+r.rank+'</td>'
+      +'<td class="txt"><div class="comp">'+comp+'</div></td>'
+      +'<td><b class="delta '+(r.strength>=0?"up":"down")+'">'
+        +(r.strength>=0?"+":"")+r.strength.toFixed(1)+'</b></td>'
+      +'<td>+'+r.avgkey.toFixed(1)+'</td>'
+      +'<td>'+pctCell(r.best)+'</td><td>'+pctCell(r.median)+'</td>'
+      +'<td>'+fmtInt(r.n)+'</td><td>'+r.deaths.toFixed(1)+'</td>'
+      +'<td>'+fmtDur(r.kdur)+'</td>'
+      +'<td class="txt">'+esc(r.dun)+'</td>'
+      +'<td>+'+r.key+'</td>'
+      +'<td class="txt">'+(r.day>=0?fmtDay(r.day):"–")+'</td></tr>';
+  }
+  t.innerHTML=h+"</tbody>";
+  t.querySelectorAll("th").forEach(th=>{
+    th.onclick=()=>{
+      const c=th.dataset.c;
+      state.csort={col:c, dir:state.csort.col===c?-state.csort.dir:-1};
+      renderComps(model);   // self-contained re-render on the captured model
+    };
+  });
+  $("comps-sub").innerHTML=scopeLine("comps",{n:rows.length, all:all.length});
+  $("comps-caption").textContent="Strength scores each run against what is "
+    +"typical at its key level, then credits higher keys: margin under the "
+    +"timer drops about "+W.toFixed(2)+" points per key level in this "
+    +"selection, so that is the rate each level above +"+refKey.toFixed(1)
+    +" is rewarded at. 0 is a typical run at a typical key; +5 is five points "
+    +"of margin better than par for its difficulty. Comps with few runs are "
+    +"pulled toward 0 so one lucky pull cannot top the table. Best and Median "
+    +"are the raw margins under the timer, unadjusted.";
+}
+
+/* ---------------- trajectory — always-present peer section ---------------- */
+function tuningDays(){
+  if(!D||!D.tuning) return [];
+  const list=[].concat(D.tuning);
+  const out=[];
+  for(const t of list){
+    if(!t||!t.date) continue;
+    const d=new Date(t.date+(String(t.date).length<=10?"T00:00:00Z":""));
+    if(isNaN(d)) continue;
+    out.push({day:Math.round((d-new Date(D.epoch+"T00:00:00Z"))/864e5),
+              label:t.label||"tuning"});
+  }
+  return out;
+}
+function renderTrend(){
+  const box=$("trendbox");
+  let mt=TABS.find(t=>t.id===state.trendMetric)||TABS[0];
+  const norm=state.normSeg;
+  const shareMode=norm==="share", rankMode=norm==="rank";
+  const useDeaths=mt.id==="adeaths"||mt.id==="deathless";
+  const useChars=mt.id==="chars";
+  const calc=vals=>{           // metric over one bag of per-parse source values
+    const n=vals.length; if(!n) return NaN;
+    let s=0,z=0; for(const v of vals){s+=v; if(v===0)z++}
+    switch(mt.id){
+      case "chars": return new Set(vals).size;
+      case "avg": case "adeaths": return s/n;
+      case "med": return qp([...vals].sort((a,b)=>a-b),state.pctl/100);
+      case "deathless": return 100*z/n;
+    }
+  };
+  const m=baseMasks();
+  // per (group, week) source values, ignoring the period selection
+  const tot=new Map(), byWeek=new Map(), byDay=new Map();
+  const weeksSeen=new Set(), daysSeen=new Set(), charsAll=new Set();
+  const wkChars=new Map(), dayChars=new Map();   // per-bucket roster (share mode)
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)) continue;
+    if(projSkip(i)) continue;   // same projection contract as aggregate()
+    const w=R.rbucket[i]; if(w>=999) continue;
+    charsAll.add(R.char[i]);
+    const v=shareMode?R.char[i]:useChars?R.char[i]:useDeaths?R.deaths[i]:dpsAt(i);
+    const key=groupKey(i);
+    let t=tot.get(key);
+    if(!t){t={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
+             n:0,vals:[],chars:new Set()};
+      tot.set(key,t)}
+    t.n++; t.vals.push(v); t.chars.add(R.char[i]);
+    weeksSeen.add(w);
+    let g=byWeek.get(key*1000+w);
+    if(!g){g=[]; byWeek.set(key*1000+w,g)}
+    g.push(v);
+    if(shareMode){
+      let ws=wkChars.get(w); if(!ws){ws=new Set(); wkChars.set(w,ws)} ws.add(R.char[i]);
+    }
+    const d0=R.day[i];
+    if(d0>=0){
+      daysSeen.add(d0);
+      let gd=byDay.get(key*1000+d0);
+      if(!gd){gd=[]; byDay.set(key*1000+d0,gd)}
+      gd.push(v);
+      if(shareMode){
+        let ds=dayChars.get(d0); if(!ds){ds=new Set(); dayChars.set(d0,ds)} ds.add(R.char[i]);
+      }
+    }
+  }
+  // top groups by the selected metric itself ("best" respects its direction)
+  const dir=(shareMode?true:mt.betterUp)?-1:1;
+  // this panel ignores the period selection, so it scales against its own
+  // pool rather than reusing the period-scaled threshold from render()
+  const trendMin=effMinFor(charsAll.size);
+  const groupVal=t=>shareMode
+    ?(charsAll.size?100*t.chars.size/charsAll.size:NaN)
+    :calc(t.vals);
+  let cand=[...tot.entries()].filter(([,t])=>t.chars.size>=trendMin)
+    .map(([key,t])=>[key,t,groupVal(t)]);
+  if(!cand.length){
+    box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
+      +'minimum-runs threshold under the current filters.</div>';
+    $("trend-caption").textContent=trendCap(mt);
+    $("traj-sub").innerHTML=scopeLine("trajectory"); return;
+  }
+  // Only span buckets that actually hold data under the current filters —
+  // otherwise a filter that cuts dates (post-tuning especially) leaves most of
+  // the chart blank. A short surviving span is shown per DAY instead of per
+  // week, since two weekly points is not a trend.
+  const wks=[...availWeeks].filter(w=>weeksSeen.has(w)).sort((a,b)=>b-a);
+  const daily=wks.length<=3&&daysSeen.size>2;
+  const buckets=daily?[...daysSeen].sort((a,b)=>a-b):wks;
+  const store=daily?byDay:byWeek;
+  const bChars=daily?dayChars:wkChars;
+  const MINP=daily?8:25;               // per bucket, per group
+  const bLabel=b=>daily?fmtDay(b):(b===0?"now":fmtDay(usB0-7*b));
+  const bTip=b=>daily?fmtDay(b):(b===0?"this reset":fmtDay(usB0-7*b)+" wk");
+  if(!buckets.length){
+    box.innerHTML='<div class="caption" style="padding:1.4rem 0">No dated runs '
+      +'match the current filters.</div>';
+    $("trend-caption").textContent=trendCap(mt);
+    $("traj-sub").innerHTML=scopeLine("trajectory"); return;
+  }
+  // raw per-bucket values for EVERY candidate (rank/share need the full field)
+  const rawAt=(key,b)=>{
+    const g=store.get(key*1000+b);
+    if(!g||g.length<MINP) return null;
+    if(shareMode){
+      const tc=bChars.get(b); const tn=tc?tc.size:0;
+      return tn?100*new Set(g).size/tn:null;
+    }
+    return calc(g);
+  };
+  const candPts=new Map();   // key → Map(bucket → value)
+  for(const [key] of cand){
+    const mp=new Map();
+    for(const b of buckets){const v=rawAt(key,b); if(v!=null) mp.set(b,v);}
+    candPts.set(key,mp);
+  }
+  if(rankMode){
+    // per bucket: rank every candidate that has a value there (best = 1)
+    for(const b of buckets){
+      const here=[];
+      for(const [key,mp] of candPts) if(mp.has(b)) here.push([key,mp.get(b)]);
+      // best first, respecting the metric's direction
+      here.sort((x,y)=>mt.betterUp?(y[1]-x[1]):(x[1]-y[1]));
+      here.forEach(([key],i)=>candPts.get(key).set(b,i+1));
+    }
+  }
+  // slope per candidate over its displayed values (bucket index as x)
+  const slopeOf=key=>{
+    const mp=candPts.get(key); const xs=[],ys=[];
+    buckets.forEach((b,xi)=>{ if(mp.has(b)){xs.push(xi); ys.push(mp.get(b));} });
+    const n=xs.length; if(n<2) return NaN;
+    let sx=0,sy=0,sxx=0,sxy=0;
+    for(let i=0;i<n;i++){sx+=xs[i]; sy+=ys[i]; sxx+=xs[i]*xs[i]; sxy+=xs[i]*ys[i];}
+    const den=n*sxx-sx*sx;
+    return Math.abs(den)>1e-9?(n*sxy-sx*sy)/den:NaN;
+  };
+  let top;
+  if(state.slopeSort){
+    // who is moving fastest in the improving direction of this metric
+    const better=rankMode?false:(shareMode?true:mt.betterUp);  // rank: down is up
+    top=cand.map(e=>{const s=slopeOf(e[0]);
+        return [...e, isNaN(s)?-1e18:(better?s:-s)];})
+      .sort((a,b)=>b[3]-a[3]).slice(0,TREND_MAX);
+  }else{
+    top=cand.sort((a,b)=>(a[2]-b[2])*dir).slice(0,TREND_MAX);
+  }
+  const weeks=buckets;   // x positions are indices into buckets
+  const W=Math.max(box.clientWidth||900,480), H=380;
+  const ML=70, MR=190, MT=18, MB=34;
+  const DASHES=["","5,4","2,3","9,3,2,3"];   // 1st..4th spec of the same class
+  const seen={};
+  const series=top.map(([key,t])=>{
+    const mp=candPts.get(key);
+    const pts=[];
+    buckets.forEach((b,xi)=>{
+      const g=store.get(key*1000+b);
+      if(mp.has(b)) pts.push({xi,b,lbl:bTip(b),v:mp.get(b),n:g?g.length:0});
+    });
+    return {key, cls:D.classes[t.cls],
+      name:D.specs[t.spec]+" "+D.classes[t.cls]+(t.hero>=0&&!state.merge?" — "+D.heroes[t.hero]:""),
+      pts};
+  }).filter(s=>s.pts.length)
+    .map(s=>{
+      const nth=seen[s.cls]||0; seen[s.cls]=nth+1;
+      return {...s, color:CLASS_COLORS[s.cls]||"#999",
+              dash:DASHES[nth%DASHES.length]};
+    });
+  let ymin=1e18,ymax=-1e18;
+  series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
+  const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
+  if((useDeaths||useChars||shareMode)&&!rankMode&&ymin<0) ymin=0;
+  if(mt.id==="deathless"&&!rankMode&&!shareMode&&ymax>100) ymax=100;
+  if(rankMode&&ymin<0.5) ymin=0.5;
+  const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
+  // rank mode: rank 1 belongs at the top, so the axis inverts
+  const ys=rankMode
+    ? v=>MT+(H-MT-MB)*((v-ymin)/(ymax-ymin))
+    : v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
+  const fmtV=v=>rankMode?"#"+Math.round(v)
+    :shareMode?v.toFixed(1)+"%"
+    :mt.fmt(v);
+  const axf=v=>rankMode?"#"+Math.round(v)
+    :shareMode?v.toFixed(1)+"%"
+    :useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
+    :useChars?String(Math.round(v))
+    :Math.round(v/1000)+"k";
+  // tuning-patch markers (dormant when the payload has no tuning dates)
+  const marks=[];
+  for(const tu of tuningDays()){
+    let x=null;
+    if(daily){
+      if(tu.day>=buckets[0]&&tu.day<=buckets[buckets.length-1]){
+        // interpolate between the nearest plotted days
+        let xi=0; while(xi<buckets.length-1&&buckets[xi+1]<=tu.day) xi++;
+        const b0=buckets[xi], b1=buckets[Math.min(xi+1,buckets.length-1)];
+        const f=b1>b0?(tu.day-b0)/(b1-b0):0;
+        x=xs(xi)+(xs(Math.min(xi+1,buckets.length-1))-xs(xi))*f;
+      }
+    }else{
+      const wb=tu.day>=usB0?0:Math.ceil((usB0-tu.day)/7);
+      const xi=buckets.indexOf(wb);
+      if(xi>=0) x=xs(xi);
+    }
+    if(x!=null) marks.push({x,label:tu.label});
+  }
+  const truncated=!daily&&weeksSeen.size<availWeeks.length;
+  if(state.trendView==="grid"){
+    renderTrendGrid(box,series,buckets,ymin,ymax,fmtV,rankMode);
+    wireTrendDocks(box);
+    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP),norm)
+      +" Each card is one group, ranked "+(state.slopeSort?"by season slope":"best-first")
+      +"; all cards share one y-scale, time running left → right. Hover points for "
+      +"exact values in the dossier."
+      +(truncated?" ⚠ Filters clip the season to "+weeksSeen.size+" of "
+        +availWeeks.length+" weeks with data.":"");
+    $("traj-sub").innerHTML=scopeLine("trajectory");
+    return;
+  }
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  for(let gi=0;gi<=4;gi++){
+    const v=ymin+(ymax-ymin)*gi/4, y=ys(v);
+    svg+=`<line x1="${ML}" y1="${y}" x2="${W-MR}" y2="${y}" stroke="rgba(234,227,208,.08)"/>`;
+    svg+=`<text x="${ML-8}" y="${y+4}" text-anchor="end" fill="#908B80">${axf(v)}</text>`;
+  }
+  buckets.forEach((b,xi)=>{
+    if(xi%Math.ceil(buckets.length/8)&&xi!==buckets.length-1) return;
+    svg+=`<text x="${xs(xi)}" y="${H-10}" text-anchor="middle" fill="#908B80">${
+      esc(bLabel(b))}</text>`;
+  });
+  for(const mk of marks){
+    svg+=`<line x1="${mk.x.toFixed(1)}" y1="${MT}" x2="${mk.x.toFixed(1)}" y2="${H-MB}"
+      stroke="rgba(234,227,208,.22)" stroke-dasharray="2,4"/>`;
+    svg+=`<text x="${(mk.x+4).toFixed(1)}" y="${MT+10}" fill="#908B80" font-size="10">⚙ ${esc(mk.label)}</text>`;
+  }
+  const ends=[];
+  series.forEach((s,si)=>{
+    const d=s.pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
+    svg+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.2" data-si="${si}"${
+      s.dash?` stroke-dasharray="${s.dash}"`:""}/>`;
+    // invisible fat twin: a forgiving hover/click target along the line
+    svg+=`<path d="${d}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="11"
+      pointer-events="stroke" class="fat" data-si="${si}"/>`;
+    for(const p of s.pts)
+      svg+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="3.2" fill="${s.color}"
+        data-si="${si}" data-tip="${esc(s.name)}|${esc(p.lbl)}|${esc(fmtV(p.v))}|${p.n}"/>`;
+    const last=s.pts[s.pts.length-1];
+    ends.push({y:ys(last.v), name:s.name, color:s.color, dash:!!s.dash, si});
+  });
+  ends.sort((a,b)=>a.y-b.y);
+  for(let i=1;i<ends.length;i++) if(ends[i].y-ends[i-1].y<14) ends[i].y=ends[i-1].y+14;
+  for(const e of ends)
+    svg+=`<text x="${W-MR+10}" y="${e.y+4}" fill="${e.color}" data-si="${e.si}">${
+      e.dash?"┄ ":""}${esc(e.name)}</text>`;
+  svg+="</svg>";
+  box.innerHTML=svg;
+
+  // spotlight: hover lights one series, click pins it, double-click clears
+  let hover=null;
+  const marked=[...box.querySelectorAll("[data-si]")];
+  const apply=()=>{
+    const pins=state.trendPin;
+    const active=hover!=null||pins.size>0;
+    for(const el of marked){
+      const si=+el.dataset.si;
+      const lit=hover!=null?si===hover:(!pins.size||pins.has(series[si].key));
+      el.style.opacity=lit?1:.13;
+      if(el.tagName==="path"&&!el.classList.contains("fat"))
+        el.setAttribute("stroke-width",lit&&active?3.4:2.2);
+      if(el.tagName==="text") el.style.fontWeight=lit&&active?"700":"400";
+    }
+  };
+  for(const el of marked){
+    el.addEventListener("mouseenter",()=>{hover=+el.dataset.si; apply();});
+    el.addEventListener("mouseleave",()=>{hover=null; apply();});
+    el.addEventListener("click",()=>{
+      const k=series[+el.dataset.si].key;
+      state.trendPin.has(k)?state.trendPin.delete(k):state.trendPin.add(k);
+      // a trajectory series is also a dossier source: spotlight-pin + dock-pin
+      pinSpec(k);
+      apply();
+    });
+  }
+  box.ondblclick=()=>{state.trendPin.clear(); hover=null; apply();};
+  apply();
+  wireTrendDocks(box);
+  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP),norm)
+    +" Dash patterns distinguish specs of the same class. Hover a line or its "
+    +"label to spotlight it; click to pin (spotlight + dossier), double-click "
+    +"the chart to clear spotlights."
+    +(marks.length?" ⚙ hairlines mark tuning patches.":"")
+    +(state.slopeSort?" Series are ranked by season slope — fastest movers first.":"")
+    +(truncated?" ⚠ Filters clip the season to "+weeksSeen.size+" of "
+      +availWeeks.length+" weeks with data.":"");
+  $("traj-sub").innerHTML=scopeLine("trajectory");
+}
+function trendCap(mt,span,norm){
+  const base=TABS.find(t=>t.id==="trend").cap
+    .replace("{metric}",
+      norm==="rank"?"rank by "+mt.label.toLowerCase()
+      :norm==="share"?"share of logged characters"
+      :mt.label.toLowerCase());
+  return base
+    +(mt.betterUp||norm==="share"?"":" The best (lowest) groups are shown.")
+    +(norm==="rank"?" Rank 1 is best; the axis runs best-at-top.":"")
+    +(norm==="share"?" Share is each group's slice of the distinct characters logged that week.":"")
+    +(span?" "+span:"");
+}
+function trendSpan(daily,n,minp){
+  return "Showing "+n+(daily?" day":" week")+(n===1?"":"s")
+    +" with data under the current filters; "
+    +(daily?"points are daily":"points are weekly")
+    +", and a point needs at least "+minp+" parses.";
+}
+// trend points surface in the dossier dock — no cursor-following surface
+function wireTrendDocks(box){
+  box.querySelectorAll("circle[data-tip]").forEach(c=>{
+    c.addEventListener("mouseenter",()=>{
+      const [name,wk,v,n]=c.dataset.tip.split("|");
+      dossierPreview={custom:{title:name, rows:[
+        ["week",wk],
+        [(TABS.find(t=>t.id===state.trendMetric)||TABS[0]).label.toLowerCase(),v],
+        ["parses",fmtInt(+n)]]}};
+      renderDossier();
+    });
+    c.addEventListener("mouseleave",()=>{
+      if(dossierPreview&&dossierPreview.custom){dossierPreview=null; renderDossier();}
+    });
+  });
+}
+function renderTrendGrid(box,series,weeks,ymin,ymax,fmtV,rankMode){
+  const w=230,h=84,padX=6,padY=7;
+  const xs=xi=>padX+(w-2*padX)*(weeks.length<2?0.5:xi/(weeks.length-1));
+  const ys=rankMode
+    ? v=>padY+(h-2*padY)*((v-ymin)/(ymax-ymin))
+    : v=>padY+(h-2*padY)*(1-(v-ymin)/(ymax-ymin));
+  let html='<div class="tgrid">';
+  series.forEach((s,si)=>{
+    const d=s.pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
+    const last=s.pts[s.pts.length-1];
+    let mini=`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px">`;
+    for(let gi=1;gi<=2;gi++){
+      const y=padY+(h-2*padY)*gi/3;
+      mini+=`<line x1="0" y1="${y.toFixed(1)}" x2="${w}" y2="${y.toFixed(1)}" stroke="rgba(234,227,208,.06)"/>`;
+    }
+    mini+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" `
+      +`vector-effect="non-scaling-stroke"${s.dash?` stroke-dasharray="${s.dash}"`:""}/>`;
+    for(const p of s.pts)
+      mini+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="2.6" fill="${s.color}"
+        data-tip="${esc(s.name)}|${esc(p.lbl)}|${esc(fmtV(p.v))}|${p.n}"/>`;
+    mini+="</svg>";
+    html+=`<div class="tcard"><div class="tname" style="color:${s.color}">${si+1}. ${esc(s.name)}`
+      +` <span class="tval">· ${esc(fmtV(last.v))} latest</span></div>${mini}</div>`;
+  });
+  box.innerHTML=html+"</div>";
+}
+
+/* ---------------- breakdown table ---------------- */
+function renderTable(rows,tab){
+  const gk=lastGhost;
+  const compare=!!gk&&!tab.trend;
+  // under the percentile ghost the A/B pair is the lens itself; under the
+  // period ghost it tracks the active tab (Trend fallback path kept)
+  const metricCol=gk==="pctl"?"med"
+    :(tab.trend?"avg":(tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id));
+  const metricLabel=gk==="pctl"?dpsLabel():(tab.trend?"Average DPS":tab.label);
+  const bLabel=gk==="pctl"?"p"+state.pctlB+" DPS B":metricLabel+" B";
+  const fmt=tab.trend?fmtInt:(gk==="pctl"?fmtInt:tab.fmt);
+  let cols;
+  if(compare){
+    cols=[["cls","Class","txt"],["spec","Spec","txt"]];
+    if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
+    cols.push(["a_n","Runs A"],["b_n","Runs B"],
+      ["a_v",metricLabel+" A"],["b_v",bLabel],["d","Δ %"]);
+  } else {
+    cols=[["cls","Class","txt"],["spec","Spec","txt"]];
+    if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
+    cols.push(["a_runs","Runs"],["a_n","Parses"],["chars","Characters"],
+      ["avg","Average DPS"],["med",dpsLabel()],
+      ["adeaths","Avg Deaths"],
+      ["deathless","Deathless %"]);
+    if(hasRating) cols.push(["arating","Avg Player Rating"],["mrating","Med Player Rating"]);
+  }
+  const get=(r,k)=>{
+    switch(k){
+      case "cls": return r.cls; case "spec": return r.spec; case "hero": return r.hero;
+      case "a_n": return r.a.n; case "b_n": return r.b?r.b.n:-1;
+      case "a_runs": return r.a.runs;
+      case "a_v": return r.a[metricCol];
+      case "b_v": return r.b?r.b[metricCol]:-Infinity;
+      case "d": return r.b&&Math.abs(r.b[metricCol])>1e-9
+        ?(r.a[metricCol]-r.b[metricCol])/Math.abs(r.b[metricCol]):-Infinity;
+      default: return r.a[k];
+    }
+  };
+  if(!cols.some(c=>c[0]===state.tsort.col))
+    state.tsort={col:compare?"a_v":"avg", dir:-1};
+  const {col,dir}=state.tsort;
+  const nz=v=>typeof v==="number"&&isNaN(v)?-Infinity:v;   // unrated groups sort last
+  const sorted=[...rows].sort((a,b)=>{
+    const x=get(a,col), y=get(b,col);
+    if(typeof x==="string") return x.localeCompare(y)*dir;
+    const d=nz(x)-nz(y);
+    return (isNaN(d)?0:d)*dir;
+  });
+  const dtab=gk==="pctl"?TABS.find(t=>t.id==="med"):tab;   // Δ colour direction
+  let h="<thead><tr>";
+  for(const [k,label,txt] of cols)
+    h+=`<th class="${txt||""} ${k===col?"sorted "+(dir<0?"desc":"asc"):""}" data-c="${k}">${label}</th>`;
+  h+="</tr></thead><tbody>";
+  const fmtCell=(k,r)=>{
+    const v=get(r,k);
+    if(k==="cls") return `<span class="classdot" style="background:${CLASS_COLORS[r.cls]||"#999"}"></span>`+esc(r.cls);
+    if(k==="spec"||k==="hero") return esc(v);
+    if(k==="a_n"||k==="chars") return fmtInt(v);
+    if(k==="b_n") return v<0?"–":fmtInt(v);
+    if(k==="a_v"){
+      if(!isFinite(v)) return "–";
+      const base=state.proj?r.a[metricCol==="avg"?"ravg"
+                             :metricCol==="med"?"rmed":null]:null;
+      return fmt(v)+(base==null?"":projDelta(v,base))
+        +'<span class="nsm">n '+fmtInt(r.a.n)+'</span>';
+    }
+    if(k==="b_v") return isFinite(v)?fmt(v):"–";
+    if(k==="d") return isFinite(v)
+      ?`<span class="delta ${ (v>=0)===dtab.betterUp?"up":"down" }">${(v>=0?"+":"")+(v*100).toFixed(1)}%</span>`:"–";
+    if(k==="arating"||k==="mrating") return isFinite(v)?fmtInt(v):"–";
+    if(k==="avg") return fmtInt(v)+(state.proj?projDelta(v,r.a.ravg):"");
+    if(k==="med") return fmtInt(v)+(state.proj?projDelta(v,r.a.rmed):"");
+    if(k==="adeaths") return v.toFixed(2);
+    if(k==="deathless") return v.toFixed(1)+"%";
+    return esc(v);
+  };
+  for(const r of sorted){
+    h+='<tr class="pinrow" data-key="'+r.key+'">';
+    for(const [k,,txt] of cols) h+=`<td class="${txt||""}">${fmtCell(k,r)}</td>`;
+    h+="</tr>";
+  }
+  $("tbl").innerHTML=h+"</tbody>";
+  $("tbl").querySelectorAll("th").forEach(th=>{
+    th.onclick=()=>{
+      const c=th.dataset.c;
+      state.tsort={col:c, dir:state.tsort.col===c?-state.tsort.dir:-1};
+      renderTable(rows,tab);
+    };
+  });
+  $("tbl").querySelectorAll("tr.pinrow").forEach(tr=>{
+    const key=+tr.dataset.key;
+    tr.onclick=()=>pinSpec(key);
+    tr.onmouseenter=()=>{dossierPreview={key}; renderDossier();};
+    tr.onmouseleave=()=>{if(dossierPreview&&dossierPreview.key===key){
+      dossierPreview=null; renderDossier();}};
+  });
+  $("tbl-sub").innerHTML=scopeLine("breakdown",{metricLabel});
+}
+
+loadSeason();
+</script>
+<script>
+// "New version available" toast: every 3 minutes HEAD this page and compare
+// the ETag against the first one seen; a change means a fresh deploy. Fully
+// isolated from the app above and hardened so it can never throw.
+(function(){
+  "use strict";
+  var firstTag=null, timer=null;
+  function poll(){
+    try{
+      fetch("index.html",{method:"HEAD",cache:"no-cache"}).then(function(r){
+        try{
+          var tag=r.headers.get("ETag");
+          if(!tag) return;
+          if(firstTag===null){firstTag=tag; return}
+          if(tag!==firstTag){
+            var t=document.getElementById("upd-toast");
+            if(t) t.hidden=false;
+            if(timer!==null){clearInterval(timer); timer=null}
+          }
+        }catch(e){}
+      }).catch(function(){});
+    }catch(e){}
+  }
+  try{
+    var t=document.getElementById("upd-toast");
+    if(t) t.addEventListener("click",function(ev){
+      try{
+        if(ev.target&&ev.target.classList&&ev.target.classList.contains("x")){
+          t.hidden=true; return;
+        }
+        location.reload();
+      }catch(e){}
+    });
+    timer=setInterval(poll,180000);
+    poll();
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
