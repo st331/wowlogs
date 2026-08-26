@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8"><meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="index,follow">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
@@ -624,8 +624,8 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
       Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC).
       <span id="built"></span>
       <br>Machine-readable data for AI agents:
-      <a href="llms.txt">llms.txt</a> · <a href="llms/">HTML tables</a> ·
-      <a href="data.json.gz">data.json.gz</a>.
+      <a href="../llms.txt">llms.txt</a> · <a href="../llms/">HTML tables</a> ·
+      <a href="../data.json.gz">data.json.gz</a>.
     </footer>
   </div>
 </main>
@@ -749,7 +749,7 @@ function fmtDay(d){const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*8
   return t.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"})}
 
 /* ---------------- season data source ---------------- */
-const SEASON={file:"data.json",
+const SEASON={file:"../data.json",
   sub:"Midnight Season 2 · built from Warcraft Logs fight rankings",
   foot:'Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs fight '
       +'rankings (~200 below +10, where the leaderboards are bottomless) — read it as '
