@@ -2054,7 +2054,9 @@ function render(){
       else{ a=Object.assign({},a0,{adeaths:a0.qdA});
             b=Object.assign({},a0,{adeaths:a0.qdB}); }
     }
-    if(!state.elite&&a0.chars<effMinA&&!(state.compare&&b&&b.chars>=effMinB)) continue;
+    // Roster is gated on period A alone: compare must never add or remove
+    // rows, only annotate them — a B-side ghost is context, not a ticket in.
+    if(!state.elite&&a0.chars<effMinA) continue;
     rows.push({key, cls:a0.cls, spec:a0.spec, hero:a0.hero, a, b});
   }
 
