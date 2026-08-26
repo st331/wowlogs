@@ -10,25 +10,31 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Inter:wght@400..800&display=swap">
 <title>Mythic+ Performance — Midnight</title>
 <style>
-/* ============ Candlelit Ledger v2 — tokens (design_language.md §2) ============ */
+/* ============ Candlelit Ledger v2 — tokens (verbatim from the design spec) ============ */
 :root{
+  /* ground — warm graphite. NEVER blue, NEVER purple. */
   --bg0:#181511;            /* page ground */
-  --bg-side:#11100C;        /* sidebar ground */
+  --bg-side:#11100C;        /* sidebar ground (darker rail) */
   --surface1:#211E18;       /* panels, cards, controls, table wrap */
-  --surface2:#29251D;       /* raised: sticky th, inspector, toast */
-  --ink:#EAE7E0; --ink2:#B8B2A6; --ink3:#908B80;
+  --surface2:#29251D;       /* raised: sticky table headers, docked tray, toast */
+  /* text — three tiers */
+  --ink:#EAE7E0;            /* primary: values, cell data, active labels */
+  --ink2:#B8B2A6;           /* secondary: button text, section titles, body labels */
+  --ink3:#908B80;           /* tertiary: captions, hints, th, idle chips/tabs */
+  /* accent — champagne / candle gold. ACTIVE + key emphasis only. */
   --accent:#E8BC57;
   --accent-dim:rgba(232,188,87,.10);
   --accent-line:rgba(232,188,87,.42);
-  --amber:#E8A33D;
-  --up:#3DDC84; --down:#FF6B6B;
+  /* semantic — text-only deltas, never fills */
+  --up:#3DDC84;  --down:#FF6B6B;
+  /* hairlines — warm-white alpha, three tiers */
   --line0:rgba(234,227,208,.05);
   --line1:rgba(234,227,208,.08);
   --line2:rgba(234,227,208,.14);
+  /* neutrals for compare-ghosts & reference ticks */
   --ghost:rgba(200,198,190,.45);
   --tickref:#C9C7C2;
-  --r2:6px; --r1:4px;
-  --barh:48px;
+  --r2:6px;  --r1:4px;
   --font:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
   --font-display:'Marcellus','Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
 }
@@ -49,55 +55,25 @@ button,input,select{font-family:inherit}
 ::-webkit-scrollbar-thumb:hover{background:#46413A}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-corner{background:transparent}
-
-/* ============ sticky Lens Bar ============ */
-#lensbar{position:sticky; top:0; z-index:40; height:var(--barh);
-  background:var(--bg0); border-bottom:1px solid var(--line1);
-  display:flex; align-items:center; gap:18px; padding:0 18px; white-space:nowrap}
-#lensbar .wordmark{font-family:var(--font-display); font-weight:400; font-size:1.28rem;
-  letter-spacing:.14em; text-transform:uppercase; line-height:1.15; color:var(--ink)}
-#lensbar .wordmark .acc{color:var(--accent)}
-#lensbar .wordmark .mark{display:none}
-.lgl{text-transform:uppercase; letter-spacing:.15em; font-size:.6rem; font-weight:600;
-  color:var(--ink3)}
-.lens-group{display:flex; align-items:center; gap:8px; position:relative}
-#lens-chips{display:flex; gap:6px; padding:0}
-#lens-fixed{color:var(--accent); font-size:.7rem}
-#archon-chip{display:inline-flex; align-items:center; gap:5px; cursor:pointer}
-#archon-chip input{position:absolute; opacity:0; width:1px; height:1px; pointer-events:none}
-#archon-chip:has(input:checked){color:var(--accent); border-color:var(--accent-line);
-  background:var(--accent-dim); font-weight:600}
-#cmpseg{margin:0}
-#cmpseg.dis{opacity:.45; pointer-events:none}
-#pctlb-chips{display:flex; align-items:center; gap:6px}
-#pctlb-chips[hidden]{display:none}
-#lens-pop{position:absolute; top:calc(var(--barh) - 6px); right:0; width:300px;
-  background:var(--surface2); border:1px solid var(--line2); border-radius:var(--r2);
-  padding:12px 14px; z-index:41; white-space:normal}
-#lens-pop[hidden]{display:none}
-#lensbar .lspace{flex:1}
-
-/* ============ layout ============ */
-.layout{display:grid; grid-template-columns:300px 1fr; min-height:calc(100vh - var(--barh));
+.layout{display:grid; grid-template-columns:300px 1fr; min-height:100vh;
+  /* paints the sidebar rail full-height even where the sticky aside box ends */
   background:linear-gradient(90deg, var(--bg-side) 299px,
     var(--line1) 299px 300px, transparent 300px)}
 @media(max-width:900px){.layout{grid-template-columns:1fr; background:none}}
+/* ---------------- sidebar ---------------- */
 aside{background:var(--bg-side); border-right:1px solid var(--line1); padding:20px 18px 48px}
-@media(min-width:901px){aside{position:sticky; top:var(--barh);
-  height:calc(100vh - var(--barh)); overflow-y:auto}}
+@media(min-width:901px){aside{position:sticky; top:0; height:100vh; overflow-y:auto}}
 .side-label{text-transform:uppercase; letter-spacing:.18em; font-size:.64rem;
   font-weight:700; color:var(--accent); margin:1.6rem 0 .6rem; padding-top:1.15rem;
   border-top:1px solid var(--line1)}
-.side-sub{text-transform:uppercase; letter-spacing:.14em; font-size:.6rem;
-  font-weight:600; color:var(--ink3); margin:.9rem 0 .3rem}
 details{margin:.4rem 0}
 summary{cursor:pointer; color:var(--ink); font-size:.84rem; font-weight:500;
   padding:.42rem .65rem; background:var(--surface1); border:1px solid var(--line1);
   border-radius:var(--r1); user-select:none; list-style:none;
-  display:flex; align-items:center; gap:.5rem}
+  display:flex; align-items:center; gap:.5rem; transition:border-color .13s}
 summary::-webkit-details-marker{display:none}
 summary:hover{border-color:var(--line2)}
-/* static marker swap — nothing rotates (design rule 1) */
+/* static marker swap — no rotation, no transition, no chevrons */
 summary::after{content:"+"; color:var(--ink3); margin-left:auto; font-size:.72rem}
 details[open] summary::after{content:"−"}
 summary .cnt{color:var(--accent); font-size:.72rem; font-weight:600}
@@ -107,14 +83,10 @@ summary .cnt{color:var(--accent); font-size:.72rem; font-weight:600}
   background:transparent; cursor:pointer; color:var(--ink3);
   user-select:none; transition:color .13s,border-color .13s,background-color .13s}
 .chip:hover{color:var(--ink); border-color:var(--line2)}
-.chip.on{border-color:var(--accent-line); color:var(--accent); background:var(--accent-dim)}
+.chip.on{color:var(--accent); border-color:var(--accent-line); background:var(--accent-dim)}
 .chip.ghosted.on{border-color:#8E8C86; color:#D8D6CF; background:rgba(200,198,190,.10)}
-label.chip{display:inline-flex; align-items:center; gap:5px}
-label.chip input{position:absolute; opacity:0; width:1px; height:1px; pointer-events:none}
-label.chip:has(input:checked){color:var(--accent); border-color:var(--accent-line);
-  background:var(--accent-dim)}
 .rowflex{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:.35rem 0}
-/* switches: rectangular track, sliding square knob — no pill, no glow (§15.5) */
+/* checkboxes render as switches: rectangular track, sliding knob, champagne when on */
 label.small input[type=checkbox]{appearance:none; -webkit-appearance:none;
   width:34px; height:18px; border-radius:var(--r1); background:rgba(234,227,208,.09);
   border:1px solid var(--line2); position:relative; cursor:pointer;
@@ -122,7 +94,7 @@ label.small input[type=checkbox]{appearance:none; -webkit-appearance:none;
   margin:0; flex:none}
 label.small input[type=checkbox]::after{content:""; position:absolute;
   top:2px; left:2px; width:12px; height:12px; border-radius:3px;
-  background:#B9B6B0; transition:transform .16s ease, background .16s}
+  background:#B9B6B0; transition:transform .16s ease, background-color .16s}
 label.small input[type=checkbox]:checked{background:var(--accent); border-color:var(--accent)}
 label.small input[type=checkbox]:checked::after{transform:translateX(16px); background:var(--bg0)}
 label.small input[type=checkbox]:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
@@ -131,7 +103,7 @@ label.small{display:inline-flex; font-size:.84rem; color:var(--ink);
 input[type=checkbox]{accent-color:var(--accent)}
 select,input[type=number]{background:var(--surface1); color:var(--ink);
   border:1px solid var(--line2); border-radius:var(--r1); padding:.32rem .55rem; font-size:.85rem}
-/* range sliders: 4px thumb, flat, no halo (§15.6) */
+/* range sliders: slim neutral track, 4px-radius champagne thumb, no halo */
 input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:24px;
   background:none; cursor:pointer; margin:.15rem 0}
 input[type=range]::-webkit-slider-runnable-track{height:4px; border-radius:2px;
@@ -140,9 +112,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:14px; hei
   border-radius:4px; background:var(--accent); border:2px solid var(--bg-side);
   margin-top:-5px; transition:background-color .13s}
 input[type=range]:hover::-webkit-slider-thumb{background:#F0C868}
+input[type=range]:active::-webkit-slider-thumb{background:#F0C868}
 input[type=range]::-moz-range-track{height:4px; border-radius:2px; background:rgba(234,227,208,.11)}
 input[type=range]::-moz-range-progress{height:4px; border-radius:2px; background:var(--accent)}
-input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
+input[type=range]::-moz-range-thumb{width:14px; height:14px; border-radius:4px;
   background:var(--accent); border:2px solid var(--bg-side)}
 .dual{position:relative; height:28px; margin:.35rem 0 .1rem}
 .dual .track{position:absolute; top:12px; left:0; right:0; height:4px;
@@ -157,68 +130,67 @@ input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
   border:2px solid var(--bg-side); cursor:pointer; margin-top:7px}
 .dual input::-moz-range-track{background:transparent}
 .dual input::-moz-range-progress{background:transparent}
-.dual input::-moz-range-thumb{pointer-events:auto; width:12px; height:12px;
+.dual input::-moz-range-thumb{pointer-events:auto; width:14px; height:14px;
   border-radius:4px; background:var(--accent); border:2px solid var(--bg-side); cursor:pointer}
 .hint{color:var(--ink3); font-size:.73rem; line-height:1.5; margin-top:.15rem}
 .bpanel{border:1px solid var(--line1); border-radius:var(--r2); padding:8px 10px;
   margin-top:.45rem; background:rgba(234,227,208,.02)}
-/* Lab frames — dashed quarantine for transient features (§15.13) */
-.lab{border:1px dashed var(--line2); border-radius:var(--r2); background:transparent;
-  padding:8px 12px; margin-top:.45rem}
-.labframe{padding:.4rem 0; border-top:1px solid var(--line0)}
-.labframe:first-child{border-top:0}
-.labhead{display:flex; align-items:center; gap:.5rem}
-.labname{font-size:.8rem; color:var(--ink); font-weight:500}
-.labtag{font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.14em;
-  color:var(--ink3); border:1px solid var(--line2); border-radius:var(--r1);
-  padding:.05rem .4rem; margin-left:auto}
-.labframe.dormant .labname{color:var(--ink3)}
-.labframe.dormant{opacity:.6}
-.labframe.active-on .labtag{color:var(--amber); border-color:rgba(232,163,61,.45)}
-.labstamp{color:var(--amber); font-size:.68rem; font-weight:600;
-  border:1px solid rgba(232,163,61,.4); border-radius:var(--r1); padding:0 .35rem}
-
-/* ============ main ============ */
-main{padding:34px 42px 72px; width:100%; max-width:1200px; min-width:0; margin:0 auto}
+/* Lab cards — dashed quarantine home for transients (never accent-bordered) */
+.labcard{border:1px dashed var(--line2); border-radius:var(--r2); background:transparent;
+  padding:8px 12px; margin-top:.45rem; position:relative}
+.labcard .labname{font-size:.78rem; font-weight:600; color:var(--ink)}
+.labcard .labstat{font-size:.6rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.14em; color:var(--ink3); border:1px solid var(--line2);
+  border-radius:var(--r1); padding:.05rem .4rem; margin-left:auto}
+.labcard .labhead{display:flex; align-items:center; gap:.5rem}
+.labcard .labscope{color:var(--ink3); font-size:.71rem; line-height:1.45; margin:.25rem 0 .1rem}
+.labcard.dormant{opacity:.55}
+.labcard.dormant .labname{color:var(--ink3); font-weight:500}
+.labtag{font-size:.62rem; font-weight:700; letter-spacing:.08em; color:var(--accent);
+  border:1px solid var(--accent-line); border-radius:var(--r1);
+  padding:.02rem .35rem; margin-left:.45rem; white-space:nowrap}
+.labtag.dim{color:var(--ink3); border-color:var(--line2)}
+/* ---------------- main ---------------- */
+/* Centered bounded measure: content floats mid-viewport; nothing full-bleed. */
+main{padding:34px 42px 72px; max-width:1200px; min-width:0; margin:0 auto}
 @media(max-width:900px){main{padding:26px 18px 56px}}
-.hero-sub{color:var(--ink3); font-size:.88rem; letter-spacing:.04em}
-.hero-rule{height:2px; border:0; margin:14px 0 22px;
-  background:linear-gradient(90deg,var(--accent-line),rgba(232,188,87,.10) 45%,transparent 75%)}
-/* sticky context strip */
-#strip{position:sticky; top:var(--barh); z-index:30; background:var(--bg0);
-  border-bottom:1px solid var(--line1); display:flex; flex-wrap:wrap; align-items:center;
-  gap:4px 14px; padding:.45rem 0; margin-bottom:16px}
-#strip.amber{border-bottom-color:rgba(232,163,61,.5)}
-.skpi{font-size:.8rem; color:var(--ink3); white-space:nowrap}
-.skpi b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
-.skpi i{font-style:normal; margin-left:4px; text-transform:uppercase; font-size:.6rem;
-  letter-spacing:.12em}
-#scope-chips{display:inline-flex; flex-wrap:wrap; gap:5px}
-#scope-chips .chip{font-size:.68rem; padding:.12rem .45rem}
-#notice{font-size:.72rem; color:var(--ink3); margin-left:auto}
-#trust-amber{font-size:.72rem; color:var(--amber)}
-#trust-amber .chip{font-size:.66rem; padding:.08rem .4rem; color:var(--amber);
-  border-color:rgba(232,163,61,.45)}
-.kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:14px}
-@media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r2);
-  padding:.95rem 1.15rem .9rem}
-.kpi .l{text-transform:uppercase; letter-spacing:.15em; font-size:.62rem;
+.hero-title{font-family:var(--font-display); font-size:1.9rem; font-weight:400;
+  letter-spacing:.14em; line-height:1.15; text-transform:uppercase; color:var(--ink)}
+.hero-title .gold{color:var(--accent)}
+.hero-sub{color:var(--ink3); font-size:.88rem; letter-spacing:.04em; margin-top:.5rem}
+.hero-rule{height:2px; border:0; margin:18px 0 26px;
+  background:linear-gradient(90deg, var(--accent-line), rgba(232,188,87,.10) 45%, transparent 75%)}
+/* ---------------- sticky Command Bar ---------------- */
+#cmdbar{position:sticky; top:0; z-index:40; background:var(--bg0);
+  border-bottom:1px solid var(--line1); margin:0 0 14px; padding:.5rem 0 .55rem}
+.cb-in{display:flex; align-items:center; gap:16px; flex-wrap:nowrap;
+  overflow:hidden; white-space:nowrap; min-width:0}
+.cb-kpi{display:inline-flex; align-items:baseline; gap:.45rem; flex:none}
+.cb-kpi .l{text-transform:uppercase; letter-spacing:.15em; font-size:.62rem;
   font-weight:600; color:var(--ink3)}
-.kpi .v{font-size:1.75rem; font-weight:700; letter-spacing:-.015em; margin-top:.3rem;
-  line-height:1.15; font-variant-numeric:tabular-nums}
+.cb-kpi .v{font-size:.98rem; font-weight:700; letter-spacing:-.015em; color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.cb-pctl{display:inline-flex; align-items:center; gap:.5rem; flex:none}
+.cb-pctl .l{text-transform:uppercase; letter-spacing:.15em; font-size:.62rem;
+  font-weight:600; color:var(--ink3)}
+.cb-pctl b{color:var(--accent); font-variant-numeric:tabular-nums; font-size:.9rem}
+.cb-pctl input[type=range]{width:92px; margin:0}
+.cbchip{font-size:.75rem; font-weight:500; line-height:1.4; padding:.24rem .55rem;
+  border-radius:var(--r1); border:1px solid rgba(234,227,208,.10); background:transparent;
+  color:var(--ink3); cursor:pointer; user-select:none; flex:none;
+  transition:color .13s,border-color .13s,background-color .13s}
+.cbchip:hover{color:var(--ink); border-color:var(--line2)}
+.cbchip.on{color:var(--accent); border-color:var(--accent-line); background:var(--accent-dim)}
+label.cbchip{display:inline-flex; align-items:center; gap:6px; color:var(--ink2)}
+label.cbchip input[type=checkbox]{vertical-align:-3px}
+#divslot{flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis;
+  text-align:right; color:var(--ink3); font-size:.73rem}
+@media(max-width:1366px){.cb-kpi.fold{display:none}}
+@media(max-width:1140px){.cb-kpi.fold2{display:none}}
+@media(max-width:900px){#divslot{display:none}}
 .kpi-note{color:var(--ink3); font-size:.78rem; margin-top:.7rem; line-height:1.55}
 .kpi-note b{color:var(--ink); font-weight:600}
-/* Archon generated scope card */
-#archon-card{border:1px solid var(--accent-line); border-radius:var(--r2);
-  background:var(--accent-dim); padding:.7rem .95rem; margin-top:.8rem; font-size:.78rem;
-  line-height:1.55; color:var(--ink2)}
-#archon-card .ac-head{color:var(--accent); font-weight:600; font-size:.72rem;
-  text-transform:uppercase; letter-spacing:.14em; margin-bottom:.25rem}
-#archon-card .byp{color:var(--ink3)}
-#archon-card .byp s{opacity:.75}
-#archon-card[hidden]{display:none}
-/* section headers — static marker + champagne state tick (§15.9) */
+/* ---------------- sections: static marker + champagne state tick ---------------- */
 .sec{display:flex; align-items:baseline; gap:.75rem; margin:2.6rem 0 1rem;
   padding-bottom:.55rem; border-bottom:1px solid var(--line1);
   cursor:pointer; user-select:none; position:relative}
@@ -234,31 +206,33 @@ main{padding:34px 42px 72px; width:100%; max-width:1200px; min-width:0; margin:0
 .secbody[hidden]{display:none}
 .sec .t{text-transform:uppercase; letter-spacing:.22em; font-size:.8rem;
   font-weight:700; color:var(--ink2); transition:color .13s}
-.sec .s{color:var(--ink3); font-size:.76rem}
+.sec .s{color:var(--ink3); font-size:.76rem; min-width:0}
+.sectools{margin-left:auto; display:inline-flex; align-items:center; gap:.5rem;
+  color:var(--ink3); font-size:.75rem; cursor:default; flex:none}
+.sectools b{color:var(--accent); font-variant-numeric:tabular-nums}
+.sectools input[type=range]{width:110px; margin:0}
 .seg{display:inline-flex; border:1px solid var(--line2); border-radius:var(--r1);
   overflow:hidden; margin:.3rem 0 .7rem; flex-wrap:wrap; background:rgba(234,227,208,.02)}
 .seg button{background:transparent; color:var(--ink3); border:0; padding:.42rem .95rem;
-  font-size:.8rem; font-weight:500; cursor:pointer; transition:color .13s}
+  font-size:.8rem; font-weight:500; cursor:pointer; transition:color .13s, background-color .13s}
 .seg button:hover{color:var(--ink)}
 .seg button.on{background:var(--accent-dim); color:var(--accent); font-weight:600;
   box-shadow:inset 0 0 0 1px var(--accent-line)}
-.segrow{display:flex; flex-wrap:wrap; gap:0 8px; align-items:center}
 .tabs{display:flex; gap:2px; flex-wrap:wrap; border-bottom:1px solid var(--line1); margin-bottom:16px}
 .tabs button{background:none; border:0; color:var(--ink3); padding:.5rem .85rem;
   font-size:.84rem; font-weight:500; cursor:pointer; border-bottom:2px solid transparent;
   border-radius:0; margin-bottom:-1px; transition:color .13s}
 .tabs button:hover{color:var(--ink)}
 .tabs button.on{color:var(--accent); border-bottom-color:var(--accent); font-weight:600}
-/* bars — flat, bounded, radius 0 (§15.10) */
+/* ---------------- bars: flat, bounded, radius 0, calm hover ---------------- */
 #chart{max-width:960px}
 .brow{display:grid; grid-template-columns:minmax(150px,300px) 1fr; gap:12px;
   align-items:center; padding:2.5px 6px 2.5px 2px; border-radius:0}
 .blbl{text-align:right; font-size:.78rem; color:var(--ink3); white-space:nowrap;
   overflow:hidden; text-overflow:ellipsis; transition:color .12s}
-.blbl span{cursor:pointer}
 .brow.hot .blbl{color:var(--ink)}
 .btrack{position:relative; height:20px}
-.bbar{position:absolute; top:0; bottom:0; border-radius:0; min-width:2px; cursor:pointer}
+.bbar{position:absolute; top:0; bottom:0; border-radius:0; min-width:2px}
 .cmp .bbar{bottom:auto; height:12px}
 .bghost{position:absolute; top:14px; height:5px; border-radius:0;
   background:var(--ghost); min-width:2px}
@@ -273,10 +247,9 @@ main{padding:34px 42px 72px; width:100%; max-width:1200px; min-width:0; margin:0
 .delta{font-size:.72rem; font-weight:700; margin-left:6px}
 .delta.up{color:var(--up)} .delta.down{color:var(--down)}
 td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
-.na{color:var(--ink3)}
 .caption{color:var(--ink3); font-size:.76rem; margin-top:.8rem; line-height:1.6}
-/* tooltip — position-once, flat (owner prefs 1 & 7 hotfix preserved) */
-#tip{position:fixed; z-index:45; background:var(--surface2); border:1px solid var(--line2);
+/* tooltip — positions once on entry, flat overlay surface */
+#tip{position:fixed; z-index:10; background:var(--surface2); border:1px solid var(--line2);
   border-radius:var(--r2); padding:.65rem .85rem; font-size:.78rem; pointer-events:none;
   display:none; max-width:320px}
 #tip b{color:var(--accent)}
@@ -284,7 +257,7 @@ td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 #tip td{padding:.08rem .5rem .08rem 0; color:var(--ink); text-align:right;
   font-variant-numeric:tabular-nums}
 #tip td:first-child{color:var(--ink3); text-align:left}
-/* tables (§15.15) */
+/* ---------------- tables ---------------- */
 .tblwrap{overflow-x:auto; border:1px solid var(--line1); border-radius:var(--r2);
   background:var(--surface1)}
 table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700px}
@@ -296,7 +269,7 @@ table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700
 .data th.txt{text-align:left}
 #settbl th{white-space:normal}
 .data th.sorted{color:var(--accent)}
-/* static edge rule = sort direction — no arrows/carets/triangles (§15.15) */
+/* static edge rule shows sort direction — no arrows, carets or triangles */
 .data th.sorted.desc{box-shadow:inset 0 -2px 0 var(--accent)}
 .data th.sorted.asc{box-shadow:inset 0 2px 0 var(--accent)}
 .data td{padding:.44rem .75rem; border-top:1px solid var(--line0);
@@ -309,30 +282,25 @@ table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700
 .comp span{font-size:.8rem; white-space:nowrap}
 .comp .role{color:var(--ink3); font-size:.66rem; text-transform:uppercase;
   letter-spacing:.06em; margin-right:.15rem}
-/* pulse */
-#pulse td{font-size:.8rem}
-#pulse .verd{color:var(--ink3); font-size:.74rem; white-space:nowrap}
-#pulse .rtag{font-size:.62rem; font-weight:700; text-transform:uppercase;
-  letter-spacing:.1em; color:var(--amber); border:1px solid rgba(232,163,61,.4);
-  border-radius:var(--r1); padding:.03rem .3rem}
-#pulse .spname{cursor:pointer}
-.na-block .tblwrap,.na-block .caption{opacity:.35; pointer-events:none}
-footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
-  border-top:1px solid var(--line1); padding-top:1.2rem}
-/* loading — sliding accent segment, no spinner (§7) */
-#loading{display:flex; align-items:center; gap:.8rem; padding:90px 40px;
-  color:var(--ink3); font-size:.95rem}
-#loading::before{content:""; width:120px; height:2px; flex:none;
-  background-color:var(--line1);
-  background-image:linear-gradient(90deg,var(--accent),var(--accent));
-  background-size:40px 2px; background-repeat:no-repeat;
-  animation:loadslide 1s ease-in-out alternate infinite}
-@keyframes loadslide{from{background-position:0 0} to{background-position:80px 0}}
-.btn{background:var(--surface1); border:1px solid var(--line2); color:var(--ink2);
-  border-radius:var(--r1); padding:.45rem .85rem; cursor:pointer; font-size:.84rem;
-  font-weight:500; transition:border-color .13s, color .13s}
-.btn:hover{border-color:var(--accent-line); color:var(--accent)}
-.btn:disabled{opacity:.5; cursor:default}
+/* ---------------- Meta Pulse ---------------- */
+.pulsegrid{display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:16px; align-items:start}
+@media(max-width:1000px){.pulsegrid{grid-template-columns:1fr}}
+.pulsehead{display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:.4rem}
+.pulsehead b{color:var(--ink); font-weight:600; font-size:.82rem}
+.pulsehead .seg{margin:0}
+#pulsetbl{min-width:640px}
+#pulsetbl td.verd{color:var(--ink3); font-size:.74rem; text-align:left; white-space:nowrap}
+.pulseblk{background:var(--surface1); border:1px solid var(--line1);
+  border-radius:var(--r2); padding:.7rem .9rem .75rem; margin-bottom:12px}
+.pulseblk .pb-t{text-transform:uppercase; letter-spacing:.15em; font-size:.62rem;
+  font-weight:600; color:var(--ink3); margin-bottom:.45rem}
+.pulseblk .pb-row{font-size:.78rem; color:var(--ink); padding:.18rem 0;
+  border-top:1px solid var(--line0); font-variant-numeric:tabular-nums; line-height:1.45}
+.pulseblk .pb-row:first-of-type{border-top:0}
+.pulseblk .pb-sub{color:var(--ink3); font-size:.7rem; margin-top:.4rem; line-height:1.5}
+.pulse-grey{opacity:.55}
+.sparky{vertical-align:middle}
+/* ---------------- trend ---------------- */
 #trendbox svg{display:block; width:100%}
 #trendbox text{font:11px var(--font)}
 #trendbox [data-si]{cursor:pointer}
@@ -345,122 +313,65 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
   text-overflow:ellipsis; margin-bottom:3px}
 .tcard .tval{color:var(--ink3); font-size:.7rem; font-weight:400}
 .tcard svg{display:block; width:100%}
-/* docked click-pin inspector rail (§15.11) */
-#inspect-pos{position:fixed; left:0; right:0; bottom:0; z-index:50; display:flex;
+/* ---------------- footer, loading, buttons ---------------- */
+footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
+  border-top:1px solid var(--line1); padding-top:1.2rem}
+#loading{display:flex; align-items:center; gap:.8rem; padding:90px 40px;
+  color:var(--ink3); font-size:.95rem}
+#loading .lbar{width:120px; height:2px; background:var(--line1); overflow:hidden; flex:none}
+#loading .lbar i{display:block; width:40px; height:2px; background:var(--accent);
+  animation:lslide 1s ease-in-out alternate infinite}
+@keyframes lslide{to{transform:translateX(80px)}}
+.btn{background:var(--surface1); border:1px solid var(--line2); color:var(--ink2);
+  border-radius:var(--r1); padding:.45rem .85rem; cursor:pointer; font-size:.84rem;
+  font-weight:500; transition:border-color .13s, color .13s}
+.btn:hover{border-color:var(--accent-line); color:var(--accent)}
+.btn:disabled{opacity:.5; cursor:default}
+/* ---------------- S-PINS docked tray: inert positioner + bounded inner box ---------------- */
+#pins-pos{position:fixed; left:0; right:0; bottom:0; z-index:50; display:flex;
   justify-content:center; padding:0 42px; pointer-events:none}
-@media(max-width:900px){#inspect-pos{padding:0 18px}}
-#inspect{pointer-events:auto; width:100%; max-width:1116px;
-  background:var(--surface2); border:1px solid var(--accent-line); border-bottom:0;
-  border-radius:var(--r2) var(--r2) 0 0;
-  padding:.6rem 1.1rem .7rem; font-size:.78rem; max-height:38vh; overflow-y:auto;
-  display:flex; gap:1.2rem; flex-wrap:wrap;
-  animation:dockin .16s ease}
-@keyframes dockin{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
-.icard{flex:1 1 300px; min-width:280px; max-width:380px}
-.ihead{display:flex; align-items:center; gap:.45rem; margin-bottom:.2rem}
-.ihead b{color:var(--ink); font-weight:600}
-.pin-tag{font-size:.62rem; color:var(--accent); border:1px solid var(--accent-line);
-  border-radius:var(--r1); padding:.05rem .4rem; margin-left:auto; white-space:nowrap}
-.ix{background:none; border:0; color:var(--ink3); cursor:pointer; font-size:.85rem;
-  padding:.05rem .4rem; border-radius:var(--r1); line-height:1}
-.ix:hover{color:var(--ink); background:rgba(234,227,208,.07)}
-.ibody table{border-collapse:collapse}
-.ibody td{padding:.06rem .5rem .06rem 0; color:var(--ink); text-align:right;
-  font-variant-numeric:tabular-nums}
-.ibody td:first-child{color:var(--ink3); text-align:left}
-/* toasts (§15.12) — flat, no shadow */
-#upd-toast,#archon-toast{position:fixed; right:20px; bottom:20px; z-index:60; display:flex;
-  align-items:center; gap:.55rem; font-size:.84rem;
-  background:var(--surface2); border:1px solid var(--accent-line); border-radius:var(--r2);
-  padding:.65rem .45rem .65rem .95rem;
+@media(max-width:900px){#pins-pos{padding:0 18px}}
+#pinstray{pointer-events:auto; width:100%; max-width:1116px;
+  background:var(--surface2); border:1px solid var(--line2); border-bottom:0;
+  border-radius:var(--r2) var(--r2) 0 0; padding:.55rem 1.1rem .6rem; font-size:.78rem;
+  display:flex; align-items:center; gap:1rem; flex-wrap:wrap; max-height:38vh; overflow-y:auto}
+.pin-tag{font-size:.72rem; color:var(--accent); border:1px solid var(--accent-line);
+  border-radius:var(--r1); padding:.1rem .5rem; flex:none}
+.pincard{display:inline-flex; align-items:baseline; gap:.6rem; padding:.15rem .3rem;
+  font-variant-numeric:tabular-nums; min-width:0}
+.pincard b{color:var(--ink); font-weight:600; white-space:nowrap}
+.pincard .pv{color:var(--ink3); white-space:nowrap; font-size:.74rem}
+.pincard .pdot{width:9px; height:9px; border-radius:2px; display:inline-block;
+  align-self:center; flex:none}
+.pincard .px{background:none; border:0; color:var(--ink3); cursor:pointer;
+  padding:.05rem .35rem; border-radius:var(--r1); font-size:.85rem; line-height:1}
+.pincard .px:hover{color:var(--ink); background:rgba(234,227,208,.07)}
+/* ---------------- update toast ---------------- */
+#upd-toast{position:fixed; right:20px; bottom:20px; z-index:60; display:flex;
+  align-items:center; gap:.55rem; font-size:.84rem; cursor:pointer;
+  background:var(--surface2); border:1px solid var(--accent-line);
+  border-radius:var(--r2); padding:.65rem .45rem .65rem .95rem;
   animation:toastin .16s ease}
-#upd-toast{cursor:pointer}
-#archon-toast{bottom:70px}
-#upd-toast[hidden],#archon-toast[hidden]{display:none}
+#upd-toast[hidden]{display:none}
 #upd-toast b{color:var(--accent); font-weight:600}
-#upd-toast span,#archon-toast span{color:var(--ink3)}
-#archon-toast .btn{padding:.3rem .6rem; font-size:.76rem}
-.x{background:none; border:0; color:var(--ink3); font-size:.95rem;
+#upd-toast span{color:var(--ink3)}
+#upd-toast .x{background:none; border:0; color:var(--ink3); font-size:.95rem;
   cursor:pointer; padding:.15rem .5rem; border-radius:var(--r1); line-height:1}
-.x:hover{color:var(--ink); background:rgba(234,227,208,.07)}
+#upd-toast .x:hover{color:var(--ink); background:rgba(234,227,208,.07)}
 @keyframes toastin{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
-/* mandatory one-row condensation at ≤1366×768 (E01 graft) */
-@media(max-width:1366px),(max-height:768px){
-  :root{--barh:40px}
-  #lensbar{gap:12px}
-  #lensbar .wordmark .full{display:none}
-  #lensbar .wordmark .mark{display:inline; font-size:1.1rem}
-  .skpi i{display:none}
-  #strip{padding:.3rem 0}
-}
-@media(max-width:900px){
-  #lensbar{height:auto; min-height:var(--barh); flex-wrap:wrap; padding:6px 12px; position:static}
-  aside{position:static; height:auto}
-  #strip{top:0}
-}
 </style>
 </head>
 <body>
 <div id="tip"></div>
-
-<!-- ============ sticky Lens Bar — the whole page reads through this lens ============ -->
-<header id="lensbar">
-  <div class="wordmark"><span class="mark">⚔</span><span class="full">Mythic+ <span class="acc">Performance</span></span></div>
-  <div class="lens-group">
-    <span class="lgl">Lens</span>
-    <div class="chips" id="lens-chips">
-      <span class="chip" data-p="30">p30</span>
-      <span class="chip on" data-p="50">p50</span>
-      <span class="chip" data-p="85">p85</span>
-      <span class="chip" id="lens-me" hidden>★Me</span>
-      <span class="chip" id="lens-read" title="open the percentile slider">p50 +</span>
-    </div>
-    <span class="hint" id="lens-fixed" hidden>fixed p85</span>
-    <div id="lens-pop" hidden>
-      <div><b>DPS percentile: <span id="pctl-v">50</span>th</b></div>
-      <input type="range" id="pctl" min="0" max="99" step="1" value="50">
-      <span class="hint">drives the percentile DPS everywhere it appears — chart, trend, breakdown, tooltips, Set Bonus DPS columns. Averages stay averages. 0 = worst parse, 50 = median, 90 ≈ Archon's ceiling view</span>
-      <div class="rowflex" style="margin-top:.55rem">
-        <button class="btn" id="lens-save">★ Save current lens</button>
-        <button class="btn" id="lens-clear">Clear ★Me</button>
-      </div>
-    </div>
-  </div>
-  <label class="chip" id="archon-chip"><input type="checkbox" id="archon"> ⚔ Archon</label>
-  <span class="lspace"></span>
-  <div class="lens-group">
-    <span class="lgl">Compare</span>
-    <div class="seg" id="cmpseg">
-      <button data-a="off" class="on">Off</button>
-      <button data-a="time">Time</button>
-      <button data-a="skill">Skill</button>
-    </div>
-    <div id="pctlb-chips" hidden>
-      <span class="lgl">vs</span>
-      <span class="chip" data-p="30">p30</span>
-      <span class="chip" data-p="50">p50</span>
-      <span class="chip on" data-p="85">p85</span>
-    </div>
-  </div>
-</header>
-
 <div class="layout">
 <aside id="side" style="display:none">
   <button class="btn" style="width:100%" onclick="location.reload()">↺ Reset filters</button>
 
   <div class="side-label">Scope</div>
-  <div class="side-sub">Who — class, spec &amp; talents</div>
   <details><summary>Class <span class="cnt" id="cnt-cls"></span></summary><div class="chips" id="f-cls"></div></details>
   <details><summary>Spec <span class="cnt" id="cnt-spec"></span></summary><div class="chips" id="f-spec"></div></details>
-  <div class="rowflex"><label class="small"><input type="checkbox" id="merge" checked> Merge hero talents into spec</label></div>
   <details id="hero-box"><summary>Hero Talent <span class="cnt" id="cnt-hero"></span></summary><div class="chips" id="f-hero"></div></details>
-  <details open><summary>Role <span class="cnt" id="cnt-role"></span></summary><div class="chips" id="f-role"></div></details>
-  <div class="rowflex">
-    <label class="small"><input type="checkbox" id="melee"> Melee</label>
-    <label class="small"><input type="checkbox" id="ranged"> Ranged</label>
-    <span class="hint">both/neither = no filter</span>
-  </div>
-  <div class="side-sub">Where</div>
+  <div class="rowflex"><label class="small"><input type="checkbox" id="merge" checked> Merge hero talents into spec</label></div>
   <details><summary>Dungeon <span class="cnt" id="cnt-dun"></span></summary><div class="chips" id="f-dun"></div></details>
   <div style="margin-top:.5rem">Key Level: <b id="keys-v" style="color:var(--accent)"></b></div>
   <div class="dual">
@@ -468,7 +379,8 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <input type="range" id="klo"><input type="range" id="khi">
   </div>
   <details style="margin-top:.4rem"><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
-  <div class="side-sub">When — time period</div>
+
+  <div class="side-label">When + Baseline</div>
   <div class="chips" id="presetA" style="padding-top:2px"></div>
   <details><summary>Custom weeks <span class="cnt" id="cnt-weeksA"></span></summary>
     <div class="chips" id="f-weeksA"></div></details>
@@ -481,22 +393,20 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <details><summary>Custom weeks (B) <span class="cnt" id="cnt-weeksB"></span></summary>
       <div class="chips" id="f-weeksB"></div></details>
   </div>
+  <label class="small" id="tunebox" style="display:none; margin-top:.5rem">
+    <input type="checkbox" id="posttune"> Since latest tuning
+    <span class="hint" id="tunehint"></span>
+  </label>
 
-  <div id="tierbox">
-    <div class="side-label">Cohort — gear</div>
-    <div class="chips" style="padding-top:2px">
-      <label class="chip"><input type="checkbox" id="t0"> No set</label>
-      <label class="chip"><input type="checkbox" id="t2"> 2-piece</label>
-      <label class="chip"><input type="checkbox" id="t4"> 4-piece</label>
-    </div>
-    <span class="hint" id="tierhint"></span>
+  <div class="side-label">Cohort</div>
+  <details open><summary>Role <span class="cnt" id="cnt-role"></span></summary><div class="chips" id="f-role"></div></details>
+  <div class="rowflex">
+    <label class="small"><input type="checkbox" id="melee"> Melee</label>
+    <label class="small"><input type="checkbox" id="ranged"> Ranged</label>
+    <span class="hint">both/neither = no filter</span>
   </div>
 
-  <div class="side-label">Trust</div>
-  <div class="seg" id="timedseg" style="margin:.2rem 0 .5rem">
-    <button data-t="0" class="on">All completed</button>
-    <button data-t="1">⏱ Timed only</button>
-  </div>
+  <div class="side-label">Trust Gate</div>
   <div>Minimum characters:
     <b id="minchars-v" style="color:var(--accent)">250</b>
     <span id="minchars-eff" class="hint"></span></div>
@@ -508,77 +418,46 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     melee/ranged and un-merging hero talents change which specs are listed
     rather than the sample behind them, so those leave the threshold alone and
     the list is free to grow or shrink. Drag to show more or fewer.</div>
-  <div style="margin-top:.7rem">Min runs per comp:
-    <b id="compmin-v" style="color:var(--accent)">20</b></div>
-  <input type="range" id="compmin" min="1" max="100" value="20">
-  <div class="hint">A composition needs this many runs to appear in Top Comps —
-    raise it to filter out one-off groups.</div>
+  <div class="seg" id="timedseg" style="margin:.6rem 0 0">
+    <button data-t="0" class="on">All completed</button>
+    <button data-t="1">⏱ Timed only</button>
+  </div>
 
   <div class="side-label">⚗ Lab</div>
-  <div class="lab">
-    <div class="labframe" id="lab-posttune">
-      <div class="labhead"><span class="labname">Since latest tuning</span>
-        <span class="labtag" id="lab-posttune-status">dormant</span></div>
-      <label class="small" id="tunebox" style="display:none; margin-top:.25rem">
-        <input type="checkbox" id="posttune"> Apply filter
-        <span class="hint" id="tunehint"></span>
-      </label>
-      <div class="hint" id="lab-posttune-line">awaiting data — no tuning pass in this payload</div>
-    </div>
-    <div class="labframe" id="lab-proj">
-      <div class="labhead"><span class="labname">🔮 Project upcoming tuning</span>
-        <span class="labtag" id="lab-proj-status">dormant</span></div>
-      <label class="small" id="projbox" style="display:none; margin-top:.25rem">
-        <input type="checkbox" id="projcb"> Apply projection
-        <span class="hint" id="projhint"></span>
-      </label>
-      <div class="hint" id="lab-proj-line">awaiting data — no projection in this payload</div>
-    </div>
-    <div class="labframe" id="lab-gear">
-      <div class="labhead"><span class="labname">Gear cohorts</span>
-        <span class="labtag">graduated</span></div>
-      <div class="hint">graduated → Cohort group above (season 2)</div>
-    </div>
-  </div>
+  <div id="labbox"></div>
 
   <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. Hover any week chip for its dates and volume.</p>
 </aside>
 
 <main>
+  <div class="hero-title">⚔️ Mythic+ <span class="gold">Performance</span></div>
   <div class="hero-sub" id="hero-sub">Midnight Season 2 · built from Warcraft Logs fight rankings</div>
   <div class="hero-rule"></div>
 
-  <div id="loading">Loading data…</div>
+  <div id="loading"><span class="lbar"><i></i></span><span id="loading-msg">Loading data…</span></div>
   <div id="app" style="display:none">
-    <!-- sticky context strip: compressed KPIs · shown-count · scope chips · notice slot -->
-    <div id="strip">
-      <span class="skpi"><b id="k-runs-c">–</b><i>runs</i></span>
-      <span class="skpi"><b id="k-parses-c">–</b><i>parses</i></span>
-      <span class="skpi"><b id="k-groups-c">–</b><i>groups</i></span>
-      <span class="skpi"><b id="k-dates-c">–</b></span>
-      <span class="chip" id="showncount" title="Click to show every group regardless of the minimum-characters trust gate — an undo chip appears."></span>
-      <span id="scope-chips"></span>
-      <span id="trust-amber" hidden>trust gate lowered — <span class="chip" id="trust-undo">undo</span></span>
-      <span id="notice"></span>
-    </div>
-
-    <div class="kpis">
-      <div class="kpi"><div class="l">Dungeon runs</div><div class="v" id="k-runs">–</div></div>
-      <div class="kpi"><div class="l">Player parses</div><div class="v" id="k-parses">–</div></div>
-      <div class="kpi"><div class="l">Groups compared</div><div class="v" id="k-groups">–</div></div>
-      <div class="kpi"><div class="l">Run dates</div><div class="v" id="k-dates">–</div></div>
-    </div>
+    <div id="cmdbar"><div class="cb-in">
+      <span class="cb-kpi fold2" title="Dungeon runs in period A"><span class="l">Runs</span><b class="v" id="k-runs">–</b></span>
+      <span class="cb-kpi" title="Player parses in period A"><span class="l">Parses</span><b class="v" id="k-parses">–</b></span>
+      <span class="cb-kpi" title="Groups compared (shown of seen)"><span class="l">Groups</span><b class="v" id="k-groups">–</b></span>
+      <span class="cb-kpi fold" title="Run dates covered by period A"><span class="l">Dates</span><b class="v" id="k-dates">–</b></span>
+      <span class="cb-pctl"><span class="l">DPS pctl</span><b><span id="pctl-v">50</span>th</b>
+        <input type="range" id="pctl" min="0" max="99" step="1" value="50" title="drives the percentile DPS everywhere it appears — chart, trend, breakdown, tooltips, Set Bonus DPS columns. Averages stay averages. 0 = worst parse, 50 = median, 90 ≈ Archon's ceiling view">
+        <button class="cbchip" id="mesave" title="Save this lens (percentile, key range, role) as the ★Me preset">☆</button>
+        <button class="cbchip" id="mebtn" hidden>★Me</button></span>
+      <button class="cbchip" id="cmp-chip" title="Period compare status — click to toggle this-vs-last reset">Compare off</button>
+      <label class="cbchip small" id="archon-chip" title="Keys 12–19, all completed runs, the last two resets (Archon's own scope: 'the top 5% of keys in the last 14 days'), hero talents merged, DPS role, no tier filter, DPS percentile 90 — reproduces their published numbers to within ~1% and their ordering at ρ≈0.95. Unchecks itself the moment any of those settings moves.">
+        <input type="checkbox" id="archon"> <b>Archon mode</b></label>
+      <span id="divslot"></span>
+    </div></div>
     <div class="kpi-note" id="period-note"></div>
-    <div id="archon-card" hidden></div>
 
-    <div class="sec" data-sec="pulse"><span class="mk"></span><span class="t">⚡ Pulse</span><span class="s" id="pulse-sub"></span></div>
+    <div class="sec" data-sec="pulse"><span class="mk"></span><span class="t">Meta Pulse</span><span class="s" id="pulse-sub"></span></div>
     <div class="secbody" id="sec-pulse">
-    <div class="hint" id="pulse-note" style="margin-bottom:.4rem"></div>
-    <div class="tblwrap"><table class="data" id="pulse"></table></div>
-    <div class="caption" id="pulse-caption"></div>
+    <div id="pulsebox"></div>
     </div>
 
-    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">hover any bar for the full story</span></div>
+    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Rankings</span><span class="s" id="ov-sub">hover any bar for the full story</span></div>
     <div class="secbody" id="sec-overview">
     <div class="seg" id="sortseg">
       <button data-s="desc" class="on">Highest first</button>
@@ -592,28 +471,25 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <div class="caption" id="chart-caption"></div>
     </div>
 
-    <div class="sec" data-sec="trajectory"><span class="mk"></span><span class="t">Trajectory</span><span class="s" id="trend-sub"></span></div>
+    <div class="sec" data-sec="trajectory"><span class="mk"></span><span class="t">Trajectory</span><span class="s" id="traj-sub">whole season — ignores your period selection</span></div>
     <div class="secbody" id="sec-trajectory">
-    <div class="segrow">
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
       <div class="seg" id="trendseg"></div>
-      <div class="seg" id="trendnorm">
-        <button data-n="dps" class="on">DPS</button>
-        <button data-n="rank">Rank</button>
-        <button data-n="share">Share</button>
-      </div>
+      <div class="seg" id="normseg" title="Normalization: raw DPS, rank among the shown groups, or share of characters in view"></div>
       <div class="seg" id="trendview"></div>
-      <div class="seg" id="trajsort">
-        <button data-s="metric" class="on">Sort: Metric</button>
-        <button data-s="slope">Slope</button>
-      </div>
+      <div class="seg" id="slopeseg" title="Order the series list by trend slope instead of current value"><button id="slopetog">Slope sort</button></div>
     </div>
     <div id="trendbox"></div>
     <div class="caption" id="trend-caption"></div>
     </div>
 
-    <div class="sec" data-sec="breakdown"><span class="mk"></span><span class="t">Breakdown</span><span class="s" id="tbl-sub"></span></div>
-    <div class="secbody" id="sec-breakdown">
-    <div class="tblwrap"><table class="data" id="tbl"></table></div>
+    <div class="sec" data-sec="comps"><span class="mk"></span><span class="t">Top Comps</span>
+      <span class="s" id="comps-sub"></span>
+      <span class="sectools" title="A composition needs this many runs to appear in Top Comps — raise it to filter out one-off groups.">Min runs
+        <b id="compmin-v">20</b><input type="range" id="compmin" min="1" max="100" value="20"></span></div>
+    <div class="secbody" id="sec-comps">
+    <div class="tblwrap"><table class="data" id="comps"></table></div>
+    <div class="caption" id="comps-caption"></div>
     </div>
 
     <div class="sec" data-sec="setbonus" id="setbonus-head"><span class="mk"></span><span class="t">Set Bonus Gain</span>
@@ -623,11 +499,9 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <div class="caption" id="set-caption"></div>
     </div>
 
-    <div class="sec" data-sec="comps"><span class="mk"></span><span class="t">Top Comps</span>
-      <span class="s" id="comps-sub"></span></div>
-    <div class="secbody" id="sec-comps">
-    <div class="tblwrap"><table class="data" id="comps"></table></div>
-    <div class="caption" id="comps-caption"></div>
+    <div class="sec" data-sec="breakdown"><span class="mk"></span><span class="t">Data Table</span><span class="s" id="tbl-sub"></span></div>
+    <div class="secbody" id="sec-breakdown">
+    <div class="tblwrap"><table class="data" id="tbl"></table></div>
     </div>
 
     <footer>
@@ -639,19 +513,13 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
       <span id="built"></span>
       <br>Machine-readable data for AI agents:
       <a href="llms.txt">llms.txt</a> · <a href="llms/">HTML tables</a> ·
-      <a href="data.json.gz">data.json.gz</a>.
+      <a href="sitemap.xml">sitemap.xml</a> · <a href="data.json.gz">data.json.gz</a>.
     </footer>
   </div>
 </main>
 </div>
 
-<div id="inspect-pos" style="display:none"><div id="inspect"></div></div>
-
-<div id="archon-toast" hidden role="status">
-  <span>⚔ Archon mode off — a setting moved.</span>
-  <button class="btn" id="archon-restore">Restore my pre-Archon filters</button>
-  <button class="x" aria-label="Dismiss">✕</button>
-</div>
+<div id="pins-pos" style="display:none"><div id="pinstray"></div></div>
 
 <div id="upd-toast" hidden role="status" title="Click to reload">
   <b>New version available</b><span>— click to reload</span>
@@ -683,7 +551,7 @@ const TABS = [
    cap:"Bold number: average DPS; grey tick: {med}. Brighter bar = higher deathless share."},
   {id:"med", label:"Median DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
    shade:"deathless", tick:"avg",
-   cap:"DPS at the percentile the lens selects — 50 is the median, "
+   cap:"DPS at the percentile the Command-Bar slider selects — 50 is the median, "
      +"90 the ceiling view sites like Archon publish. Grey tick: average DPS. "
      +"Brighter bar = higher deathless share."},
 
@@ -702,13 +570,14 @@ const TABS = [
   {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
    inlay:"dps", shade:"med", tick:null,
    cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher {med}."},
+  // "trend" retired from the #tabs UI — Trajectory is a peer section now; the
+  // entry stays because its caption template still drives the trend caption.
   {id:"trend", label:"Trend", trend:true,
    cap:"Weekly {metric} for the top groups under the current filters, whole season. "+
        "Weeks with fewer than 25 parses for a group are skipped."},
 ];
 const CHART_MAX = 40;
 const TREND_MAX = 16;
-const PULSE_MAX = 12, PULSE_THIN = 25;
 
 let D=null, R=null, N=0, runCount=0;
 let availWeeks=[], weekCounts=new Map(), usB0=0;
@@ -717,7 +586,7 @@ const EMPTY=new Set(); let lastEffMin=0;
 // The filter state the page opens on. The minimum-characters threshold means
 // "this many players under the default view", so the default view is the
 // yardstick every other selection is measured against.
-let DEF=null, refMemo=new Map(), SCOPE_DEF=null;
+let DEF=null, refMemo=new Map();
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
@@ -736,14 +605,20 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              tier0:false, tier2:false, tier4:true,
              pctl:50, elite:false,
              tsort:{col:"a_v", dir:-1},
-             // V2 additions — all inert defaults, no existing default touched
-             skill:false, pctlB:85,          // Compare: Skill axis (second qp pass)
-             pulseSort:{col:"dps", dir:-1},  // Pulse board sort (rank-sorted top-now)
-             trendNorm:"dps", trajSort:"metric",
-             pins:[], trustPrev:null};
+             // ---- v1 additions (defaults = current behavior) ----
+             trendNorm:"dps",      // Trajectory normalization: dps | rank | share
+             trendSlope:false,     // slope-sort off = current ranking
+             pctlcmp:false, pctlB:30,   // Lab: percentile ghost-compare
+             spinsOn:false, sPins:new Set(),  // Lab: S-PINS docked tray
+             pulseSort:"delta"};   // Meta Pulse movers sort
 let hasTimed=false, hasTune=false, hasProj=false;
 let hasRating=false, hasTier=false, CHARSCORE=[];
 let archonPrev=null;   // Archon-mode's "what you had before" snapshot
+let xorNote="";        // one-line notice when compare/pctlcmp displace each other
+let pulseDates="";     // "This reset (…) vs last reset (…)" — Pulse's own baseline
+let pulseInfo=new Map();     // groupKey -> {presence, verdict} for pins reuse
+let lastRowsByKey=new Map(); // groupKey -> gated row of the current render
+let lastCompRows=[], lastCompAll=0;  // Top Comps qualifying rows (strength-ranked)
 // elite = the Archon-replica statistic path is active. Only the mode toggle
 // sets it; render() clears it whenever the mode's other settings diverge.
 // A parse's projected damage multiplier, from ITS OWN ability breakdown.
@@ -753,7 +628,6 @@ const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
 // re-score. Excluded from both sides while projecting, never silently kept.
 const projSkip=i=>hasProj&&state.proj&&R.tmul[i]===0;
 const dpsAt=i=>R.dps[i]*projMul(i);
-const cmpActive=()=>state.compare||(state.skill&&!state.elite);
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
@@ -789,11 +663,11 @@ async function loadJSON(file){
 
 function loadSeason(){
   const cfg=SEASON;
-  $("loading").textContent="Loading data…";
+  $("loading-msg").textContent="Loading data…";
   $("loading").style.display=""; $("app").style.display="none";
   const got=loadJSON(cfg.file);
   got.then(d=>initData(d,cfg)).catch(e=>{
-    $("loading").textContent="Failed to load data: "+e;
+    $("loading-msg").textContent="Failed to load data: "+e;
   });
 }
 
@@ -821,11 +695,15 @@ function initData(d,cfg){
   // historical parses carry -1 (report had no gear). The filter appears only
   // when something is actually known, and says how much.
   hasTier=!!(R.tier&&R.tier.some(v=>v>=0));
-  $("tierbox").style.display=hasTier?"":"none";
-
   CHARSCORE=d.charscore||[];
   hasRating=CHARSCORE.some(v=>v>=0);
   hasTune=!!(d.tuning&&R.post);
+  hasProj=!!(D.projection&&R.tmul);
+  hasTimed=false;
+  if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
+  // Every transient enters through the LAB manifest — build its cards now that
+  // the has* gates are known (this also wires t0/t2/t4/projcb/pctlcmp/spins).
+  buildLab();
   $("tunebox").style.display=hasTune?"":"none";
   state.postTune=hasTune;
   if(hasTune){
@@ -835,9 +713,7 @@ function initData(d,cfg){
       +"on that run's own region. "+(t.note||"");
   }
   $("posttune").checked=state.postTune;
-  hasProj=!!(D.projection&&R.tmul);
-  $("projbox").style.display=hasProj?"":"none";
-  if(!hasProj){state.proj=false; $("projcb").checked=false}
+  if(!hasProj){state.proj=false; const p=$("projcb"); if(p) p.checked=false}
   else{
     const P=D.projection;
     $("projhint").textContent=P.label+" · "+P.parses.toLocaleString("en-US")
@@ -845,8 +721,6 @@ function initData(d,cfg){
     $("projcb").checked=state.proj;
     $("posttune").disabled=state.proj;
   }
-  hasTimed=false;
-  if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
   $("timedseg").style.display=hasTimed?"":"none";
   state.timedOnly=hasTimed;
   $("timedseg").querySelectorAll("button").forEach(x=>
@@ -892,12 +766,9 @@ function initData(d,cfg){
   }
   DEF={klo:state.klo, khi:state.khi, timedOnly:state.timedOnly,
        postTune:state.postTune};
-  SCOPE_DEF={weeksA:new Set(state.weeksA)};   // yardstick for the strip's scope chips
   refMemo=new Map();
   state.compare=false; $("cmp").checked=false;
   buildControls();
-  renderLab();
-  $("archon-chip").title=archonTitle();
   $("hero-sub").textContent=cfg.sub;
   $("foot-src").textContent=cfg.foot;
   document.title="Mythic+ Performance — "+(d.season||"Midnight");
@@ -908,17 +779,13 @@ function initData(d,cfg){
 }
 
 $("posttune").onchange=e=>{state.postTune=e.target.checked; render()};
-$("projcb").onchange=e=>{
-  state.proj=e.target.checked;
-  // the projection is only defined for runs after the last tuning pass, so
-  // turning it on pins the period filter there
-  if(state.proj){state.postTune=true; $("posttune").checked=true}
-  $("posttune").disabled=state.proj;
-  $("tunebox").style.opacity=state.proj?.55:1;
-  render();
-};
 $("compmin").oninput=e=>{state.compMin=+e.target.value;
   $("compmin-v").textContent=state.compMin; render()};
+// the Min-runs slider sits inside the Top Comps section header; keep its
+// interactions from toggling the section's collapse
+for(const ev of ["click","mousedown","keydown"])
+  document.querySelectorAll(".sectools").forEach(el=>
+    el.addEventListener(ev,e=>e.stopPropagation()));
 $("timedseg").querySelectorAll("button").forEach(b=>{
   b.onclick=()=>{
     const want=b.dataset.t==="1";
@@ -928,21 +795,17 @@ $("timedseg").querySelectorAll("button").forEach(b=>{
     render();
   };
 });
-// SVG width depends on box width; re-render whenever the Trajectory section is
-// visible in Overlay view (recast of the old Trend-tab-only condition).
-let __rsz=null;
+// the overlay SVG width depends on the box width, so re-render on resize —
+// but only while the Trajectory section is expanded (it owns the SVG now)
 window.addEventListener("resize",()=>{
-  if(!D) return;
-  const body=$("sec-trajectory");
-  if(state.trendView==="lines"&&body&&!body.hidden){
-    clearTimeout(__rsz); __rsz=setTimeout(()=>render(),150);
-  }
+  const t=$("sec-trajectory");
+  if(D&&t&&!t.hidden) render();
 });
 // Section headers fold their body away. The sliders live in the sidebar, so
-// collapsing the upper sections brings Top Comps up next to them and you can
-// watch the comps react while you drag. Choices persist per browser;
-// localStorage can throw (private windows, blocked site data), so every access
-// is guarded and a failure just means the sections open normally.
+// collapsing sections brings Top Comps up next to them and you can watch the
+// comps react while you drag. Choices persist per browser; localStorage can
+// throw (private windows, blocked site data), so every access is guarded and
+// a failure just means the sections open normally.
 const SEC_KEY="wowlogs.collapsed";
 function readCollapsed(){
   try{ return new Set(JSON.parse(localStorage.getItem(SEC_KEY)||"[]")) }
@@ -963,20 +826,18 @@ document.querySelectorAll(".sec[data-sec]").forEach(h=>{
   h.setAttribute("tabindex","0");
   const toggle=()=>{
     const shut=readCollapsed(), id=h.dataset.sec;
-    shut.has(id) ? shut.delete(id) : shut.add(id);
+    const opening=shut.has(id);
+    opening ? shut.delete(id) : shut.add(id);
     try{ localStorage.setItem(SEC_KEY,JSON.stringify([...shut])) }catch(e){}
     applyCollapsed();
+    // Pulse and Trajectory skip their heavy passes while collapsed; opening
+    // them needs a render to fill the newly visible body.
+    if(opening&&(id==="pulse"||id==="trajectory")&&D) render();
   };
   h.onclick=toggle;
   h.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle() } };
 });
 applyCollapsed();
-function openSection(id){
-  const shut=readCollapsed();
-  if(shut.has(id)){ shut.delete(id);
-    try{ localStorage.setItem(SEC_KEY,JSON.stringify([...shut])) }catch(e){}
-    applyCollapsed(); }
-}
 
 loadSeason();
 
@@ -1213,9 +1074,7 @@ function buildControls(){
       state.weeksA=new Set(av); state.weeksB=new Set(bv);
       paintA=buildPeriodUI("A",state.weeksA,false);
       paintB=buildPeriodUI("B",state.weeksB,true);
-      $("cmp").checked=true;
-      setNotice("⚡ Quick compare rewrote both periods: A = "+name.toLowerCase().replace(" vs ",", B = ")+" — compare on.");
-      setCompare(true);
+      $("cmp").checked=true; setCompare(true);
     };
     qbox.appendChild(c);
   }
@@ -1226,8 +1085,7 @@ function buildControls(){
   $("melee").onchange=e=>{state.melee=e.target.checked; render()};
   $("ranged").onchange=e=>{state.ranged=e.target.checked; render()};
   $("minchars").oninput=e=>{state.minchars=+e.target.value;
-    $("minchars-v").textContent=state.minchars;
-    clearTrustOverride(false); render()};
+    $("minchars-v").textContent=state.minchars; render()};
 
   $("sortseg").querySelectorAll("button").forEach(b=>{
     b.onclick=()=>{state.sort=b.dataset.s;
@@ -1235,25 +1093,36 @@ function buildControls(){
       render()};
   });
   $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
-  $("pctl").oninput=e=>{setPctl(+e.target.value)};
+  $("pctl").oninput=e=>{state.pctl=+e.target.value;
+    $("pctl-v").textContent=state.pctl;
+    TABS.find(t=>t.id==="med").label=dpsLabel();
+    document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
+      if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+    render()};
   // Archon mode: one toggle that walks every relevant setting to the
   // configuration that reproduces archon.gg's high-keys DPS table (p90 of
   // this sample = their p95 of all logs, within ~1%). The checkbox is
   // DERIVED state: render() re-evaluates the predicate every pass, so
   // moving any of these settings away unchecks it by construction.
-  const archonTarget=()=>{
+  //
+  // ARCHON_RECIPE is the single source: it generates BOTH the payload
+  // applyArchonState applies on entry AND the scope-card text in the period
+  // note (see archonNote()).
+  window.ARCHON_RECIPE=()=>{
     const keys=[...new Set(R.key)];
     // The replica path picks its own per-spec key floors and 14-day window,
     // so the mode parks the shared controls at full range -- they are
     // bypassed, and leaving them mid-range would misleadingly suggest they
     // apply. Moving any of them exits the mode, which un-bypasses them.
-    return {kmin:Math.min(...keys), kmax:Math.max(...keys),
-            weeks:[...weekCounts.keys()]};
+    return {pctl:85, elite:true, klo:Math.min(...keys), khi:Math.max(...keys),
+            timedOnly:false, tier0:false, tier2:false, tier4:false, merge:true,
+            compare:false, tab:"med", trendMetric:"med", role:["DPS"],
+            weeksA:[...weekCounts.keys()]};
   };
   window.__archonMatches=()=>{
-    const t=archonTarget();
-    return state.elite && state.pctl===85
-      && state.klo===t.kmin && state.khi===t.kmax
+    const t=ARCHON_RECIPE();
+    return state.elite && state.pctl===t.pctl
+      && state.klo===t.klo && state.khi===t.khi
       && !state.timedOnly && !state.tier0 && !state.tier2 && !state.tier4
       && state.merge && !state.compare
       && state.role.size===1 && state.role.has("DPS");
@@ -1263,16 +1132,15 @@ function buildControls(){
   // snapshot the toggle was one-way -- "off" changed nothing, so the derived
   // predicate immediately re-checked it, and leaving the mode by moving a
   // setting stranded the percentile at 90.
-  window.applyArchonState=(st)=>{
+  const applyArchonState=(st)=>{
     Object.assign(state,{pctl:st.pctl, elite:!!st.elite, klo:st.klo, khi:st.khi,
       timedOnly:st.timedOnly, tier0:st.tier0, tier2:st.tier2, tier4:st.tier4,
       merge:st.merge, compare:st.compare, tab:st.tab,
       trendMetric:st.trendMetric, dayCut:0});
-    state.skill=("skill" in st)?!!st.skill:false;   // Skill axis counts as compare
     state.role=new Set(st.role); state.weeksA=new Set(st.weeksA);
     $("merge").checked=state.merge; $("cmp").checked=state.compare;
-    $("t0").checked=state.tier0; $("t2").checked=state.tier2;
-    $("t4").checked=state.tier4;
+    const t0=$("t0"); if(t0){t0.checked=state.tier0; $("t2").checked=state.tier2;
+      $("t4").checked=state.tier4;}
     $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
     TABS.find(t=>t.id==="med").label=dpsLabel();
     $("timedseg").querySelectorAll("button").forEach(x=>
@@ -1285,29 +1153,24 @@ function buildControls(){
     document.querySelectorAll("#trendseg button").forEach(b=>{
       b.classList.toggle("on",b.dataset.tid===state.trendMetric);
       if(b.dataset.tid==="med") b.textContent=dpsLabel()});
-    syncLensUI();
     render();
   };
+  // exposed so the "[Restore my pre-Archon filters]" button (rendered in the
+  // period note after an auto-uncheck exit) can replay the retained snapshot
+  window.applyArchonState=applyArchonState;
   const snap=()=>({pctl:state.pctl, elite:state.elite, klo:state.klo, khi:state.khi,
     timedOnly:state.timedOnly, tier0:state.tier0, tier2:state.tier2,
     tier4:state.tier4, merge:state.merge, compare:state.compare,
-    tab:state.tab, trendMetric:state.trendMetric, skill:state.skill,
+    tab:state.tab, trendMetric:state.trendMetric,
     role:[...state.role], weeksA:[...state.weeksA]});
   $("archon").onchange=e=>{
-    hideArchonToast();
     if(e.target.checked){
       archonPrev=snap();
-      const t=archonTarget();
-      setNotice("⚔ Archon replica on — filters rewritten to its recipe; your previous filters are held for restore.");
-      applyArchonState({pctl:85, elite:true, klo:t.kmin, khi:t.kmax,
-        timedOnly:false, tier0:false, tier2:false, tier4:false, merge:true,
-        compare:false, tab:"med", trendMetric:"med", role:["DPS"],
-        weeksA:t.weeks});
+      applyArchonState(ARCHON_RECIPE());
     }else{
       // explicit off: back to exactly where you were. Auto-uncheck from
       // moving a single setting never comes through here -- that path keeps
       // your changes, this one undoes the mode wholesale.
-      setNotice("⚔ Archon replica off — pre-Archon filters restored.");
       applyArchonState(archonPrev || {elite:false, pctl:50, klo:12, khi:19,
         timedOnly:hasTimed, tier0:false, tier2:false, tier4:true,
         merge:true, compare:false, tab:"med", trendMetric:"med",
@@ -1317,24 +1180,18 @@ function buildControls(){
   };
   const tabs=$("tabs");
   tabs.innerHTML="";
-  TABS.filter(t=>!t.rating||hasRating).forEach(t=>{
+  // Trend is a peer section now — no ghost pseudo-tab in the metric rail
+  TABS.filter(t=>!t.trend&&(!t.rating||hasRating)).forEach(t=>{
     const b=document.createElement("button");
     b.textContent=t.id==="med"?dpsLabel():t.label;
     b.dataset.tid=t.id;
     b.className=t.id===state.tab?"on":"";
     b.onclick=()=>{state.tab=t.id;
       tabs.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
-      render();
-      // The Trend tab's target is the Trajectory peer section now: same tab
-      // id, relocated destination — activate it and travel there.
-      if(t.id==="trend"){
-        openSection("trajectory");
-        const h=document.querySelector('.sec[data-sec="trajectory"]');
-        if(h) h.scrollIntoView({behavior:"smooth", block:"start"});
-      }};
+      render()};
     tabs.appendChild(b);
   });
-  // trend-metric picker (Trajectory section)
+  // trend-metric picker: one entry per metric tab (Trajectory section)
   const tseg=$("trendseg");
   tseg.innerHTML="";
   TABS.filter(t=>!t.trend&&!t.rating).forEach(t=>{
@@ -1347,6 +1204,18 @@ function buildControls(){
       render()};
     tseg.appendChild(b);
   });
+  // normalization: raw DPS (today's behavior), rank among shown groups, or
+  // share of characters — a nerf reads as a fall even during gear inflation
+  const nseg=$("normseg");
+  nseg.innerHTML="";
+  for(const [id,label] of [["dps","DPS"],["rank","Rank"],["share","Share of chars"]]){
+    const b=document.createElement("button"); b.textContent=label;
+    b.className=id===state.trendNorm?"on":"";
+    b.onclick=()=>{state.trendNorm=id;
+      nseg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      render()};
+    nseg.appendChild(b);
+  }
   // overlay (one chart) vs grid (a mini-chart per group)
   const tview=$("trendview");
   tview.innerHTML="";
@@ -1358,183 +1227,31 @@ function buildControls(){
       render()};
     tview.appendChild(b);
   }
+  const st=$("slopetog");
+  st.classList.toggle("on",state.trendSlope);
+  st.onclick=()=>{state.trendSlope=!state.trendSlope;
+    st.classList.toggle("on",state.trendSlope); render()};
 }
-
-/* -------- compare engine: one ghost system, two XOR axes (Off|Time|Skill) -------- */
-function syncAxisUI(){
-  const a=state.compare?"time":(state.skill?"skill":"off");
-  document.querySelectorAll("#cmpseg button").forEach(b=>
-    b.classList.toggle("on",b.dataset.a===a));
-  $("cmp").checked=state.compare;
-  $("blockB").style.display=state.compare?"":"none";
-  $("pctlb-chips").hidden=!state.skill;
-  document.querySelectorAll("#pctlb-chips .chip").forEach(c=>
-    c.classList.toggle("on",+c.dataset.p===state.pctlB));
-  const any=state.compare||state.skill;
+function setCompare(on){
+  state.compare=on;
+  xorNote="";
+  // XOR with the Lab percentile ghost-compare: one ghost system at a time
+  if(on&&state.pctlcmp){
+    state.pctlcmp=false; labSaveP(); labSyncControls();
+    xorNote="Period compare took the ghost slot — percentile compare switched off.";
+  }
+  $("blockB").style.display=on?"":"none";
+  refreshPeriodUIs();
   $("sortseg").querySelectorAll("button").forEach(b=>{
-    if(b.dataset.s==="gain"||b.dataset.s==="loss") b.style.display=any?"":"none";
+    if(b.dataset.s==="gain"||b.dataset.s==="loss") b.style.display=on?"":"none";
   });
-  if(!any&&(state.sort==="gain"||state.sort==="loss")){
+  if(!on&&(state.sort==="gain"||state.sort==="loss")){
     state.sort="desc";
     $("sortseg").querySelectorAll("button").forEach(x=>
       x.classList.toggle("on",x.dataset.s==="desc"));
   }
-  $("cmpseg").classList.toggle("dis",state.elite);
-}
-function setCompare(on){
-  state.compare=on;
-  if(on) state.skill=false;   // strict XOR; pctlB is kept for the switch back
-  refreshPeriodUIs();
-  syncAxisUI();
+  syncCmpChip();
   render();
-}
-function setSkill(on){
-  if(state.elite) return;   // compare axes are disabled inside the replica
-  state.skill=on;
-  if(on){
-    if(state.compare){state.compare=false; $("cmp").checked=false; refreshPeriodUIs();}
-    if(state.pctl>=85&&state.pctlB===85) state.pctlB=30;
-  }
-  syncAxisUI();
-  render();
-}
-document.querySelectorAll("#cmpseg button").forEach(b=>{
-  b.onclick=()=>{
-    if(!D||state.elite) return;
-    const a=b.dataset.a;
-    if(a==="time"){ if(!state.compare) setCompare(true); }
-    else if(a==="skill"){ if(!state.skill) setSkill(true); }
-    else { if(state.compare) setCompare(false); else if(state.skill) setSkill(false); }
-  };
-});
-document.querySelectorAll("#pctlb-chips .chip").forEach(c=>{
-  c.onclick=()=>{ if(!D) return; state.pctlB=+c.dataset.p; syncAxisUI(); render(); };
-});
-
-/* -------- Lens Bar: chips, popover, ★Me preset -------- */
-function readMe(){
-  try{ const v=parseInt(localStorage.getItem("wowlogs.lens.me"),10);
-    return (v>=0&&v<=99)?v:null }catch(e){ return null }
-}
-function syncLensUI(){
-  document.querySelectorAll("#lens-chips .chip[data-p]").forEach(c=>
-    c.classList.toggle("on",+c.dataset.p===state.pctl));
-  const me=readMe(), meC=$("lens-me");
-  if(me!=null){ meC.hidden=false; meC.textContent="★ p"+me;
-    meC.classList.toggle("on",state.pctl===me); }
-  else meC.hidden=true;
-  $("lens-read").textContent="p"+state.pctl+($("lens-pop").hidden?" +":" −");
-  $("lens-fixed").hidden=!state.elite;
-  if(state.elite&&!$("lens-pop").hidden) $("lens-pop").hidden=true;
-}
-function setPctl(p){
-  state.pctl=p;
-  $("pctl").value=p; $("pctl-v").textContent=p;
-  TABS.find(t=>t.id==="med").label=dpsLabel();
-  document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
-    if(b.dataset.tid==="med") b.textContent=dpsLabel()});
-  syncLensUI();
-  render();
-}
-document.querySelectorAll("#lens-chips .chip[data-p]").forEach(c=>{
-  c.onclick=()=>{ if(!D) return;
-    setNotice("Lens set to p"+c.dataset.p+" — every DPS reading follows it.");
-    setPctl(+c.dataset.p); };
-});
-$("lens-me").onclick=()=>{ const me=readMe(); if(me!=null&&D){
-  setNotice("Lens set to your saved ★ p"+me+"."); setPctl(me); } };
-$("lens-read").onclick=()=>{
-  if(state.elite) return;   // slider is pinned at p85 inside the replica
-  $("lens-pop").hidden=!$("lens-pop").hidden;
-  syncLensUI();
-};
-document.addEventListener("click",e=>{
-  const g=$("lens-pop");
-  if(!g.hidden&&!e.target.closest(".lens-group")){ g.hidden=true; syncLensUI(); }
-},true);
-$("lens-save").onclick=()=>{
-  try{ localStorage.setItem("wowlogs.lens.me",String(state.pctl)) }catch(e){}
-  syncLensUI();
-};
-$("lens-clear").onclick=()=>{
-  try{ localStorage.removeItem("wowlogs.lens.me") }catch(e){}
-  syncLensUI();
-};
-
-/* -------- programmatic-change notice slot (context strip) -------- */
-function setNotice(t){ const n=$("notice"); if(n) n.textContent=t; }
-
-/* -------- Archon exit toast: auto-uncheck kept your changes; offer restore -------- */
-function showArchonToast(){ $("archon-toast").hidden=false; }
-function hideArchonToast(){ $("archon-toast").hidden=true; }
-$("archon-restore").onclick=()=>{
-  hideArchonToast();
-  if(archonPrev&&window.applyArchonState){
-    setNotice("⚔ Pre-Archon filters restored.");
-    const prev=archonPrev; archonPrev=null;
-    applyArchonState(prev);
-  }
-};
-document.querySelector("#archon-toast .x").onclick=()=>hideArchonToast();
-// single source for the chip tooltip: the shipped recipe, not folklore (R6)
-function archonTitle(){
-  return "Replicates archon.gg's high-keys table: per spec, the top decile of key "
-    +"levels over the last 14 days, then p85 DPS within (per-spec elite key floor). "
-    +"Keys and weeks are parked at full range because the replica path bypasses them; "
-    +"timed filter off, gear cohorts off, hero talents merged, DPS role, compare off. "
-    +"Validated against their live table at ρ≈0.95. "
-    +"Unchecks itself the moment any of those settings moves.";
-}
-
-/* -------- LAB_FEATURES manifest — transient features live here (E01 graft) --------
-   Lifecycle: active (payload carries the data) / dormant (greyed "awaiting data")
-   / graduated (control re-homed, status row remains) / retired (delete the entry). */
-const LAB_FEATURES=[
-  {id:"posttune", frame:"lab-posttune", statusEl:"lab-posttune-status",
-   lineEl:"lab-posttune-line", gate:()=>hasTune, on:()=>state.postTune,
-   line:()=>"only runs after the "+esc(D.tuning.label)+" ("+esc(D.tuning.date)+") — "
-     +fmtInt(D.tuning.runs)+" parses affected",
-   dormant:"awaiting data — no tuning pass in this payload"},
-  {id:"projtuning", frame:"lab-proj", statusEl:"lab-proj-status",
-   lineEl:"lab-proj-line", gate:()=>hasProj, on:()=>state.proj,
-   line:()=>esc(D.projection.label)+" — "+fmtInt(D.projection.parses)+" parses affected",
-   dormant:"awaiting data — no projection in this payload"},
-  {id:"gearcohort", frame:"lab-gear", graduated:true},
-];
-function renderLab(){
-  for(const f of LAB_FEATURES){
-    if(f.graduated) continue;
-    const fr=$(f.frame), active=f.gate();
-    fr.classList.toggle("dormant",!active);
-    fr.classList.toggle("active-on",active&&f.on());
-    $(f.statusEl).textContent=!active?"dormant":(f.on()?"active":"idle");
-    $(f.lineEl).innerHTML=active?f.line():f.dormant;
-  }
-}
-function labStamps(){
-  let s="";
-  if(hasTune&&state.postTune) s+=' <span class="labstamp">⚗ post-tuning</span>';
-  if(hasProj&&state.proj) s+=' <span class="labstamp">⚗ projected</span>';
-  return s;
-}
-// generated evidence sentence — the ONLY source of section scope prose
-function scopeLine(extra){
-  const p=[];
-  p.push("p"+state.pctl+" lens");
-  if(state.elite) p.push("elite frontier · last 14 days");
-  else{
-    p.push(describePeriod(state.weeksA));
-    p.push("keys +"+state.klo+"–+"+state.khi);
-  }
-  if(state.timedOnly) p.push("timed only");
-  if(hasTier&&!state.elite){
-    const t=[state.tier0?"no-set":null,state.tier2?"2-set":null,
-             state.tier4?"4-set":null].filter(Boolean);
-    if(t.length) p.push(t.join("+")+" cohort");
-  }
-  let s=esc(p.join(" · "))+labStamps();
-  if(extra) s+=" — "+extra;
-  return s;
 }
 
 /* ---------------- aggregation ---------------- */
@@ -1630,6 +1347,13 @@ function effMinFor(pool){
   return ref>0 ? Math.max(1,Math.round(state.minchars*pool/ref))
                : state.minchars;
 }
+// The p-spread "punishment proxy" — how much of the ceiling a bad night
+// costs. Fixed p30–p85 by design: it must stay comparable while the main
+// percentile slider moves, and the column header says so.
+function pSpread(sortedDps){
+  const hi=qp(sortedDps,.85), lo=qp(sortedDps,.30);
+  return hi>0 ? 100*(hi-lo)/hi : NaN;
+}
 // Archon-replica statistics. Their DPS column is a p95 over the top 5% of
 // keys per spec, a moving elite frontier -- no fixed key range can track it as
 // the season climbs (measured: the fixed 12-19 p90 acquired a systematic
@@ -1707,11 +1431,9 @@ function aggregateElite(){
     out.set(k,{cls:D.classes[g.cls],spec:D.specs[g.spec],
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n, runs:g.runs.size,
       avg:g.sum/g.n, med, ravg, rmed,
-      // fixed-percentile reads for the spread column and the Skill ghost —
-      // same sorted array, two extra quantile reads
-      q30:qp(g.dps,.30), q85:qp(g.dps,.85), qb:qp(g.dps,state.pctlB/100),
       adeaths:g.dsum/g.n, deathless:100*g.dzero/g.n,
-      chars:g.chars.size, arating:NaN, mrating:NaN, rn:0, floorK:g.floorK});
+      chars:g.chars.size, arating:NaN, mrating:NaN, rn:0, floorK:g.floorK,
+      spread:pSpread(g.dps), med2:NaN});
   }
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
@@ -1765,12 +1487,12 @@ function aggregate(weeks){
       hero:g.hero<0?"":D.heroes[g.hero], n:g.n,
       avg:g.sum/g.n, med,
       ravg, rmed,
-      // fixed-percentile reads for the spread column and the Skill ghost —
-      // same sorted array, two extra quantile reads
-      q30:qp(g.dps,.30), q85:qp(g.dps,.85), qb:qp(g.dps,state.pctlB/100),
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
-      chars:g.chars.size, runs:g.runs.size, arating, mrating, rn});
+      chars:g.chars.size, runs:g.runs.size, arating, mrating, rn,
+      spread:pSpread(g.dps),
+      // second quantile for the Lab percentile ghost-compare
+      med2:state.pctlcmp?qp(g.dps,state.pctlB/100):NaN});
   }
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
@@ -1786,6 +1508,278 @@ function ratingCoverage(){
     +(pct<80?"; the sweep fills in heaviest-logged first, so a partial one reads high."
             :".");
 }
+
+/* ---------------- ⚗ LAB — declarative manifest for every transient ----------------
+   One entry = one Lab card (+ optional output section + amber period-note badge +
+   exemption notes stamped into exempt sections' scope lines). Retiring a feature
+   means deleting its entry: card, badges, output and storage all go with it.
+   Dormant (gate false) renders a greyed labeled row — visibly distinct from
+   removed. Storage is namespaced wowlogs.lab.* only.
+   BIRTH RULE: adding a loose checkbox to Scope/Cohort/When/Trust is forbidden —
+   every new transient enters through this manifest. */
+const LAB_FEATURES=[
+  {id:"tier4pc", name:"Set-bonus cohorts", badge:"4PC",
+   gate:()=>hasTier,
+   active:()=>hasTier&&(state.tier0||state.tier2||state.tier4),
+   dormantText:"Set-bonus cohorts — no gear data in this payload",
+   outputSec:"setbonus",
+   exemptions:{setbonus:"tier boxes do not apply here"},
+   controlHTML:'<div class="rowflex" id="tierbox">'
+     +'<label class="small"><input type="checkbox" id="t0"> No set bonus</label>'
+     +'<label class="small"><input type="checkbox" id="t2"> Season 2 2-piece</label>'
+     +'<label class="small"><input type="checkbox" id="t4"> Season 2 4-piece</label>'
+     +'<span class="hint" id="tierhint"></span></div>',
+   scopeBits:()=>{
+     const on=[state.tier0?"no set":null,state.tier2?"2-piece":null,
+       state.tier4?"4-piece":null].filter(Boolean);
+     return on.length?("filters every DPS surface to "+on.join(" or ")
+       +" (unknown gear excluded); Set Bonus Gain below is its output and is exempt")
+       :"no cohort ticked — all gear states pass";},
+   nImpact:()=>$("tierhint")?$("tierhint").textContent:""},
+  {id:"proj", name:"🔮 Tuning projection", badge:"PROJ",
+   gate:()=>hasProj,
+   active:()=>hasProj&&state.proj,
+   dormantText:"🔮 Tuning projection — nothing to project in this payload",
+   controlHTML:'<label class="small" id="projbox">'
+     +'<input type="checkbox" id="projcb"> Project upcoming tuning'
+     +'<span class="hint" id="projhint"></span></label>',
+   scopeBits:()=>state.proj
+     ?"every DPS figure is re-scored under the announced changes; parses without breakdowns are excluded from both sides"
+     :"off — recorded numbers everywhere",
+   nImpact:()=>hasProj&&D&&D.projection?D.projection.parses.toLocaleString("en-US")+" parses affected":""},
+  {id:"pctlcmp", name:"Percentile ghost-compare", badge:"P-CMP",
+   gate:()=>true,
+   active:()=>state.pctlcmp,
+   controlHTML:'<label class="small"><input type="checkbox" id="pctlcmp"> Ghost a second percentile</label>'
+     +'<div class="rowflex" style="margin:.25rem 0 0">baseline p<b id="pctlB-v" style="color:var(--accent)">30</b>'
+     +'<input type="range" id="pctlB" min="0" max="99" step="1" value="30" style="width:110px"></div>',
+   scopeBits:()=>state.pctlcmp
+     ?("grey ghost bars at p"+state.pctlB+" beside the solid "+dpsLabel()
+       +" on the "+dpsLabel()+" tab — XOR with period compare")
+     :"off — one quantile at a time",
+   nImpact:()=>"same rows, second quantile — the sample does not change"},
+  {id:"spins", name:"S-PINS docked tray", badge:"PINS",
+   gate:()=>true,
+   active:()=>state.spinsOn,
+   controlHTML:'<label class="small"><input type="checkbox" id="spinscb"> Pin specs to a docked tray</label>',
+   scopeBits:()=>state.spinsOn
+     ?("click a chart bar / its label, or a Data Table spec cell, to pin up to 3 specs ("
+       +state.sPins.size+" pinned)")
+     :"off",
+   nImpact:()=>"display only — no filter effect"},
+];
+function labTry(fn){try{return fn()}catch(e){return undefined}}
+function labSaveP(){labTry(()=>localStorage.setItem("wowlogs.lab.pctlcmp",
+  JSON.stringify({on:state.pctlcmp, pB:state.pctlB})))}
+function labSaveS(){labTry(()=>localStorage.setItem("wowlogs.lab.spins",
+  JSON.stringify({on:state.spinsOn, pins:[...state.sPins]})))}
+function buildLab(){
+  const box=$("labbox");
+  // restore Lab state (namespaced wowlogs.lab.*, all guarded)
+  const p=labTry(()=>JSON.parse(localStorage.getItem("wowlogs.lab.pctlcmp")||"null"));
+  if(p){state.pctlcmp=!!p.on; if(typeof p.pB==="number") state.pctlB=Math.max(0,Math.min(99,p.pB));}
+  const s=labTry(()=>JSON.parse(localStorage.getItem("wowlogs.lab.spins")||"null"));
+  if(s){state.spinsOn=!!s.on; state.sPins=new Set((s.pins||[]).map(Number).filter(v=>!isNaN(v)));}
+  if(state.pctlcmp) state.compare=false;   // XOR holds across reloads too
+  let h="";
+  for(const f of LAB_FEATURES){
+    const alive=f.gate();
+    if(!alive){
+      h+='<div class="labcard dormant" data-lab="'+f.id+'"><div class="labhead">'
+        +'<span class="labname">'+esc(f.dormantText||f.name+" — dormant")+'</span>'
+        +'<span class="labstat">dormant</span></div></div>';
+      continue;
+    }
+    h+='<div class="labcard" data-lab="'+f.id+'"><div class="labhead">'
+      +'<span class="labname">'+f.name+'</span>'
+      +'<span class="labstat" data-labstat="'+f.id+'">off</span></div>'
+      +'<div class="labscope" data-labscope="'+f.id+'"></div>'
+      +(f.controlHTML||"")
+      +'<div class="labscope" data-labn="'+f.id+'"></div></div>';
+  }
+  box.innerHTML=h;
+  // wire the controls the manifest just created
+  const pc=$("projcb");
+  if(pc) pc.onchange=e=>{
+    state.proj=e.target.checked;
+    // the projection is only defined for runs after the last tuning pass, so
+    // turning it on pins the period filter there
+    if(state.proj){state.postTune=true; $("posttune").checked=true}
+    $("posttune").disabled=state.proj;
+    $("tunebox").style.opacity=state.proj?.55:1;
+    render();
+  };
+  const pcmp=$("pctlcmp");
+  if(pcmp){
+    pcmp.checked=state.pctlcmp;
+    pcmp.onchange=e=>{
+      state.pctlcmp=e.target.checked;
+      xorNote="";
+      if(state.pctlcmp&&state.compare){
+        // XOR: taking the ghost slot turns period compare off, visibly
+        labSaveP();
+        $("cmp").checked=false; setCompare(false);   // renders (clears xorNote)
+        xorNote="Percentile compare took the ghost slot — period compare switched off.";
+        render();   // re-render so the one-line notice lands in the period note
+        return;
+      }
+      if(!state.pctlcmp&&(state.sort==="gain"||state.sort==="loss")){
+        state.sort="desc";
+        $("sortseg").querySelectorAll("button").forEach(x=>
+          x.classList.toggle("on",x.dataset.s==="desc"));
+      }
+      labSaveP(); render();
+    };
+  }
+  const pB=$("pctlB");
+  if(pB){
+    pB.value=state.pctlB; $("pctlB-v").textContent=state.pctlB;
+    pB.oninput=e=>{state.pctlB=+e.target.value;
+      $("pctlB-v").textContent=state.pctlB; labSaveP();
+      if(state.pctlcmp) render();};
+  }
+  const sc=$("spinscb");
+  if(sc){
+    sc.checked=state.spinsOn;
+    sc.onchange=e=>{state.spinsOn=e.target.checked; labSaveS(); render();};
+  }
+}
+function labSyncControls(){
+  const pcmp=$("pctlcmp"); if(pcmp) pcmp.checked=state.pctlcmp;
+  const sc=$("spinscb"); if(sc) sc.checked=state.spinsOn;
+}
+// refresh every Lab card's status + generated scope line + n-impact
+function labScopeRefresh(){
+  for(const f of LAB_FEATURES){
+    if(!f.gate()) continue;
+    const st=document.querySelector('[data-labstat="'+f.id+'"]');
+    const sl=document.querySelector('[data-labscope="'+f.id+'"]');
+    const ni=document.querySelector('[data-labn="'+f.id+'"]');
+    const on=f.active();
+    if(st){st.textContent=on?"active":"off";
+      st.style.color=on?"var(--accent)":"";
+      st.style.borderColor=on?"var(--accent-line)":"";}
+    if(sl) sl.textContent=f.scopeBits();
+    if(ni) ni.textContent=f.nImpact();
+  }
+}
+// amber ⚗ badges an active Lab entry stamps into the scope line of every
+// section it touches; exempt sections get the greyed exemption note instead
+function labStamp(sec){
+  let h="";
+  for(const f of LAB_FEATURES){
+    if(!f.gate()||!f.active()) continue;
+    if(f.id==="spins") continue;               // display-only, touches nothing
+    if(f.exemptions&&f.exemptions[sec])
+      h+=' <span class="labtag dim">⚗ '+f.badge+": "+esc(f.exemptions[sec])+'</span>';
+    else if(f.id!=="pctlcmp"||sec==="overview")
+      h+=' <span class="labtag">⚗ '+f.badge+'</span>';
+  }
+  return h;
+}
+
+/* ---------------- Command Bar ---------------- */
+function syncCmpChip(){
+  const c=$("cmp-chip"); if(!c) return;
+  c.textContent=state.compare?"A vs B on":"Compare off";
+  c.classList.toggle("on",state.compare);
+}
+// status chip: click when off fires the default quick-compare (this vs last
+// reset); click when on turns compare off. The canonical #cmp switch stays in
+// WHEN + BASELINE with byte-identical behavior.
+$("cmp-chip").onclick=()=>{
+  if(!D) return;
+  if(state.compare){ $("cmp").checked=false; setCompare(false); return; }
+  const av=[0].filter(w=>weekCounts.has(w)), bv=[1].filter(w=>weekCounts.has(w));
+  if(av.length&&bv.length){
+    state.weeksA=new Set(av); state.weeksB=new Set(bv);
+    paintA=buildPeriodUI("A",state.weeksA,false);
+    paintB=buildPeriodUI("B",state.weeksB,true);
+  }
+  $("cmp").checked=true; setCompare(true);
+};
+// ★Me saved lens: ☆ stores {pctl, klo, khi, role}; the ★Me chip appears once
+// saved and applies it on click. Stored under wowlogs.lab.me.
+function loadMe(){
+  const v=labTry(()=>JSON.parse(localStorage.getItem("wowlogs.lab.me")||"null"));
+  return (v&&typeof v.pctl==="number")?v:null;
+}
+function syncMe(){
+  const me=loadMe(), b=$("mebtn"); if(!b) return;
+  b.hidden=!me;
+  if(me) b.title="Apply saved lens: p"+me.pctl+" · keys +"+me.klo+" – +"+me.khi
+    +" · "+((me.role&&me.role.length)?me.role.join("/"):"all roles");
+}
+$("mesave").onclick=()=>{
+  labTry(()=>localStorage.setItem("wowlogs.lab.me",
+    JSON.stringify({pctl:state.pctl, klo:state.klo, khi:state.khi, role:[...state.role]})));
+  syncMe();
+};
+$("mebtn").onclick=()=>{
+  const me=loadMe(); if(!me||!D) return;
+  state.pctl=me.pctl; state.klo=me.klo; state.khi=me.khi;
+  state.role=new Set(me.role||[]);
+  $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
+  TABS.find(t=>t.id==="med").label=dpsLabel();
+  document.querySelectorAll("#tabs button,#trendseg button").forEach(b=>{
+    if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+  buildControls(); render();
+};
+syncMe();
+
+/* ---------------- scope lines & scroll-spy divergence slot ---------------- */
+// ONE generator for every section's evidence sentence (hand-written scope
+// prose is banned); Lab stamps are appended by labStamp().
+function scopeLine(sec,ctx){
+  ctx=ctx||{};
+  switch(sec){
+    case "pulse":
+      return (pulseDates||"this reset vs the one before — its own baseline, "
+        +"independent of the compare toggle");
+    case "overview":
+      if(state.elite) return "Archon elite window — key/period/min-character controls bypassed · hover any bar for the full story";
+      return describePeriod(state.weeksA)+" · keys +"+state.klo+" – +"+state.khi
+        +" · ≥ "+fmtInt(lastEffMin)+" chars — hover any bar for the full story";
+    case "trajectory":
+      return "whole season — ignores your period selection";
+    case "comps":
+      return ctx.text||"";
+    case "setbonus":
+      return ctx.text||"";
+    case "breakdown":
+      return ctx.text||"";
+  }
+  return "";
+}
+const DIV_TEXT={
+  pulse:()=>pulseDates||"this reset vs last — its own baseline",
+  overview:()=>state.elite?"elite window — key/period/min-chars bypassed"
+    :"≥ "+fmtInt(lastEffMin)+" chars here",
+  trajectory:()=>"whole season — ignores your period selection",
+  setbonus:()=>"tier boxes do not apply here",
+  comps:()=>"timer-margin runs only",
+  breakdown:()=>state.elite?"elite window — key/period/min-chars bypassed"
+    :"≥ "+fmtInt(lastEffMin)+" chars here",
+};
+const secVis=new Map();
+function updateDivSlot(){
+  const el=$("divslot"); if(!el) return;
+  if(window.scrollY<160){el.textContent=""; return}
+  let best=null, bv=0;
+  for(const [s,v] of secVis) if(v>bv){bv=v; best=s}
+  el.textContent=(best&&DIV_TEXT[best])?DIV_TEXT[best]():"";
+}
+try{
+  const obs=new IntersectionObserver(es=>{
+    for(const e of es){
+      const id=e.target.id.replace(/^sec-/,"");
+      secVis.set(id, e.isIntersecting?e.intersectionRect.height:0);
+    }
+    updateDivSlot();
+  },{threshold:[0,.05,.15,.3,.5,.75,1]});
+  document.querySelectorAll(".secbody").forEach(b=>obs.observe(b));
+  addEventListener("scroll",updateDivSlot,{passive:true});
+}catch(e){}
 
 /* ---------------- rendering ---------------- */
 function shade(base,t){
@@ -1814,13 +1808,13 @@ function projDelta(now,was){
   return '<span class="delta '+(d>=0?"up":"down")+'">'
     +(d>=0?"+":"")+(d*100).toFixed(1)+'%</span>';
 }
-function tipHTML(r,compare){
-  const skill=state.skill&&!state.compare&&!state.elite;
+function tipHTML(r,compare,pcmp){
   const row=(k,va,vb)=>"<tr><td>"+k+"</td><td>"+va+"</td>"+(compare?"<td>"+vb+"</td>":"")+"</tr>";
   const f=(o,k,fmt)=>o?fmt(o[k]):"–";
   let h="<b>"+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+"</b><table>";
-  if(compare) h+=row("", "<b>"+(skill?"p"+state.pctl:"A")+"</b>",
-                         "<b>"+(skill?"p"+state.pctlB:"B")+"</b>");
+  if(compare) h+=pcmp
+    ?row("", "<b>p"+state.pctl+"</b>", "<b>p"+state.pctlB+"</b>")
+    :row("", "<b>A</b>", "<b>B</b>");
   h+=row("Runs", f(r.a,"runs",fmtInt), f(r.b,"runs",fmtInt));
   h+=row("Parses", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
   h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
@@ -1854,30 +1848,32 @@ function attachTip(el,html){
   };
   el.onmouseleave=()=>{$("tip").style.display="none"};
 }
+// The Archon scope card — generated alongside ARCHON_RECIPE (the same single
+// source that drives applyArchonState); wording preserved verbatim.
+function archonNote(){
+  return "<b>⚔ Archon replica:</b> per spec, the top decile of key "
+    +"levels, then p85 DPS within — the moving elite frontier their table "
+    +"tracks. Key/period/min-character controls are bypassed while active"
+    +(eliteHidden?"; "+eliteHidden+" spec"+(eliteHidden>1?"s":"")
+      +" hidden for having under "+ELITE_MIN+" qualifying parses":"")+". ";
+}
+function labNoteBadges(){
+  let h="";
+  for(const f of LAB_FEATURES)
+    if(f.gate()&&f.active()) h+='<span class="labtag">⚗ '+f.badge+'</span> ';
+  return h;
+}
 
-let __rowsByKey=new Map();
 function render(){
-  if(!D) return;   // Lens Bar is inert until data arrives
   const am=$("archon");
   if(am&&window.__archonMatches){
     const ok=__archonMatches();
     am.checked=ok;
-    if(!ok&&state.elite){
-      state.elite=false;   // leaving the mode restores standard stats
-      // auto-uncheck keeps the user's changes; the toast offers the restore
-      showArchonToast();
-      setNotice("⚔ Archon mode off — a setting moved; your changes were kept.");
-    }
+    if(!ok&&state.elite) state.elite=false;   // leaving the mode restores standard stats
   }
-  syncLensUI(); syncAxisUI(); renderLab();
-  const tabDef=TABS.find(t=>t.id===state.tab);
-  // While the Trajectory section is the "active tab", the Overview chart keeps
-  // showing Average DPS — same fallback the Breakdown table has always used.
-  const tab=tabDef.trend?TABS.find(t=>t.id==="avg"):tabDef;
+  const tab=TABS.find(t=>t.id===state.tab);
   const A=aggregate(state.weeksA);
-  const skill=state.skill&&!state.elite;
   const B=state.compare?aggregate(state.weeksB):null;
-  const cmpA=state.compare||skill;
 
   // The slider is the threshold for the default view. Narrowing the sample —
   // a shorter period, fewer key levels, one dungeon, one region — scales it
@@ -1890,22 +1886,32 @@ function render(){
   $("minchars-eff").textContent =
     effMinA!==state.minchars ? "→ ≥ "+effMinA.toLocaleString("en-US")+" here" : "";
 
-  // join — Time axis joins period B on A's groups; Skill axis is a second
-  // quantile read (qb at pctlB) on the SAME aggregation, so ranks never shuffle
+  // Lab percentile ghost-compare: a second quantile of the SAME aggregation,
+  // rendered through the existing period-compare ghost/Δ path. Meaningful on
+  // the percentile tab; XOR with period compare.
+  const pcmpOn = !state.compare && state.pctlcmp && !state.elite && state.tab==="med";
+
+  // join
   const rows=[];
   for(const [key,a] of A.groups){
-    const b=state.compare?(B?B.groups.get(key)||null:null)
-           :(skill?Object.assign({},a,{med:a.qb}):null);
-    if(!state.elite&&a.chars<effMinA&&!(state.compare&&b&&b.chars>=effMinB)) continue;
+    let b=B?B.groups.get(key)||null:null;
+    if(!state.elite&&a.chars<effMinA&&!(b&&b.chars>=effMinB)) continue;
+    if(!b&&pcmpOn&&isFinite(a.med2)) b={...a, med:a.med2};
     rows.push({key, cls:a.cls, spec:a.spec, hero:a.hero, a, b});
   }
-  __rowsByKey=new Map(rows.map(r=>[r.key,r]));
+  const cmpMode=state.compare||pcmpOn;
+  lastRowsByKey=new Map(rows.map(r=>[r.key,r]));
 
-  // KPIs (period A)
+  // KPIs (period A) — compact Command-Bar stats; Groups states shown-of-seen
   $("k-runs").textContent=fmtInt(A.runs);
   $("k-parses").textContent=fmtInt(A.parses);
-  $("k-groups").textContent=fmtInt(rows.length);
-  $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
+  $("k-groups").textContent=fmtInt(rows.length)+" of "+fmtInt(A.groups.size);
+  const dateTxt=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
+  $("k-dates").textContent=dateTxt;
+  // folded-away stats stay reachable through the bar's title at laptop widths
+  const cbar=$("cmdbar");
+  if(cbar) cbar.title="Period A: "+fmtInt(A.runs)+" runs · "+fmtInt(A.parses)
+    +" parses · run dates "+dateTxt;
   $("period-note").innerHTML = (state.proj&&D.projection
       ? '<b class="delta up" style="font-size:.95em">🔮 Projected: '
         +esc(D.projection.label)+'.</b> Every DPS figure is that parse\'s own '
@@ -1922,11 +1928,7 @@ function render(){
           +"mid-week appears in two of them, and one run can hold two of the "
           +"same spec on different pieces. Only the Parses column adds up. "
         : "")
-    +(state.elite?"<b>⚔ Archon replica:</b> per spec, the top decile of key "
-        +"levels, then p85 DPS within — the moving elite frontier their table "
-        +"tracks. Key/period/min-character controls are bypassed while active"
-        +(eliteHidden?"; "+eliteHidden+" spec"+(eliteHidden>1?"s":"")
-          +" hidden for having under "+50+" qualifying parses":"")+". ":"")
+    +(state.elite?archonNote():"")
     +((state.tier0||state.tier2||state.tier4)?"<b>🛡 "
         +[state.tier0?"no set":null,state.tier2?"2-piece":null,state.tier4?"4-piece":null]
           .filter(Boolean).join(" or ")
@@ -1935,12 +1937,32 @@ function render(){
     ? "Period <b>A</b>: "+describePeriod(state.weeksA)+" (solid, class colors) &nbsp;·&nbsp; "
       +"Period <b>B</b>: "+describePeriod(state.weeksB)+" (grey ghost bars) — KPIs show period A. "
       +(B?fmtInt(B.parses)+" parses in B.":"")
-    : "Period: "+describePeriod(state.weeksA))
-    +(skill?" <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
-      +state.pctlB+" of the same parses.":"");
+    : "Period: "+describePeriod(state.weeksA)+". ")
+    +(state.pctlcmp
+      ? ' <span class="labtag">⚗ P-CMP</span> Percentile compare: solid '
+        +esc(dpsLabel())+" vs grey ghost p"+state.pctlB
+        +(state.tab==="med"?"":" (shows on the "+esc(dpsLabel())+" tab)")
+        +" — period compare stays off while it runs. "
+      : "")
+    +(xorNote?' <span class="labtag">⚗</span> '+esc(xorNote)+" ":"")
+    +" "+labNoteBadges()
+    +(archonPrev&&!state.elite
+      ? ' <button class="btn" id="archon-restore" style="padding:.15rem .55rem; font-size:.74rem">Restore my pre-Archon filters</button>'
+      : "");
+  const rb=$("archon-restore");
+  if(rb) rb.onclick=()=>{
+    // additive restore after an auto-uncheck exit: replay the retained
+    // snapshot, then clear it. The explicit toggle-off path is unchanged.
+    const p=archonPrev; archonPrev=null;
+    if(p&&window.applyArchonState) window.applyArchonState(p);
+  };
 
-  renderArchonCard();
-  renderComps(A);          // also publishes the qualifying-comp presence set
+  // gain/loss sorts appear whenever a ghost system is live (period or pctl)
+  $("sortseg").querySelectorAll("button").forEach(b=>{
+    if(b.dataset.s==="gain"||b.dataset.s==="loss") b.style.display=cmpMode?"":"none";
+  });
+
+  renderComps(A);   // also stashes the qualifying comp list for Pulse anchors
 
   // order + rank (rank always by A value of this tab, best first)
   const col=tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id;
@@ -1959,7 +1981,7 @@ function render(){
   let lo=0, hi=1;
   for(const r of view){
     const c=[r.a[col]];
-    if(tab.tick&&!cmpA) c.push(r.a[tab.tick]||0);
+    if(tab.tick&&!cmpMode) c.push(r.a[tab.tick]||0);
     if(r.b) c.push(r.b[col]);
     for(const v of c){if(v<lo)lo=v; if(v>hi)hi=v;}
   }
@@ -1969,9 +1991,8 @@ function render(){
   let smin=1e18,smax=-1e18;
   if(tab.shade){for(const r of view){smin=Math.min(smin,r.a[tab.shade]);smax=Math.max(smax,r.a[tab.shade])}
     if(smax<=smin){smin-=1;smax+=1}}
-
   const chart=$("chart");
-  chart.className=cmpA?"cmp":"";
+  chart.className=cmpMode?"cmp":"";
   chart.innerHTML="";
   if(!view.length){
     chart.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups match '
@@ -1985,7 +2006,7 @@ function render(){
     const color=shade(CLASS_COLORS[r.cls]||"#999999",t);
     const row=document.createElement("div"); row.className="brow";
     const lbl=document.createElement("div"); lbl.className="blbl";
-    // Inline span so the trigger is exactly the text, not the empty
+    // Inline span so the tooltip trigger is exactly the text, not the empty
     // left portion of the right-aligned label column.
     const lspan=document.createElement("span"); lspan.textContent=label;
     lbl.appendChild(lspan);
@@ -1994,7 +2015,7 @@ function render(){
     const bl=Math.min(zero,X(v)), br=Math.max(zero,X(v));
     bar.style.left=bl+"%"; bar.style.width=Math.max(br-bl,.2)+"%";
     bar.style.background=color;
-    if(tab.inlay&&!cmpA){
+    if(tab.inlay&&!cmpMode){
       const inl=document.createElement("span"); inl.className="binlay";
       inl.style.color=ink(color);
       inl.textContent=tab.inlay==="deaths"
@@ -2006,7 +2027,7 @@ function render(){
     }
     track.appendChild(bar);
     let ghostEnd=0;
-    if(cmpA&&r.b&&isFinite(r.b[col])){
+    if(cmpMode&&r.b&&isFinite(r.b[col])){
       const gv=r.b[col];
       const gl=Math.min(zero,X(gv)), gr=Math.max(zero,X(gv));
       const gh=document.createElement("div"); gh.className="bghost";
@@ -2014,52 +2035,61 @@ function render(){
       track.appendChild(gh);
       ghostEnd=gr;
     }
-    if(tab.tick&&!cmpA){
+    if(tab.tick&&!cmpMode){
       const tk=document.createElement("div"); tk.className="btick";
       tk.style.left=X(r.a[tab.tick]||0)+"%";
       track.appendChild(tk);
     }
     const valEl=document.createElement("span"); valEl.className="bval";
     const anchor=Math.max(br, ghostEnd,
-      tab.tick&&!cmpA?X(r.a[tab.tick]||0):0);
+      tab.tick&&!cmpMode?X(r.a[tab.tick]||0):0);
     valEl.style.left=anchor+"%";
     const rbase=state.proj?r.a[col==="avg"?"ravg"
                               :col==="med"?"rmed":null]:null;
     valEl.innerHTML=esc(tab.fmt(v))
-      +(cmpA?deltaHTML(r.a[col], r.b?r.b[col]:null, tab)
+      +(cmpMode?deltaHTML(r.a[col], r.b?r.b[col]:null, tab)
         :(rbase==null?"":projDelta(v,rbase)));
     track.appendChild(valEl);
     row.appendChild(lbl); row.appendChild(track);
     // Tooltip only from the bar itself or its label — not the whole row, so
-    // crossing empty track space doesn't trigger it. Click pins the group to
-    // the docked inspector rail.
-    const tipH=tipHTML(r,cmpA);
+    // crossing empty track space doesn't trigger it. The same two content-
+    // hugging zones drive the calm row-hover recolor and the S-PINS click.
+    const tipH=tipHTML(r,cmpMode,pcmpOn);
     attachTip(bar,tipH); attachTip(lspan,tipH);
-    const hotOn=()=>row.classList.add("hot"), hotOff=()=>row.classList.remove("hot");
-    bar.addEventListener("mouseenter",hotOn); bar.addEventListener("mouseleave",hotOff);
-    lspan.addEventListener("mouseenter",hotOn); lspan.addEventListener("mouseleave",hotOff);
-    bar.onclick=()=>togglePin(r.key); lspan.onclick=()=>togglePin(r.key);
+    for(const el of [bar,lspan]){
+      el.addEventListener("mouseenter",()=>row.classList.add("hot"));
+      el.addEventListener("mouseleave",()=>row.classList.remove("hot"));
+      if(state.spinsOn){
+        el.style.cursor="pointer";
+        el.addEventListener("click",()=>togglePin(r.key));
+      }
+    }
     chart.appendChild(row);
   }
   let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
   if(tab.rating) cap+=" "+ratingCoverage();
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
-  else if(skill) cap="Solid: p"+state.pctl+" DPS · ghost: p"+state.pctlB
-    +" DPS · badge: change vs p"+state.pctlB+" — ranks stay anchored to the lens. "+cap;
+  else if(pcmpOn) cap="Solid bar: "+dpsLabel()+" · grey ghost: p"+state.pctlB
+    +" · % badge: spread between the two. "+cap;
   if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
   $("chart-caption").textContent=cap;
 
-  // generated scope lines — the single source of section evidence sentences
-  $("overview-sub").innerHTML=scopeLine("hover any bar for the full story");
-  $("trend-sub").innerHTML=scopeLine("whole season, ignores the period selection");
-
-  renderPulse(rows);
-  renderTrend();
-  renderTable(rows,tabDef);
+  renderPulse(A, ranked, col, tab);
+  const traj=$("sec-trajectory");
+  if(traj&&!traj.hidden) renderTrend();
+  renderTable(rows,tab);
   renderSetBonus();
   updateTierHint();
-  renderStrip(rows,A);
-  renderInspector();
+  labScopeRefresh();
+  updateScopeLines();
+  renderPins();
+  syncCmpChip(); syncMe();
+  updateDivSlot();
+}
+function updateScopeLines(){
+  const p=$("pulse-sub"); if(p) p.innerHTML=esc(scopeLine("pulse"))+labStamp("pulse");
+  const o=$("ov-sub"); if(o) o.innerHTML=esc(scopeLine("overview"))+labStamp("overview");
+  const t=$("traj-sub"); if(t) t.innerHTML=esc(scopeLine("trajectory"))+labStamp("trajectory");
 }
 
 // Coverage across what is actually on screen, not across the whole payload.
@@ -2067,7 +2097,7 @@ function render(){
 // since capture began have it -- around 1% against 30-70% higher up. A global
 // figure would hide that exactly where it matters most.
 function updateTierHint(){
-  if(!hasTier) return;
+  if(!hasTier||!$("tierhint")) return;
   const m=baseMasks();
   let seen=0, known=0;
   for(let i=0;i<N;i++){
@@ -2082,315 +2112,238 @@ function updateTierHint(){
     : "";
 }
 
-/* -------- context strip: compressed KPIs · shown-count · scope chips -------- */
-function renderStrip(rows,A){
-  $("k-runs-c").textContent=fmtInt(A.runs);
-  $("k-parses-c").textContent=fmtInt(A.parses);
-  $("k-groups-c").textContent=fmtInt(rows.length);
-  $("k-dates-c").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
-  $("showncount").textContent=fmtInt(rows.length)+" of "+fmtInt(A.groups.size)+" shown";
-  renderScopeChips();
-  $("trust-amber").hidden=state.trustPrev==null;
-  $("strip").classList.toggle("amber",state.trustPrev!=null);
-}
-function scopeChip(box,txt,targetId){
-  const c=document.createElement("span"); c.className="chip"; c.textContent=txt;
-  c.title="active filter — click to jump to its control";
-  c.onclick=()=>{const el=$(targetId); if(!el) return;
-    const det=el.closest("details"); if(det) det.open=true;
-    el.scrollIntoView({behavior:"smooth", block:"center"});};
-  box.appendChild(c);
-}
-function renderScopeChips(){
-  const box=$("scope-chips"); box.innerHTML="";
-  const lst=s=>{const a=[...s]; return a.slice(0,2).join(", ")+(a.length>2?" +"+(a.length-2):"")};
-  if(state.cls.size) scopeChip(box,"class: "+lst(state.cls),"f-cls");
-  if(state.spec.size) scopeChip(box,"spec: "+lst(state.spec),"f-spec");
-  if(!state.merge) scopeChip(box,"hero talents split","merge");
-  if(!state.merge&&state.hero.size) scopeChip(box,"hero: "+lst(state.hero),"f-hero");
-  if(state.dun.size) scopeChip(box,"dungeon: "+lst(state.dun),"f-dun");
-  if(state.reg.size) scopeChip(box,"region: "+lst(state.reg),"f-reg");
-  if(!(state.role.size===1&&state.role.has("DPS")))
-    scopeChip(box,"role: "+(state.role.size?lst(state.role):"all"),"f-role");
-  if(state.melee!==state.ranged) scopeChip(box,state.melee?"melee only":"ranged only","melee");
-  if(DEF&&!state.elite&&(state.klo!==DEF.klo||state.khi!==DEF.khi))
-    scopeChip(box,"keys +"+state.klo+"–+"+state.khi,"klo");
-  if(SCOPE_DEF&&!state.elite&&!setsEqual(state.weeksA,SCOPE_DEF.weeksA))
-    scopeChip(box,"period: "+describePeriod(state.weeksA),"presetA");
-  if(state.timedOnly!==hasTimed)
-    scopeChip(box,state.timedOnly?"timed only":"all completed","timedseg");
-  if(hasTier&&!state.elite&&!(!state.tier0&&!state.tier2&&state.tier4)){
-    const t=[state.tier0?"no-set":null,state.tier2?"2-set":null,
-             state.tier4?"4-set":null].filter(Boolean);
-    scopeChip(box,"cohort: "+(t.length?t.join("+"):"all gear"),"tierbox");
+/* ---------------- Meta Pulse — the movers board ---------------- */
+// spec presence over ALL comps passing the min-runs bar (never the display cap)
+function compPresence(){
+  const bySpec=new Map();
+  for(const cr of lastCompRows){
+    const seen=new Set();
+    for(const c of cr.comp) seen.add(c.cls*100+c.spec);
+    for(const s of seen) bySpec.set(s,(bySpec.get(s)||0)+1);
   }
-  if(state.compare) scopeChip(box,"compare: time","cmp");
-  if(state.skill&&!state.elite) scopeChip(box,"compare: skill vs p"+state.pctlB,"cmpseg");
-  if(state.elite) scopeChip(box,"⚔ archon replica","archon-chip");
+  return {bySpec, total:lastCompRows.length};
 }
-// trust-gate "show anyway": drops the effective min-chars to 1 for the session;
-// ships only with the amber strip state AND the undo chip (veto conditions)
-function clearTrustOverride(restore){
-  if(state.trustPrev==null) return;
-  if(restore){ state.minchars=state.trustPrev;
-    $("minchars").value=state.minchars; $("minchars-v").textContent=state.minchars; }
-  state.trustPrev=null;
-  $("trust-amber").hidden=true; $("strip").classList.remove("amber");
-}
-$("showncount").onclick=()=>{
-  if(!D||state.trustPrev!=null) return;
-  state.trustPrev=state.minchars;
-  state.minchars=1;
-  $("minchars").value=1; $("minchars-v").textContent=1;
-  setNotice("Trust gate lowered for this session — every group shows regardless of sample size.");
-  render();
-};
-$("trust-undo").onclick=e=>{e.stopPropagation();
-  clearTrustOverride(true); setNotice("Trust gate restored."); render();};
-
-/* -------- Archon generated scope card (single-sourced from the recipe) -------- */
-function renderArchonCard(){
-  const c=$("archon-card");
-  if(!state.elite){c.hidden=true; return}
-  c.hidden=false;
-  const maxDay=curMaxDay>=0?curMaxDay:0;
-  const em=$("minchars-eff").textContent;
-  c.innerHTML='<div class="ac-head">⚔ Archon replica — generated scope</div>'
-   +'Per spec, the top decile of key levels over the last '+ELITE_DAYS+' days ('
-   +fmtDay(maxDay-(ELITE_DAYS-1))+' – '+fmtDay(maxDay)+'), then <b>p85 DPS</b> within — '
-   +'the moving elite frontier their table tracks. A spec needs '+ELITE_MIN
-   +'+ qualifying parses to show'
-   +(eliteHidden?'; <b>'+eliteHidden+' spec'+(eliteHidden>1?'s':'')
-     +'</b> hidden for having under '+ELITE_MIN+' qualifying parses':'')+'. '
-   +'<div class="byp">Bypassed while active: <s>key range</s> · <s>period selection</s> · '
-   +'<s>timed filter</s> · <s>gear cohorts</s> · <s>minimum characters'
-   +(em?' ('+esc(em)+')':'')+'</s> — parked at full range so a mid-range setting '
-   +'cannot misleadingly suggest it applies; moving any of them exits the mode.</div>';
-}
-
-/* -------- ⚡ Pulse — is the meta shifting? own fixed windows, printed inline -------- */
-let __pulse=new Map();
-function pulseVerdict(e){
-  let w;
-  if(e.delta==null) w="New";
-  else{const a=Math.abs(e.delta);
-    w=a<1?"Steady":a<3?(e.delta>0?"Drifting up":"Drifting down")
-      :(e.delta>0?"Surging":"Falling");}
-  const parts=[w];
-  if(e.delta!=null) parts.push((e.delta>=0?"+":"")+e.delta.toFixed(1)+"% vs last reset");
-  parts.push((e.rp!=null?"#"+e.rp:"#–")+"→#"+e.rn);
-  if(window.__compPresence&&__compPresence.den)
-    parts.push("in "+e.pres+" of "+__compPresence.den+" comps");
-  return parts.join(" · ");
-}
-function pulseSpark(pts,color){
-  if(pts.length<2) return '<span class="na">–</span>';
-  const w=96,h=24,p=3;
+function sparkSVG(pts,color){
+  if(pts.length<2) return '<span class="hint">–</span>';
   let mn=Infinity,mx=-Infinity;
-  pts.forEach(v=>{mn=Math.min(mn,v);mx=Math.max(mx,v)});
-  if(mx<=mn){mn-=1;mx+=1}
-  const X=i=>p+(w-2*p)*i/(pts.length-1), Y=v=>p+(h-2*p)*(1-(v-mn)/(mx-mn));
-  const d=pts.map((v,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1)).join(" ");
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h
-    +'" style="vertical-align:middle"><path d="'+d+'" fill="none" stroke="'+color
-    +'" stroke-width="1.8"/></svg>';
+  for(const p of pts){mn=Math.min(mn,p.v); mx=Math.max(mx,p.v)}
+  const pad=(mx-mn)*0.15||1; mn-=pad; mx+=pad;
+  const W=90,H=22;
+  const xs=x=>2+(W-4)*x/7, ys=v=>H-3-(H-6)*(v-mn)/(mx-mn);
+  const d=pts.map((p,i)=>(i?"L":"M")+xs(p.x).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
+  return '<svg class="sparky" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+" "+H+'">'
+    +'<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="1.6"/></svg>';
 }
-function renderPulse(rowsGated){
-  const bodyEl=$("sec-pulse"), host=$("pulse");
-  const sub=$("pulse-sub"), note=$("pulse-note"), capEl=$("pulse-caption");
-  __pulse=new Map();
+function compHTML(comp){
+  return comp.map(c=>{
+    const cn=D.classes[c.cls];
+    return '<span style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
+      +'<span class="role">'+esc((D.roles[c.role]||"?").slice(0,1))+'</span>'
+      +esc(D.specs[c.spec]+" "+cn)+'</span>';
+  }).join("");
+}
+function renderPulse(A, ranked, col, tab){
+  pulseInfo=new Map();
+  const box=$("pulsebox"), secBody=$("sec-pulse");
+  if(!box) return;
+  if(secBody&&secBody.hidden) return;   // filled on expand (section toggle re-renders)
   if(state.elite){
-    // E15 rule: grey the board, never fake movement the replica cannot have
-    bodyEl.classList.add("na-block");
-    host.innerHTML=""; capEl.textContent="";
-    note.textContent="movement unavailable in the Archon replica — its elite frontier has no weekly baseline. Leave the mode to see resets move.";
-    sub.textContent="—";
+    pulseDates="";
+    box.innerHTML='<div class="caption pulse-grey" style="padding:.6rem 0">Movement is '
+      +'unavailable in the Archon replica — its elite window has no reset baseline. '
+      +'Exit Archon mode to bring the movers board back.</div>';
     return;
   }
-  bodyEl.classList.remove("na-block");
-  const nowB=weekCounts.has(0)?0:(availWeeks[0]??0);
-  const prevB=availWeeks.find(w=>w>nowB);
-  const m=baseMasks();
-  const G=new Map(), wkBag=new Map();
-  let nNow=0,nPrev=0, nMin=1e9,nMax=-1, pMin=1e9,pMax=-1;
+  if(!(weekCounts.get(0)>0)||!(weekCounts.get(1)>0)){
+    pulseDates="";
+    box.innerHTML='<div class="caption pulse-grey" style="padding:.6rem 0">No baseline '
+      +'reset yet — the movers board compares this reset against the one before, and the '
+      +'payload holds only one. It fills in the moment a second reset exists.</div>';
+    return;
+  }
+  // ALWAYS bucket 0 vs bucket 1 under the current non-period filters; the
+  // compare toggle never redefines these numbers, and the board prints its
+  // own baseline dates.
+  const s0=new Set([0]), s1=new Set([1]);
+  const P0=setsEqual(state.weeksA,s0)?A:aggregate(s0);
+  const P1=aggregate(s1);
+  const eff0=effMinFor(P0.chars), eff1=effMinFor(P1.chars);
+  const d0=(P0.dmax>=0)?fmtDay(P0.dmin)+" – "+fmtDay(P0.dmax):"—";
+  const d1=(P1.dmax>=0)?fmtDay(P1.dmin)+" – "+fmtDay(P1.dmax):"—";
+  pulseDates="This reset ("+d0+") vs last reset ("+d1+")";
+  const baseDays=(P1.dmax>=0)?(P1.dmax-P1.dmin+1):0;
+  const thinBase=baseDays>0&&baseDays<3;
+  const vv=(g,c)=>{const v=g[c]; return isFinite(v)?v:-Infinity};
+  const g0=[...P0.groups.entries()].filter(([k,g])=>g.chars>=eff0);
+  const g1=[...P1.groups.entries()].filter(([k,g])=>g.chars>=eff1);
+  const rank0=new Map(), rank1=new Map();
+  [...g0].sort((a,b)=>vv(b[1],col)-vv(a[1],col)).forEach(([k],i)=>rank0.set(k,i+1));
+  [...g1].sort((a,b)=>vv(b[1],col)-vv(a[1],col)).forEach(([k],i)=>rank1.set(k,i+1));
+  // 8-reset percentile-DPS sparklines, reusing the weekly-bag idea on the
+  // gated groups only (rendered only while the section is open)
+  const keys0=new Set(g0.map(([k])=>k));
+  const m=baseMasks(), bags=new Map();
   for(let i=0;i<N;i++){
+    const w=R.rbucket[i]; if(w>7) continue;      // also skips undated (999)
     if(!rowPass(i,m)) continue;
     if(projSkip(i)) continue;
-    const w=R.rbucket[i]; if(w>=999) continue;
-    const key=groupKey(i), v=dpsAt(i);
-    let g=G.get(key);
-    if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             now:[],prev:[],dsum:0}; G.set(key,g)}
-    let bag=wkBag.get(key*1000+w); if(!bag){bag=[]; wkBag.set(key*1000+w,bag)}
-    bag.push(v);
-    if(w===nowB){g.now.push(v); g.dsum+=R.deaths[i]; nNow++;
-      if(R.day[i]>=0){if(R.day[i]<nMin)nMin=R.day[i]; if(R.day[i]>nMax)nMax=R.day[i]}}
-    else if(w===prevB){g.prev.push(v); nPrev++;
-      if(R.day[i]>=0){if(R.day[i]<pMin)pMin=R.day[i]; if(R.day[i]>pMax)pMax=R.day[i]}}
+    const k=groupKey(i); if(!keys0.has(k)) continue;
+    const bk=k*10+w;
+    let a=bags.get(bk); if(!a){a=[]; bags.set(bk,a)}
+    a.push(dpsAt(i));
   }
-  const gate=new Set(rowsGated.map(r=>r.key));
-  const pres=window.__compPresence||{den:0,map:new Map()};
-  const entries=[];
-  for(const [key,g] of G){
-    if(!gate.has(key)||!g.now.length) continue;
-    g.now.sort((a,b)=>a-b);
-    const dps=qp(g.now,state.pctl/100);
-    let prevMed=null, thin=false;
-    if(g.prev.length){ g.prev.sort((a,b)=>a-b);
-      prevMed=qp(g.prev,state.pctl/100); thin=g.prev.length<PULSE_THIN; }
-    entries.push({key, cls:D.classes[g.cls], spec:D.specs[g.spec],
-      hero:g.hero<0?"":D.heroes[g.hero], dps, prevMed, thin,
-      nNow:g.now.length, nPrev:g.prev.length,
-      adeaths:g.dsum/g.now.length,
-      delta:(prevMed!=null&&Math.abs(prevMed)>1e-9)
-        ?100*(dps-prevMed)/Math.abs(prevMed):null,
-      isNew:prevB!==undefined&&!g.prev.length,
-      pres:pres.map.get(g.cls*100+g.spec)||0,
-      spark:(()=>{const pts=[];
-        for(const w of [...availWeeks].sort((a,b)=>b-a)){
-          const bag=wkBag.get(key*1000+w);
-          if(bag&&bag.length>=PULSE_THIN) pts.push(qp(bag.sort((a,b)=>a-b),state.pctl/100));
-        } return pts;})(),
-      color:CLASS_COLORS[D.classes[g.cls]]||"#999"});
+  const pres=compPresence();
+  const prows=[];
+  for(const [k,g] of g0){
+    const b=P1.groups.get(k)||null;
+    const dp=(b&&isFinite(b.med)&&Math.abs(b.med)>1e-9)?100*(g.med-b.med)/Math.abs(b.med):NaN;
+    const thin=!b||b.n<50;
+    const na=thin||thinBase||!isFinite(dp);
+    const sh0=100*g.n/Math.max(P0.parses,1);
+    const sh1=b?100*b.n/Math.max(P1.parses,1):NaN;
+    const shd=isFinite(sh1)?sh0-sh1:NaN;
+    const r0=rank0.get(k), r1=rank1.get(k)||null;
+    const specTok=state.merge?k:Math.floor(k/200);
+    const pn=pres.bySpec.get(specTok)||0;
+    let word;
+    if(na) word="No clean baseline";
+    else if(dp>=3) word="Surging";
+    else if(dp>=1) word="Drifting up";
+    else if(dp>-1) word="Steady";
+    else if(dp>-3) word="Drifting down";
+    else word="Falling";
+    const verdict=word
+      +(isFinite(dp)&&!na?" · "+(dp>=0?"+":"")+dp.toFixed(1)+"% vs last reset":"")
+      +" · #"+(r1||"–")+"→#"+r0
+      +" · in "+pn+" of "+pres.total+" qualifying comps";
+    const naWhy=!b?"not in baseline":thinBase?"baseline covers under 3 days"
+      :thin?"thin baseline ("+fmtInt(b.n)+" parses)":"";
+    prows.push({k,g,b,dp,na,naWhy,shd,r0,r1,verdict});
+    pulseInfo.set(k,{presence:"in "+pn+" of "+pres.total+" qualifying comps",
+      verdict:word+(isFinite(dp)&&!na?" "+(dp>=0?"+":"")+dp.toFixed(1)+"%":"")});
   }
-  // ranks anchored to DPS at the current lens, both windows
-  entries.sort((a,b)=>b.dps-a.dps);
-  entries.forEach((e,i)=>e.rn=i+1);
-  [...entries].filter(e=>e.prevMed!=null).sort((a,b)=>b.prevMed-a.prevMed)
-    .forEach((e,i)=>e.rp=i+1);
-  entries.forEach(e=>{e.verdict=pulseVerdict(e); __pulse.set(e.key,e)});
-  // header: the board's own fixed windows, dates and n printed inline
-  const wtxt=(lo,hi,n)=>((hi>=0&&lo<1e9)?fmtDay(lo)+" – "+fmtDay(hi):"—")+", n="+fmtInt(n);
-  sub.innerHTML="this reset ("+wtxt(nMin,nMax,nNow)+")"
-    +(prevB!==undefined?" vs last reset ("+wtxt(pMin,pMax,nPrev)+")"
-                       :" — no earlier reset yet")+labStamps();
-  // inline confound banners
-  const notes=[];
-  if(prevB===undefined) notes.push("single reset of data — Δ and rank-change have no baseline yet");
-  if(prevB!==undefined&&pMax>=0&&nMin<1e9&&pMax>=nMin)
-    notes.push("the two windows overlap by "+(pMax-nMin+1)+" day(s) — regions reset on different days");
-  if(hasTier&&(state.tier0||state.tier2||state.tier4))
-    notes.push("gear-cohort filter narrows both windows to gear-known parses");
-  if(hasTune&&state.postTune) notes.push("post-tuning filter truncates both windows");
-  note.textContent=notes.join(" · ");
-  if(!entries.length){
-    host.innerHTML="";
-    capEl.textContent="No groups in the current reset under these filters.";
-    return;
+  if(state.pulseSort==="rank")
+    prows.sort((a,b)=>((b.r1?b.r1-b.r0:-1e9))-((a.r1?a.r1-a.r0:-1e9)));
+  else if(state.pulseSort==="share")
+    prows.sort((a,b)=>(isFinite(b.shd)?b.shd:-1e9)-(isFinite(a.shd)?a.shd:-1e9));
+  else
+    prows.sort((a,b)=>((b.na?-1e9:b.dp))-((a.na?-1e9:a.dp)));
+  // board
+  const segBtn=(id,lbl)=>'<button data-ps="'+id+'"'
+    +(state.pulseSort===id?' class="on"':"")+'>'+lbl+'</button>';
+  let h='<div class="pulsegrid"><div class="pulsemain">'
+    +'<div class="pulsehead"><b>'+esc(pulseDates)+'</b>'
+    +(thinBase?' <span class="hint">⚠ baseline covers only '+baseDays
+      +' day'+(baseDays>1?"s":"")+' — deltas greyed, not trusted</span>':"")
+    +'<span class="seg" id="pulsesort">'+segBtn("delta","Δ "+esc(dpsLabel()))
+    +segBtn("rank","Rank moves")+segBtn("share","Share Δ")+'</span></div>'
+    +'<div class="tblwrap"><table class="data" id="pulsetbl"><thead><tr>'
+    +'<th class="txt" style="cursor:default">Spec</th>'
+    +'<th style="cursor:default">Δ '+esc(dpsLabel())+'</th>'
+    +'<th style="cursor:default">Rank then→now</th>'
+    +'<th style="cursor:default">Share Δ</th>'
+    +'<th style="cursor:default">8 resets</th>'
+    +'<th class="txt" style="cursor:default">Verdict</th>'
+    +'</tr></thead><tbody>';
+  for(const r of prows){
+    const name=r.g.cls+" "+r.g.spec+(r.g.hero?" — "+r.g.hero:"");
+    const dot='<span class="classdot" style="background:'
+      +(CLASS_COLORS[r.g.cls]||"#999")+'"></span>';
+    const dcell=r.na
+      ? '<span class="delta na">n/a</span> <span class="hint" style="margin:0">'+esc(r.naWhy)+'</span>'
+      : '<span class="delta '+(r.dp>=0?"up":"down")+'">'+(r.dp>=0?"+":"")+r.dp.toFixed(1)+'%</span>';
+    const rcell=r.r1
+      ? '<span class="'+(r.r0<r.r1?"delta up":r.r0>r.r1?"delta down":"")+'" style="font-weight:500">#'
+        +r.r1+' → #'+r.r0+'</span>'
+      : '<span class="delta na">new → #'+r.r0+'</span>';
+    const scell=isFinite(r.shd)
+      ? '<span class="delta '+(r.shd>=0?"up":"down")+'" style="font-weight:500">'
+        +(r.shd>=0?"+":"")+r.shd.toFixed(1)+' pp</span>'
+      : '<span class="delta na">–</span>';
+    const pts=[];
+    for(let w=7;w>=0;w--){
+      const a=bags.get(r.k*10+w);
+      if(a&&a.length>=25) pts.push({x:7-w, v:qp(a.sort((x,y)=>x-y),state.pctl/100)});
+    }
+    h+='<tr><td class="txt">'+dot+esc(name)+'</td>'
+      +'<td>'+dcell+'</td><td>'+rcell+'</td><td>'+scell+'</td>'
+      +'<td>'+sparkSVG(pts,CLASS_COLORS[r.g.cls]||"#999")+'</td>'
+      +'<td class="verd">'+esc(r.verdict)+'</td></tr>';
   }
-  if(!["dps","delta"].includes(state.pulseSort.col)) state.pulseSort={col:"dps",dir:-1};
-  const {col,dir}=state.pulseSort;
-  const view=[...entries].sort((a,b)=>{
-    const x=col==="dps"?a.dps:(a.delta??-1e9), y=col==="dps"?b.dps:(b.delta??-1e9);
-    return (x-y)*dir;
-  }).slice(0,PULSE_MAX);
-  const cols=[["rank","#","txt"],["spec","Spec","txt"],
-    ["dps","DPS @ p"+state.pctl],["delta","Δ vs last reset"],["rankd","Rank"],
-    ["spark","Season","txt"],["adeaths","Deaths"],["comps","Comps","txt"],
-    ["tag","","txt"],["verdict","Verdict","txt"]];
-  let h="<thead><tr>";
-  for(const [k,label,txt] of cols)
-    h+='<th class="'+(txt||"")+((k==="dps"||k==="delta")&&k===col
-      ?" sorted "+(dir<0?"desc":"asc"):"")+'"'
-      +((k==="dps"||k==="delta")?' data-c="'+k+'"':"")+'>'+label+'</th>';
-  h+="</tr></thead><tbody>";
-  for(const e of view){
-    const dcell=e.delta==null
-      ? '<span class="na">no baseline yet</span>'
-      : (e.thin
-        ? '<span class="na" title="thin baseline: only '+fmtInt(e.nPrev)
-          +' parses last reset">'+(e.delta>=0?"+":"")+e.delta.toFixed(1)+"%</span>"
-        : '<span class="delta '+(e.delta>=0?"up":"down")+'">'
-          +(e.delta>=0?"+":"")+e.delta.toFixed(1)+"%</span>");
-    const rcell=e.rp==null?'<span class="na">–</span>'
-      : '<span class="'+(e.rn<e.rp?"delta up":e.rn>e.rp?"delta down":"na")+'">#'
-        +e.rp+"→#"+e.rn+"</span>";
-    h+='<tr data-k="'+e.key+'"><td class="txt">'+e.rn+'</td>'
-      +'<td class="txt"><span class="classdot" style="background:'+e.color+'"></span>'
-      +'<span class="spname">'+esc(e.cls+" "+e.spec+(e.hero?" — "+e.hero:""))+'</span></td>'
-      +'<td>'+fmtInt(e.dps)+'</td>'
-      +'<td>'+dcell+'</td>'
-      +'<td>'+rcell+'</td>'
-      +'<td class="txt">'+pulseSpark(e.spark,e.color)+'</td>'
-      +'<td>'+e.adeaths.toFixed(2)+'</td>'
-      +'<td class="txt">'+(pres.den?("in "+e.pres+" of "+pres.den):'<span class="na">–</span>')+'</td>'
-      +'<td class="txt">'+(e.isNew?'<span class="rtag">new</span>':"")+'</td>'
-      +'<td class="txt verd">'+esc(e.verdict)+'</td></tr>';
+  h+='</tbody></table></div></div><div class="pulseside">';
+  // Top now: top 5 by the current tab metric at the current percentile
+  h+='<div class="pulseblk"><div class="pb-t">Top now · '+esc(tab.id==="med"?dpsLabel():tab.label)+'</div>';
+  for(const r of ranked.slice(0,5)){
+    h+='<div class="pb-row"><span style="color:'+(CLASS_COLORS[r.cls]||"#999")+'">'
+      +r.rank+". "+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+'</span><br>'
+      +'<span style="color:var(--ink2)">'+esc(tab.fmt(r.a[col]))+'</span>'
+      +' <span style="color:var(--ink3)">· '+r.a.adeaths.toFixed(2)+' avg deaths</span></div>';
   }
-  host.innerHTML=h+"</tbody>";
-  host.querySelectorAll("th[data-c]").forEach(th=>{
-    th.onclick=()=>{
-      const c=th.dataset.c;
-      state.pulseSort={col:c, dir:state.pulseSort.col===c?-state.pulseSort.dir:-1};
-      render();
-    };
+  if(!ranked.length) h+='<div class="pb-sub">no groups pass the gate</div>';
+  h+='</div>';
+  // Comp anchors: top 3 by strength over ALL qualifying comps
+  h+='<div class="pulseblk"><div class="pb-t">Comp anchors</div>';
+  const top3=[...lastCompRows].sort((a,b)=>b.strength-a.strength).slice(0,3);
+  for(const cr of top3){
+    h+='<div class="pb-row"><div class="comp">'+compHTML(cr.comp)+'</div>'
+      +'<span style="color:var(--ink3)">strength '
+      +'<b class="delta '+(cr.strength>=0?"up":"down")+'">'
+      +(cr.strength>=0?"+":"")+cr.strength.toFixed(1)+'</b> · '
+      +fmtInt(cr.n)+' runs</span></div>';
+  }
+  h+=top3.length
+    ? '<div class="pb-sub">top 3 of '+fmtInt(lastCompRows.length)+' comps with ≥'
+      +state.compMin+' runs — presence counted over all of them, timer-margin runs only</div>'
+    : '<div class="pb-sub">no comp passes the ≥'+state.compMin+'-run bar under these filters</div>';
+  h+='</div></div></div>';
+  box.innerHTML=h;
+  const ps=$("pulsesort");
+  if(ps) ps.querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{state.pulseSort=b.dataset.ps; render()};
   });
-  host.querySelectorAll("tbody tr").forEach(tr=>{
-    tr.onclick=()=>togglePin(+tr.dataset.k);
-    tr.style.cursor="pointer";
-  });
-  const left=[];
-  for(const [key,g] of G)
-    if(g.prev.length>=PULSE_THIN&&!g.now.length)
-      left.push(D.specs[g.spec]+" "+D.classes[g.cls]);
-  capEl.textContent="Rank-sorted by DPS at the current lens — the top-now read. "
-    +"Δ compares this reset's p"+state.pctl+" DPS against last reset's at the same "
-    +"lens; thin baselines (under "+PULSE_THIN+" parses) are greyed, never hidden. "
-    +"Comp presence counts the qualifying comps (≥"+state.compMin+" runs under the "
-    +"current filters) that include the spec — the denominator is that comp count, "
-    +"stated in the cell. Sparkline: per-reset p"+state.pctl+" DPS across the season. "
-    +"Click a row to pin it to the inspector."
-    +(entries.length>PULSE_MAX?" Showing top "+PULSE_MAX+" of "+entries.length+" specs.":"")
-    +(left.length?" Left the sample since last reset: "+left.join(", ")+".":"");
 }
 
-/* -------- docked click-pin inspector (≤3 cards) — the signature interaction -------- */
+/* ---------------- S-PINS docked tray (Lab) ---------------- */
 function togglePin(key){
-  const i=state.pins.indexOf(key);
-  if(i>=0) state.pins.splice(i,1);
-  else{ state.pins.push(key); if(state.pins.length>3) state.pins.shift(); }
-  renderInspector();
+  if(!state.spinsOn) return;
+  if(state.sPins.has(key)) state.sPins.delete(key);
+  else{
+    if(state.sPins.size>=3) return;   // hard cap: three pins
+    state.sPins.add(key);
+  }
+  labSaveS(); labScopeRefresh(); renderPins();
 }
-function renderInspector(){
-  const pos=$("inspect-pos"), box=$("inspect");
-  if(!state.pins.length){pos.style.display="none"; return}
-  pos.style.display="";
-  box.innerHTML=state.pins.map(k=>{
-    const r=__rowsByKey.get(k);
-    const x='<button class="ix" data-k="'+k+'" aria-label="Unpin">✕</button>';
-    if(!r) return '<div class="icard"><div class="ihead"><b>pinned group</b>'
-      +'<span class="pin-tag">PINNED</span>'+x+'</div>'
-      +'<div class="hint">Not in the current view — widen the filters to see it again.</div></div>';
-    const p=__pulse.get(k);
-    const spread=(isFinite(r.a.q85)&&r.a.q85>0)
-      ?(100*(r.a.q85-r.a.q30)/r.a.q85).toFixed(1)+"% of p85":"–";
-    const body=tipHTML(r,cmpActive()).replace(/^<b>.*?<\/b>/,"");
-    return '<div class="icard"><div class="ihead">'
-      +'<span class="classdot" style="background:'+(CLASS_COLORS[r.cls]||"#999")+'"></span>'
+function renderPins(){
+  const pos=$("pins-pos"), tray=$("pinstray");
+  if(!pos||!tray) return;
+  const show=state.spinsOn&&state.sPins.size>0;
+  pos.style.display=show?"":"none";
+  if(!show){tray.innerHTML=""; return}
+  let h='<span class="pin-tag">PINNED</span>';
+  for(const k of state.sPins){
+    const r=lastRowsByKey.get(k);
+    if(!r){
+      h+='<span class="pincard"><span class="pv">pinned spec not in current view</span>'
+        +'<button class="px" data-k="'+k+'" aria-label="Unpin">×</button></span>';
+      continue;
+    }
+    const info=pulseInfo.get(k);
+    h+='<span class="pincard">'
+      +'<span class="pdot" style="background:'+(CLASS_COLORS[r.cls]||"#999")+'"></span>'
       +'<b>'+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+'</b>'
-      +'<span class="pin-tag">PINNED</span>'+x+'</div>'
-      +'<div class="ibody">'+body+'</div>'
-      +'<div class="hint">p30↔p85 spread: <b style="color:var(--ink)">'+spread+'</b>'
-      +(p?' · '+esc(p.verdict):'')+'</div></div>';
-  }).join("");
-  box.querySelectorAll(".ix").forEach(b=>{
-    b.onclick=()=>togglePin(+b.dataset.k);
+      +'<span class="pv">'+fmtInt(r.a.med)+' '+esc(dpsLabel().toLowerCase())+'</span>'
+      +'<span class="pv">'+fmtInt(r.a.avg)+' avg</span>'
+      +'<span class="pv">'+r.a.adeaths.toFixed(2)+' deaths</span>'
+      +(info?'<span class="pv">'+esc(info.presence)+'</span>'
+            +'<span class="pv">'+esc(info.verdict)+'</span>':"")
+      +'<button class="px" data-k="'+k+'" aria-label="Unpin">×</button></span>';
+  }
+  tray.innerHTML=h;
+  tray.querySelectorAll(".px").forEach(b=>{
+    b.onclick=()=>{state.sPins.delete(+b.dataset.k); labSaveS();
+      labScopeRefresh(); renderPins();};
   });
 }
-document.addEventListener("keydown",e=>{
-  if(e.key==="Escape"&&state.pins.length){state.pins.length=0; renderInspector();}
-});
-// Trajectory extras: DPS|Rank|Share normalization (E17) and Metric|Slope sort
-document.querySelectorAll("#trendnorm button").forEach(b=>{
-  b.onclick=()=>{ if(!D) return; state.trendNorm=b.dataset.n;
-    document.querySelectorAll("#trendnorm button").forEach(x=>x.classList.toggle("on",x===b));
-    render(); };
-});
-document.querySelectorAll("#trajsort button").forEach(b=>{
-  b.onclick=()=>{ if(!D) return; state.trajSort=b.dataset.s;
-    document.querySelectorAll("#trajsort button").forEach(x=>x.classList.toggle("on",x===b));
-    render(); };
-});
 
 /* ---------------- top comps ---------------- */
 const COMPS_MAX=25;
@@ -2496,9 +2449,10 @@ function renderSetBonus(){
     if(nx||ny) return nx&&ny?0:(nx?1:-1);   // dashes last, ascending or not
     return (x-y)*dir;
   });
-  $("set-sub").textContent=rows.length
+  // scope line: Lab-output framing + the exemption stamp, generated in one place
+  $("set-sub").innerHTML=esc(rows.length
     ? rows.length+" specs with enough matched runs — click a column to sort"
-    : "not enough matched runs yet";
+    : "not enough matched runs yet")+labStamp("setbonus");
   const pc=v=>isFinite(v)?'<span class="delta '+(v>=0?"up":"down")+'">'
       +(v>=0?"+":"")+v.toFixed(1)+"%</span>":"–";
   const n=v=>isFinite(v)?fmtInt(v):"–";
@@ -2588,21 +2542,6 @@ function renderComps(A){
     e.deaths+=o.deaths;
     if(score(o)>score(e.best)) e.best=o;
   }
-  // Publish the all-qualifying comp-presence set for Pulse and the inspector:
-  // denominator = how many comps clear the compMin bar, numerator per spec =
-  // how many of those comps field it. Never a bare "/25".
-  {
-    const map=new Map(); let dn=0;
-    for(const e of byComp.values()){
-      if(e.scores.length>=state.compMin){
-        dn++;
-        const seen=new Set();
-        for(const c of e.best.comp) seen.add(c.cls*100+c.spec);
-        for(const s of seen) map.set(s,(map.get(s)||0)+1);
-      }
-    }
-    window.__compPresence={den:dn,map};
-  }
   const all=[...byComp.values()];
   const rows=all.filter(e=>e.scores.length>=state.compMin).map(e=>{
     const m=e.scores.length, sum=e.scores.reduce((a,b)=>a+b,0);
@@ -2617,9 +2556,10 @@ function renderComps(A){
   const t=$("comps");
   if(!rows.length){
     t.innerHTML="";
-    $("comps-sub").textContent=all.length
+    lastCompRows=[]; lastCompAll=all.length;
+    $("comps-sub").innerHTML=esc(all.length
       ? "no comp has "+state.compMin+"+ runs under these filters"
-      : "no timed-clock runs match the current filters";
+      : "no timed-clock runs match the current filters")+labStamp("comps");
     $("comps-caption").textContent="";
     return;
   }
@@ -2630,6 +2570,7 @@ function renderComps(A){
     ["day","Date","txt"]];
   if(!COLS.some(c=>c[0]===state.csort.col)) state.csort={col:"strength",dir:-1};
   rows.sort((a,b)=>b.strength-a.strength).forEach((r,i)=>r.rank=i+1);
+  lastCompRows=rows; lastCompAll=all.length;   // Pulse comp anchors read these
   const {col,dir}=state.csort;
   const val=(r,k)=>k==="comp"
     ? r.comp.map(c=>D.specs[c.spec]+D.classes[c.cls]).join()
@@ -2644,14 +2585,8 @@ function renderComps(A){
     h+=`<th class="${txt||""} ${k===col?"sorted "+(dir<0?"desc":"asc"):""}" data-c="${k}">${label}</th>`;
   h+="</tr></thead><tbody>";
   for(const r of sorted){
-    const comp=r.comp.map(c=>{
-      const cn=D.classes[c.cls];
-      return '<span style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
-        +'<span class="role">'+esc((D.roles[c.role]||"?").slice(0,1))+'</span>'
-        +esc(D.specs[c.spec]+" "+cn)+'</span>';
-    }).join("");
     h+='<tr><td class="txt">'+r.rank+'</td>'
-      +'<td class="txt"><div class="comp">'+comp+'</div></td>'
+      +'<td class="txt"><div class="comp">'+compHTML(r.comp)+'</div></td>'
       +'<td><b class="delta '+(r.strength>=0?"up":"down")+'">'
         +(r.strength>=0?"+":"")+r.strength.toFixed(1)+'</b></td>'
       +'<td>+'+r.avgkey.toFixed(1)+'</td>'
@@ -2670,10 +2605,10 @@ function renderComps(A){
       renderComps(A);
     };
   });
-  $("comps-sub").textContent=fmtInt(rows.length)
+  $("comps-sub").innerHTML=esc(fmtInt(rows.length)
     +(rows.length===1?" comp with ":" comps with ")
     +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
-    +" distinct — ranked by strength, click a column to sort";
+    +" distinct — ranked by strength, click a column to sort")+labStamp("comps");
   $("comps-caption").textContent="Strength scores each run against what is "
     +"typical at its key level, then credits higher keys: margin under the "
     +"timer drops about "+W.toFixed(2)+" points per key level in this "
@@ -2684,10 +2619,11 @@ function renderComps(A){
     +"are the raw margins under the timer, unadjusted.";
 }
 
-/* ---------------- Trajectory (peer section; the Trend tab's relocated target) ---------------- */
+/* ---------------- Trajectory (season trend — a peer section) ---------------- */
 function renderTrend(){
   const box=$("trendbox");
   let mt=TABS.find(t=>t.id===state.trendMetric)||TABS[0];
+  const norm=state.trendNorm;
   const useDeaths=mt.id==="adeaths"||mt.id==="deathless";
   const useChars=mt.id==="chars";
   const calc=vals=>{           // metric over one bag of per-parse source values
@@ -2703,8 +2639,11 @@ function renderTrend(){
   const m=baseMasks();
   // per (group, week) source values, ignoring the period selection
   const tot=new Map(), byWeek=new Map(), byDay=new Map();
-  const wTot=new Map(), dTot=new Map();   // per-bucket parse totals (Share view)
   const weeksSeen=new Set(), daysSeen=new Set(), charsAll=new Set();
+  // share normalization needs per-bucket character sets (group + total)
+  const shareMode=norm==="share";
+  const gShareW=new Map(), totShareW=new Map();
+  const gShareD=new Map(), totShareD=new Map();
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     if(projSkip(i)) continue;   // same projection contract as aggregate()
@@ -2719,43 +2658,37 @@ function renderTrend(){
       tot.set(key,t)}
     t.n++; t.vals.push(v); t.chars.add(R.char[i]);
     weeksSeen.add(w);
-    wTot.set(w,(wTot.get(w)||0)+1);
     let g=byWeek.get(key*1000+w);
     if(!g){g=[]; byWeek.set(key*1000+w,g)}
     g.push(v);
     const d0=R.day[i];
     if(d0>=0){
       daysSeen.add(d0);
-      dTot.set(d0,(dTot.get(d0)||0)+1);
       let gd=byDay.get(key*1000+d0);
       if(!gd){gd=[]; byDay.set(key*1000+d0,gd)}
       gd.push(v);
     }
+    if(shareMode){
+      let sw=gShareW.get(key*1000+w); if(!sw){sw=new Set(); gShareW.set(key*1000+w,sw)}
+      sw.add(R.char[i]);
+      let tw=totShareW.get(w); if(!tw){tw=new Set(); totShareW.set(w,tw)}
+      tw.add(R.char[i]);
+      if(d0>=0){
+        let sd=gShareD.get(key*1000+d0); if(!sd){sd=new Set(); gShareD.set(key*1000+d0,sd)}
+        sd.add(R.char[i]);
+        let tdch=totShareD.get(d0); if(!tdch){tdch=new Set(); totShareD.set(d0,tdch)}
+        tdch.add(R.char[i]);
+      }
+    }
   }
-  // top groups by the selected metric itself ("best" respects its direction),
-  // or — Sort: Slope — by the season's least-squares fit at the current lens
+  // top groups by the selected metric itself ("best" respects its direction)
   const dir=mt.betterUp?-1:1;
   // this panel ignores the period selection, so it scales against its own
   // pool rather than reusing the period-scaled threshold from render()
   const trendMin=effMinFor(charsAll.size);
-  let cand=[...tot.entries()].filter(([,t])=>t.chars.size>=trendMin)
-    .map(([key,t])=>[key,t,calc(t.vals)]);
-  if(state.trajSort==="slope"){
-    const wksAsc=[...availWeeks].filter(w=>weeksSeen.has(w)).sort((a,b)=>b-a); // oldest→newest
-    const slopeOf=key=>{
-      const xs=[],ys=[];
-      wksAsc.forEach((w,idx)=>{const g=byWeek.get(key*1000+w);
-        if(g&&g.length>=25){xs.push(idx); ys.push(calc(g))}});
-      if(xs.length<2) return -Infinity;
-      const nn=xs.length, sx=xs.reduce((a,b)=>a+b,0), sy=ys.reduce((a,b)=>a+b,0);
-      let sxx=0,sxy=0; for(let i=0;i<nn;i++){sxx+=xs[i]*xs[i]; sxy+=xs[i]*ys[i]}
-      const dn=nn*sxx-sx*sx;
-      return Math.abs(dn)<1e-9?-Infinity:((nn*sxy-sx*sy)/dn)*(mt.betterUp?1:-1);
-    };
-    const sm=new Map(cand.map(([key])=>[key,slopeOf(key)]));
-    cand.sort((a,b)=>sm.get(b[0])-sm.get(a[0]));
-  } else cand.sort((a,b)=>(a[2]-b[2])*dir);
-  const top=cand.slice(0,TREND_MAX);
+  const top=[...tot.entries()].filter(([,t])=>t.chars.size>=trendMin)
+    .map(([key,t])=>[key,t,calc(t.vals)])
+    .sort((a,b)=>(a[2]-b[2])*dir).slice(0,TREND_MAX);
   if(!top.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
       +'minimum-runs threshold under the current filters.</div>';
@@ -2782,7 +2715,7 @@ function renderTrend(){
   const ML=70, MR=190, MT=18, MB=34;
   const DASHES=["","5,4","2,3","9,3,2,3"];   // 1st..4th spec of the same class
   const seen={};
-  const series=top.map(([key,t])=>{
+  let series=top.map(([key,t])=>{
     const pts=[];
     buckets.forEach((b,xi)=>{
       const g=store.get(key*1000+b);
@@ -2797,56 +2730,62 @@ function renderTrend(){
       return {...s, color:CLASS_COLORS[s.cls]||"#999",
               dash:DASHES[nth%DASHES.length]};
     });
-  // E17 normalization: the same weekly bags re-read as rank-over-time or
-  // share-of-population-of-parses over time
-  const norm=state.trendNorm, inv=norm==="rank";
-  if(norm==="rank"){
-    const eligible=[...tot.keys()].filter(k=>tot.get(k).chars.size>=trendMin);
-    for(const b of buckets){
-      const lstB=[];
-      for(const k of eligible){
-        const g=store.get(k*1000+b);
-        if(g&&g.length>=MINP) lstB.push([k,calc(g)]);
-      }
-      lstB.sort((x,y)=>(y[1]-x[1])*(mt.betterUp?1:-1));
-      const rk=new Map(lstB.map((e,i)=>[e[0],i+1]));
-      series.forEach(s=>s.pts.forEach(p=>{
-        if(p.b===b&&rk.has(s.key)) p.v=rk.get(s.key)}));
+  // ---- normalization (derived from the same weekly/daily bags) ----
+  if(norm==="share"){
+    const gS=daily?gShareD:gShareW, tS=daily?totShareD:totShareW;
+    for(const s of series) for(const p of s.pts){
+      const gs=gS.get(s.key*1000+p.b), ts=tS.get(p.b);
+      p.v=(gs&&ts&&ts.size)?100*gs.size/ts.size:0;
     }
-  } else if(norm==="share"){
+  }else if(norm==="rank"){
+    // per bucket, rank the shown series (best = #1); stored negated so the
+    // shared y-plumbing puts rank 1 at the top without an inverted axis
+    const byB=new Map();
     series.forEach(s=>s.pts.forEach(p=>{
-      const T=(daily?dTot:wTot).get(p.b)||1; p.v=100*p.n/T;}));
+      let a=byB.get(p.b); if(!a){a=[]; byB.set(p.b,a)} a.push(p);}));
+    const rdir=mt.betterUp?-1:1;
+    for(const a of byB.values())
+      [...a].sort((x,y)=>(x.v-y.v)*rdir).forEach((p,i)=>{p.rank=i+1});
+    series.forEach(s=>s.pts.forEach(p=>{p.v=-p.rank}));
   }
-  const vfmt=norm==="rank"?(v=>"#"+Math.round(v))
-    :norm==="share"?(v=>v.toFixed(1)+"%")
-    :mt.fmt;
+  const nfmt=v=>norm==="rank"?"#"+Math.round(-v)
+    :norm==="share"?v.toFixed(1)+"%":mt.fmt(v);
+  // ---- slope sort: order the series list by trend direction, not value ----
+  if(state.trendSlope&&series.length>1){
+    const slopeOf=s=>{const a=s.pts[0], b=s.pts[s.pts.length-1];
+      return b.xi>a.xi?(b.v-a.v)/(b.xi-a.xi):0;};
+    const desc=!(norm==="dps"&&!mt.betterUp);   // improving-most first
+    series=[...series].sort((x,y)=>desc?slopeOf(y)-slopeOf(x):slopeOf(x)-slopeOf(y));
+  }
   let ymin=1e18,ymax=-1e18;
   series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
   const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
-  if(norm==="dps"){
-    if((useDeaths||useChars)&&ymin<0) ymin=0;   // neither of these goes negative
-    if(mt.id==="deathless"&&ymax>100) ymax=100;
-  }
-  if(norm==="rank"&&ymin<1) ymin=1-pad;
+  if(norm==="dps"&&(useDeaths||useChars)&&ymin<0) ymin=0;   // neither goes negative
+  if(norm==="dps"&&mt.id==="deathless"&&ymax>100) ymax=100;
   if(norm==="share"&&ymin<0) ymin=0;
   const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
-  const ys=v=>MT+(H-MT-MB)*(inv?(v-ymin)/(ymax-ymin):1-(v-ymin)/(ymax-ymin));
-  const axf=norm==="rank"?(v=>"#"+Math.round(v))
-    :norm==="share"?(v=>v.toFixed(1)+"%")
-    :v=>useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
+  const ys=v=>MT+(H-MT-MB)*(1-(v-ymin)/(ymax-ymin));
+  const axf=v=>norm==="rank"?"#"+Math.round(-v)
+    :norm==="share"?Math.round(v)+"%"
+    :useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
     :useChars?String(Math.round(v))
     :Math.round(v/1000)+"k";
-  let extraCap="";
-  if(norm==="rank") extraCap=" Rank view: each point is the group's rank that week among every qualifying group (1 = best, top of the chart).";
-  if(norm==="share") extraCap=" Share view: each point is the group's share of all qualifying parses that week.";
-  if(state.trajSort==="slope") extraCap+=" Sorted by season slope — steepest riser first, least-squares over the weekly points.";
-  if(hasTune&&state.postTune) extraCap+=" Range truncated by the post-tuning filter.";
+  // truncation flag: filters can clip the season span
+  const clipped=daily?0:availWeeks.filter(w=>!weeksSeen.has(w)).length;
+  const clipNote=clipped?" ⚠ "+clipped+" season reset"+(clipped>1?"s have":" has")
+    +" no data under these filters — the span is truncated.":"";
+  const normNote=norm==="rank"
+    ?" Normalized to rank among the shown groups — #1 at the top, so a nerf reads as a fall even while gear inflation lifts every raw number."
+    :norm==="share"
+    ?" Normalized to each group's share of the characters in view that week — adoption, not throughput."
+    :"";
   if(state.trendView==="grid"){
-    renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv);
+    renderTrendGrid(box,series,buckets,ymin,ymax,mt,nfmt);
     wireTrendTips(box,mt);
     $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP))
-      +extraCap
-      +" Each card is one group, ranked best-first; all cards share one y-scale, "
+      +normNote+clipNote
+      +" Each card is one group, ranked "+(state.trendSlope?"by slope":"best-first")
+      +"; all cards share one y-scale, "
       +"time running left → right. Hover points for exact values.";
     return;
   }
@@ -2856,25 +2795,24 @@ function renderTrend(){
     svg+=`<line x1="${ML}" y1="${y}" x2="${W-MR}" y2="${y}" stroke="rgba(234,227,208,.08)"/>`;
     svg+=`<text x="${ML-8}" y="${y+4}" text-anchor="end" fill="#908B80">${axf(v)}</text>`;
   }
+  // tuning-patch marker: a vertical hairline where d.tuning landed (hasTune)
+  if(hasTune&&D.tuning&&D.tuning.date){try{
+    const td=Math.round((Date.parse(D.tuning.date+"T00:00:00Z")
+      -Date.parse(D.epoch+"T00:00:00Z"))/864e5);
+    let xi=null;
+    if(daily){const i0=buckets.findIndex(b=>b>=td); if(i0>=0) xi=i0;}
+    else{const tb=td>=usB0?0:Math.ceil((usB0-td)/7);
+      const i0=buckets.indexOf(tb); if(i0>=0) xi=i0;}
+    if(xi!=null){
+      svg+=`<line x1="${xs(xi)}" y1="${MT}" x2="${xs(xi)}" y2="${H-MB}" stroke="rgba(232,188,87,.35)" stroke-dasharray="3,4"/>`;
+      svg+=`<text x="${xs(xi)+4}" y="${MT+10}" fill="#908B80">tuning</text>`;
+    }
+  }catch(e){}}
   buckets.forEach((b,xi)=>{
     if(xi%Math.ceil(buckets.length/8)&&xi!==buckets.length-1) return;
     svg+=`<text x="${xs(xi)}" y="${H-10}" text-anchor="middle" fill="#908B80">${
       esc(bLabel(b))}</text>`;
   });
-  // tuning-patch markers: vertical hairlines at each pass (hasTune-gated)
-  if(hasTune&&D.tuning&&D.tuning.date){
-    const td=Math.floor((new Date(D.tuning.date+"T00:00:00Z")
-      -new Date(D.epoch+"T00:00:00Z"))/864e5);
-    let xi=-1;
-    if(daily){ if(td>=buckets[0]&&td<=buckets[buckets.length-1])
-      xi=buckets.findIndex(b=>b>=td); }
-    else { const tb=td>=usB0?0:Math.ceil((usB0-td)/7); xi=buckets.indexOf(tb); }
-    if(xi>=0){
-      const x=xs(xi);
-      svg+=`<line x1="${x}" y1="${MT}" x2="${x}" y2="${H-MB}" stroke="rgba(232,163,61,.5)" stroke-dasharray="3,3"/>`;
-      svg+=`<text x="${x+4}" y="${MT+10}" fill="#908B80">tuning</text>`;
-    }
-  }
   const ends=[];
   series.forEach((s,si)=>{
     const d=s.pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
@@ -2885,7 +2823,7 @@ function renderTrend(){
       pointer-events="stroke" class="fat" data-si="${si}"/>`;
     for(const p of s.pts)
       svg+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="3.2" fill="${s.color}"
-        data-si="${si}" data-tip="${esc(s.name)}|${esc(p.lbl)}|${esc(vfmt(p.v))}|${p.n}"/>`;
+        data-si="${si}" data-tip="${esc(s.name)}|${esc(p.lbl)}|${esc(nfmt(p.v))}|${p.n}"/>`;
     const last=s.pts[s.pts.length-1];
     ends.push({y:ys(last.v), name:s.name, color:s.color, dash:!!s.dash, si});
   });
@@ -2925,7 +2863,7 @@ function renderTrend(){
   apply();
   wireTrendTips(box,mt);
   $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP))
-    +extraCap
+    +normNote+clipNote
     +" Dash patterns distinguish specs of the same class. Hover a line or its "
     +"label to spotlight it; click to pin, double-click the chart to clear pins.";
 }
@@ -2955,10 +2893,11 @@ function wireTrendTips(box,mt){
     c.addEventListener("mouseleave",()=>{$("tip").style.display="none"});
   });
 }
-function renderTrendGrid(box,series,weeks,ymin,ymax,mt,vfmt,inv){
+function renderTrendGrid(box,series,weeks,ymin,ymax,mt,nfmt){
   const w=230,h=84,padX=6,padY=7;
   const xs=xi=>padX+(w-2*padX)*(weeks.length<2?0.5:xi/(weeks.length-1));
-  const ys=v=>padY+(h-2*padY)*(inv?(v-ymin)/(ymax-ymin):1-(v-ymin)/(ymax-ymin));
+  const ys=v=>padY+(h-2*padY)*(1-(v-ymin)/(ymax-ymin));
+  const fmt=nfmt||mt.fmt;
   let html='<div class="tgrid">';
   series.forEach((s,si)=>{
     const d=s.pts.map((p,i)=>(i?"L":"M")+xs(p.xi).toFixed(1)+" "+ys(p.v).toFixed(1)).join(" ");
@@ -2966,24 +2905,23 @@ function renderTrendGrid(box,series,weeks,ymin,ymax,mt,vfmt,inv){
     let mini=`<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px">`;
     for(let gi=1;gi<=2;gi++){
       const y=padY+(h-2*padY)*gi/3;
-      mini+=`<line x1="0" y1="${y.toFixed(1)}" x2="${w}" y2="${y.toFixed(1)}" stroke="rgba(234,227,208,.07)"/>`;
+      mini+=`<line x1="0" y1="${y.toFixed(1)}" x2="${w}" y2="${y.toFixed(1)}" stroke="rgba(234,227,208,.06)"/>`;
     }
     mini+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" `
       +`vector-effect="non-scaling-stroke"${s.dash?` stroke-dasharray="${s.dash}"`:""}/>`;
     for(const p of s.pts)
       mini+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="2.6" fill="${s.color}"
-        data-tip="${esc(s.name)}|${esc(p.lbl)}|${esc(vfmt(p.v))}|${p.n}"/>`;
+        data-tip="${esc(s.name)}|${esc(p.lbl)}|${esc(fmt(p.v))}|${p.n}"/>`;
     mini+="</svg>";
     html+=`<div class="tcard"><div class="tname" style="color:${s.color}">${si+1}. ${esc(s.name)}`
-      +` <span class="tval">· ${esc(vfmt(last.v))} latest</span></div>${mini}</div>`;
+      +` <span class="tval">· ${esc(fmt(last.v))} latest</span></div>${mini}</div>`;
   });
   box.innerHTML=html+"</div>";
 }
 
-/* ---------------- table ---------------- */
+/* ---------------- Data Table ---------------- */
 function renderTable(rows,tab){
-  const skill=state.skill&&!state.compare&&!state.elite;
-  const compare=(state.compare||skill)&&!tab.trend;
+  const compare=state.compare&&!tab.trend;
   const metricCol=tab.trend?"avg":(tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id);
   const metricLabel=tab.trend?"Average DPS":tab.label;
   const fmt=tab.trend?fmtInt:tab.fmt;
@@ -2991,41 +2929,28 @@ function renderTable(rows,tab){
   if(compare){
     cols=[["cls","Class","txt"],["spec","Spec","txt"]];
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
-    if(skill){
-      // Skill axis: pA/pB/Δ through the same machinery; runs are one period
-      cols.push(["a_n","Runs"],
-        ["a_v",metricCol==="med"?"p"+state.pctl+" DPS":metricLabel+" (pA)"],
-        ["b_v",metricCol==="med"?"p"+state.pctlB+" DPS":metricLabel+" (pB)"],
-        ["d","Δ %"]);
-    } else {
-      cols.push(["a_n","Runs A"],["b_n","Runs B"],
-        ["a_v",metricLabel+" A"],["b_v",metricLabel+" B"],["d","Δ %"]);
-    }
+    cols.push(["a_n","Runs A"],["b_n","Runs B"],
+      ["a_v",metricLabel+" A"],["b_v",metricLabel+" B"],["d","Δ %"]);
   } else {
     cols=[["cls","Class","txt"],["spec","Spec","txt"]];
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
     cols.push(["a_runs","Runs"],["a_n","Parses"],["chars","Characters"],
       ["avg","Average DPS"],["med",dpsLabel()],
       ["adeaths","Avg Deaths"],
-      ["deathless","Deathless %"]);
+      ["deathless","Deathless %"],
+      // punishment proxy: fixed p30–p85 by design, immune to the pctl slider
+      ["spread","p-spread (fixed p30–p85)"]);
     if(hasRating) cols.push(["arating","Avg Player Rating"],["mrating","Med Player Rating"]);
-    // p30↔p85 spread: the difficulty/forgiveness proxy. Fixed percentiles by
-    // name — the one column that does NOT track the lens. Its two sort
-    // directions ARE "Punishes most" (desc) and "Forgives most" (asc).
-    cols.push(["spread","p30↔p85 spread"]);
   }
   const get=(r,k)=>{
     switch(k){
       case "cls": return r.cls; case "spec": return r.spec; case "hero": return r.hero;
-      case "a_n": return r.a.n;
-      case "b_n": return r.b?r.b.n:-1;
+      case "a_n": return r.a.n; case "b_n": return r.b?r.b.n:-1;
       case "a_runs": return r.a.runs;
       case "a_v": return r.a[metricCol];
       case "b_v": return r.b?r.b[metricCol]:-Infinity;
       case "d": return r.b&&Math.abs(r.b[metricCol])>1e-9
         ?(r.a[metricCol]-r.b[metricCol])/Math.abs(r.b[metricCol]):-Infinity;
-      case "spread": return (isFinite(r.a.q85)&&r.a.q85>0)
-        ?100*(r.a.q85-r.a.q30)/r.a.q85:NaN;
       default: return r.a[k];
     }
   };
@@ -3041,9 +2966,7 @@ function renderTable(rows,tab){
   });
   let h="<thead><tr>";
   for(const [k,label,txt] of cols)
-    h+=`<th class="${txt||""} ${k===col?"sorted "+(dir<0?"desc":"asc"):""}" data-c="${k}"${
-      k==="spread"?' title="Punishes most (sort descending) / Forgives most (sort ascending) — the gap between a spec\'s p30 and p85 parses as a share of p85"':""
-      }>${label}</th>`;
+    h+=`<th class="${txt||""} ${k===col?"sorted "+(dir<0?"desc":"asc"):""}" data-c="${k}">${label}</th>`;
   h+="</tr></thead><tbody>";
   const fmtCell=(k,r)=>{
     const v=get(r,k);
@@ -3069,7 +2992,7 @@ function renderTable(rows,tab){
     return esc(v);
   };
   for(const r of sorted){
-    h+='<tr data-k="'+r.key+'">';
+    h+='<tr data-key="'+r.key+'">';
     for(const [k,,txt] of cols) h+=`<td class="${txt||""}">${fmtCell(k,r)}</td>`;
     h+="</tr>";
   }
@@ -3081,18 +3004,19 @@ function renderTable(rows,tab){
       renderTable(rows,tab);
     };
   });
-  $("tbl").querySelectorAll("tbody tr").forEach(tr=>{
-    tr.onclick=()=>togglePin(+tr.dataset.k);
-    tr.style.cursor="pointer";
-    tr.title="click to pin to the inspector";
-  });
-  $("tbl-sub").innerHTML=scopeLine(esc("every "
-    +(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
+  // S-PINS: the spec text cells are pin triggers while the Lab entry is on
+  if(state.spinsOn){
+    $("tbl").querySelectorAll("tbody tr").forEach(tr=>{
+      tr.querySelectorAll("td.txt").forEach(td=>{
+        td.style.cursor="pointer";
+        td.onclick=()=>togglePin(+tr.dataset.key);
+      });
+    });
+  }
+  $("tbl-sub").innerHTML=esc("every "+(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
     +" group with ≥ "+lastEffMin+" distinct characters under these filters"
-    +(compare
-      ?(skill?" — p"+state.pctl+" vs p"+state.pctlB+" of the same parses; click a column to sort"
-             :" — "+metricLabel+" for periods A and B; click a column to sort")
-      :" — click a column to sort")));
+    +(compare?" — "+metricLabel+" for periods A and B; click a column to sort":" — click a column to sort"))
+    +labStamp("breakdown");
 }
 </script>
 <script>
