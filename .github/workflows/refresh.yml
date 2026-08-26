@@ -1,6 +1,6 @@
 name: Refresh Season 2 data
 
-# Collection sidecar, every 2 hours. Sweeps the Warcraft Logs leaderboards,
+# Collection sidecar, every 30 minutes. Sweeps the Warcraft Logs leaderboards,
 # fetches the summaries for whatever is new, rebuilds the dashboard and
 # publishes it.
 #
@@ -21,7 +21,7 @@ name: Refresh Season 2 data
 # day of re-fetching rather than the whole season (see seed_from_csv()).
 on:
   schedule:
-    - cron: "0 */2 * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       resweep:
@@ -169,7 +169,7 @@ jobs:
       # Runs AFTER the deploy, deliberately. It spends no Warcraft Logs
       # budget, and the build does not need this run's ratings: it reads
       # the journal restored from the cache, so ratings are one run stale,
-      # at most two hours, which is well inside what they are worth.
+      # at most 30 minutes, which is well inside what they are worth.
       # Ahead of the deploy its whole budget sat between a push and the
       # site updating -- ~20 minutes to publish a CSS change. Behind it the
       # page is live in about four, and the collector still gets every
@@ -182,7 +182,7 @@ jobs:
         # Two minutes on a push, the full fifteen otherwise. The deploy no
         # longer waits on this step, but the job still holds the concurrency
         # lock while it runs, so a fifteen-minute tail made every follow-up
-        # push queue behind it. The twelve scheduled runs a day do the real
+        # push queue behind it. The forty-eight scheduled runs a day do the real
         # backfill; a push chipping in two minutes costs it almost nothing.
         run: |
           BUDGET=900
@@ -201,7 +201,7 @@ jobs:
           key: wowlogs-journals-${{ github.run_id }}
 
 
-      # Keeps the recovery seed fresh at one commit a day instead of twelve.
+      # Keeps the recovery seed fresh at one commit a day instead of forty-eight.
       - name: Commit the export (daily)
         if: github.event_name == 'schedule' || inputs.commit_export == true
         run: |
@@ -215,12 +215,15 @@ jobs:
           # slipped run silently skips the day's seed. The 04:00 run cannot
           # reach back into 03, so at most one run a day still matches.
           #
-          # This gate MUST agree with the cron above. It is pinned to an even
-          # hour because a 2-hourly schedule never sees an odd one -- the
-          # previous gate said 03 and would have stopped committing outright.
+          # This gate MUST agree with the cron above. A 30-minute cadence
+          # sees four runs across 02:00-03:59, so the window is one half-hour
+          # wide, matched against the commit step's own clock: only the run
+          # that reaches this step between 02:00 and 02:29 commits. If a slow
+          # run slips past the window the seed just waits a day -- the owner
+          # explicitly does not mind.
           if [ -z "$FORCE" ]; then
-            case "$(date -u +%H)" in
-              02|03) ;;
+            case "$(date -u +%H%M)" in
+              020*|021*|022*) ;;
               *) echo "not the daily slot; skipping"; exit 0 ;;
             esac
           fi
