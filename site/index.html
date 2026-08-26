@@ -306,6 +306,20 @@ main{padding:34px 42px 72px; width:100%; max-width:1200px; min-width:0; margin:0
 td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 .na{color:var(--ink3)}
 .caption{color:var(--ink3); font-size:.76rem; margin-top:.8rem; line-height:1.6}
+/* bar tooltip — delayed, position-once, never cursor-following (owner prefs 1 & 7).
+   §GG surface: glass ground, 6px radius, layered shadow (solid fallback below) */
+#tip{position:fixed; z-index:45; background:var(--surface2); border:1px solid var(--line2);
+  border-radius:var(--r2); padding:.65rem .85rem; font-size:.78rem; pointer-events:none;
+  display:none; max-width:320px; box-shadow:var(--gg-shadow)}
+@supports (backdrop-filter:blur(8px)) or (-webkit-backdrop-filter:blur(8px)){
+  #tip{background:rgba(41,37,29,.92);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px)}
+}
+#tip b{color:var(--accent)}
+#tip table{border-collapse:collapse; margin-top:.25rem}
+#tip td{padding:.08rem .5rem .08rem 0; color:var(--ink); text-align:right;
+  font-variant-numeric:tabular-nums}
+#tip td:first-child{color:var(--ink3); text-align:left}
 /* tables (§15.15) — §GG layered elevation */
 .tblwrap{overflow-x:auto; border:1px solid var(--line1); border-radius:var(--r2);
   background:var(--surface1); box-shadow:var(--gg-shadow)}
@@ -325,7 +339,7 @@ table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700
   text-align:right; font-variant-numeric:tabular-nums}
 .data tbody tr{transition:background-color .1s}
 .data tbody tr:hover{background:rgba(234,227,208,.03)}
-/* bar-click → Data Table row: 2s color-only highlight (tooltip's replacement) */
+/* bar-click → Data Table row: 2s color-only highlight */
 .data tbody tr.rowhl{background:rgba(232,188,87,.14)}
 .data td.txt{text-align:left; white-space:nowrap}
 .classdot{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:8px}
@@ -473,12 +487,29 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
   <div class="rowflex"><label class="small"><input type="checkbox" id="merge" checked> Merge hero talents into spec</label></div>
   <details id="hero-box"><summary>Hero Talent <span class="cnt" id="cnt-hero"></span></summary><div class="chips" id="f-hero"></div></details>
   <details><summary>Dungeon <span class="cnt" id="cnt-dun"></span></summary><div class="chips" id="f-dun"></div></details>
+  <details style="margin-top:.4rem"><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
   <div style="margin-top:.5rem">Key Level: <b id="keys-v" style="color:var(--accent)"></b></div>
   <div class="dual">
     <div class="track"></div><div class="fill" id="key-fill"></div>
     <input type="range" id="klo"><input type="range" id="khi">
   </div>
-  <details style="margin-top:.4rem"><summary>Region <span class="cnt" id="cnt-reg"></span></summary><div class="chips" id="f-reg"></div></details>
+
+  <div class="side-label">Trust Gate</div>
+  <div>Minimum characters:
+    <b id="minchars-v" style="color:var(--accent)">250</b>
+    <span id="minchars-eff" class="hint"></span></div>
+  <input type="range" id="minchars" min="1" max="1200" value="250">
+  <div class="hint" id="minchars-help">How many distinct players must have
+    parsed a spec for it to show, counted against the view this page opens on.
+    Narrowing the sample — period, key range, dungeon, region — scales the
+    threshold down to match, so roughly the same specs stay listed. Role,
+    melee/ranged and un-merging hero talents change which specs are listed
+    rather than the sample behind them, so those leave the threshold alone and
+    the list is free to grow or shrink. Drag to show more or fewer.</div>
+  <div class="seg" id="timedseg" style="margin:.6rem 0 0">
+    <button data-t="0" class="on">All completed</button>
+    <button data-t="1">⏱ Timed only</button>
+  </div>
 
   <div class="side-label">When + Baseline</div>
   <div class="chips" id="presetA" style="padding-top:2px"></div>
@@ -501,23 +532,6 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <label class="small"><input type="checkbox" id="melee"> Melee</label>
     <label class="small"><input type="checkbox" id="ranged"> Ranged</label>
     <span class="hint">both/neither = no filter</span>
-  </div>
-
-  <div class="side-label">Trust Gate</div>
-  <div>Minimum characters:
-    <b id="minchars-v" style="color:var(--accent)">250</b>
-    <span id="minchars-eff" class="hint"></span></div>
-  <input type="range" id="minchars" min="1" max="1200" value="250">
-  <div class="hint" id="minchars-help">How many distinct players must have
-    parsed a spec for it to show, counted against the view this page opens on.
-    Narrowing the sample — period, key range, dungeon, region — scales the
-    threshold down to match, so roughly the same specs stay listed. Role,
-    melee/ranged and un-merging hero talents change which specs are listed
-    rather than the sample behind them, so those leave the threshold alone and
-    the list is free to grow or shrink. Drag to show more or fewer.</div>
-  <div class="seg" id="timedseg" style="margin:.6rem 0 0">
-    <button data-t="0" class="on">All completed</button>
-    <button data-t="1">⏱ Timed only</button>
   </div>
 
   <div id="lab-group">
@@ -558,8 +572,8 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its full Data Table row</span></div>
     <div class="secbody" id="sec-overview">
     <div class="seg" id="sortseg">
-      <button data-s="desc" class="on">Highest first</button>
-      <button data-s="asc">Lowest first</button>
+      <button data-s="desc" class="on">Best first</button>
+      <button data-s="asc">Worst first</button>
       <button data-s="name">Name A → Z</button>
       <button data-s="gain" style="display:none">Gained most</button>
       <button data-s="loss" style="display:none">Lost most</button>
@@ -630,6 +644,8 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
   </div>
 </main>
 </div>
+
+<div id="tip"></div>
 
 <div id="archon-toast" hidden role="status">
   <span>⚔ Archon mode off — a setting moved.</span>
@@ -711,7 +727,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              postTune:true,    // default: only runs after the latest tuning
              proj:false,       // re-score every parse under the upcoming tuning
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
-             trendView:"lines", timedOnly:true,
+             trendView:"grid", timedOnly:true,
              // 4-piece on by default: it is the cohort worth looking at, and
              // gear is known for well over half of +12 parses now. Parses
              // without gear are excluded while it is ticked, so the sample is
@@ -1911,11 +1927,66 @@ function projDelta(now,was){
   return '<span class="delta '+(d>=0?"up":"down")+'">'
     +(d>=0?"+":"")+(d*100).toFixed(1)+'%</span>';
 }
-// The tooltip is gone (feedback #2): the details live in the Data Table, and
-// clicking a chart bar or its label travels to that spec's row with a 2s
-// color-only highlight — user-initiated motion only.
+// Bar tooltip, reinstated (owner-approved) with the standing constraints kept:
+// it triggers ONLY from the bar or the label TEXT span (empty track/label space
+// stays inert), waits ~450ms of settled hover before showing, positions ONCE at
+// the entry point — it never follows the cursor — and hides the moment the
+// pointer leaves. Clicking still travels to the spec's Data Table row.
+const TIP_DELAY=450;
+let __tipTimer=null;
+function hideTip(){
+  clearTimeout(__tipTimer); __tipTimer=null;
+  $("tip").style.display="none";
+}
+function tipHTML(r,compare){
+  const skill=skillOn();
+  const row=(k,va,vb)=>"<tr><td>"+k+"</td><td>"+va+"</td>"+(compare?"<td>"+vb+"</td>":"")+"</tr>";
+  const f=(o,k,fmt)=>o?fmt(o[k]):"–";
+  let h="<b>"+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+"</b><table>";
+  if(compare) h+=row("", "<b>"+(skill?"p"+state.pctl:"A")+"</b>",
+                         "<b>"+(skill?"p"+state.pctlB:"B")+"</b>");
+  h+=row("Runs", f(r.a,"runs",fmtInt), f(r.b,"runs",fmtInt));
+  h+=row("Parses", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
+  h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
+  const pj=(o,k,rk,fmt)=>o?fmt(o[k])+(state.proj?projDelta(o[k],o[rk]):""):"–";
+  h+=row(state.proj?"Average DPS (proj.)":"Average DPS",
+         pj(r.a,"avg","ravg",fmtInt), f(r.b,"avg",fmtInt));
+  h+=row(state.proj?dpsLabel()+" (proj.)":dpsLabel(),
+         pj(r.a,"med","rmed",fmtInt), f(r.b,"med",fmtInt));
+  if(state.proj&&r.a.ravg!=null){
+    h+=row("Recorded average", fmtInt(r.a.ravg), "–");
+    h+=row("Recorded "+dpsLabel().toLowerCase(), fmtInt(r.a.rmed), "–");
+  }
+  h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
+  h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
+  if(hasRating){
+    const rf=v=>isFinite(v)?fmtInt(v):"–";
+    h+=row("Average player rating", f(r.a,"arating",rf), f(r.b,"arating",rf));
+    h+=row("Median player rating", f(r.a,"mrating",rf), f(r.b,"mrating",rf));
+    h+=row("Rated characters", f(r.a,"rn",fmtInt), f(r.b,"rn",fmtInt));
+  }
+  return h+"</table>";
+}
+function attachTip(el,html){
+  el.onmouseenter=e=>{
+    // brief hover-intent delay; the ENTRY position is captured now and the
+    // tooltip, once shown, stays put — it never chases the cursor
+    const x=e.clientX, y=e.clientY;
+    clearTimeout(__tipTimer);
+    __tipTimer=setTimeout(()=>{
+      const tip=$("tip");
+      tip.innerHTML=html; tip.style.display="block";
+      tip.style.left=Math.min(x+14,innerWidth-330)+"px";
+      tip.style.top=Math.min(y+14,innerHeight-220)+"px";
+    },TIP_DELAY);
+  };
+  el.onmouseleave=hideTip;   // immediate hide; a pending show is cancelled
+}
+// Clicking a chart bar or its label travels to that spec's Data Table row with
+// a 2s color-only highlight — user-initiated motion only.
 let __hlTimer=null;
 function jumpToRow(key){
+  hideTip();
   openSection("breakdown");
   const tr=document.querySelector('#tbl tr[data-k="'+key+'"]');
   if(!tr) return;
@@ -2030,14 +2101,19 @@ function render(){
   renderArchonCard();
   renderComps(A);          // also publishes the qualifying-comp presence set
 
-  // order + rank (rank always by A value of this tab, best first)
+  // order + rank (rank always by A value of this tab, best first).
+  // "Best" follows the tab's polarity: highest on the DPS / deathless /
+  // rating / character tabs, but LOWEST average deaths on the deaths tab
+  // (betterUp:false). Rank and the top-N cut share the rule, so Best first
+  // surfaces the genuinely best groups; Worst first is the exact inverse.
   const col=tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id;
+  const bestDir=tab.betterUp?1:-1;
   let ranked=rows;
-  ranked.sort((x,y)=>y.a[col]-x.a[col]);
+  ranked.sort((x,y)=>(y.a[col]-x.a[col])*bestDir);
   ranked.forEach((r,i)=>r.rank=i+1);
-  let view=ranked.slice(0,CHART_MAX);
+  let view=ranked.slice(0,CHART_MAX);   // "desc" (Best first) = ranked order
   const pct=r=>r.b&&Math.abs(r.b[col])>1e-9?(r.a[col]-r.b[col])/Math.abs(r.b[col]):null;
-  if(state.sort==="asc") view=[...view].sort((x,y)=>x.a[col]-y.a[col]);
+  if(state.sort==="asc") view=[...view].sort((x,y)=>(x.a[col]-y.a[col])*bestDir);
   else if(state.sort==="name") view=[...view].sort((x,y)=>
     (x.cls+x.spec+x.hero).localeCompare(y.cls+y.spec+y.hero));
   else if(state.sort==="gain") view=[...view].sort((x,y)=>(pct(y)??-1e9)-(pct(x)??-1e9));
@@ -2119,11 +2195,14 @@ function render(){
     track.appendChild(valEl);
     row.appendChild(lbl); row.appendChild(track);
     // Triggers hug content: the bar itself and the label TEXT span only — not
-    // the whole row. Hover is a color-only label recolor; click travels to the
-    // spec's Data Table row (the tooltip's replacement, feedback #2).
+    // the whole row, so empty track/label space stays inert. Hover is a
+    // color-only label recolor plus the delayed position-once tooltip; click
+    // still travels to the spec's Data Table row.
     const hotOn=()=>row.classList.add("hot"), hotOff=()=>row.classList.remove("hot");
     bar.addEventListener("mouseenter",hotOn); bar.addEventListener("mouseleave",hotOff);
     lspan.addEventListener("mouseenter",hotOn); lspan.addEventListener("mouseleave",hotOff);
+    const tipH=tipHTML(r,cmpA);
+    attachTip(bar,tipH); attachTip(lspan,tipH);
     bar.onclick=()=>jumpToRow(r.key); lspan.onclick=()=>jumpToRow(r.key);
     chart.appendChild(row);
   }
