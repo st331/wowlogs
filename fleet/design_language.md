@@ -447,3 +447,34 @@ text-decoration-color:var(--accent-line); text-underline-offset:2px`.
 if the ground reads the same hue, if any accent reads purple, if any glyph is a
 chevron/caret, or if the wordmark reads as bold geometric sans, it fails. "Inspired by" means
 the near-black + single-accent + data-color discipline — never the same clothes.
+
+---
+
+# §GG — "Gilded Glass" update (2026-08-26, owner-directed; OVERRIDES the flat-only rules above)
+
+The owner: "I really like glass/metal motifs in my elegant designs. the last visual
+redesign … was much more in the direction of what I liked." Restore material richness
+while keeping every calm-interaction rule.
+
+## What changes
+- **Panels**: layered elevation returns — soft stacked shadows (e.g.
+  `box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 14px 30px -24px rgba(0,0,0,.7)`) on panels,
+  KPI cards, and table wraps. Subtle top-edge highlight line (1px inset
+  rgba(255,255,255,.06)) for a machined-metal lip.
+- **Chart bars**: the gloss overlay returns — `::after` with
+  `linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.03) 48%, rgba(0,0,0,.16))`,
+  pointer-events:none. Bars read as lacquered metal, not flat ink.
+- **Sticky bars/rails** (lens bar, context strip): glass — translucent ground
+  (rgba of the surface at ~.82 alpha) + `backdrop-filter: blur(8px)` with a solid fallback.
+- **Active/metal accents**: active chips, slider thumbs, and the active tab underline may
+  use a champagne METALLIC gradient (e.g. `linear-gradient(180deg,#f2cf76,#d9a83f)`)
+  instead of flat accent; borders on active elements may pick up a gold sheen.
+- **Display face**: Cinzel for the wordmark and section titles (the face the owner liked);
+  Inter stays for all UI/data. Marcellus is retired.
+
+## What does NOT change (still hard rules)
+Radii 6px/4px; nothing rotates; static +/− markers; hover is color/brightness only —
+nothing grows, moves, or glows on cursor pass (a static gloss is material, not motion);
+content-hugging triggers; centered bounded measure; no cursor-following surfaces;
+no purple/violet; never Archon-lookalike. Glass/metal is a MATERIAL treatment, not
+added reactivity.
