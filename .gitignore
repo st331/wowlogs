@@ -20,3 +20,7 @@ package-lock.json
 package.json
 data/.build_stamp
 data/*.jsonl.gz.tmp
+
+# per-parse stats sidecar: rebuilt from the gear journal every run, never committed
+site/stats.json.gz
+docs/stats.json.gz
