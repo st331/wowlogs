@@ -39,3 +39,18 @@ block — no placeholder.
   rotation, no cursor-following, no full-bleed; close affordance obvious; ESC closes.
 - Tooltip contract untouched. All tabular content sortable where tabular.
 - No multi-pin, no dormant placeholders, single-file client, section order intact.
+
+## Addition (same day): FLASK filter — scoped to the frame only
+Owner: "I want to be able to filter by which flask the spec used — see the stats of
+players who used the crit flask, or the vers flask, etc. I don't want this feature
+polluting the rest of the dashboard. Keep it scoped only to the spec detailed view."
+- The flask filter lives EXCLUSIVELY inside the spec frame's stats block: small chips
+  (All / per-flask) that re-slice the stat distributions. It must NOT appear in the
+  sidebar, top bar, or any other section, and must not alter any number outside the
+  frame.
+- Data: flask identity was never collected; the collector must start capturing it
+  from the WCL summary combatant info going forward. The stats pipeline aggregates
+  per-flask quantiles once records carry it. The frame's cohort line states coverage
+  ("flask known for X% of parses in window"); with zero coverage the chips simply
+  are not rendered (hasFlask pattern, like hasTier). A quota-priced backfill of
+  recent high keys is possible later if the owner asks — not assumed.
