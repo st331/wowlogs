@@ -320,6 +320,60 @@ td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 #tip td{padding:.08rem .5rem .08rem 0; color:var(--ink); text-align:right;
   font-variant-numeric:tabular-nums}
 #tip td:first-child{color:var(--ink3); text-align:left}
+/* ============ Spec Frame — "the Ledger Rail" (docked click-pin inspector, §15.11) ============ */
+/* toasts (z:60) transiently overlay the rail by design — never repositioned */
+#frame-pos{position:fixed; left:0; right:0; bottom:0; z-index:50; display:flex;
+  justify-content:center; padding:0 42px; pointer-events:none}          /* §15.11 verbatim */
+#frame{pointer-events:auto; width:100%; max-width:1116px; background:var(--surface2);
+  border:1px solid var(--metal-line); border-bottom:0; border-radius:var(--r2) var(--r2) 0 0;
+  padding:.7rem 1.1rem .85rem; font-size:.78rem; max-height:38vh; overflow-y:auto;
+  box-shadow:0 -1px 2px rgba(0,0,0,.3), 0 -18px 40px -24px rgba(0,0,0,.7),
+             inset 0 1px 0 rgba(255,255,255,.06)}                        /* §GG lip, upward */
+#frame[hidden]{display:none}
+@supports (backdrop-filter:blur(8px)) or (-webkit-backdrop-filter:blur(8px)){
+  #frame{background:rgba(41,37,29,.88); backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px)}}   /* same pattern as #lensbar L62 / #strip L212 / #tip L314 */
+#frame.first{animation:frameIn .16s ease}  /* first-open only; class removed on animationend */
+@keyframes frameIn{from{transform:translateY(8px); opacity:0}}
+.fhead{display:flex; align-items:baseline; gap:.5rem; margin-bottom:.45rem}
+.fhead b{font:600 .84rem var(--font); color:var(--ink)}   /* Inter — NEVER --font-display */
+.fh{color:var(--ink3)} .fs{color:var(--ink3); font-size:.72rem; margin-left:auto}
+#frame-x{background:none; border:0; color:var(--ink3); padding:.15rem .5rem;
+  border-radius:var(--r1); cursor:pointer; font-size:.9rem}
+#frame-x:hover{color:var(--ink); background:rgba(234,227,208,.07)}
+#frame-blocks{display:flex; flex-wrap:wrap; gap:.9rem 2rem; align-items:flex-start}
+.fblock{min-width:230px; flex:1}  .fblock[data-block="comps"]{flex:1.6}
+.fblock[data-block="stats"]{min-width:390px}   /* §8 sizing (~300+bar): name + bar + quantile text fit */
+.fblock .fwrap{overflow-x:auto}
+.fblock .bt{font-size:.62rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.15em; color:var(--ink3); margin-bottom:.35rem}  /* Inter mini-caps */
+.fblock .foot{font-size:.7rem; color:var(--ink3); line-height:1.5; margin-top:.4rem}
+.fblock table.data{min-width:0}          /* mini table: override the 700px table floor */
+.fblock .fsub{font-size:.7rem; color:var(--ink3); line-height:1.5; margin-bottom:.35rem}
+.fblock .fnote{color:var(--ink3); font-size:.68rem; font-weight:400}
+.fblock table.frows{border-collapse:collapse}
+.frows td{padding:.08rem .5rem .08rem 0; color:var(--ink); text-align:right;
+  font-variant-numeric:tabular-nums}
+.frows td:first-child{color:var(--ink3); text-align:left; padding-right:1rem}
+.fblock .fchips{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 .45rem}
+.fblock .fchips .chip{font-size:.68rem; padding:.14rem .45rem}
+.fblock table.fstat{border-collapse:collapse}
+.fstat td{padding:.14rem .55rem .14rem 0; color:var(--ink); font-size:.74rem;
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+.fstat td:first-child{color:var(--ink3)}
+.flink{color:var(--accent); text-decoration:underline;
+  text-decoration-color:var(--accent-line); text-underline-offset:2px; cursor:pointer}
+/* the pinned bar — static, click-driven, re-applied in the chart render loop */
+.brow.framed{box-shadow:inset 2px 0 0 var(--metal-line);
+  background:rgba(232,188,87,.05)}
+.brow.framed .blbl{color:var(--ink)}
+/* stat range bars (quantiles drawn as quantiles — never a histogram) */
+.frange{position:relative; width:120px; height:8px; display:inline-block;
+  vertical-align:middle; background:var(--line1); border-radius:2px}
+.frange .fq{position:absolute; top:0; bottom:0; background:rgba(234,227,208,.14)}
+.frange .fmed{position:absolute; top:-2px; bottom:-2px; width:2.5px;
+  border-radius:1px; background:var(--tickref)}
+@media(max-width:900px){#frame-pos{padding:0 18px}}
 /* tables (§15.15) — §GG layered elevation */
 .tblwrap{overflow-x:auto; border:1px solid var(--line1); border-radius:var(--r2);
   background:var(--surface1); box-shadow:var(--gg-shadow)}
@@ -595,7 +649,7 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <div class="kpi-note" id="period-note"></div>
     <div id="archon-card" hidden></div>
 
-    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its full Data Table row — its Comps cell links to that spec's comps</span></div>
+    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its Spec Frame — comps and stats in one place</span></div>
     <div class="secbody" id="sec-overview">
     <div class="seg" id="sortseg">
       <button data-s="desc" class="on">Best first</button>
@@ -672,6 +726,18 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
   </div>
 </main>
 </div>
+
+<!-- Spec Frame — docked Ledger Rail: inert fixed positioner + bounded inner box.
+     Click-driven only; no hover behavior; focus moves only via the user's own Tab. -->
+<div id="frame-pos"><div id="frame" role="region" aria-label="Spec frame" hidden>
+  <div class="fhead">
+    <span class="classdot" id="frame-dot"></span><b id="frame-name"></b>
+    <span id="frame-hero" class="fh"></span>
+    <span id="frame-scope" class="fs"></span>
+    <button id="frame-x" title="Close (Esc)">×</button>
+  </div>
+  <div id="frame-blocks"></div>   <!-- registry renders .fblock[data-block] children -->
+</div></div>
 
 <div id="tip"></div>
 
@@ -752,6 +818,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20, csort:{col:"strength", dir:-1},
              compSpec:null,   // Top Comps "With spec" view slice — display-only, cleared on reload
+             frameKey:null, frameFlask:null,   // Spec Frame — display-only, cleared on reload
 
              ssort:{col:"pt", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
@@ -1278,6 +1345,9 @@ function buildControls(){
   }
 
   $("merge").onchange=e=>{state.merge=e.target.checked;
+    // frame keys are keyspace-specific; a merged key mis-decodes split and
+    // vice versa, so an open frame closes rather than retitling itself wrong
+    if(state.frameKey!=null) closeFrame();
     $("hero-box").style.display=state.merge?"none":""; render()};
   $("hero-box").style.display=state.merge?"none":"";
   $("melee").onchange=e=>{state.melee=e.target.checked; render()};
@@ -2089,6 +2159,311 @@ function jumpToComps(k){
   if(h) h.scrollIntoView({behavior:"smooth", block:"start"});
 }
 
+/* ================= Spec Frame — "the Ledger Rail" (docked inspector) =================
+   Click a bar to dock the rail; clicking the same bar again closes (§15.11:
+   clicking the pinned trigger unpins); Esc closes; ↑/↓ steps the chart ladder.
+   frameKey/frameFlask are display-only — never persisted, cleared on reload.
+   The rail is a region, not a modal: focus is never stolen (no .focus() call
+   anywhere); #frame-x is reached only by the user's own Tab. Zero hover
+   behavior — the 450ms #tip owns hover, untouched. */
+let FRAME_A=null, FRAME_B=null, CHART_KEYS=[];
+let frameCSort={col:"n",dir:-1};   // mini comps table: "top = most run" default
+const escA=s=>esc(s).replace(/"/g,"&quot;");
+
+// the same scope fragments scopeLine() builds, without the labStamp/extra
+function frameScope(){
+  const p=["p"+state.pctl+" lens"];
+  if(state.elite) p.push("Archon replica");
+  else{ p.push(describePeriod(state.weeksA));
+        p.push("keys +"+state.klo+"–+"+state.khi); }
+  if(state.timedOnly) p.push("timed only");
+  if(hasTier&&labHas("tier4pc")&&!state.elite){
+    const t=[state.tier0?"no-set":null,state.tier2?"2-set":null,
+             state.tier4?"4-set":null].filter(Boolean);
+    if(t.length) p.push(t.join("+")+" cohort");
+  }
+  return p.join(" · ");
+}
+// Names decode from presKey, not from g, so the header and comps/stats blocks
+// survive g===null (spec filtered out). presKey ≡ the Data Table's Comps-cell
+// bridge: hero stripped, class+spec kept.
+function frameCtx(){
+  const key=state.frameKey;
+  const pk=state.merge?key:Math.floor(key/200);
+  const cls=D.classes[Math.floor(pk/100)], spec=D.specs[pk%100];
+  const g=FRAME_A?(FRAME_A.groups.get(key)??null):null;
+  return {key, presKey:pk, cls, spec,
+    hero:(!state.merge&&g)?g.hero:"",
+    g,
+    b:(state.compare&&FRAME_B)?(FRAME_B.groups.get(key)??null):null,
+    stats:(D&&D.specstats&&D.specstats.specs)
+      ?(D.specstats.specs[cls+"|"+spec]||null):null,
+    flask:state.frameFlask};
+}
+
+/* ---- block 1: identity & key numbers ---- */
+function frameIdentityHTML(ctx){
+  const g=ctx.g, b=ctx.b, skill=skillOn();
+  let h='<div class="bt">Overview</div>';
+  if(!g)
+    return h+'<div class="foot" style="margin-top:0">no parses match the current filters</div>';
+  const row=(k,v)=>'<tr><td>'+k+'</td><td>'+v+'</td></tr>';
+  // Time compare: A · B (Δ) via the shared deltaHTML; missing B ⇒ its own "new"
+  const ab=(a,bv,fmt,betterUp)=>{
+    const ok=bv!=null&&isFinite(bv);
+    return fmt(a)+" · "+(ok?fmt(bv):"–")+" "+deltaHTML(a,ok?bv:null,{betterUp});
+  };
+  let rows="";
+  if(state.compare) rows+=row(esc(dpsLabel()),ab(g.med,b?b.med:null,fmtInt,true));
+  else if(skill) rows+=row("p"+state.pctl+" · p"+state.pctlB+" DPS",
+    fmtInt(g.med)+" · "+fmtInt(g.qb));
+  else rows+=row(esc(dpsLabel()),fmtInt(g.med));
+  rows+=row("p30–p85 spread",fmtInt(g.q30)+" – "+fmtInt(g.q85)
+    +(g.q85>0?" · "+(100*(g.q85-g.q30)/g.q85).toFixed(1)+"%":""));
+  if(state.compare)
+    rows+=row("Avg deaths",ab(g.adeaths,b?b.adeaths:null,v=>v.toFixed(2),false));
+  else if(skill)
+    rows+=row("Deaths @ p"+state.pctl+" · p"+state.pctlB,
+      g.qdA.toFixed(2)+" · "+g.qdB.toFixed(2)
+      +'<div class="fnote">deaths at the p'+state.pctl+'-th vs p'+state.pctlB
+      +'-th parse — lower is better</div>');
+  else rows+=row("Avg deaths",g.adeaths.toFixed(2));
+  if(state.compare)
+    rows+=row("Deathless",ab(g.deathless,b?b.deathless:null,v=>v.toFixed(1)+"%",true));
+  else rows+=row("Deathless",g.deathless.toFixed(1)+"%"
+    +(skill?' <span class="fnote">(skill compare does not apply)</span>':""));
+  if(hasRating&&g.rn)
+    rows+=row("Med player rating",
+      fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated</span>");
+  // 4pc standing — Lab-gated; reads renderSetBonus's published rows (no 2nd pass).
+  // Retiring the tier4pc manifest entry ⇒ labHas false ⇒ the row never renders.
+  if(hasTier&&labHas("tier4pc")&&window.__setRows){
+    const sr=window.__setRows.find(r=>r.cls===ctx.cls&&r.spec===ctx.spec
+      &&r.hero===(ctx.hero||""));
+    if(sr&&isFinite(sr.s4)&&isFinite(sr.p4))
+      rows+=row("4pc",sr.s4.toFixed(0)+"% adopted · "+(sr.p4>=0?"+":"")
+        +sr.p4.toFixed(1)+"% matched gain");
+  }
+  h+='<table class="frows">'+rows+'</table>';
+  h+='<div class="foot">'+fmtInt(g.n)+" parses · "+fmtInt(g.runs)+" runs · "
+    +fmtInt(g.chars)+" chars · "
+    +(FRAME_A.dmax<0?"—":esc(fmtDay(FRAME_A.dmin)+" – "+fmtDay(FRAME_A.dmax)))
+    +'<br><span class="flink" data-act="row">full row → Data Table</span></div>';
+  return h;
+}
+function wireFrameIdentity(el,ctx){
+  el.querySelectorAll('[data-act="row"]').forEach(x=>x.onclick=()=>jumpToRow(ctx.key));
+}
+
+/* ---- block 2: top comps (mini sortable table over renderComps' published rows) ---- */
+function frameCompsHTML(ctx){
+  const pres=window.__compPresence||{den:0,map:new Map()};
+  const K=pres.map.get(ctx.presKey)||0, Q=pres.den;
+  const members=(window.__compRows||[]).filter(r=>
+    r.comp.some(c=>c.cls*100+c.spec===ctx.presKey));
+  const gated=members.filter(r=>r.n>=state.compMin);
+  const notes=(state.compare?" · period A":"")
+    +(!state.merge?" · comps are class+spec — hero talents share them":"");
+  let h='<div class="bt">Top comps</div>';
+  if(!members.length)
+    return h+'<div class="foot" style="margin-top:0">'
+      +esc("no comps under the current filters field it"+notes)+'</div>';
+  const subgate=!gated.length;   // real data, all below the gate — muted, never hidden
+  h+='<div class="fsub">'+esc(subgate
+    ? "all below the "+state.compMin+"-run gate — lower Min runs in Top Comps"+notes
+    : "in "+fmtInt(K)+" of "+fmtInt(Q)+" qualifying comp"+(Q===1?"":"s")
+      +" ("+state.compMin+"+ runs) · "+fmtInt(members.length)+" distinct field it"+notes)
+    +'</div>';
+  const cols=[["rank","#","txt"],["comp","Composition","txt"],
+    ["n","Runs"],["strength","Strength"]];
+  const val=(r,k)=>k==="comp"?r.comp.map(c=>D.specs[c.spec]+D.classes[c.cls]).join()
+    :k==="rank"?(r.rank??NaN):r[k];          // below-gate rank undefined ⇒ parks last
+  const {col,dir}=frameCSort;
+  const sorted=[...(subgate?members:gated)]
+    .sort((a,b)=>cmpCells(val(a,col),val(b,col),dir))
+    .slice(0,subgate?3:5);                   // cap AFTER the sort (house rule)
+  h+='<div style="overflow-x:auto"><table class="data"><thead><tr>';
+  for(const [k,label,txt] of cols)
+    h+='<th class="'+(txt||"")+(k===col?" sorted "+(dir<0?"desc":"asc"):"")
+      +'" data-c="'+k+'">'+label+'</th>';
+  h+='</tr></thead><tbody>';
+  for(const r of sorted){
+    const comp=r.comp.map(c=>{
+      const cn=D.classes[c.cls];
+      const sel=c.cls*100+c.spec===ctx.presKey;   // static emphasis on this spec
+      return '<span'+(sel?' class="sel"':'')+' style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
+        +'<span class="role">'+esc((D.roles[c.role]||"?").slice(0,1))+'</span>'
+        +esc(D.specs[c.spec]+" "+cn)+'</span>';
+    }).join("");
+    h+='<tr'+(subgate?' class="subgate"':'')+'><td class="txt">'+(r.rank??"–")+'</td>'
+      +'<td class="txt"><div class="comp">'+comp+'</div></td>'
+      +'<td>'+fmtInt(r.n)+'</td>'
+      +'<td><b class="delta '+(r.strength>=0?"up":"down")+'">'
+        +(r.strength>=0?"+":"")+r.strength.toFixed(1)+'</b></td></tr>';
+  }
+  h+='</tbody></table></div>';
+  h+='<div class="foot"><span class="flink" data-act="comps">'
+    +(K>0?"all "+fmtInt(K)+(K===1?" comp →":" comps →"):"see Top Comps →")+'</span></div>';
+  return h;
+}
+function wireFrameComps(el,ctx){
+  el.querySelectorAll("th[data-c]").forEach(th=>{
+    th.onclick=()=>{
+      const c=th.dataset.c;
+      frameCSort={col:c, dir:frameCSort.col===c?-frameCSort.dir:-1};
+      refreshFrameBlock("comps");   // re-renders only this block, not the page
+    };
+  });
+  el.querySelectorAll('[data-act="comps"]').forEach(x=>
+    x.onclick=()=>jumpToComps(ctx.presKey));   // the built section slice, reused verbatim
+}
+
+/* ---- block 3: character stats + flask chips (chips live HERE and nowhere else) ---- */
+function frameStatsHTML(ctx){
+  const S=ctx.stats;
+  const fkeys=(S.flasks&&typeof S.flasks==="object")?Object.keys(S.flasks):[];
+  let fk=state.frameFlask;
+  if(fk!=null&&(!fkeys.length||!S.flasks[fk])){fk=null; state.frameFlask=null}
+  const statMap=fk!=null?S.flasks[fk].stats:S.stats;
+  let h='<div class="bt">Character stats</div>';
+  if(fkeys.length){   // hasFlask pattern: absent/empty flasks ⇒ NO chips row
+    h+='<div class="fchips"><span class="chip'+(fk==null?" on":"")+'" data-fi="-1">All</span>';
+    fkeys.forEach((name,i)=>{
+      h+='<span class="chip'+(fk===name?" on":"")+'" data-fi="'+i+'" title="'+escA(name)
+        +'">'+esc(name.replace(/^Flask of /,""))+' · '+fmtInt(S.flasks[name].n)+'</span>';
+    });
+    h+='</div>';
+  }
+  // p50-descending order IS the priority read (no "A > B > C" prose — banned);
+  // tertiary rows simply drop while a flask slice (core 4 only) is active.
+  const entries=Object.entries(statMap||{})
+    .filter(([,q])=>Array.isArray(q)&&q.length>=3)
+    .map(([name,q])=>({name,q}))
+    .sort((a,b)=>b.q[1]-a.q[1]);
+  const maxP=Math.max(1,...entries.map(e=>e.q[2]));   // one shared x-scale, 0 → max p75
+  h+='<div class="fwrap"><table class="fstat">';
+  for(const e of entries){
+    const [p25,p50,p75]=e.q;
+    // quantiles drawn as quantiles — p25→p75 span + p50 tick, never a histogram
+    h+='<tr><td>'+esc(e.name)+'</td>'
+      +'<td><span class="frange"><span class="fq" style="left:'+(100*p25/maxP).toFixed(2)
+      +'%;width:'+Math.max(0,100*(p75-p25)/maxP).toFixed(2)+'%"></span>'
+      +'<span class="fmed" style="left:'+(100*p50/maxP).toFixed(2)+'%"></span></span></td>'
+      +'<td>'+fmtInt(p50)+' ('+fmtInt(p25)+'–'+fmtInt(p75)+')</td></tr>';
+  }
+  h+='</table></div>';
+  const nline=fk!=null
+    ? "n="+fmtInt(S.flasks[fk].n)+" of "+fmtInt(S.flaskKnown||0)+" (flask-known)"
+    : "n="+fmtInt(S.n);
+  h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc(nline)
+    +'<br>fixed build-time cohort — does not follow the filters, period, or lens above'
+    +'<br>ordered by median rating; what gear drops biases this</div>';
+  return h;
+}
+function wireFrameStats(el,ctx){
+  const fkeys=(ctx.stats&&ctx.stats.flasks)?Object.keys(ctx.stats.flasks):[];
+  el.querySelectorAll(".fchips .chip").forEach(ch=>{
+    ch.onclick=()=>{
+      const i=+ch.dataset.fi;
+      state.frameFlask=i<0?null:(fkeys[i]??null);
+      refreshFrameBlock("stats");   // re-slices this block only
+    };
+  });
+}
+
+// adding talents/trinkets later = append ONE entry; nothing else changes.
+// has()===false ⇒ the block does not exist — flex reflows, no placeholder.
+const FRAME_BLOCKS=[
+  {id:"identity", has:ctx=>true,        html:frameIdentityHTML, wire:wireFrameIdentity},
+  {id:"comps",    has:ctx=>true,        html:frameCompsHTML,    wire:wireFrameComps},
+  {id:"stats",    has:ctx=>!!ctx.stats, html:frameStatsHTML,    wire:wireFrameStats},
+];
+function refreshFrameBlock(id){
+  if(state.frameKey==null) return;
+  const el=document.querySelector('#frame-blocks .fblock[data-block="'+id+'"]');
+  const blk=FRAME_BLOCKS.find(b=>b.id===id);
+  if(!el||!blk) return;
+  const ctx=frameCtx();
+  el.innerHTML=blk.html(ctx);
+  blk.wire(el,ctx);
+  frmPad();
+}
+// footer clearance — state-driven (open/switch/close/re-render), never scroll-driven;
+// below the fold, so no clickable currently under the cursor ever moves.
+function frmPad(){
+  const m=document.querySelector("main");
+  if(!m) return;
+  if(state.frameKey==null){ m.style.paddingBottom=""; return }
+  m.style.paddingBottom=(72+$("frame").offsetHeight)+"px";
+}
+function renderFrame(){
+  const key=state.frameKey; if(key==null||!$("frame")) return;
+  const f=$("frame"); f.hidden=false;
+  const ctx=frameCtx();
+  $("frame-dot").style.background=CLASS_COLORS[ctx.cls]||"#999";
+  $("frame-name").textContent=ctx.cls+" "+ctx.spec;   // Inter — never --font-display
+  $("frame-hero").textContent=(!state.merge&&ctx.hero)?"· "+ctx.hero:"";
+  $("frame-scope").textContent=frameScope();
+  const host=$("frame-blocks"); host.innerHTML="";
+  for(const blk of FRAME_BLOCKS){
+    if(!blk.has(ctx)) continue;
+    const el=document.createElement("div");
+    el.className="fblock"; el.dataset.block=blk.id;
+    el.innerHTML=blk.html(ctx);
+    host.appendChild(el);
+    blk.wire(el,ctx);
+  }
+  frmPad();
+}
+function paintFramed(){
+  document.querySelectorAll("#chart .brow").forEach(el=>
+    el.classList.toggle("framed",
+      state.frameKey!=null&&+el.dataset.k===state.frameKey));
+}
+function openFrame(k){
+  if(state.frameKey===k){ closeFrame(); return }   // same-bar click unpins (§15.11)
+  hideTip();   // a pending tooltip never lingers over the rail (same as jumpToRow)
+  const first=state.frameKey==null;
+  state.frameKey=k;
+  state.frameFlask=null;                 // display-only slice resets on spec switch
+  frameCSort={col:"n",dir:-1};           // "top = most run" default on spec switch
+  renderFrame();
+  if(first){
+    // first-open only: the one sanctioned slide; class removed on animationend
+    // so switches can never re-slide even if open/close races
+    const f=$("frame");
+    f.classList.add("first");
+    f.addEventListener("animationend",()=>f.classList.remove("first"),{once:true});
+  }
+  paintFramed();
+  // focus is NOT stolen: no .focus() — #frame-x is reachable by the user's own Tab
+}
+function closeFrame(){
+  state.frameKey=null; state.frameFlask=null;
+  const f=$("frame");
+  if(f){ f.hidden=true; f.classList.remove("first") }
+  paintFramed();
+  frmPad();   // restores main's padding-bottom to ""
+}
+$("frame-x").onclick=()=>closeFrame();
+// Esc closes; ↑/↓ arrow-steps the chart ladder (first Escape listener in the file)
+document.addEventListener("keydown",e=>{
+  if(state.frameKey==null) return;
+  if(e.key==="Escape"){ closeFrame(); return }
+  if(e.key!=="ArrowUp"&&e.key!=="ArrowDown") return;
+  // arrows guarded: never hijack keys inside form controls
+  if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)||e.target.isContentEditable) return;
+  const i=CHART_KEYS.indexOf(state.frameKey);
+  if(i<0) return;                                   // framed spec not in current chart
+  e.preventDefault();                               // swallow page scroll, ends included
+  const j=Math.min(CHART_KEYS.length-1, Math.max(0, i+(e.key==="ArrowDown"?1:-1)));
+  if(j!==i){
+    state.frameKey=CHART_KEYS[j];
+    state.frameFlask=null; frameCSort={col:"n",dir:-1};   // spec switch resets both
+    renderFrame(); paintFramed();                          // instant swap, zero motion
+  }
+});
+
 /* -------- one shared sorting rule for EVERY table (feedback L51-52) --------
    Click toggles: first click sorts descending, a repeat flips. Strings compare
    with localeCompare. NaN / null / "" / missing values are parked LAST in BOTH
@@ -2120,6 +2495,7 @@ function render(){
   const skill=skillOn();
   const skillTab=skillApplies(tab.id);   // ghost only where a distribution exists
   const B=state.compare?aggregate(state.weeksB):null;
+  FRAME_A=A; FRAME_B=B;   // Spec Frame reads the same single computation
   const cmpA=state.compare||skillTab;
 
   // The slider is the threshold for the default view. Narrowing the sample —
@@ -2212,6 +2588,7 @@ function render(){
     (x.cls+x.spec+x.hero).localeCompare(y.cls+y.spec+y.hero));
   else if(state.sort==="gain") view=[...view].sort((x,y)=>(pct(y)??-1e9)-(pct(x)??-1e9));
   else if(state.sort==="loss") view=[...view].sort((x,y)=>(pct(x)??1e9)-(pct(y)??1e9));
+  CHART_KEYS=view.map(r=>r.key);   // Spec Frame arrow-stepping walks chart order
 
   // shared x-scale
   let lo=0, hi=1;
@@ -2242,6 +2619,9 @@ function render(){
     const t=tab.shade?(r.a[tab.shade]-smin)/(smax-smin):.72;
     const color=shade(CLASS_COLORS[r.cls]||"#999999",t);
     const row=document.createElement("div"); row.className="brow";
+    row.dataset.k=r.key;
+    // pinned-bar cue: static gilded inset edge, re-applied on every chart render
+    row.classList.toggle("framed", r.key===state.frameKey);
     const lbl=document.createElement("div"); lbl.className="blbl";
     // Inline span so the trigger is exactly the text, not the empty
     // left portion of the right-aligned label column.
@@ -2297,7 +2677,7 @@ function render(){
     lspan.addEventListener("mouseenter",hotOn); lspan.addEventListener("mouseleave",hotOff);
     const tipH=tipHTML(r,cmpA);
     attachTip(bar,tipH); attachTip(lspan,tipH);
-    bar.onclick=()=>jumpToRow(r.key); lspan.onclick=()=>jumpToRow(r.key);
+    bar.onclick=()=>openFrame(r.key); lspan.onclick=()=>openFrame(r.key);
     chart.appendChild(row);
   }
   let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
@@ -2323,7 +2703,7 @@ function render(){
   $("chart-caption").textContent=cap;
 
   // generated scope lines — the single source of section evidence sentences
-  $("overview-sub").innerHTML=scopeLine("overview","click any bar for its full Data Table row — its Comps cell links to that spec's comps");
+  $("overview-sub").innerHTML=scopeLine("overview","click any bar for its Spec Frame — comps and stats in one place");
   $("trend-sub").innerHTML=scopeLine("trajectory","whole season, ignores the period selection");
 
   renderPulse(rows);
@@ -2332,6 +2712,7 @@ function render(){
   renderSetBonus();
   updateTierHint();
   renderStrip(rows,A);
+  renderFrame();   // last: every control refresh reaches an open frame through this one path
 }
 
 // Coverage across what is actually on screen, not across the whole payload.
@@ -2739,6 +3120,9 @@ function renderSetBonus(){
   if(!shown){host.innerHTML=""; $("set-sub").textContent="";
     $("set-caption").textContent=""; return}
   const rows=setBonusRows();
+  // publish once for the Spec Frame's 4pc standing row (renderFrame runs last,
+  // so it always reads this pass's rows — no second O(N) computation)
+  window.__setRows=rows;
   const cols=[["cls","Class","txt"],["spec","Spec","txt"]]
     .concat(state.merge?[]:[["hero","Hero Talent","txt"]])
     .concat([["tot","Parses w/ gear"],["s0","% no set"],["s2","% 2-set"],["s4","% 4-set"],
@@ -2874,6 +3258,11 @@ function renderComps(A){
     };
   });
   const rows=rowsAll.filter(r=>r.n>=state.compMin);
+  // publish for the Spec Frame's mini comps table: same objects, same single
+  // pass as the table / Pulse / __compPresence. This one line sits BEFORE both
+  // early returns below, so it is equivalent to publishing on every path — the
+  // frame can never read stale rows after a filter change empties the comp set.
+  window.__compRows=rowsAll;
   const t=$("comps");
   if(!rows.length){
     t.innerHTML="";
