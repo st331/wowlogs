@@ -8,7 +8,8 @@ return "unknown" rather than raise or invent a zero.
 """
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from fetch_data import compact_gear, compact_talents, gear_sets, pack_sets, parse_summary
+from fetch_data import (compact_flask, compact_gear, compact_talents,
+                        gear_sets, pack_sets, parse_summary)
 
 TIER = "1729"
 def item(i, set_id=None, **kw):
@@ -24,7 +25,11 @@ full = {"gear": [
     item(4001, permanentEnchant=7008), {"id": 0}, item(5001, "9999"),
 ], "talentTree": [{"id": 11, "rank": 1}, {"id": 12, "rank": 2}],
    "talentImportString": "ABC", "specID": 260,
-   "stats": {"Haste": {"min": 3100}, "Crit": {"min": 2400}}}
+   "stats": {"Haste": {"min": 3100}, "Crit": {"min": 2400}},
+   "auras": [{"source": 1, "ability": 462854, "stacks": 1,
+              "name": "Skyfury", "icon": "x.jpg"},
+             {"source": 1, "ability": 431972, "stacks": 1,
+              "name": "Flask of Tempered Swiftness", "icon": "y.jpg"}]}
 
 g = compact_gear(full)
 assert len(g) == 9 and g[7] is None, g
@@ -38,6 +43,20 @@ assert t["tree"] == [{"id": 11, "rank": 1}, {"id": 12, "rank": 2}]
 assert t["talentImportString"] == "ABC" and t["specID"] == 260
 assert t["stats"] == {"Haste": 3100, "Crit": 2400}, t["stats"]
 print(f"talents   : {len(t['tree'])} nodes, loadout string, specID, stats flattened")
+
+f = compact_flask(full)
+assert f == {"id": 431972, "name": "Flask of Tempered Swiftness"}, f
+print(f"flask     : {f['name']!r} picked out of {len(full['auras'])} auras")
+# aura list present but no flask among the buffs is a REAL "no flask" ({}),
+# while a missing/empty aura list is unknown (None) -- same split as gear_sets
+assert compact_flask({"auras": [{"ability": 1, "name": "Skyfury"}]}) == {}
+assert compact_flask({"auras": [{"ability": 2,
+                                 "name": "Phial of Truesight"}]})["id"] == 2
+for label, ci in [("no combatantInfo", None), ("empty dict", {}),
+                  ("auras key absent", {"gear": []}),
+                  ("auras empty list", {"auras": []})]:
+    assert compact_flask(ci) is None, label
+print("flask     : no flask aura -> {}; auras missing -> None (unknown)")
 
 counts = gear_sets(full)
 assert counts == {TIER: 4, "9999": 1}, counts
@@ -109,8 +128,10 @@ r, g = rows[0], gear_rows[0]
 assert r["spec"] == "Assassination" and r["set_counts"] == "1729:4|9999:1", r["set_counts"]
 assert g["spec"] == "Assassination" and g["report_code"] == "aBc" and g["fight_id"] == 7
 assert len(g["gear"]) == 9 and g["talents"]["specID"] == 260
+assert g["flask"] == {"id": 431972, "name": "Flask of Tempered Swiftness"}, g
 print(f"parse_summary: 1 row + 1 gear row; spec={r['spec']!r} "
-      f"set_counts={r['set_counts']!r} gear_slots={len(g['gear'])}")
+      f"set_counts={r['set_counts']!r} gear_slots={len(g['gear'])} "
+      f"flask={g['flask']['name']!r}")
 
 bare = dict(player); bare.pop("combatantInfo")
 rows2, gear2 = parse_summary(fight, {"data": {"totalTime": 1_500_000,

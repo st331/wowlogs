@@ -503,6 +503,41 @@ def compact_talents(ci: dict | None) -> dict | None:
     return out or None
 
 
+# A flask shows up in combatantInfo as one of the auras active at the pull.
+# Matched by name rather than a hard-coded spell-id table, which would need
+# editing every patch; WCL translates ability names to English by default.
+# NOTE: whether the Summary table's combatantInfo actually carries an "auras"
+# list cannot be verified from here (collection holds the credentials); the
+# capture is defensive -- no auras simply means flask None -- and the first
+# real run's specstats coverage line in the build log answers it.
+FLASK_AURA = re.compile(r"^(Flask|Phial) of ")
+
+
+def compact_flask(ci: dict | None) -> dict | None:
+    """The flask active at the pull, read off the combatant's aura list.
+
+    Three-way result, same contract as gear_sets(): None when the report
+    shows no aura list at all (unknown -- WCL omits combatantInfo or its
+    auras on some uploads, and every record collected before this existed
+    reads the same way); {} when auras are visible and none of them is a
+    flask (a real "no flask"); else {"id": spell id, "name": aura name} for
+    the first flask aura found -- flasks are mutually exclusive in game, so
+    there is at most one.
+    """
+    if not isinstance(ci, dict):
+        return None
+    auras = ci.get("auras")
+    if not isinstance(auras, list) or not auras:
+        return None
+    for a in auras:
+        if not isinstance(a, dict):
+            continue
+        name = a.get("name")
+        if isinstance(name, str) and FLASK_AURA.match(name):
+            return {"id": a.get("ability"), "name": name}
+    return {}
+
+
 def gear_sets(ci: dict | None) -> dict[str, int] | None:
     """Pieces equipped from every item set, as {set id: count}.
 
@@ -600,6 +635,7 @@ def parse_summary(fight: dict, table: dict,
                     "character": p.get("name"), "server": p.get("server"),
                     "class": p.get("type"), "spec": spec,
                     "gear": gear, "talents": talents,
+                    "flask": compact_flask(ci),
                 })
             rows.append({
                 "character": p.get("name"),
@@ -837,6 +873,12 @@ def export_gear() -> None:
     tmp = GEAR_CSV.with_name(GEAR_CSV.name + ".tmp")
     with gzip.open(tmp, "wt", encoding="utf-8") as fh:
         for rec in df.to_dict("records"):
+            # Rows predating an optional field (flask) get NaN-filled for it
+            # by the DataFrame. Strip those so "field absent" survives the
+            # round trip instead of becoming a literal NaN token, which is
+            # not JSON and would poison every strict reader of the export.
+            rec = {k: v for k, v in rec.items()
+                   if not (isinstance(v, float) and pd.isna(v))}
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
     os.replace(tmp, GEAR_CSV)
     mb = GEAR_CSV.stat().st_size / 1e6

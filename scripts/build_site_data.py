@@ -482,6 +482,208 @@ def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
     return res
 
 
+# --- per-spec character stats for the spec frame ---------------------------
+# Cohort knobs. The window is anchored on the newest run in the dataset, not
+# the wall clock, so rebuilding stale data cannot silently empty the block.
+# +12 is where the gear backfill concentrated, so that is where stats coverage
+# is dense enough to quote; timed-only matches the dashboard's default flavor.
+SPECSTATS_WINDOW_DAYS = 14
+SPECSTATS_MIN_KEY = 12
+SPECSTATS_MIN_CHARS = 10        # a spec below this is omitted, never guessed
+SPECSTATS_FLASK_MIN_CHARS = 10  # per flask variant, same reasoning
+# The four ratings every real combatantInfo carries; a record missing any of
+# them is a torn capture and is skipped rather than mixed into the quantiles.
+SPECSTATS_CORE = ("Crit", "Haste", "Mastery", "Versatility")
+# Tertiaries ride along only where the journal reliably carries them.
+SPECSTATS_EXTRA = ("Leech", "Speed", "Avoidance")
+SPECSTATS_EXTRA_MIN_SHARE = 0.9
+
+
+def stats_from_gear_journal() -> dict[tuple, dict]:
+    """(report, fight, character, server) -> {"stats": {...}, "flask": ...}.
+
+    stats: the secondary-stat RATINGS the collector captured off
+    combatantInfo (compact_talents in scripts/fetch_data.py), numeric values
+    only. Records missing any core secondary are dropped as torn captures --
+    quantiles over a mixed population would be quietly wrong. flask is the
+    compact flask capture: None = unknown (every record written before flask
+    collection began, and reports without an aura list), {} = auras visible
+    with no flask among them, {"id", "name"} = the flask at the pull.
+    Duplicate keys keep the last copy, matching the journal's
+    append-and-supersede contract (see export_gear in fetch_data.py).
+    """
+    src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
+    if not src.exists():
+        return {}
+    opener = gzip.open if src.suffix == ".gz" else open
+    out: dict[tuple, dict] = {}
+    with opener(src, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue                       # tolerate a torn trailing line
+            tal = rec.get("talents")
+            stats = tal.get("stats") if isinstance(tal, dict) else None
+            if not isinstance(stats, dict):
+                continue                       # gear-only record: no stats
+            vals = {k: v for k, v in stats.items()
+                    if isinstance(v, (int, float))
+                    and not isinstance(v, bool) and not pd.isna(v)}
+            if any(s not in vals for s in SPECSTATS_CORE):
+                continue                       # torn capture: skip, don't mix
+            flask = rec.get("flask")
+            out[_gear_key(rec.get("report_code"), rec.get("fight_id"),
+                          rec.get("character"), rec.get("server"))] = {
+                "stats": vals,
+                "flask": flask if isinstance(flask, dict) else None}
+    return out
+
+
+def _stat_quantiles(stat_rows: list[dict], stats) -> dict[str, list[int]]:
+    """{stat: [p25, p50, p75]} over the rows carrying that stat, as ints."""
+    out = {}
+    for s in stats:
+        vals = [r[s] for r in stat_rows if s in r]
+        if vals:
+            out[s] = [int(round(v)) for v in np.percentile(vals, (25, 50, 75))]
+    return out
+
+
+def spec_stats_block(df, started, timed, name: str, journal=None):
+    """Per-spec secondary-stat distributions for the spec frame's stats block.
+
+    Small by construction: per class+spec (hero talents merged, matching the
+    dashboard's default grouping -- the journal carries no hero identity
+    anyway) the p25/p50/p75 of each secondary-stat rating, over ONE record
+    per character: their latest stats-known parse in the cohort, so a
+    grinder's fifty parses cannot drag a distribution. The cohort is timed
+    +SPECSTATS_MIN_KEY-and-higher keys from the newest SPECSTATS_WINDOW_DAYS
+    days of data, stated verbatim in the "cohort" string for the client to
+    print. Values ship as RATINGS, never converted to percentages: the
+    conversion is level- and stat-dependent and belongs to whoever knows the
+    formula, not this file.
+
+    Per-flask re-slices ("flasks") appear on a spec only once enough of its
+    characters have a captured flask (hasFlask pattern); records without the
+    field -- the whole journal before flask capture began -- count toward
+    "all" and simply cannot be re-sliced.
+
+    Returns None when the journal carries no usable stats: the payload key is
+    then absent and the client feature-detects it exactly like tier/rating.
+    """
+    if journal is None:
+        journal = stats_from_gear_journal()
+    if not journal:
+        print(f"[{name}] no combatant stats in the gear journal; "
+              f"specstats block omitted")
+        return None
+    key_ok = pd.to_numeric(df["key_level"], errors="coerce") \
+        >= SPECSTATS_MIN_KEY
+    ok = started.notna() & (timed == 1) & key_ok
+    if ok.any():
+        cutoff = started[ok].max() \
+            - pd.Timedelta(days=SPECSTATS_WINDOW_DAYS)
+        ok &= started >= cutoff
+    n_cohort = int(ok.sum())
+    if not n_cohort:
+        print(f"[{name}] no parses in the specstats cohort; block omitted")
+        return None
+
+    # one record per character: their latest stats-known parse in the cohort
+    latest: dict[tuple, tuple] = {}
+    n_hit = 0
+    for sel, t, cls, spec, ch, sv, rg, code, fid in zip(
+            ok, started, df["class"], df["spec"], df["character"],
+            df["server"], df["region"], df["report_code"], df["fight_id"]):
+        if not sel:
+            continue
+        rec = journal.get(_gear_key(code, fid, ch, sv))
+        if rec is None:
+            continue
+        n_hit += 1
+        ck = (cls, spec, str(ch), str(sv), str(rg))
+        prev = latest.get(ck)
+        if prev is None or t > prev[0]:
+            latest[ck] = (t, rec)
+    if not n_hit:
+        print(f"[{name}] no stats-known parses in the specstats cohort; "
+              f"block omitted")
+        return None
+
+    groups: dict[tuple, list[dict]] = {}
+    for (cls, spec, *_), (_, rec) in latest.items():
+        groups.setdefault((cls, spec), []).append(rec)
+
+    spec_out: dict[str, dict] = {}
+    n_chars = n_flask_known = 0
+    for (cls, spec), recs in sorted(groups.items()):
+        n = len(recs)
+        n_chars += n
+        n_flask_known += sum(1 for r in recs if r["flask"] is not None)
+        if n < SPECSTATS_MIN_CHARS:
+            continue                           # thin spec: omit, never guess
+        stat_rows = [r["stats"] for r in recs]
+        stats = list(SPECSTATS_CORE) + [
+            s for s in SPECSTATS_EXTRA
+            if sum(1 for r in stat_rows if s in r)
+            >= SPECSTATS_EXTRA_MIN_SHARE * n]
+        entry: dict = {"n": n, "q": _stat_quantiles(stat_rows, stats)}
+        by_flask: dict[str, list[dict]] = {}
+        for r in recs:
+            f = r["flask"]
+            if isinstance(f, dict) and f.get("name"):
+                by_flask.setdefault(str(f["name"]), []).append(r["stats"])
+        flasks = {fn: {"n": len(rows),
+                       "q": _stat_quantiles(rows, SPECSTATS_CORE)}
+                  for fn, rows in sorted(by_flask.items())
+                  if len(rows) >= SPECSTATS_FLASK_MIN_CHARS}
+        if flasks:
+            entry["flasks"] = flasks
+        spec_out[f"{cls}|{spec}"] = entry
+    if not spec_out:
+        print(f"[{name}] every spec below {SPECSTATS_MIN_CHARS} stats-known "
+              f"characters; specstats block omitted")
+        return None
+
+    # printed verbatim by the client -- window, key floor, n and coverage in
+    # one line, per the feature contract
+    cohort = (f"timed +{SPECSTATS_MIN_KEY}s and higher from the last "
+              f"{SPECSTATS_WINDOW_DAYS} days of data; one record per "
+              f"character (their latest parse); stats known for {n_hit:,} of "
+              f"{n_cohort:,} parses ({n_hit / n_cohort:.0%}); values are "
+              f"secondary-stat ratings at the pull, not percentages")
+    if n_flask_known:
+        cohort += (f"; flask known for {n_flask_known / max(n_chars, 1):.0%} "
+                   f"of characters")
+    block = {"cohort": cohort, "keyMin": SPECSTATS_MIN_KEY,
+             "windowDays": SPECSTATS_WINDOW_DAYS, "specs": spec_out}
+    size = len(json.dumps(block, separators=(",", ":")))
+    print(f"[{name}] specstats: {len(spec_out)} specs from {n_chars:,} "
+          f"characters ({n_hit:,} stats-known parses, {n_flask_known:,} "
+          f"flask-known characters; {size / 1024:.1f} KB)")
+    return block
+
+
+def spec_stats_frame(block: dict) -> "pd.DataFrame":
+    """Flatten a specstats block to long-format rows for the llms export."""
+    rows = []
+    for key, e in block["specs"].items():
+        cls, spec = key.split("|", 1)
+        variants = [("all", e["n"], e["q"])]
+        variants += [(fn, f["n"], f["q"])
+                     for fn, f in e.get("flasks", {}).items()]
+        for flask, n, q in variants:
+            for stat, (p25, p50, p75) in q.items():
+                rows.append({"class": cls, "spec": spec, "flask": flask,
+                             "characters": n, "stat": stat,
+                             "p25": p25, "p50": p50, "p75": p75})
+    return pd.DataFrame(rows)
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
     if not csv.exists():                       # tolerate an un-gzipped copy
@@ -544,6 +746,9 @@ def build(name: str, cfg: dict) -> None:
     # itself — derived from that player's own ability breakdown — so the client
     # can apply it row by row and every aggregate stays exact under any filter.
     tmul, proj = tuning_multipliers(df, post)
+    # per-spec secondary-stat quantiles for the spec frame; absent until the
+    # gear journal carries stats, feature-detected client-side like tier/rating
+    specstats = spec_stats_block(df, started, timed, name)
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
@@ -582,6 +787,8 @@ def build(name: str, cfg: dict) -> None:
     }
     if proj:
         payload["projection"] = proj
+    if specstats:
+        payload["specstats"] = specstats
     blob = json.dumps(payload, separators=(",", ":"))
     # Big datasets ship pre-compressed: GitHub Pages' deploy step has a hard
     # 10-minute publish budget and a multi-tens-of-MB artifact blows it. The
@@ -861,9 +1068,15 @@ def build_llms() -> None:
 
     set_bonus = set_bonus_table()
 
+    # same block the dashboard payload ships, flattened to CSV rows; absent
+    # (no file, no doc line) until the gear journal carries stats
+    specstats = spec_stats_block(df, started, df["timed"], "llms")
+
     files: list[tuple[str, pd.DataFrame | str]] = [
         ("spec_summary.csv", spec_summary),
         *([("set_bonus.csv", set_bonus)] if set_bonus is not None else []),
+        *([("spec_stats.csv", spec_stats_frame(specstats))]
+          if specstats else []),
         ("spec_by_key.csv",
          with_subsets(["class", "spec", "role", "key_level"], True, sets=True)),
         ("spec_by_dungeon.csv",
@@ -1155,6 +1368,14 @@ def build_llms() -> None:
         "matched cells or its gain is blank rather than guessed; item level "
         "and player skill still travel with having the set, so these remain an "
         "upper bound on the bonus.",
+        # only when it exists, for the same dead-link reason as above
+        *([f"- {BASE_URL}/llms/spec_stats.csv — secondary-stat rating "
+           "quantiles per class+spec, hero talents merged. Columns: class, "
+           "spec, flask, characters, stat, p25, p50, p75. flask=\"all\" rows "
+           "cover every stats-known character; other flask values re-slice "
+           "by the flask seen at the pull. Values are ratings, not "
+           "percentages. Cohort: " + specstats["cohort"] + "."]
+          if specstats else []),
         f"- {BASE_URL}/llms/comps.csv — the {COMPS_PER_SUBSET:,} "
         f"best-sampled per subset, one row per distinct 5-player "
         "composition, ranked by `strength`. Columns: subset, composition, "
@@ -1542,6 +1763,10 @@ def inputs_fingerprint() -> str:
     for f in (ROOT / "data" / SEASON["csv"],
               ROOT / "data" / "tuning_patches.json",
               ROOT / "data" / "raw" / "abilities.jsonl",
+              # the gear journal feeds the tier cohorts and the specstats
+              # block; live copy first, committed export as the cold-start
+              # fallback, matching the read order in the builders above
+              GEAR_JOURNAL, GEAR_EXPORT,
               ROOT / "site" / "index.html",
               pathlib.Path(__file__)):
         h.update(f.name.encode())
