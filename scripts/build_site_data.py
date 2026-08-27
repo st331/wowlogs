@@ -553,6 +553,20 @@ def _stat_quantiles(stat_rows: list[dict], stats) -> dict[str, list[int]]:
     return out
 
 
+def _specstats_cohort(df, started, timed) -> "pd.Series":
+    """The shared journal-block cohort mask: timed runs at the key floor and
+    up, inside the newest-anchored window. specstats and specmeta both build
+    on this one mask so their cohort statements can never drift apart."""
+    key_ok = pd.to_numeric(df["key_level"], errors="coerce") \
+        >= SPECSTATS_MIN_KEY
+    ok = started.notna() & (timed == 1) & key_ok
+    if ok.any():
+        cutoff = started[ok].max() \
+            - pd.Timedelta(days=SPECSTATS_WINDOW_DAYS)
+        ok &= started >= cutoff
+    return ok
+
+
 def spec_stats_block(df, started, timed, name: str, journal=None):
     """Per-spec secondary-stat distributions for the spec frame's stats block.
 
@@ -581,13 +595,7 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
         print(f"[{name}] no combatant stats in the gear journal; "
               f"specstats block omitted")
         return None
-    key_ok = pd.to_numeric(df["key_level"], errors="coerce") \
-        >= SPECSTATS_MIN_KEY
-    ok = started.notna() & (timed == 1) & key_ok
-    if ok.any():
-        cutoff = started[ok].max() \
-            - pd.Timedelta(days=SPECSTATS_WINDOW_DAYS)
-        ok &= started >= cutoff
+    ok = _specstats_cohort(df, started, timed)
     n_cohort = int(ok.sum())
     if not n_cohort:
         print(f"[{name}] no parses in the specstats cohort; block omitted")
@@ -684,6 +692,232 @@ def spec_stats_frame(block: dict) -> "pd.DataFrame":
     return pd.DataFrame(rows)
 
 
+# --- per-spec "best players" meta aggregates (builds, trinkets, ...) --------
+# One generic engine, per the builds-research vision in the feature contract:
+# an aggregate is a DIMENSION -- a name, an extractor turning a journal
+# record into the string values a character exhibits, and how many top
+# entries to keep. Adding a future aggregate (per-slot items, bonus rolls,
+# hero nodes, ...) is one line in SPECMETA_DIMS, not a subsystem. Every
+# dimension is split into the same two skill bands automatically and shares
+# the specstats cohort discipline (window, key floor, timed, per-character
+# dedup) via _specstats_cohort.
+SPECMETA_ENTRY_MIN = 3        # characters behind an entry before it ships
+# "top" band: characters at/above this quantile of the spec's per-character
+# best cohort DPS -- a quantile over CHARACTERS, so the band is a true
+# quartile of who is shown (ranking by parse percentile instead lets
+# best-of-many-parses push half the characters over the line)
+SPECMETA_TOP_QUANTILE = 0.75
+# Retail equipment order; 12/13 are the trinket slots. Positions are the one
+# thing the journal keeps positionally (see compact_gear), and gear_sets'
+# warning about trusting indices stands -- a wrong index here fails soft as
+# implausible item shares, which the first real run's output shows at once.
+TRINKET_SLOTS = (12, 13)
+
+
+def _dim_builds(rec):
+    b = rec.get("build")
+    return [b] if b else None
+
+
+def _dim_trinkets(rec):
+    g = rec.get("gear")
+    if not isinstance(g, list):
+        return None
+    return sorted({str(it["id"]) for i in TRINKET_SLOTS if i < len(g)
+                   for it in [g[i]] if isinstance(it, dict) and it.get("id")})
+
+
+def _dim_enchants(rec):
+    g = rec.get("gear")
+    if not isinstance(g, list):
+        return None
+    # slot-qualified ("15:7008"), so the same mechanism serves per-slot
+    # research later without re-journaling anything
+    return [f"{i}:{it['ench']}" for i, it in enumerate(g)
+            if isinstance(it, dict) and it.get("ench")]
+
+
+def _dim_gems(rec):
+    g = rec.get("gear")
+    if not isinstance(g, list):
+        return None
+    return sorted({str(gm) for it in g if isinstance(it, dict)
+                   for gm in (it.get("gems") or []) if gm})
+
+
+SPECMETA_DIMS = (("builds", _dim_builds, 3),
+                 ("trinkets", _dim_trinkets, 5),
+                 ("enchants", _dim_enchants, 5),
+                 ("gems", _dim_gems, 5))
+
+
+def meta_from_gear_journal() -> dict[tuple, dict]:
+    """(report, fight, character, server) -> {"build": ..., "gear": ...}.
+
+    The raw material for the meta dimensions: the talent loadout string and
+    the compact per-slot gear list exactly as journaled (items keep
+    id/ilvl/set/ench/gems/bonus, so a future dimension slices this same
+    record without a new reader or a re-collection). Records carrying
+    neither are skipped; duplicate keys keep the last copy, matching the
+    journal's append-and-supersede contract.
+    """
+    src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
+    if not src.exists():
+        return {}
+    opener = gzip.open if src.suffix == ".gz" else open
+    out: dict[tuple, dict] = {}
+    with opener(src, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue                       # tolerate a torn trailing line
+            tal = rec.get("talents")
+            build = (tal.get("talentImportString")
+                     if isinstance(tal, dict) else None)
+            if not isinstance(build, str) or not build:
+                build = None
+            gear = rec.get("gear")
+            if not isinstance(gear, list):
+                gear = None
+            if build is None and gear is None:
+                continue
+            out[_gear_key(rec.get("report_code"), rec.get("fight_id"),
+                          rec.get("character"), rec.get("server"))] = {
+                "build": build, "gear": gear}
+    return out
+
+
+def spec_meta_block(df, started, timed, name: str, journal=None):
+    """Per-spec top builds / trinkets / enchants / gems for the spec frame.
+
+    Same cohort and per-character dedup as specstats. Each dimension is
+    reported per skill band -- "all" characters, and "top": the top quartile
+    of the spec's characters ranked by their best cohort parse's DPS
+    (omitted below SPECSTATS_MIN_CHARS characters, like a thin spec). Per
+    band: d = characters the dimension is observable for
+    (its share denominator) and e = the top entries, each {v, n, dps}: v
+    indexes the spec's "vals" string pool (talent loadout strings, item and
+    gem ids, "slot:enchantId"), n = characters exhibiting the value, dps =
+    the median DPS of those characters' latest parses. The journal stores no
+    item names, so ids ship and the client names them. Entries backed by
+    fewer than SPECMETA_ENTRY_MIN characters are dropped, never shown thin.
+
+    Returns None when the journal carries no builds or gear at all -- the
+    payload key is then absent, feature-detected like tier/rating.
+    """
+    if journal is None:
+        journal = meta_from_gear_journal()
+    if not journal:
+        print(f"[{name}] no builds/gear in the gear journal; "
+              f"specmeta block omitted")
+        return None
+    ok = _specstats_cohort(df, started, timed)
+    n_cohort = int(ok.sum())
+    if not n_cohort:
+        print(f"[{name}] no parses in the specmeta cohort; block omitted")
+        return None
+
+    dps_col = pd.to_numeric(df["dps"], errors="coerce")
+    best: dict[tuple, float] = {}       # a character's best cohort DPS
+    latest: dict[tuple, tuple] = {}     # their latest journal-known parse
+    n_hit = 0
+    for sel, t, dps, cls, spec, ch, sv, rg, code, fid in zip(
+            ok, started, dps_col, df["class"], df["spec"], df["character"],
+            df["server"], df["region"], df["report_code"], df["fight_id"]):
+        if not sel or pd.isna(dps):
+            continue
+        ck = (cls, spec, str(ch), str(sv), str(rg))
+        if float(dps) > best.get(ck, -1.0):
+            best[ck] = float(dps)
+        rec = journal.get(_gear_key(code, fid, ch, sv))
+        if rec is None:
+            continue
+        n_hit += 1
+        prev = latest.get(ck)
+        if prev is None or t > prev[0]:
+            latest[ck] = (t, rec, float(dps))
+    if not latest:
+        print(f"[{name}] no journal-known parses in the specmeta cohort; "
+              f"block omitted")
+        return None
+
+    groups: dict[tuple, list] = {}
+    for ck, (t, rec, dps) in latest.items():
+        groups.setdefault(ck[:2], []).append((rec, dps, best[ck]))
+
+    spec_out: dict[str, dict] = {}
+    for (cls, spec), chars in sorted(groups.items()):
+        n = len(chars)
+        if n < SPECSTATS_MIN_CHARS:
+            continue                           # thin spec: omit, never guess
+        cut = float(np.quantile([c[2] for c in chars],
+                                SPECMETA_TOP_QUANTILE))
+        top = [c for c in chars if c[2] >= cut]
+        bands = [("all", chars)]
+        if len(top) >= SPECSTATS_MIN_CHARS:
+            bands.append(("top", top))
+        pool: list[str] = []
+        pidx: dict[str, int] = {}
+
+        def vid(v: str) -> int:
+            if v not in pidx:
+                pidx[v] = len(pool)
+                pool.append(v)
+            return pidx[v]
+
+        dims_out: dict[str, dict] = {}
+        for dname, extract, keep in SPECMETA_DIMS:
+            per_band: dict[str, dict] = {}
+            for bname, members in bands:
+                d = 0
+                cnt: dict[str, int] = {}
+                dvals: dict[str, list] = {}
+                for rec, dps, _ in members:
+                    vals = extract(rec)
+                    if vals is None:
+                        continue               # dimension unobservable here
+                    d += 1
+                    for v in set(vals):
+                        cnt[v] = cnt.get(v, 0) + 1
+                        dvals.setdefault(v, []).append(dps)
+                ranked = sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))
+                entries = [{"v": vid(v), "n": c,
+                            "dps": int(round(float(np.median(dvals[v]))))}
+                           for v, c in ranked[:keep]
+                           if c >= SPECMETA_ENTRY_MIN]
+                if entries:
+                    per_band[bname] = {"d": d, "e": entries}
+            # a "top" band cannot outlive "all": its counts are a subset
+            if per_band.get("all"):
+                dims_out[dname] = per_band
+        if not dims_out:
+            continue
+        spec_out[f"{cls}|{spec}"] = {"n": n, "ntop": len(top),
+                                     "vals": pool, "dims": dims_out}
+    if not spec_out:
+        print(f"[{name}] every spec below {SPECSTATS_MIN_CHARS} journal-known "
+              f"characters; specmeta block omitted")
+        return None
+
+    cohort = (f"timed +{SPECSTATS_MIN_KEY}s and higher from the last "
+              f"{SPECSTATS_WINDOW_DAYS} days of data; one record per "
+              f"character (their latest parse); builds/gear known for "
+              f"{n_hit:,} of {n_cohort:,} parses ({n_hit / n_cohort:.0%}); "
+              f"the top band is the top quartile of each spec's characters "
+              f"by their best parse's DPS within that spec")
+    block = {"cohort": cohort, "bands": ["all", "top"],
+             "dims": [dn for dn, _, _ in SPECMETA_DIMS], "specs": spec_out}
+    size = len(json.dumps(block, separators=(",", ":")))
+    print(f"[{name}] specmeta: {len(spec_out)} specs, "
+          f"{sum(len(s['vals']) for s in spec_out.values())} pooled values "
+          f"({n_hit:,} journal-known parses; {size / 1024:.1f} KB)")
+    return block
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
     if not csv.exists():                       # tolerate an un-gzipped copy
@@ -746,9 +980,11 @@ def build(name: str, cfg: dict) -> None:
     # itself — derived from that player's own ability breakdown — so the client
     # can apply it row by row and every aggregate stays exact under any filter.
     tmul, proj = tuning_multipliers(df, post)
-    # per-spec secondary-stat quantiles for the spec frame; absent until the
-    # gear journal carries stats, feature-detected client-side like tier/rating
+    # per-spec secondary-stat quantiles and best-player meta aggregates for
+    # the spec frame; each absent until the gear journal carries its inputs,
+    # feature-detected client-side like tier/rating
     specstats = spec_stats_block(df, started, timed, name)
+    specmeta = spec_meta_block(df, started, timed, name)
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
@@ -789,6 +1025,8 @@ def build(name: str, cfg: dict) -> None:
         payload["projection"] = proj
     if specstats:
         payload["specstats"] = specstats
+    if specmeta:
+        payload["specmeta"] = specmeta
     blob = json.dumps(payload, separators=(",", ":"))
     # Big datasets ship pre-compressed: GitHub Pages' deploy step has a hard
     # 10-minute publish budget and a multi-tens-of-MB artifact blows it. The

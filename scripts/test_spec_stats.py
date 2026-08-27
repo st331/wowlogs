@@ -10,6 +10,7 @@ hero-merged keying, quantile arithmetic, per-flask re-slicing, and every
 absence case (empty journal, stats-less records, torn stats, no flasks)
 ending in an absent block or key rather than a crash or an invented zero.
 """
+import gzip
 import json
 import pathlib
 import sys
@@ -33,17 +34,35 @@ DAY_MS = 86_400_000
 
 def make_parse(code, fid, char, server, cls, spec, *, key=14, medal="gold",
                start_ms=BASE_MS, stats=None, flask=None, region="US",
-               drop_flask=False):
+               drop_flask=False, dmg=9_000_000, build=None, trinkets=None,
+               ench=None, gems=None):
     """One (player row, journal record) through the real collector path.
 
     stats: {"Crit": 1200, ...} rating minimums, or None for a stats-less
     combatantInfo. flask: an aura name to put in the aura list, "" for an
     aura list carrying no flask, or None for no aura list at all.
     drop_flask strips the record's flask key entirely, simulating a journal
-    line written before flask capture existed.
+    line written before flask capture existed. dmg sets the parse's DPS
+    (totalTime is 1500s, so dps = dmg / 1500). build is a talent loadout
+    string; trinkets/ench/gems populate a full positional gear array
+    (trinkets in slots 12/13, the enchant on slot 15, gems on slot 0).
     """
-    ci = {"gear": [{"id": 1001, "itemLevel": 720}],
+    if trinkets or ench or gems:
+        gear_list = [{"id": 5000 + s, "itemLevel": 710} for s in range(16)]
+        gear_list[3] = {"id": 0}                       # empty shirt slot
+        gear_list[12] = gear_list[13] = {"id": 0}      # trinkets only if set
+        for j, tid in enumerate(trinkets or ()):
+            gear_list[12 + j] = {"id": tid, "itemLevel": 720}
+        if ench:
+            gear_list[15] = dict(gear_list[15], permanentEnchant=ench)
+        if gems:
+            gear_list[0] = dict(gear_list[0], gems=list(gems))
+    else:
+        gear_list = [{"id": 1001, "itemLevel": 720}]
+    ci = {"gear": gear_list,
           "talentTree": [{"id": 1, "rank": 1}], "specID": 1}
+    if build:
+        ci["talentImportString"] = build
     if stats is not None:
         ci["stats"] = {k: {"min": v} for k, v in stats.items()}
     if flask == "":
@@ -60,7 +79,7 @@ def make_parse(code, fid, char, server, cls, spec, *, key=14, medal="gold",
               "maxItemLevel": 720, "combatantInfo": ci}
     table = {"data": {"totalTime": 1_500_000,
                       "playerDetails": {"dps": [player]},
-                      "damageDone": [{"id": 1, "total": 9_000_000}],
+                      "damageDone": [{"id": 1, "total": dmg}],
                       "deathEvents": []}}
     rows, gear_rows = parse_summary(fight, table, _Hero())
     rec = gear_rows[0]
@@ -76,7 +95,7 @@ def st(crit=1000, haste=2000, mastery=3000, vers=4000, **extra):
     return d
 
 
-def run_block(rows, recs):
+def run_block(rows, recs, fn=None):
     """Rows/records -> the real reader + aggregation, via a journal on disk,
     mirroring build(): started from started_at ms, timed from the medal."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -89,7 +108,7 @@ def run_block(rows, recs):
         df = pd.DataFrame(rows)
         started = pd.to_datetime(pd.to_numeric(df["started_at"]), unit="ms")
         timed = df["medal"].map(bsd.MEDAL_TIMED).fillna(-1).astype(int)
-        return bsd.spec_stats_block(df, started, timed, "test")
+        return (fn or bsd.spec_stats_block)(df, started, timed, "test")
 
 
 rows, recs = [], []
@@ -266,5 +285,125 @@ blob = json.dumps(bb, separators=(",", ":"))
 assert len(blob) < 40_000, len(blob)
 print(f"size      : 27 specs x 5 stats x (all + 2 flasks) = "
       f"{len(blob):,} bytes -- comfortably payload-sized")
+
+# ===========================================================================
+# specmeta: the generic per-dimension best-players block
+# ===========================================================================
+mrows, mrecs = [], []
+
+
+def madd(*a, **kw):
+    rw, rc = make_parse(*a, **kw)
+    mrows.append(rw)
+    mrecs.append(rc)
+
+
+# Hunters: 40 characters, dps = i*1000. Builds A (1-19), B (20-38), C (39-40,
+# under the entry floor). Trinket 111 on everyone, 222 on 1-20, 333 on 21-40.
+# Enchant 15:7008 on everyone, gem 90001 on 1-25 only.
+for i in range(1, 41):
+    madd(f"H{i}", 1, f"Hunt{i}", "X", "Hunter", "Marksmanship",
+         dmg=i * 1_500_000,
+         build=("BUILD_A" if i <= 19 else "BUILD_B" if i <= 38 else "BUILD_C"),
+         trinkets=(111, 222) if i <= 20 else (111, 333),
+         ench=7008, gems=(90001,) if i <= 25 else None)
+# Hunt1's OLDER parse on a junk build: per-character dedup must drop it (its
+# dps still counts toward the spec's percentile base, as a real parse would)
+madd("H1old", 1, "Hunt1", "X", "Hunter", "Marksmanship",
+     start_ms=BASE_MS - 1 * DAY_MS, dmg=1_500_000, build="BUILD_STALE",
+     trinkets=(999, 998), ench=1, gems=(1,))
+# below the key floor: out of cohort entirely
+madd("HX", 1, "LowKey", "X", "Hunter", "Marksmanship", key=11,
+     dmg=99 * 1_500_000, build="BUILD_JUNK", trinkets=(999, 998))
+
+# Paladins: 20 characters, dps = i*100; a build on only the first 10 (the
+# builds denominator must shrink to 10), default single-item gear so the
+# trinket/enchant/gem dimensions have nothing to say; top quartile = 5 chars,
+# under the floor, so the spec ships without a "top" band
+for i in range(1, 21):
+    madd(f"L{i}", 1, f"Pal{i}", "Y", "Paladin", "Holy", dmg=i * 150_000,
+         build="BUILD_H" if i <= 10 else None)
+
+mb = run_block(mrows, mrecs, bsd.spec_meta_block)
+assert mb["bands"] == ["all", "top"], mb["bands"]
+assert mb["dims"] == ["builds", "trinkets", "enchants", "gems"], mb["dims"]
+assert set(mb["specs"]) == {"Hunter|Marksmanship", "Paladin|Holy"}
+
+h = mb["specs"]["Hunter|Marksmanship"]
+V = h["vals"]
+# per-character bests are 1000..40000; the quartile cut interpolates to
+# 30250, so the top band is exactly the ten characters 31..40
+assert h["n"] == 40 and h["ntop"] == 10, (h["n"], h["ntop"])
+ba = h["dims"]["builds"]["all"]
+assert ba["d"] == 40, ba
+assert [(V[e["v"]], e["n"], e["dps"]) for e in ba["e"]] == \
+    [("BUILD_A", 19, 10000), ("BUILD_B", 19, 29000)], ba["e"]
+bt = h["dims"]["builds"]["top"]
+assert bt["d"] == 10, bt
+assert [(V[e["v"]], e["n"], e["dps"]) for e in bt["e"]] == \
+    [("BUILD_B", 8, 34500)], bt["e"]    # BUILD_C's 2 chars: floor-dropped
+assert "BUILD_STALE" not in V and "BUILD_JUNK" not in V, V
+print(f"meta builds : all A/B 19+19 (C under floor), top band n={bt['d']} "
+      f"pure BUILD_B; stale + sub-floor parses invisible")
+
+ta = h["dims"]["trinkets"]["all"]
+assert [(V[e["v"]], e["n"]) for e in ta["e"]] == \
+    [("111", 40), ("222", 20), ("333", 20)], ta["e"]
+assert ta["e"][0]["dps"] == 20500, ta["e"][0]     # median of all 40 parses
+tt = h["dims"]["trinkets"]["top"]
+assert [(V[e["v"]], e["n"]) for e in tt["e"]] == \
+    [("111", 10), ("333", 10)], tt["e"]
+ea = h["dims"]["enchants"]["all"]
+assert [(V[e["v"]], e["n"]) for e in ea["e"]] == [("15:7008", 40)], ea["e"]
+ga = h["dims"]["gems"]
+assert [(V[e["v"]], e["n"]) for e in ga["all"]["e"]] == [("90001", 25)]
+assert "top" not in ga, ga        # no top-band char has a gem: band absent
+print("meta gear   : trinkets by slot pair, slot-qualified enchant, gems; "
+      "empty top slices vanish instead of shipping thin")
+
+pl = mb["specs"]["Paladin|Holy"]
+assert pl["n"] == 20 and pl["ntop"] == 5, (pl["n"], pl["ntop"])
+assert set(pl["dims"]) == {"builds"}, set(pl["dims"])
+pb = pl["dims"]["builds"]
+assert "top" not in pb, pb        # 6 top chars < the 10-char floor
+assert pb["all"]["d"] == 10, pb   # denominator: chars whose build is known
+assert [(pl["vals"][e["v"]], e["n"], e["dps"]) for e in pb["all"]["e"]] == \
+    [("BUILD_H", 10, 550)], pb["all"]["e"]
+print("meta bands  : thin top quartile omitted; observability shrinks the "
+      "share denominator, not the spec")
+
+for needle in ("+12", "14 days", "top quartile", "latest parse"):
+    assert needle in mb["cohort"], (needle, mb["cohort"])
+print(f"meta cohort : {mb['cohort']!r}")
+
+# absence: empty journal, and a journal with neither builds nor gear
+assert run_block(mrows, [], bsd.spec_meta_block) is None
+bare_recs = [dict(rc, gear=None,
+                  talents={"tree": [{"id": 1, "rank": 1}], "specID": 1})
+             for rc in mrecs]
+assert run_block(mrows, bare_recs, bsd.spec_meta_block) is None
+print("meta absence: empty / build-and-gear-less journal -> block None")
+
+# size at full scale: 27 specs x 40 chars, two ~250-char loadout strings per
+# spec, trinkets, enchants and gems everywhere -- the worst realistic shape
+mbig_rows, mbig_recs = [], []
+for s in range(27):
+    cls, spec = f"Class{s % 9}", f"Spec{s}"
+    for i in range(1, 41):
+        rw, rc = make_parse(
+            f"Z{s}_{i}", 1, f"C{s}_{i}", "Srv", cls, spec,
+            dmg=i * 1_500_000,
+            build=f"B{s}{'A' if i <= 20 else 'B'}" + "X" * 240,
+            trinkets=(111000 + s, (222000 if i <= 20 else 333000) + s),
+            ench=7000 + s, gems=(90000 + s,))
+        mbig_rows.append(rw)
+        mbig_recs.append(rc)
+mbb = run_block(mbig_rows, mbig_recs, bsd.spec_meta_block)
+assert len(mbb["specs"]) == 27
+mblob = json.dumps(mbb, separators=(",", ":")).encode()
+mgz = len(gzip.compress(mblob))
+assert mgz < 40_000, mgz
+print(f"meta size   : 27 specs, 4 dims, 2 bands = {len(mblob):,} bytes raw / "
+      f"{mgz:,} gz -- inside the 40 KB gz target")
 
 print("\nPASS")
