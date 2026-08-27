@@ -44,6 +44,14 @@ on:
         description: "Share of the hourly API budget this run may spend. The standing cap is 0.70; raise it only for a deliberate one-off."
         type: string
         default: "0.70"
+      chain:
+        description: "Internal: set by the previous run's self-chain dispatch"
+        type: string
+        default: ""
+      prev_start:
+        description: "Internal: predecessor run's start epoch, for 30-minute pacing"
+        type: string
+        default: ""
   push:
     branches: [claude/wow-mythic-dashboard-jv235l]
     paths:
@@ -66,6 +74,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  actions: write
 
 jobs:
   refresh:
@@ -80,6 +89,23 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      # GitHub throttles */30 cron badly (observed gaps up to 4.5 h), so each
+      # scheduled/chained run dispatches its own successor at the end and the
+      # cron survives only as a dead-man's restart. A chained successor starts
+      # the moment its predecessor finishes; this step sleeps out the rest of
+      # the 30-minute slot (capped at 25 min, inside the 50-min timeout) so
+      # run STARTS stay ~30 min apart. Concurrency holds one pending run at
+      # most, so cron ticks landing mid-chain self-cancel into it.
+      - name: Pace the chain
+        run: |
+          echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+          PREV="${{ inputs.prev_start }}"
+          if [ "${{ inputs.chain }}" = "true" ] && [ -n "$PREV" ]; then
+            NOW=$(date +%s); WAIT=$(( 1800 - (NOW - PREV) ))
+            [ "$WAIT" -gt 1500 ] && WAIT=1500
+            if [ "$WAIT" -gt 0 ]; then echo "pacing: sleeping ${WAIT}s"; sleep "$WAIT"; fi
+          fi
 
 
       - uses: actions/setup-python@v5
@@ -246,3 +272,17 @@ jobs:
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -m "Daily data export ($(date -u +%Y-%m-%d))"
           git push origin HEAD:${{ github.ref_name }}
+
+      # Self-chain: successful scheduled/chained runs dispatch the next one.
+      # Failures deliberately do not chain -- the cron dead-man revives the
+      # cadence within a tick instead of a tight failure loop. Manual and
+      # push runs do not chain either, so a one-off dispatch stays one-off.
+      - name: Chain the next run
+        if: success() && (github.event_name == 'schedule' || inputs.chain == 'true')
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/refresh.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\"}}" \
+            && echo "chained the next run" || echo "chain dispatch failed; the cron dead-man will revive the cadence"
