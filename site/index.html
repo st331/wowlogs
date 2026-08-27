@@ -359,6 +359,32 @@ table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700
   color:var(--ink3); font-size:.75rem; cursor:default; flex:none}
 .sectools b{color:var(--accent); font-variant-numeric:tabular-nums}
 .sectools input[type=range]{width:110px; margin:0}
+/* Top Comps "With spec" slice — header select, clear chip, feeder links.
+   Active select: spec name in its class color + gold-sheen border (§GG's
+   sanctioned metal accent for active elements); clear chip renders only
+   while a spec is active (active-modifier rule). */
+#compspec-wrap{display:inline-flex; align-items:center; gap:.35rem; margin-right:.35rem}
+.sectools select{background:var(--surface1); color:var(--ink); border:1px solid var(--line2);
+  border-radius:var(--r1); font:inherit; font-size:.75rem; padding:.14rem .3rem;
+  max-width:9.5em; text-overflow:ellipsis; cursor:pointer}
+.sectools select.active{border-color:var(--metal-line); font-weight:600}
+#compspec-x{background:transparent; border:1px solid var(--line2); border-radius:var(--r1);
+  color:var(--ink3); cursor:pointer; font:inherit; font-size:.75rem; line-height:1.2;
+  padding:.08rem .38rem; transition:color .12s}
+#compspec-x:hover{color:var(--ink)}
+/* "in K of Q" feeder cells: static dotted underline, hover recolors only */
+.complink{border-bottom:1px dotted var(--ink3); cursor:pointer; transition:color .12s}
+.complink:hover{color:var(--accent); border-bottom-color:var(--accent-line)}
+/* selected spec inside a comp cell while the slice is active — static emphasis */
+.comp span.sel{font-weight:700; border-bottom:1px solid var(--accent-line)}
+/* below-gate comps shown under an honest "in 0 of Q" line — muted, tagged */
+tr.subgate td{opacity:.55}
+.gatetag{color:var(--ink3); font-size:.64rem; text-transform:uppercase; letter-spacing:.08em;
+  border:1px solid var(--line2); border-radius:var(--r1); padding:.02rem .32rem; margin-left:.4rem}
+@media(max-width:720px){
+  .sec[data-sec="comps"]{flex-wrap:wrap}
+  .sec[data-sec="comps"] .sectools{flex-basis:calc(100% - 1.6rem); order:9; margin-left:1.6rem}
+}
 footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
   border-top:1px solid var(--line1); padding-top:1.2rem}
 /* loading — sliding accent segment, no spinner (§7) */
@@ -569,7 +595,7 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <div class="kpi-note" id="period-note"></div>
     <div id="archon-card" hidden></div>
 
-    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its full Data Table row</span></div>
+    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its full Data Table row — its Comps cell links to that spec's comps</span></div>
     <div class="secbody" id="sec-overview">
     <div class="seg" id="sortseg">
       <button data-s="desc" class="on">Best first</button>
@@ -585,7 +611,9 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
 
     <div class="sec" data-sec="comps"><span class="mk"></span><span class="t">Top Comps</span>
       <span class="s" id="comps-sub"></span>
-      <span class="sectools" title="A composition needs this many runs to appear in Top Comps — raise it to filter out one-off groups.">Min runs
+      <span class="sectools" title="A composition needs this many runs to appear in Top Comps — raise it to filter out one-off groups."><span
+        id="compspec-wrap" title="Show only qualifying comps that field this spec — comps are class+spec; hero talents share them.">With
+        <select id="compspec"><option value="">any spec</option></select><button id="compspec-x" hidden title="Clear — show all qualifying comps">×</button></span>Min runs
         <b id="compmin-v">20</b><input type="range" id="compmin" min="1" max="100" value="20"></span></div>
     <div class="secbody" id="sec-comps">
     <div class="tblwrap"><table class="data" id="comps"></table></div>
@@ -723,6 +751,8 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20, csort:{col:"strength", dir:-1},
+             compSpec:null,   // Top Comps "With spec" view slice — display-only, cleared on reload
+
              ssort:{col:"pt", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
              proj:false,       // re-score every parse under the upcoming tuning
@@ -1165,6 +1195,40 @@ function buildControls(){
   chipGroup($("f-dun"),D.dungeons,state.dun);
   chipGroup($("f-role"),["DPS","Healer","Tank"],state.role);
   chipGroup($("f-reg"),D.regions,state.reg);
+
+  // Top Comps "With spec" select — full class×spec roster in stable positions
+  // (clickables never move). Values are cls*100+spec, the same key
+  // __compPresence uses. This is a DISPLAY slice inside renderComps: it never
+  // touches aggregate() or the sidebar filters, so run counts, K and Q stay
+  // the same single computation the table and Pulse read.
+  {
+    const cs=$("compspec");
+    let h='<option value="">any spec</option>';
+    for(const cn of [...clsSpecs.keys()].sort()){
+      if(cn==="Unknown") continue;
+      const ci=D.classes.indexOf(cn);
+      h+='<optgroup label="'+esc(cn)+'">';
+      for(const sn of [...clsSpecs.get(cn)].sort())
+        h+='<option value="'+(ci*100+D.specs.indexOf(sn))+'">'+esc(sn)+'</option>';
+      h+='</optgroup>';
+    }
+    cs.innerHTML=h;
+    cs.value=state.compSpec==null?"":String(state.compSpec);
+    if(state.compSpec!=null&&cs.value==="") state.compSpec=null;   // roster changed
+    cs.onchange=()=>{
+      state.compSpec=cs.value===""?null:+cs.value;
+      // "top" here means MOST RUN (the owner's definition): arrive pre-sorted
+      if(state.compSpec!=null) state.csort={col:"n",dir:-1};
+      syncCompSpecUI();
+      if(COMPS_A) renderComps(COMPS_A);   // same precedent as header sorts
+    };
+    $("compspec-x").onclick=()=>{
+      state.compSpec=null; cs.value="";
+      syncCompSpecUI();                   // clearing keeps the current sort
+      if(COMPS_A) renderComps(COMPS_A);
+    };
+    syncCompSpecUI();
+  }
 
   // key range (dual slider, clamped)
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
@@ -1752,7 +1816,9 @@ const ELITE_KEEP=0.10, ELITE_PCTL=0.85, ELITE_MIN=50, ELITE_DAYS=14;
 let eliteHidden=0;
 function aggregateElite(){
   const m=baseMasks();
-  const maxDay=curMaxDay>=0?curMaxDay:Math.max(...R.day);
+  // spread over a 400k+ element column overflows the call stack; loop instead
+  let maxDay=curMaxDay;
+  if(maxDay<0){maxDay=-1; for(let i=0;i<R.day.length;i++) if(R.day[i]>maxDay) maxDay=R.day[i];}
   const dayLo=maxDay-(ELITE_DAYS-1);
   const pass=i=>{
     if(R.day[i]<dayLo) return false;
@@ -1996,6 +2062,32 @@ function jumpToRow(key){
   clearTimeout(__hlTimer);
   __hlTimer=setTimeout(()=>tr.classList.remove("rowhl"),2000);
 }
+// "With spec" slice of Top Comps: paint the header select's active state
+// (spec name in its class color + gold-sheen border — §GG's sanctioned metal
+// accent for active elements) and show the × clear chip only while a spec is
+// active (active-modifier rule: nothing rendered when off).
+function syncCompSpecUI(){
+  const cs=$("compspec"), x=$("compspec-x");
+  if(!cs) return;
+  const on=state.compSpec!=null;
+  cs.classList.toggle("active",on);
+  cs.style.color=on?(CLASS_COLORS[D.classes[Math.floor(state.compSpec/100)]]||""):"";
+  if(x) x.hidden=!on;
+}
+// Feeder gesture from the Data Table / Pulse "in K of Q" cells: open Top
+// Comps pre-filtered to that spec, most-run first. Same single renderComps
+// computation, only sliced — NEVER the sidebar Spec filter, whose runSeen
+// semantics would silently swap the unfiltered run counts for drifted ones.
+function jumpToComps(k){
+  state.compSpec=k;
+  state.csort={col:"n",dir:-1};
+  const cs=$("compspec"); if(cs) cs.value=String(k);
+  syncCompSpecUI();
+  openSection("comps");
+  if(COMPS_A) renderComps(COMPS_A);
+  const h=document.querySelector('.sec[data-sec="comps"]');
+  if(h) h.scrollIntoView({behavior:"smooth", block:"start"});
+}
 
 /* -------- one shared sorting rule for EVERY table (feedback L51-52) --------
    Click toggles: first click sorts descending, a repeat flips. Strings compare
@@ -2231,7 +2323,7 @@ function render(){
   $("chart-caption").textContent=cap;
 
   // generated scope lines — the single source of section evidence sentences
-  $("overview-sub").innerHTML=scopeLine("overview","click any bar for its full Data Table row");
+  $("overview-sub").innerHTML=scopeLine("overview","click any bar for its full Data Table row — its Comps cell links to that spec's comps");
   $("trend-sub").innerHTML=scopeLine("trajectory","whole season, ignores the period selection");
 
   renderPulse(rows);
@@ -2426,6 +2518,7 @@ function renderPulse(rowsGated){
         ?100*(dps-prevMed)/Math.abs(prevMed):null,
       isNew:prevB!==undefined&&!g.prev.length,
       pres:pres.map.get(g.cls*100+g.spec)||0,
+      csKey:g.cls*100+g.spec,
       spark:(()=>{const pts=[];
         for(const w of [...availWeeks].sort((a,b)=>b-a)){
           const bag=wkBag.get(key*1000+w);
@@ -2503,7 +2596,11 @@ function renderPulse(rowsGated){
       +'<td>'+rcell+'</td>'
       +'<td class="txt">'+pulseSpark(e.spark,e.color)+'</td>'
       +'<td>'+e.adeaths.toFixed(2)+'</td>'
-      +'<td class="txt">'+(pres.den?("in "+e.pres+" of "+pres.den):'<span class="na">–</span>')+'</td>'
+      +'<td class="txt">'+(pres.den
+        ?('<span class="complink" data-ck="'+e.csKey+'" title="qualifying comps ('
+          +state.compMin+'+ runs) fielding this spec — click to open Top Comps '
+          +'filtered to it">in '+e.pres+' of '+pres.den+'</span>')
+        :'<span class="na">–</span>')+'</td>'
       +'<td class="txt">'+(e.isNew?'<span class="rtag">new</span>':"")+'</td>'
       +'<td class="txt verd">'+esc(e.verdict)+'</td></tr>';
   }
@@ -2514,6 +2611,10 @@ function renderPulse(rowsGated){
       state.pulseSort={col:c, dir:state.pulseSort.col===c?-state.pulseSort.dir:-1};
       render();
     };
+  });
+  // content-hugging trigger: the "in K of Q" text only, never the whole row
+  host.querySelectorAll(".complink").forEach(el=>{
+    el.onclick=e=>{e.stopPropagation(); jumpToComps(+el.dataset.ck)};
   });
   const left=[];
   for(const [key,g] of G)
@@ -2526,7 +2627,8 @@ function renderPulse(rowsGated){
     +"lens; thin baselines (under "+PULSE_THIN+" parses) are greyed, never hidden. "
     +"Comp presence counts the qualifying comps (≥"+state.compMin+" runs under the "
     +"current filters) that include the spec — the denominator is that comp count, "
-    +"stated in the cell. Sparkline: per-reset p"+state.pctl+" DPS across the season."
+    +"stated in the cell; click a Comps cell to open Top Comps filtered to that "
+    +"spec. Sparkline: per-reset p"+state.pctl+" DPS across the season."
     +(entries.length>PULSE_MAX?" Showing top "+PULSE_MAX+" of "+entries.length+" specs.":"")
     +(left.length?" Left the sample since last reset: "+left.join(", ")+".":"");
 }
@@ -2545,6 +2647,10 @@ document.querySelectorAll("#trajsort button").forEach(b=>{
 
 /* ---------------- top comps ---------------- */
 const COMPS_MAX=25;
+// Last aggregate fed to renderComps — header sorts and the "With spec" slice
+// re-run renderComps alone from this stash (the exact precedent of column
+// sorts), so every number is always the one single computation's.
+let COMPS_A=null;
 /* ---------------- set bonus gain ---------------- */
 // Minimum parses in a (dungeon, key level) cell before that cell's medians are
 // allowed to contribute, and minimum matched cells before a spec gets a number.
@@ -2714,6 +2820,8 @@ function renderComps(A){
   //      levels of difficulty cost in margin.
   //   3. Shrink each comp's mean toward zero by its run count, so a single
   //      lucky pull cannot top the table.
+  COMPS_A=A;
+  syncCompSpecUI();
   const K=5;
   const qual=[];
   for(let r=0;r<runCount;r++){
@@ -2752,7 +2860,10 @@ function renderComps(A){
     window.__compPresence={den:dn,map};
   }
   const all=[...byComp.values()];
-  const rows=all.filter(e=>e.scores.length>=state.compMin).map(e=>{
+  // Row objects for EVERY distinct comp, from the same single pass; the
+  // min-runs gate and the "With spec" slice are display filters over this
+  // one array — no second aggregation anywhere.
+  const rowsAll=all.map(e=>{
     const m=e.scores.length, sum=e.scores.reduce((a,b)=>a+b,0);
     return {
       strength:sum/(m+K),                       // shrunk toward 0 = typical run
@@ -2762,6 +2873,7 @@ function renderComps(A){
       deaths:e.deaths/m, day:e.best.day, comp:e.best.comp,
     };
   });
+  const rows=rowsAll.filter(r=>r.n>=state.compMin);
   const t=$("comps");
   if(!rows.length){
     t.innerHTML="";
@@ -2778,6 +2890,33 @@ function renderComps(A){
     ["day","Date","txt"]];
   if(!COLS.some(c=>c[0]===state.csort.col)) state.csort={col:"strength",dir:-1};
   rows.sort((a,b)=>b.strength-a.strength).forEach((r,i)=>r.rank=i+1);
+  // "With spec" slice (display-only): membership over the SAME rows the
+  // table, the ranks and __compPresence were computed from — K in the sub is
+  // identical to Pulse's numerator, Q to its denominator, and run counts stay
+  // the unfiltered truth. Ranks keep their GLOBAL strength position.
+  const csKey=state.compSpec;
+  const inSpec=csKey==null?null
+    :rowsAll.filter(r=>r.comp.some(c=>c.cls*100+c.spec===csKey));
+  const specName=csKey==null?""
+    :D.specs[csKey%100]+" "+D.classes[Math.floor(csKey/100)];
+  const specColor=csKey==null?""
+    :(CLASS_COLORS[D.classes[Math.floor(csKey/100)]]||"#999");
+  const heroNote=!state.merge?" · comps are class+spec — hero talents share them":"";
+  const perANote=state.compare?" · period A":"";
+  let view=rows, subgate=false;
+  if(inSpec){
+    const gated=inSpec.filter(r=>r.n>=state.compMin);
+    if(gated.length) view=gated;
+    else{view=inSpec; subgate=true}   // all below the gate — real data, muted
+    if(!inSpec.length){
+      t.innerHTML="";
+      $("comps-sub").innerHTML='<b style="color:'+specColor+'">'+esc(specName)
+        +'</b>: '+esc("no comps under the current filters field it"+perANote+heroNote)
+        +labStamp("comps");
+      $("comps-caption").textContent="";
+      return;
+    }
+  }
   const {col,dir}=state.csort;
   const val=(r,k)=>k==="comp"
     ? r.comp.map(c=>D.specs[c.spec]+D.classes[c.cls]).join()
@@ -2785,8 +2924,8 @@ function renderComps(A){
     : k==="day" ? (r.day>=0?r.day:NaN)          // "–" dates park last both ways
     : k==="kdur" ? (r.kdur>0?r.kdur:NaN)        // missing best-time parks last
     : r[k];
-  const sorted=[...rows].sort((a,b)=>cmpCells(val(a,col),val(b,col),dir))
-    .slice(0,COMPS_MAX);   // cap 25 AFTER the sort — the sorted column's top 25
+  const sorted=[...view].sort((a,b)=>cmpCells(val(a,col),val(b,col),dir))
+    .slice(0,subgate?5:COMPS_MAX);   // cap AFTER the sort — the sorted column's top slice
   const pctCell=v=>'<b class="delta '+(v>=0?"up":"down")+'">'+v.toFixed(1)+'%</b>';
   let h="<thead><tr>";
   for(const [k,label,txt] of COLS)
@@ -2795,12 +2934,16 @@ function renderComps(A){
   for(const r of sorted){
     const comp=r.comp.map(c=>{
       const cn=D.classes[c.cls];
-      return '<span style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
+      // static emphasis on the sliced-to spec so the eye locks onto it
+      const sel=csKey!=null&&c.cls*100+c.spec===csKey;
+      return '<span'+(sel?' class="sel"':'')+' style="color:'+(CLASS_COLORS[cn]||"#999")+'">'
         +'<span class="role">'+esc((D.roles[c.role]||"?").slice(0,1))+'</span>'
         +esc(D.specs[c.spec]+" "+cn)+'</span>';
     }).join("");
-    h+='<tr><td class="txt">'+r.rank+'</td>'
-      +'<td class="txt"><div class="comp">'+comp+'</div></td>'
+    h+='<tr'+(subgate?' class="subgate"':'')+'><td class="txt">'+(r.rank??"–")+'</td>'
+      +'<td class="txt"><div class="comp">'+comp
+      +(subgate?'<span class="gatetag">below '+state.compMin+'-run gate</span>':'')
+      +'</div></td>'
       +'<td><b class="delta '+(r.strength>=0?"up":"down")+'">'
         +(r.strength>=0?"+":"")+r.strength.toFixed(1)+'</b></td>'
       +'<td>+'+r.avgkey.toFixed(1)+'</td>'
@@ -2819,10 +2962,27 @@ function renderComps(A){
       renderComps(A);
     };
   });
-  $("comps-sub").innerHTML=esc(fmtInt(rows.length)
-    +(rows.length===1?" comp with ":" comps with ")
-    +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
-    +" distinct — ranked by strength, click a column to sort")+labStamp("comps");
+  if(csKey==null){
+    $("comps-sub").innerHTML=esc(fmtInt(rows.length)
+      +(rows.length===1?" comp with ":" comps with ")
+      +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
+      +" distinct — ranked by strength, click a column to sort"+perANote)
+      +labStamp("comps");
+  }else{
+    // K here === __compPresence.map.get(csKey), Q === rows.length — the same
+    // pass Pulse prints; the live compMin is echoed so the gate never reads stale
+    const lead='<b style="color:'+specColor+'">'+esc(specName)+'</b>: ';
+    $("comps-sub").innerHTML=lead+(subgate
+      ? esc("in 0 of "+fmtInt(rows.length)+(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin
+        +"+ runs) — "+fmtInt(inSpec.length)+" distinct field it, all below the "
+        +"gate; top "+sorted.length+" shown muted, lower Min runs to see more"
+        +perANote+heroNote)
+      : esc("in "+fmtInt(view.length)+" of "+fmtInt(rows.length)
+        +(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin+"+ runs) · "+fmtInt(inSpec.length)
+        +" distinct field it — most-run first, click a column to sort"
+        +perANote+heroNote))
+      +labStamp("comps");
+  }
   $("comps-caption").textContent="Strength scores each run against what is "
     +"typical at its key level, then credits higher keys: margin under the "
     +"timer drops about "+W.toFixed(2)+" points per key level in this "
@@ -2830,7 +2990,10 @@ function renderComps(A){
     +" is rewarded at. 0 is a typical run at a typical key; +5 is five points "
     +"of margin better than par for its difficulty. Comps with few runs are "
     +"pulled toward 0 so one lucky pull cannot top the table. Best and Median "
-    +"are the raw margins under the timer, unadjusted.";
+    +"are the raw margins under the timer, unadjusted."
+    +(csKey==null?"":" Ranks and strength are computed over all "
+      +fmtInt(rows.length)+(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin
+      +"+ runs); × in the header clears the filter and shows the full table.");
 }
 
 /* ---------------- Trajectory (peer section; the Trend tab's relocated target) ---------------- */
@@ -3137,6 +3300,10 @@ function renderTable(rows,tab){
       ["spread","p-spread (fixed p30–p85)"]);
     if(hasRating) cols.push(["arating","Avg Player Rating"],["mrating","Med Player Rating"]);
   }
+  // comp presence "in K of Q" — read from renderComps' published set (one
+  // model, one denominator); the cell links to Top Comps sliced to the spec
+  cols.push(["comps","Comps","txt"]);
+  const presKey=r=>state.merge?r.key:Math.floor(r.key/200);
   const get=(r,k)=>{
     switch(k){
       case "cls": return r.cls; case "spec": return r.spec; case "hero": return r.hero;
@@ -3149,6 +3316,8 @@ function renderTable(rows,tab){
         ?(r.a[metricCol]-r.b[metricCol])/Math.abs(r.b[metricCol]):NaN;
       case "spread": return (isFinite(r.a.q85)&&r.a.q85>0)
         ?100*(r.a.q85-r.a.q30)/r.a.q85:NaN;
+      case "comps": {const p=window.__compPresence;
+        return (p&&p.den)?(p.map.get(presKey(r))||0):NaN}   // Q=0 parks last
       default: return r.a[k];
     }
   };
@@ -3181,6 +3350,15 @@ function renderTable(rows,tab){
     if(k==="adeaths") return v.toFixed(2);
     if(k==="deathless") return v.toFixed(1)+"%";
     if(k==="spread") return isFinite(v)?v.toFixed(1)+"%":"–";
+    if(k==="comps"){
+      const p=window.__compPresence;
+      if(!p||!p.den) return '<span class="na">–</span>';
+      return '<span class="complink" data-ck="'+presKey(r)
+        +'" title="qualifying comps ('+state.compMin+'+ runs) fielding this spec'
+        +' — click to open Top Comps filtered to it'
+        +(compare?' · period A presence':'')+'">in '+fmtInt(v)
+        +' of '+fmtInt(p.den)+'</span>';
+    }
     return esc(v);
   };
   for(const r of sorted){
@@ -3195,6 +3373,10 @@ function renderTable(rows,tab){
       state.tsort={col:c, dir:state.tsort.col===c?-state.tsort.dir:-1};
       renderTable(rows,tab);
     };
+  });
+  // content-hugging trigger: the "in K of Q" text only, never the whole row
+  $("tbl").querySelectorAll(".complink").forEach(el=>{
+    el.onclick=e=>{e.stopPropagation(); jumpToComps(+el.dataset.ck)};
   });
   $("tbl-sub").innerHTML=scopeLine("breakdown",esc("every "
     +(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
