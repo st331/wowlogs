@@ -78,3 +78,10 @@ modes), specstats flasks sub-blocks + coverage clause, the sidecar flask column
 shapes), and the CombatantInfo events sub-query (summary cost back to ~2.6/run).
 The journal keeps any flask values already captured (harmless, unread); collection
 can be re-enabled with a backfill later if ever wanted.
+
+## Band chips REMOVED — lens is the single percentile control (owner, 2026-08-27)
+"I don't need 2 places where I can pick percentiles. make @lens the default and
+remove the rest of the buttons." Live-mode stats always show the lens window
+(±10 percentile points around the page's percentile slider, within the current
+filtered rows); no band chip row, no frameBand state. The n-line states the
+window and sample explicitly.
