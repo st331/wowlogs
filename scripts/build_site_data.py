@@ -491,7 +491,6 @@ def tier_pieces(df: "pd.DataFrame", name: str) -> "pd.Series":
 SPECSTATS_WINDOW_DAYS = 14
 SPECSTATS_MIN_KEY = 12
 SPECSTATS_MIN_CHARS = 10        # a spec below this is omitted, never guessed
-SPECSTATS_FLASK_MIN_CHARS = 10  # per flask variant, same reasoning
 # The four ratings every real combatantInfo carries; a record missing any of
 # them is a torn capture and is skipped rather than mixed into the quantiles.
 SPECSTATS_CORE = ("Crit", "Haste", "Mastery", "Versatility")
@@ -505,17 +504,16 @@ SPECSTATS_EXTRA_MIN_SHARE = 0.9
 
 
 def stats_from_gear_journal() -> dict[tuple, dict]:
-    """(report, fight, character, server) -> {"stats": {...}, "flask": ...}.
+    """(report, fight, character, server) -> {"stats": {...}}.
 
     stats: the secondary-stat RATINGS the collector captured off
     combatantInfo (compact_talents in scripts/fetch_data.py), numeric values
     only. Records missing any core secondary are dropped as torn captures --
-    quantiles over a mixed population would be quietly wrong. flask is the
-    compact flask capture: None = unknown (every record written before flask
-    collection began, and reports without an aura list), {} = auras visible
-    with no flask among them, {"id", "name"} = the flask at the pull.
-    Duplicate keys keep the last copy, matching the journal's
-    append-and-supersede contract (see export_gear in fetch_data.py).
+    quantiles over a mixed population would be quietly wrong. Duplicate keys
+    keep the last copy, matching the journal's append-and-supersede contract
+    (see export_gear in fetch_data.py). A record's "flask" field, where one
+    was ever captured, is deliberately NOT surfaced: the flask feature was
+    removed (see fleet/feature_specframe.md) and nothing downstream reads it.
     """
     src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
     if not src.exists():
@@ -540,11 +538,9 @@ def stats_from_gear_journal() -> dict[tuple, dict]:
                     and not isinstance(v, bool) and not pd.isna(v)}
             if any(s not in vals for s in SPECSTATS_CORE):
                 continue                       # torn capture: skip, don't mix
-            flask = rec.get("flask")
             out[_gear_key(rec.get("report_code"), rec.get("fight_id"),
                           rec.get("character"), rec.get("server"))] = {
-                "stats": vals,
-                "flask": flask if isinstance(flask, dict) else None}
+                "stats": vals}
     return out
 
 
@@ -585,11 +581,6 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
     print. Values ship as RATINGS, never converted to percentages: the
     conversion is level- and stat-dependent and belongs to whoever knows the
     formula, not this file.
-
-    Per-flask re-slices ("flasks") appear on a spec only once enough of its
-    characters have a captured flask (hasFlask pattern); records without the
-    field -- the whole journal before flask capture began -- count toward
-    "all" and simply cannot be re-sliced.
 
     Returns None when the journal carries no usable stats: the payload key is
     then absent and the client feature-detects it exactly like tier/rating.
@@ -632,11 +623,10 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
         groups.setdefault((cls, spec), []).append(rec)
 
     spec_out: dict[str, dict] = {}
-    n_chars = n_flask_known = 0
+    n_chars = 0
     for (cls, spec), recs in sorted(groups.items()):
         n = len(recs)
         n_chars += n
-        n_flask_known += sum(1 for r in recs if r["flask"] is not None)
         if n < SPECSTATS_MIN_CHARS:
             continue                           # thin spec: omit, never guess
         stat_rows = [r["stats"] for r in recs]
@@ -644,19 +634,8 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
             s for s in SPECSTATS_EXTRA
             if sum(1 for r in stat_rows if s in r)
             >= SPECSTATS_EXTRA_MIN_SHARE * n]
-        entry: dict = {"n": n, "q": _stat_quantiles(stat_rows, stats)}
-        by_flask: dict[str, list[dict]] = {}
-        for r in recs:
-            f = r["flask"]
-            if isinstance(f, dict) and f.get("name"):
-                by_flask.setdefault(str(f["name"]), []).append(r["stats"])
-        flasks = {fn: {"n": len(rows),
-                       "q": _stat_quantiles(rows, SPECSTATS_CORE)}
-                  for fn, rows in sorted(by_flask.items())
-                  if len(rows) >= SPECSTATS_FLASK_MIN_CHARS}
-        if flasks:
-            entry["flasks"] = flasks
-        spec_out[f"{cls}|{spec}"] = entry
+        spec_out[f"{cls}|{spec}"] = {"n": n,
+                                     "q": _stat_quantiles(stat_rows, stats)}
     if not spec_out:
         print(f"[{name}] every spec below {SPECSTATS_MIN_CHARS} stats-known "
               f"characters; specstats block omitted")
@@ -670,15 +649,12 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
               f"{n_cohort:,} parses ({n_hit / n_cohort:.0%}); values are "
               f"stat ratings as the character sheet read at the pull — "
               f"active consumables (flask, food) included; not percentages")
-    if n_flask_known:
-        cohort += (f"; flask known for {n_flask_known / max(n_chars, 1):.0%} "
-                   f"of characters")
     block = {"cohort": cohort, "keyMin": SPECSTATS_MIN_KEY,
              "windowDays": SPECSTATS_WINDOW_DAYS, "specs": spec_out}
     size = len(json.dumps(block, separators=(",", ":")))
     print(f"[{name}] specstats: {len(spec_out)} specs from {n_chars:,} "
-          f"characters ({n_hit:,} stats-known parses, {n_flask_known:,} "
-          f"flask-known characters; {size / 1024:.1f} KB)")
+          f"characters ({n_hit:,} stats-known parses; "
+          f"{size / 1024:.1f} KB)")
     return block
 
 
@@ -687,14 +663,10 @@ def spec_stats_frame(block: dict) -> "pd.DataFrame":
     rows = []
     for key, e in block["specs"].items():
         cls, spec = key.split("|", 1)
-        variants = [("all", e["n"], e["q"])]
-        variants += [(fn, f["n"], f["q"])
-                     for fn, f in e.get("flasks", {}).items()]
-        for flask, n, q in variants:
-            for stat, (p25, p50, p75) in q.items():
-                rows.append({"class": cls, "spec": spec, "flask": flask,
-                             "characters": n, "stat": stat,
-                             "p25": p25, "p50": p50, "p75": p75})
+        for stat, (p25, p50, p75) in e["q"].items():
+            rows.append({"class": cls, "spec": spec,
+                         "characters": e["n"], "stat": stat,
+                         "p25": p25, "p50": p50, "p75": p75})
     return pd.DataFrame(rows)
 
 
@@ -713,18 +685,17 @@ SIDECAR_GZ_TARGET = 2_500_000  # aim under this
 SIDECAR_GZ_CAP = 4_000_000     # never ship over this
 
 
-def _sidecar_json(names, flasks, enc, n, vals, idx=None) -> str:
+def _sidecar_json(names, enc, n, vals, idx=None) -> str:
     """The sidecar document, exactly as published.
 
     data decodes to a little-endian Uint16Array: per covered row, one rating
-    per stat in `stats` order (0 = unknown/absent) plus one flask code --
-    0 = unknown, 1 = auras visible with no flask, v >= 2 = flasks[v - 2]
-    (the flask0/flask1 keys document the two reserved codes in-band). Dense
-    covers every payload row in order; sparse covers only stats-known rows,
-    with `idx` decoding to a Uint32Array of their payload row indices.
+    per stat in `stats` order (0 = unknown/absent) and nothing else --
+    "flaskcol": false says so in-band, because an earlier layout carried a
+    trailing flask column and the client tolerates both. Dense covers every
+    payload row in order; sparse covers only stats-known rows, with `idx`
+    decoding to a Uint32Array of their payload row indices.
     """
-    obj = {"stats": list(names), "flasks": list(flasks),
-           "flask0": "unknown", "flask1": "none", "enc": enc, "n": n,
+    obj = {"stats": list(names), "flaskcol": False, "enc": enc, "n": n,
            "data": base64.b64encode(vals.astype("<u2").tobytes()).decode()}
     if idx is not None:
         obj["idx"] = base64.b64encode(idx.astype("<u4").tobytes()).decode()
@@ -733,7 +704,7 @@ def _sidecar_json(names, flasks, enc, n, vals, idx=None) -> str:
 
 def stats_sidecar(df, journal, name: str, enc: str | None = None,
                   cap: int = SIDECAR_GZ_CAP) -> str | None:
-    """Per-parse stat ratings + flask, packed for the client's typed arrays.
+    """Per-parse stat ratings, packed for the client's typed arrays.
 
     Emitted by walking df in row order, so index i in the decoded matrix IS
     row i of the payload's rows arrays -- never a separate join that could
@@ -757,29 +728,22 @@ def stats_sidecar(df, journal, name: str, enc: str | None = None,
         print(f"[{name}] no stats in the gear journal; sidecar omitted")
         return None
     n = len(df)
-    flasks = sorted({r["flask"]["name"] for _, r in per_row
-                     if isinstance(r["flask"], dict) and r["flask"].get("name")})
-    fcode = {fname: j + 2 for j, fname in enumerate(flasks)}
 
     def build_doc(names) -> str:
-        cols = len(names) + 1
+        cols = len(names)
         packed = np.zeros((len(per_row), cols), dtype="<u2")
         idx = np.zeros(len(per_row), dtype="<u4")
         for j, (i, rec) in enumerate(per_row):
             st = rec["stats"]
             for k, nm in enumerate(names):
                 packed[j, k] = min(max(int(round(st.get(nm, 0))), 0), 0xFFFF)
-            f = rec["flask"]
-            packed[j, cols - 1] = (0 if f is None
-                                   else fcode[f["name"]] if f.get("name")
-                                   else 1)
             idx[j] = i
-        sparse = _sidecar_json(names, flasks, "sparse", n, packed, idx)
+        sparse = _sidecar_json(names, "sparse", n, packed, idx)
         if enc == "sparse":
             return sparse
         dense_m = np.zeros((n, cols), dtype="<u2")
         dense_m[idx] = packed
-        dense = _sidecar_json(names, flasks, "dense", n, dense_m)
+        dense = _sidecar_json(names, "dense", n, dense_m)
         if enc == "dense":
             return dense
         gz_d = len(gzip.compress(dense.encode(), 6))
@@ -1735,11 +1699,9 @@ def build_llms() -> None:
         "and player skill still travel with having the set, so these remain an "
         "upper bound on the bonus.",
         # only when it exists, for the same dead-link reason as above
-        *([f"- {BASE_URL}/llms/spec_stats.csv — secondary-stat rating "
-           "quantiles per class+spec, hero talents merged. Columns: class, "
-           "spec, flask, characters, stat, p25, p50, p75. flask=\"all\" rows "
-           "cover every stats-known character; other flask values re-slice "
-           "by the flask seen at the pull. Values are ratings, not "
+        *([f"- {BASE_URL}/llms/spec_stats.csv — stat rating quantiles per "
+           "class+spec, hero talents merged. Columns: class, spec, "
+           "characters, stat, p25, p50, p75. Values are ratings, not "
            "percentages. Cohort: " + specstats["cohort"] + "."]
           if specstats else []),
         f"- {BASE_URL}/llms/comps.csv — the {COMPS_PER_SUBSET:,} "

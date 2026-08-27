@@ -9,8 +9,7 @@ return "unknown" rather than raise or invent a zero.
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from fetch_data import (batch_query, compact_flask, compact_gear,
-                        compact_talents, flasks_from_events, gear_sets,
-                        pack_sets, parse_summary)
+                        compact_talents, gear_sets, pack_sets, parse_summary)
 
 TIER = "1729"
 def item(i, set_id=None, **kw):
@@ -143,56 +142,27 @@ assert rows2[0]["set_counts"] is None, rows2[0]["set_counts"]
 print("parse_summary: no combatantInfo -> player row kept, no gear row, "
       "set_counts None")
 
-# --- flasks via CombatantInfo events. Production proved the Summary table's
-# combatantInfo carries no auras, so the collector pairs each summary with the
-# fight's raw CombatantInfo events and joins them back by report actor id.
-EV = [
-    {"type": "combatantinfo", "sourceID": 1,
-     "auras": [{"source": 1, "ability": 1, "stacks": 1, "name": "Skyfury"},
-               {"source": 1, "ability": 43111, "stacks": 1,
-                "name": "Flask of Saturated Malice"}]},
-    {"type": "combatantinfo", "sourceID": 2,
-     "auras": [{"source": 2, "ability": 1, "stacks": 1, "name": "Skyfury"}]},
-    {"type": "combatantinfo", "sourceID": 3, "auras": []},  # torn: unknown
-    "not a dict",                                           # tolerated noise
-]
-fm = flasks_from_events(EV)
-assert fm == {1: {"id": 43111, "name": "Flask of Saturated Malice"},
-              2: {}}, fm
-assert flasks_from_events(None) is None and flasks_from_events("x") is None
-print("events    : sourceID 1 -> flask, 2 -> {} (real zero), empty-aura and "
-      "junk events skipped; no events -> None")
-
-# a summary WITHOUT auras (the production shape) + events carrying them:
-# the gear record's flask must come from the events, joined by player id
+# a summary WITHOUT auras -- the production shape -- keeps the journal field
+# at None (unknown): the flask feature is removed and the summary is the only
+# source read, so this is what every record captures today
 noaura = {k: v for k, v in full.items() if k != "auras"}
 p2 = dict(player, combatantInfo=noaura)
-_, gear3 = parse_summary(fight, table, _Hero(), EV)
-# player id 1: summary auras (test fixture) still win when present ...
-assert gear3[0]["flask"]["name"] == "Flask of Tempered Swiftness", gear3[0]
 t2 = {"data": {"totalTime": 1_500_000, "playerDetails": {"dps": [p2]},
                "damageDone": [{"id": 1, "total": 9_000_000}],
                "deathEvents": []}}
-_, gear4 = parse_summary(fight, t2, _Hero(), EV)
-# ... and the events fill in when the summary has none
-assert gear4[0]["flask"] == {"id": 43111,
-                             "name": "Flask of Saturated Malice"}, gear4[0]
-_, gear5 = parse_summary(fight, t2, _Hero(), None)
-assert gear5[0]["flask"] is None, gear5[0]
-_, gear6 = parse_summary(fight, t2, _Hero(),
-                         [{"sourceID": 9, "auras": EV[0]["auras"]}])
-assert gear6[0]["flask"] is None, gear6[0]   # someone else's event: unknown
-print("parse_summary: flask joined from events by actor id; summary auras "
-      "take precedence; absent/foreign events -> None")
+_, gear3 = parse_summary(fight, t2, _Hero())
+assert gear3[0]["flask"] is None, gear3[0]
+print("parse_summary: no summary auras (production shape) -> flask None; "
+      "field kept for a later re-enable")
 
-# --- the batch request must ask for both halves per aliased run
+# --- the batch request is the Summary table alone: the flask feature's
+# CombatantInfo events sub-query is removed and must NOT be requested
 q = batch_query([{"code": "aBc", "fid": 7}, {"code": "dEf", "fid": 9}])
 for needle in ('a0: report(code: "aBc")', 'a1: report(code: "dEf")',
                "table(fightIDs: [7], dataType: Summary)",
-               "events(fightIDs: [9], dataType: CombatantInfo",
-               "{ data }"):
+               "table(fightIDs: [9], dataType: Summary)"):
     assert needle in q, (needle, q)
-assert q.count("dataType: CombatantInfo") == 2, q
-print("batch_query : Summary table + CombatantInfo events per alias")
+assert "events(" not in q and "CombatantInfo" not in q, q
+print("batch_query : Summary table only; no events sub-query")
 
 print("\nPASS")

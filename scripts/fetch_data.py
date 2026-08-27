@@ -9,10 +9,9 @@ Stages (all checkpointed; safe to kill and re-run at any point):
                   so this is 5x cheaper than characterRankings which repeats
                   each run once per player.
   2. summaries  - for every ranked run with a public report, fetch the report
-                  Summary table plus the fight's CombatantInfo events (~2
-                  points per run) which together contain per-player damage
-                  totals, the raw death events, the full combatant talent
-                  trees and each player's flask aura for all 5 players.
+                  Summary table (ONE ~1-point query per run) which contains
+                  per-player damage totals, the raw death events and the full
+                  combatant talent trees for all 5 players at once.
   3. export     - flatten everything into data/mythic_runs.csv.gz (one row
                   per player per run), which the site build packs for the
                   static dashboard.
@@ -507,10 +506,6 @@ def compact_talents(ci: dict | None) -> dict | None:
 # A flask shows up in combatantInfo as one of the auras active at the pull.
 # Matched by name rather than a hard-coded spell-id table, which would need
 # editing every patch; WCL translates ability names to English by default.
-# NOTE: whether the Summary table's combatantInfo actually carries an "auras"
-# list cannot be verified from here (collection holds the credentials); the
-# capture is defensive -- no auras simply means flask None -- and the first
-# real run's specstats coverage line in the build log answers it.
 FLASK_AURA = re.compile(r"^(Flask|Phial) of ")
 
 
@@ -523,11 +518,13 @@ def compact_flask(ci: dict | None) -> dict | None:
     aura name} for the first flask aura found -- flasks are mutually
     exclusive in game, so there is at most one.
 
-    The first production run proved the Summary table's combatantInfo
-    carries NO auras, so the live aura source is the fight's CombatantInfo
-    events (flasks_from_events below); this parser serves both shapes, and
-    the summary path stays first in parse_summary in case WCL ever adds
-    auras there.
+    The flask FEATURE was removed (fleet/feature_specframe.md): production
+    proved the Summary table's combatantInfo carries no auras, and the
+    owner then dropped the paid CombatantInfo-events fetch that filled the
+    gap. This parser and the journal's "flask" field stay -- reading the
+    summary yields None everywhere at zero cost, nothing downstream consumes
+    the field, and re-enabling collection later is one events sub-query in
+    batch_query (see git history at 82fb19e) plus a regear backfill.
     """
     if not isinstance(ci, dict):
         return None
@@ -541,35 +538,6 @@ def compact_flask(ci: dict | None) -> dict | None:
         if isinstance(name, str) and FLASK_AURA.match(name):
             return {"id": a.get("ability"), "name": name}
     return {}
-
-
-def flasks_from_events(events) -> dict[int, dict] | None:
-    """Per-player flask from a fight's CombatantInfo events, by actor id.
-
-    One CombatantInfo event fires per player at the pull, carrying the aura
-    list the Summary table's combatantInfo omits. Keyed by sourceID, which
-    is the same report-actor id space playerDetails and damageDone already
-    use, so the join back to a player is exact -- CombatantInfo events carry
-    no names, which is why the match is by id rather than name+server.
-
-    None when the events are missing entirely (the sub-query failed or the
-    report withholds combatant info), keeping "unknown" distinct from "no
-    flask". A player absent from the map, or present with an empty aura
-    list, likewise stays unknown rather than becoming a false zero.
-    """
-    if not isinstance(events, list):
-        return None
-    out: dict[int, dict] = {}
-    for ev in events:
-        if not isinstance(ev, dict):
-            continue
-        sid = ev.get("sourceID")
-        if sid is None:
-            continue
-        got = compact_flask({"auras": ev.get("auras")})
-        if got is not None:
-            out[sid] = got
-    return out
 
 
 def gear_sets(ci: dict | None) -> dict[str, int] | None:
@@ -626,9 +594,8 @@ def pack_sets(counts: dict[str, int] | None) -> str | None:
     return "|".join(f"{k}:{v}" for k, v in sorted(counts.items()))
 
 
-def parse_summary(fight: dict, table: dict, hero: HeroResolver,
-                  ci_events: list | None = None
-                  ) -> tuple[list[dict], list[dict]]:
+def parse_summary(fight: dict, table: dict,
+                  hero: HeroResolver) -> tuple[list[dict], list[dict]]:
     data = table.get("data") if isinstance(table, dict) else None
     if not isinstance(data, dict):
         raise ValueError("no summary data")
@@ -651,8 +618,6 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver,
         # without a damageDone section has nothing we can use
         raise ValueError("no damage data")
 
-    ev_flasks = flasks_from_events(ci_events)
-
     rows: list[dict] = []
     gear_rows: list[dict] = []
     for role_key, role in (("tanks", "Tank"), ("healers", "Healer"), ("dps", "DPS")):
@@ -666,18 +631,13 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver,
             # after spec is resolved -- the gear record carries it
             gear = compact_gear(ci)
             talents = compact_talents(ci)
-            # summary combatantInfo first (free if WCL ever adds auras
-            # there), the fight's CombatantInfo events otherwise
-            flask = compact_flask(ci)
-            if flask is None and ev_flasks is not None:
-                flask = ev_flasks.get(p.get("id"))
             if gear is not None or talents is not None:
                 gear_rows.append({
                     "report_code": fight["code"], "fight_id": fight["fid"],
                     "character": p.get("name"), "server": p.get("server"),
                     "class": p.get("type"), "spec": spec,
                     "gear": gear, "talents": talents,
-                    "flask": flask,
+                    "flask": compact_flask(ci),
                 })
             rows.append({
                 "character": p.get("name"),
@@ -719,47 +679,34 @@ def _worker_client() -> WCLClient:
     return _tls.client
 
 
-# Report-relative end bound for the events sub-query, in ms. The schema's
-# endTime defaults to 0, which returns nothing, and the fight's report-
-# relative bounds are not known here -- so pass an end no report can reach
-# (they cap out around a day) and let fightIDs do the actual filtering.
-EVENTS_END_MS = 100_000_000_000
-
-
 def batch_query(batch: list[dict]) -> str:
     """The aliased GraphQL request for one batch of runs.
 
-    Per run: the Summary table (damage, deaths, gear, talents) plus the
-    fight's CombatantInfo events, which are the only place the players'
-    aura lists -- and so their flasks -- appear; the first production run
-    proved the Summary's combatantInfo omits auras. One event fires per
-    player at the pull, so limit: 60 has 12x headroom over a 5-player run.
+    Per run: the Summary table alone -- damage, deaths, gear, talents. The
+    flask feature briefly added a CombatantInfo-events sub-query here (the
+    only place aura lists appear, ~1 pt/run more); the owner removed it, so
+    re-enabling flask collection means restoring that sub-query -- see git
+    history at 82fb19e -- not touching anything else.
     """
     parts = []
     for i, f in enumerate(batch):
         parts.append(
             f'a{i}: report(code: "{f["code"]}") '
-            f'{{ table(fightIDs: [{f["fid"]}], dataType: Summary) '
-            f'events(fightIDs: [{f["fid"]}], dataType: CombatantInfo, '
-            f'startTime: 0, endTime: {EVENTS_END_MS}, limit: 60) '
-            f'{{ data }} }}'
+            f'{{ table(fightIDs: [{f["fid"]}], dataType: Summary) }}'
         )
     return "{ reportData { " + " ".join(parts) + " } }"
 
 
 def _fetch_batch(batch: list[dict]):
-    """Worker: fetch one aliased batch of Summary tables + CombatantInfo.
+    """Worker: fetch one aliased batch of Summary tables.
 
     Returns (batch, reportData|None, alias->error map, points).  reportData
     None means the whole request failed after retries -> requeue, don't
     journal anything.
     """
     client = _worker_client()
-    # ~2.6 pts/run measured for the Summary table alone; the CombatantInfo
-    # events sub-query prices around 1 pt more. The estimate only gates
-    # admission -- actual spend is read back off every response.
     try:
-        data = client.query(batch_query(batch), est_cost=3.6 * len(batch))
+        data = client.query(batch_query(batch), est_cost=2.6 * len(batch))
     except RuntimeError as e:
         print(f"[summaries] batch failed, will requeue: {e}", flush=True)
         return batch, None, {}, client.spent
@@ -772,11 +719,9 @@ def regear_candidates(fights: dict, done: set[str], min_key: int,
     """Runs already fetched that should be fetched again to pick up gear.
 
     Gear was not captured before this existed, so every historical parse has
-    no set information; flask capture arrived later still, so a refetch also
-    backfills flasks for the slice. Rather than refetch the whole season,
-    this narrows to what is worth the points -- high keys, recent -- and
-    forgets only those from the done-set so the normal summary stage (which
-    now carries the CombatantInfo events sub-query) refetches them.
+    no set information. Rather than refetch the whole season, this narrows to
+    the slice worth the points -- high keys, recent -- and forgets only those
+    from the done-set so the normal summary stage refetches them.
     """
     if not fights:
         return set()
@@ -802,11 +747,9 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
         min_key, days = regear
         again = regear_candidates(fights, done, min_key, days)
         done = done - again
-        # ~1.35 pts/run was measured for the Summary alone; the CombatantInfo
-        # events sub-query that now rides along adds roughly a point
         print(f"[regear] {len(again):,} already-fetched runs at +{min_key} or "
               f"higher from the last {days:g} days will be refetched for gear "
-              f"and flasks (~{len(again) * 2.4:,.0f} points)", flush=True)
+              f"(~{len(again) * 1.35:,.0f} points)", flush=True)
     load_done.cache = done          # lets _pick() prefer an already-fetched copy
     raw_n = len(fights)
     fights = dedupe_fights(fights)

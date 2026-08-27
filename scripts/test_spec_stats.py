@@ -6,9 +6,11 @@ written as JSON lines exactly as the collector writes them, then read back
 through the real reader and aggregation in build_site_data.py. What this
 pins: the journal schema round-trip, cohort membership (window, key floor,
 timed-only), one-record-per-character dedup, journal last-copy-wins,
-hero-merged keying, quantile arithmetic, per-flask re-slicing, and every
-absence case (empty journal, stats-less records, torn stats, no flasks)
-ending in an absent block or key rather than a crash or an invented zero.
+hero-merged keying, quantile arithmetic, and every absence case (empty
+journal, stats-less records, torn stats) ending in an absent block or key
+rather than a crash or an invented zero. Flask values still ride on some
+fixtures on purpose: the flask FEATURE is removed, and these prove that
+records carrying the field aggregate exactly like records without it.
 """
 import base64
 import gzip
@@ -156,8 +158,9 @@ for i in range(1, 11):
 add("M1old", 1, "Mage1", "Area52", "Mage", "Arcane",
     start_ms=BASE_MS - 1 * DAY_MS, stats=st(crit=999_999))
 
-# --- Priests: 24 characters for the flask split: 12 on one flask with Crit
-# 1000..12000, 10 on another at a constant, 2 with auras but no flask
+# --- Priests: 24 characters whose records CARRY flask values (12 on one
+# flask, 10 on another, 2 with auras and none) -- the removed feature's
+# journal residue, which must change nothing downstream
 for i in range(1, 13):
     add(f"P{i}", 1, f"Priest{i}", "Moonguard", "Priest", "Discipline",
         stats=st(crit=i * 1000), flask="Flask of Tempered Aggression")
@@ -207,38 +210,34 @@ assert "Leech" not in m["q"], m["q"]         # 50% coverage < the 90% bar
 print("dedup     : per-character latest parse wins; stale journal copy "
       "superseded by the later line; thin tertiary dropped")
 
+# the priest records still CARRY flask values in the journal (harmless,
+# unread): no flasks sub-block may ship, and field-less warrior records
+# aggregate identically -- the feature is removed, not half-removed
 p = specs["Priest|Discipline"]
-assert p["n"] == 24, p["n"]
-fl = p["flasks"]
-assert set(fl) == {"Flask of Tempered Aggression",
-                   "Flask of Saturated Malice"}, set(fl)
-agg = fl["Flask of Tempered Aggression"]
-assert agg["n"] == 12 and agg["q"]["Crit"] == [3750, 6500, 9250], agg
-mal = fl["Flask of Saturated Malice"]
-assert mal["n"] == 10 and mal["q"]["Crit"] == [5000, 5000, 5000], mal
-assert "flask known for" in block["cohort"], block["cohort"]
-print(f"flasks    : 2 variants (n=12, n=10) re-sliced; 2 no-flask chars in "
-      f"'all' only; cohort states coverage")
-
+assert p["n"] == 24 and "flasks" not in p, p
 w = specs["Warrior|Arms"]
 assert w["n"] == 11 and "flasks" not in w, w
-print("pre-flask : records without the field aggregate into 'all' only")
+print("no flasks : flask-carrying and flask-less records aggregate the "
+      "same; no flasks sub-blocks ship (feature removed)")
 
 for needle in ("+12", "14 days", "ratings", "not percentages"):
     assert needle in block["cohort"], (needle, block["cohort"])
+# the consumables wording stays -- it is true of the ratings regardless --
+# but the removed feature's coverage clause must never reappear
+assert "flask, food" in block["cohort"], block["cohort"]
+assert "flask known" not in block["cohort"], block["cohort"]
 assert block["keyMin"] == 12 and block["windowDays"] == 14
 print(f"cohort    : {block['cohort']!r}")
 
 # --- llms flatten of the same block
 frame = bsd.spec_stats_frame(block)
-assert list(frame.columns) == ["class", "spec", "flask", "characters",
+assert list(frame.columns) == ["class", "spec", "characters",
                                "stat", "p25", "p50", "p75"], frame.columns
-prow = frame[(frame["spec"] == "Discipline")
-             & (frame["flask"] == "Flask of Saturated Malice")
+rrow = frame[(frame["spec"] == "Assassination")
              & (frame["stat"] == "Crit")].iloc[0]
-assert prow["characters"] == 10 and prow["p50"] == 5000, prow
+assert rrow["characters"] == 11 and rrow["p50"] == 6000, rrow
 n_disc = len(frame[frame["spec"] == "Discipline"])
-assert n_disc == 12, n_disc                  # (all + 2 variants) x 4 stats
+assert n_disc == 4, n_disc                   # one row per stat, no variants
 print(f"llms csv  : {len(frame)} long-format rows, columns pinned")
 
 # --- absence cases: the block must vanish, exactly like hasTier/hasRating
@@ -253,23 +252,8 @@ assert run_block(low_rows, recs) is None
 print("absence   : empty journal / stats-less journal / sub-floor cohort -> "
       "block None (payload key absent)")
 
-# hasFlask: with no flask anywhere, no spec carries a flasks key and the
-# cohort line does not mention coverage
-noflask_rows, noflask_recs = [], []
-for i in range(1, 13):
-    rw, rc = make_parse(f"N{i}", 1, f"Monk{i}", "Tichondrius", "Monk",
-                        "Brewmaster", stats=st(), drop_flask=True)
-    noflask_rows.append(rw)
-    noflask_recs.append(rc)
-nb = run_block(noflask_rows, noflask_recs)
-assert nb and "flasks" not in nb["specs"]["Monk|Brewmaster"]
-# the constant copy now names consumables ("flask, food"); only the coverage
-# CLAUSE must be absent without flask data
-assert "flask known" not in nb["cohort"], nb["cohort"]
-print("hasFlask  : zero coverage -> no flasks keys, no coverage claim")
-
-# --- payload size sanity at full scale: 27 specs x 24 chars, two flask
-# variants each -- the worst realistic shape the block should ever take
+# --- payload size sanity at full scale: 27 specs x 24 chars (flask values
+# still riding on the records, ignored by the block)
 big_rows, big_recs = [], []
 n = 0
 for s in range(27):
@@ -285,10 +269,11 @@ for s in range(27):
         big_recs.append(rc)
 bb = run_block(big_rows, big_recs)
 assert len(bb["specs"]) == 27
+assert all("flasks" not in e for e in bb["specs"].values())
 blob = json.dumps(bb, separators=(",", ":"))
 assert len(blob) < 40_000, len(blob)
-print(f"size      : 27 specs x 5 stats x (all + 2 flasks) = "
-      f"{len(blob):,} bytes -- comfortably payload-sized")
+print(f"size      : 27 specs x 5 stats = {len(blob):,} bytes -- "
+      f"comfortably payload-sized")
 
 # ===========================================================================
 # specmeta: the generic per-dimension best-players block
@@ -440,14 +425,15 @@ def rowat(df, char, code):
                         & (df["report_code"] == code)][0])
 
 
-# the specstats fixtures again: rogues (stats, no flask field... None), a torn
-# capture, priests with flasks, warriors journaled before flask capture
+# the specstats fixtures again -- the journal still CARRIES flask values on
+# the priest records, and the sidecar must ignore them: stats-only columns,
+# "flaskcol": false, no flask vocabulary keys (feature removed)
 df_s, sc = run_sidecar(rows, recs, enc="dense")
-W = len(sc["stats"]) + 1
-assert sc["stats"] == list(bsd.SIDECAR_STATS) and W == 11, sc["stats"]
-assert sc["flask0"] == "unknown" and sc["flask1"] == "none"
-assert sc["flasks"] == ["Flask of Saturated Malice",
-                        "Flask of Tempered Aggression"], sc["flasks"]
+W = len(sc["stats"])
+assert sc["stats"] == list(bsd.SIDECAR_STATS) and W == 10, sc["stats"]
+assert sc["flaskcol"] is False, sc
+for gone_key in ("flasks", "flask0", "flask1"):
+    assert gone_key not in sc, sc.keys()
 assert sc["enc"] == "dense" and sc["n"] == len(df_s), (sc["enc"], sc["n"])
 arr = decode(sc, "<u2")
 assert len(arr) == len(df_s) * W, len(arr)
@@ -456,19 +442,16 @@ assert base64.b64encode(base64.b64decode(sc["data"])).decode() == sc["data"]
 
 i = rowat(df_s, "Rogue1", "R1")     # Crit 1000, Haste 2000, ..., Leech 500
 assert arr[i * W:(i + 1) * W].tolist() == \
-    [0, 0, 0, 1000, 2000, 3000, 4000, 500, 0, 0, 0], arr[i * W:(i + 1) * W]
-i = rowat(df_s, "Priest1", "P1")    # Tempered Aggression -> code 3
-assert arr[i * W + 3] == 1000 and arr[i * W + W - 1] == 3, arr[i * W:(i + 1) * W]
-i = rowat(df_s, "Priest23", "P23")  # auras visible, no flask -> code 1
-assert arr[i * W + W - 1] == 1
-i = rowat(df_s, "Warr1", "W1")      # journaled before flask capture -> 0
-assert arr[i * W + 3] == 4000 and arr[i * W + W - 1] == 0
+    [0, 0, 0, 1000, 2000, 3000, 4000, 500, 0, 0], arr[i * W:(i + 1) * W]
+i = rowat(df_s, "Priest1", "P1")    # flask-carrying record: stats only
+assert arr[i * W:(i + 1) * W].tolist() == \
+    [0, 0, 0, 1000, 2000, 3000, 4000, 0, 0, 0], arr[i * W:(i + 1) * W]
 i = rowat(df_s, "Torn", "RX4")      # torn stats: journal-skipped, all zeros
 assert arr[i * W:(i + 1) * W].tolist() == [0] * W
 i = rowat(df_s, "LowKey", "RX1")    # sidecar is per-parse: cohort-free; the
 assert arr[i * W + 3] == 0xFFFF     # junk 999999 rating clamps to u16
-print("sidecar     : dense decode pinned per row -- stats order, flask "
-      "codes 0/1/2+, torn row zeroed, u16 clamp")
+print("sidecar     : dense decode pinned per row -- stats-only columns, "
+      "flaskcol false, torn row zeroed, u16 clamp")
 
 # ROW ALIGNMENT is with df order, not journal order: reverse the df and every
 # value must move with its row
@@ -476,7 +459,7 @@ df_r, sc_r = run_sidecar(rows[::-1], recs, enc="dense")
 arr_r = decode(sc_r, "<u2")
 i = rowat(df_r, "Rogue1", "R1")
 assert arr_r[i * W:(i + 1) * W].tolist() == \
-    [0, 0, 0, 1000, 2000, 3000, 4000, 500, 0, 0, 0]
+    [0, 0, 0, 1000, 2000, 3000, 4000, 500, 0, 0]
 print("sidecar     : alignment follows the df (payload) order, pinned "
       "against a reversed frame")
 
@@ -505,7 +488,7 @@ _, capped = run_sidecar(rows, recs, enc="dense", cap=g10 - 1)
 assert capped is not None
 assert capped["stats"] == list(bsd.SIDECAR_STATS[:bsd.SIDECAR_CORE]), \
     capped["stats"]
-assert len(decode(capped, "<u2")) == len(df_s) * 8
+assert len(decode(capped, "<u2")) == len(df_s) * bsd.SIDECAR_CORE
 _, gone = run_sidecar(rows, recs, enc="dense", cap=1)
 assert gone is None
 _, empty = run_sidecar(rows, [])
