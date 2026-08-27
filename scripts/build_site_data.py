@@ -494,8 +494,12 @@ SPECSTATS_FLASK_MIN_CHARS = 10  # per flask variant, same reasoning
 # The four ratings every real combatantInfo carries; a record missing any of
 # them is a torn capture and is skipped rather than mixed into the quantiles.
 SPECSTATS_CORE = ("Crit", "Haste", "Mastery", "Versatility")
-# Tertiaries ride along only where the journal reliably carries them.
-SPECSTATS_EXTRA = ("Leech", "Speed", "Avoidance")
+# The rest of the owner-approved list rides along only where the journal
+# reliably carries it: the spec's primary attribute plus the tertiaries.
+# This list is a CAP — "but that's it" — nothing else ships (no Stamina,
+# no armor), whatever else combatantInfo happens to include.
+SPECSTATS_EXTRA = ("Intellect", "Agility", "Strength",
+                   "Leech", "Speed", "Avoidance")
 SPECSTATS_EXTRA_MIN_SHARE = 0.9
 
 
