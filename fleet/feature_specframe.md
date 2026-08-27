@@ -54,3 +54,18 @@ polluting the rest of the dashboard. Keep it scoped only to the spec detailed vi
   ("flask known for X% of parses in window"); with zero coverage the chips simply
   are not rendered (hasFlask pattern, like hasTier). A quota-priced backfill of
   recent high keys is possible later if the owner asks — not assumed.
+
+## Vision (owner, 2026-08-27): a builds-research suite
+"I want to rebuild a lot of the functionality on Archon which allows me to research
+how I should build my character based on data from other top runs."
+Implications: the spec frame is the front end of a per-spec research surface, and the
+pipeline aggregates are its data layer. Design both as a SYSTEM:
+- Data layer: generic per-spec aggregation over the gear journal — talents (build
+  strings with share + median DPS), gear per SLOT (not just trinkets), enchants,
+  gems, stats (shipped), flasks (shipping) — each sliceable by skill band (all vs
+  top quartile) and, where cheap, by dungeon (runs are dungeon-keyed). Add new
+  aggregates by adding an entry, not a subsystem.
+- Frame layer: the block registry renders whatever blocks the payload carries.
+- Out of scope without a separate decision: anything needing per-fight event data
+  (rotation/cast analysis, cooldown usage) — orders of magnitude more API cost than
+  summaries. Everything above comes from data already journaled or newly flowing.
