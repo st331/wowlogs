@@ -667,7 +667,8 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
               f"{SPECSTATS_WINDOW_DAYS} days of data; one record per "
               f"character (their latest parse); stats known for {n_hit:,} of "
               f"{n_cohort:,} parses ({n_hit / n_cohort:.0%}); values are "
-              f"secondary-stat ratings at the pull, not percentages")
+              f"stat ratings as the character sheet read at the pull — "
+              f"active consumables (flask, food) included; not percentages")
     if n_flask_known:
         cohort += (f"; flask known for {n_flask_known / max(n_chars, 1):.0%} "
                    f"of characters")
