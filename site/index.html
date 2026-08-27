@@ -360,14 +360,6 @@ td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 .frows td{padding:.08rem .5rem .08rem 0; color:var(--ink); text-align:right;
   font-variant-numeric:tabular-nums}
 .frows td:first-child{color:var(--ink3); text-align:left; padding-right:1rem}
-.fblock .fchips{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 .45rem}
-.fblock .fchips .chip{font-size:.68rem; padding:.14rem .45rem}
-.fchips .chip{cursor:pointer; background:var(--surface1); border:1px solid var(--line2);
-  padding:.18rem .5rem; user-select:none}
-.fchips .chip:hover{border-color:var(--accent-line); color:var(--ink)}
-/* the on-state must survive .fchips' surface override (same-specificity rule
-   above would otherwise repaint the gilded fill dark — dark ink on dark) */
-.fchips .chip.on{background:var(--metal); border-color:var(--metal-line); color:var(--bg0)}
 .fblock table.fstat{border-collapse:collapse}
 .fstat td{padding:.14rem .55rem .14rem 0; color:var(--ink); font-size:.74rem;
   font-variant-numeric:tabular-nums; white-space:nowrap}
@@ -830,7 +822,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20, csort:{col:"strength", dir:-1},
              compSpec:null,   // Top Comps "With spec" view slice — display-only, cleared on reload
-             frameKey:null, frameFlask:null, frameBand:"all", framePinned:false,   // Spec Frame — display-only, cleared on reload
+             frameKey:null, framePinned:false,   // Spec Frame — display-only, cleared on reload
 
              ssort:{col:"pt", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
@@ -2174,13 +2166,12 @@ function jumpToComps(k){
 /* ================= Spec Frame — "the Ledger Rail" (docked inspector) =================
    Click a bar to dock the rail; clicking the same bar again closes (§15.11:
    clicking the pinned trigger unpins); Esc closes; ↑/↓ steps the chart ladder.
-   frameKey/frameFlask are display-only — never persisted, cleared on reload.
+   frameKey is display-only — never persisted, cleared on reload.
    The rail is a region, not a modal: focus is never stolen (no .focus() call
    anywhere); #frame-x is reached only by the user's own Tab. Zero hover
    behavior — the 450ms #tip owns hover, untouched. */
 let FRAME_A=null, FRAME_B=null, CHART_KEYS=[];
 let frameCSort={col:"n",dir:-1};   // mini comps table: "top = most run" default
-const escA=s=>esc(s).replace(/"/g,"&quot;");
 
 /* ---- live-stats sidecar (stats.json.gz) — per-parse stat ratings, ROW-ALIGNED
    with the payload's rows arrays. Fetched lazily on the FIRST frame open, once
@@ -2201,13 +2192,15 @@ function loadStatsSidecar(){
   })().catch(()=>{});
   return statsCP;
 }
-// {stats:[names], flasks:[names], flask0:"unknown", flask1:"none",
-//  enc:"dense"|"sparse", n:<payload rows length>, data:<base64 LE Uint16Array>,
-//  and sparse-only idx:<base64 LE Uint32Array of payload row indices>}.
-// dense: payload row i, stat k at data[i*(stats+1)+k], flask code in the last
-// column; sparse: data carries those columns for just the rows idx names.
-// Stat value 0 = unknown. Flask code: 0 unknown · 1 auras-visible-no-flask ·
-// v≥2 = flasks[v-2]. Shape is feature-detected, not assumed — anything
+// {stats:[names], enc:"dense"|"sparse", n:<payload rows length>,
+//  data:<base64 LE Uint16Array>, sparse-only idx:<base64 LE Uint32Array of
+//  payload row indices>}. dense: payload row i, stat k at data[i*cols+k];
+//  sparse: data carries those columns for just the rows idx names. Stat value
+// 0 = unknown. Column stride is layout-tolerant: the current production file
+// carries a trailing flask column (no flaskcol field); the pipeline will soon
+// emit "flaskcol": false with stats-only columns. Flask data is IGNORED either
+// way (owner decision: flask effects are baked into the stat snapshot, so the
+// slice was uninformative). Shape is feature-detected, not assumed — anything
 // unexpected ⇒ null ⇒ the block simply stays in fixed mode.
 function decodeStatsSidecar(j){
   try{
@@ -2219,7 +2212,7 @@ function decodeStatsSidecar(j){
     }
     const b64=s=>{const bin=atob(s), b=new Uint8Array(bin.length);
       for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b};
-    const cols=j.stats.length+1;              // stat columns + the flask column
+    const cols=j.stats.length+(j.flaskcol===false?0:1);   // stride incl. any flask col
     const map=new Int32Array(N).fill(-1);     // payload row → sidecar row
     const vb=b64(j.data);
     const vals=new Uint16Array(vb.buffer,0,(vb.byteLength/2)|0);
@@ -2233,7 +2226,7 @@ function decodeStatsSidecar(j){
       if(vals.length<N*cols) return null;
       for(let k=0;k<N;k++) map[k]=k;
     }
-    return {stats:j.stats, flasks:Array.isArray(j.flasks)?j.flasks:[], cols, vals, map};
+    return {stats:j.stats, cols, vals, map};
   }catch(e){ return null }
 }
 // The frame's live row set: the CHART's own row-pass (masks incl. key range,
@@ -2301,8 +2294,7 @@ function frameCtx(){
     g,
     b:(state.compare&&FRAME_B)?(FRAME_B.groups.get(key)??null):null,
     stats:(D&&D.specstats&&D.specstats.specs)
-      ?(D.specstats.specs[cls+"|"+spec]||null):null,
-    flask:state.frameFlask};
+      ?(D.specstats.specs[cls+"|"+spec]||null):null};
 }
 
 /* ---- block 1: identity & key numbers ---- */
@@ -2422,7 +2414,7 @@ function wireFrameComps(el,ctx){
     x.onclick=()=>jumpToComps(ctx.presKey));   // the built section slice, reused verbatim
 }
 
-/* ---- block 3: character stats + flask chips (chips live HERE and nowhere else) ---- */
+/* ---- block 3: character stats ---- */
 // shared quantile-row renderer — quantiles drawn as quantiles (p25→p75 span +
 // p50 tick, never a histogram), p50-descending order IS the priority read (no
 // "A > B > C" prose — banned), one shared x-scale from 0 to the max p75.
@@ -2443,111 +2435,53 @@ function statRowsHTML(entries){
 function frameStatsHTML(ctx){
   if(STATSC) return frameLiveStatsHTML(ctx);   // sidecar loaded ⇒ the block goes live
   const S=ctx.stats;
-  const fkeys=(S.flasks&&typeof S.flasks==="object")?Object.keys(S.flasks):[];
-  let fk=state.frameFlask;
-  if(fk!=null&&(!fkeys.length||!S.flasks[fk])){fk=null; state.frameFlask=null}
   // the pipeline ships quantiles under "q"; "stats" was the blueprint's
-  // assumed name and survives only as a fallback
-  const statMap=fk!=null?(S.flasks[fk].q||S.flasks[fk].stats):(S.q||S.stats);
+  // assumed name and survives only as a fallback. Any "flasks" sub-blocks the
+  // payload still carries are ignored entirely (feature removed — they will
+  // disappear from the payload; both shapes must render identically).
+  const statMap=S.q||S.stats;
   let h='<div class="bt">Character stats</div>';
-  if(fkeys.length){   // hasFlask pattern: absent/empty flasks ⇒ NO chips row
-    h+='<div class="fchips"><span class="chip'+(fk==null?" on":"")+'" data-fi="-1">All</span>';
-    fkeys.forEach((name,i)=>{
-      h+='<span class="chip'+(fk===name?" on":"")+'" data-fi="'+i+'" title="'+escA(name)
-        +'">'+esc(name.replace(/^Flask of /,""))+' · '+fmtInt(S.flasks[name].n)+'</span>';
-    });
-    h+='</div>';
-  }
-  // tertiary rows simply drop while a flask slice (core 4 only) is active.
   const entries=Object.entries(statMap||{})
     .filter(([,q])=>Array.isArray(q)&&q.length>=3)
     .map(([name,q])=>({name,q}));
   h+=statRowsHTML(entries);
-  const fknown=S.flaskKnown||Object.values(S.flasks||{}).reduce((t,f)=>t+(f.n||0),0);
-  const nline=fk!=null
-    ? "n="+fmtInt(S.flasks[fk].n)+" of "+fmtInt(fknown)+" flask-known characters"
-    : "n="+fmtInt(S.n);
-  h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc(nline)
+  h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc("n="+fmtInt(S.n))
     +'<br>fixed build-time cohort — does not follow the filters, period, or lens above'
     +'<br>ordered by median rating; what gear drops biases this</div>';
   return h;
 }
 /* live mode — the sidecar is loaded, so the block follows every filter above.
-   Two INDEPENDENT chip axes over the frame's live row set: a DPS-skill band
-   (each parse ranked by the same dps the chart ranks, WITHIN the current
-   filtered spec rows) and the flask actually seen at the pull. The n line
-   reflects both. @lens = within ±10 percentile points of the lens, re-read on
-   every render — the pctl slider path ends in renderFrame(), so it tracks the
-   slider live while a frame is open. */
-const FRAME_BANDS=[
-  {id:"all", chip:"All",        lab:"all skill bands"},
-  {id:"bot", chip:"Bottom 25%", lab:"bottom 25%"},
-  {id:"mid", chip:"Mid 50%",    lab:"mid 50%"},
-  {id:"top", chip:"Top 25%",    lab:"top 25%"},
-  {id:"lens",chip:"@lens",      lab:"lens band"},
-];
-function bandPass(id,p,lo,hi){
-  return id==="bot"?p<25 : id==="mid"?(p>=25&&p<75) : id==="top"?p>=75
-       : id==="lens"?(p>=lo&&p<=hi) : true;
-}
+   The page's percentile lens is the SINGLE control (owner: "make @lens the
+   default and remove the rest of the buttons"): the block always shows the
+   parses whose within-view DPS rank falls within ±10 percentile points of
+   state.pctl — ranked by the same dps field the chart ranks, WITHIN the
+   current filtered spec rows. The pctl slider path ends in renderFrame(), so
+   the slice re-renders live as the slider moves while a frame is open. */
 const fmtDps=v=>v>=1e4?Math.round(v/1e3)+"k":fmtInt(v);
 function frameLiveStatsHTML(ctx){
-  const C=STATSC, cols=C.cols, nst=cols-1;
+  const C=STATSC, cols=C.cols, nst=C.stats.length;
   const idx=frameLiveIdx(), Y=idx.length;
   let h='<div class="bt">Character stats</div>';
-  if(!Y){ state.frameFlask=null;
-    return h+'<div class="foot" style="margin-top:0">no parses match the current filters</div>'; }
+  if(!Y)
+    return h+'<div class="foot" style="margin-top:0">no parses match the current filters</div>';
   // per-parse DPS percentile WITHIN this filtered view — ranks, not raw dps
   const order=[...idx].sort((a,b)=>dpsAt(a)-dpsAt(b));
   const pctOf=new Map();
   for(let p=0;p<Y;p++) pctOf.set(order[p], Y>1?100*p/(Y-1):50);
-  const sdps=order.map(dpsAt);          // ascending — band dps ranges read here
-  const lensLo=Math.max(0,state.pctl-10), lensHi=Math.min(100,state.pctl+10);
+  const sdps=order.map(dpsAt);          // ascending — the window's dps range reads here
+  // ±10 around the lens; the ends clamp so p0 keeps the worst parse in the
+  // window and p99 the best (rank 100 must never fall out of a p99 lens)
+  const lo=Math.max(0,state.pctl-10), hi=Math.min(100,state.pctl+10);
   const rowAt=i=>C.map[i];
   const known=i=>{const r=rowAt(i); if(r<0) return false;
     const o=r*cols; for(let s=0;s<nst;s++) if(C.vals[o+s]) return true; return false};
-  const flaskOf=i=>{const r=rowAt(i); return r<0?0:C.vals[r*cols+nst]};
-  // flask chips carry view-level counts (the axes stay independent); they
-  // render only when ≥10 parses in view carry a KNOWN flask (k≥2)
-  const fCount=new Map(); let fParses=0, X=0;
-  for(const i of idx){
-    if(known(i)) X++;
-    const k=flaskOf(i);
-    if(k>=2){ fParses++;
-      const nm=C.flasks[k-2]!=null?C.flasks[k-2]:"Flask #"+(k-1);
-      fCount.set(nm,(fCount.get(nm)||0)+1); }
-  }
-  const showFlasks=fParses>=10;
-  let fk=state.frameFlask;
-  if(fk!=null&&(!showFlasks||!fCount.has(fk))){fk=null; state.frameFlask=null}
-  const band=FRAME_BANDS.find(b=>b.id===state.frameBand)||FRAME_BANDS[0];
-  h+='<div class="fchips" data-ax="band">';
-  for(const b of FRAME_BANDS)
-    h+='<span class="chip'+(band.id===b.id?" on":"")+'" data-band="'+b.id+'"'
-      +(b.id==="lens"?' title="parses whose within-view DPS percentile is within ±10 of the p'
-        +state.pctl+' lens"':'')+'>'+b.chip+'</span>';
-  h+='</div>';
-  if(showFlasks){
-    h+='<div class="fchips" data-ax="flask"><span class="chip'+(fk==null?" on":"")+'">All</span>';
-    [...fCount.entries()].sort((a,b)=>b[1]-a[1]).forEach(([name,cnt])=>{
-      h+='<span class="chip'+(fk===name?" on":"")+'" data-fname="'+escA(name)+'" title="'+escA(name)
-        +'">'+esc(name.replace(/^Flask of /,""))+' · '+fmtInt(cnt)+'</span>';
-    });
-    h+='</div>';
-  }
-  // the slice both axes agree on — stats-known parses only
-  const fkVal=fk==null?-1:C.flasks.indexOf(fk)+2;
-  const slice=idx.filter(i=>known(i)
-    &&bandPass(band.id,pctOf.get(i),lensLo,lensHi)
-    &&(fk==null||flaskOf(i)===fkVal));
-  const q=f=>qp(sdps,f), nlab="n="+fmtInt(slice.length);
-  h+='<div class="fsub">'+esc(
-      band.id==="bot"?band.lab+" · "+nlab+" · ≤"+fmtDps(q(.25))+" dps"
-     :band.id==="mid"?band.lab+" · "+nlab+" · "+fmtDps(q(.25))+"–"+fmtDps(q(.75))+" dps"
-     :band.id==="top"?band.lab+" · "+nlab+" · ≥"+fmtDps(q(.75))+" dps"
-     :band.id==="lens"?"p"+lensLo+"–p"+lensHi+" around the lens · "+nlab
-        +" · "+fmtDps(q(lensLo/100))+"–"+fmtDps(q(lensHi/100))+" dps"
-     :band.lab+" · "+nlab)+'</div>';
+  let X=0;
+  for(const i of idx) if(known(i)) X++;
+  // the lens window's stats-known slice — what the quantile rows read
+  const slice=idx.filter(i=>{const p=pctOf.get(i); return p>=lo&&p<=hi&&known(i)});
+  h+='<div class="fsub">'+esc("players around p"+state.pctl+" (lens ±10) · n="
+    +fmtInt(slice.length)+" · "+fmtDps(qp(sdps,lo/100))+"–"+fmtDps(qp(sdps,hi/100))
+    +" dps")+'</div>';
   const entries=[];
   for(let s=0;s<nst;s++){                // every stat with data gets a row; 0 = unknown
     const v=[];
@@ -2557,32 +2491,15 @@ function frameLiveStatsHTML(ctx){
     entries.push({name:String(C.stats[s]), q:[qp(v,.25),qp(v,.5),qp(v,.75)]});
   }
   h+=entries.length?statRowsHTML(entries)
-    :'<div class="fsub">no stats-known parses in this slice</div>';
+    :'<div class="fsub">no stats-known parses in this window</div>';
   h+='<div class="foot">follows the filters above · n='+fmtInt(X)+' stats-known of '
     +fmtInt(Y)+' in view ('+(100*X/Y).toFixed(1)+'%)'
     +'<br>ratings as the character sheet read at the pull — flask and food included</div>';
   return h;
 }
-function wireFrameStats(el,ctx){
-  el.querySelectorAll('.fchips[data-ax="band"] .chip').forEach(ch=>{
-    ch.onclick=()=>{ state.frameBand=ch.dataset.band; refreshFrameBlock("stats"); };
-  });
-  if(STATSC){
-    el.querySelectorAll('.fchips[data-ax="flask"] .chip').forEach(ch=>{
-      ch.onclick=()=>{ state.frameFlask=ch.dataset.fname!=null?ch.dataset.fname:null;
-        refreshFrameBlock("stats"); };   // re-slices this block only
-    });
-    return;
-  }
-  const fkeys=(ctx.stats&&ctx.stats.flasks)?Object.keys(ctx.stats.flasks):[];
-  el.querySelectorAll(".fchips .chip").forEach(ch=>{
-    ch.onclick=()=>{
-      const i=+ch.dataset.fi;
-      state.frameFlask=i<0?null:(fkeys[i]??null);
-      refreshFrameBlock("stats");   // re-slices this block only
-    };
-  });
-}
+// nothing to wire in either mode — the percentile lens in the page header is
+// the block's only control, and renderFrame() re-renders the slice on its path
+function wireFrameStats(el,ctx){}
 
 // adding talents/trinkets later = append ONE entry; nothing else changes.
 // has()===false ⇒ the block does not exist — flex reflows, no placeholder.
@@ -2639,8 +2556,6 @@ function openFrame(k){
   hideTip();   // a pending tooltip never lingers over the rail (same as jumpToRow)
   const first=state.frameKey==null;
   state.frameKey=k;
-  state.frameFlask=null;                 // display-only slice resets on spec switch
-  state.frameBand="all";                 // the skill band resets with it
   frameCSort={col:"n",dir:-1};           // "top = most run" default on spec switch
   loadStatsSidecar();                    // lazy: the FIRST frame open kicks it off, once
   renderFrame();
@@ -2655,7 +2570,7 @@ function openFrame(k){
   // focus is NOT stolen: no .focus() — #frame-x is reachable by the user's own Tab
 }
 function closeFrame(){
-  state.frameKey=null; state.frameFlask=null; state.frameBand="all";
+  state.frameKey=null;
   state.framePinned=false; $("frame-pin")?.classList.remove("on");
   const fp=$("frame-pin"); if(fp) fp.textContent="pin";
   const f=$("frame");
@@ -2676,8 +2591,10 @@ $("frame-pin").onclick=()=>{
 document.addEventListener("pointerdown",e=>{
   if(state.frameKey==null||state.framePinned) return;
   // capture phase: judged before any click handler re-renders the frame,
-  // otherwise a chip click detaches its target and reads as "outside"
-  if(e.target.closest("#frame, #frame-pos, .bbar, .blbl")) return;
+  // otherwise a chip click detaches its target and reads as "outside".
+  // #lens-grp is exempt: the percentile lens is the stats block's only
+  // control now, so working the slider must never dismiss an open frame.
+  if(e.target.closest("#frame, #frame-pos, .bbar, .blbl, #lens-grp")) return;
   closeFrame();
 },true);
 document.addEventListener("keydown",e=>{
@@ -2692,8 +2609,7 @@ document.addEventListener("keydown",e=>{
   const j=Math.min(CHART_KEYS.length-1, Math.max(0, i+(e.key==="ArrowDown"?1:-1)));
   if(j!==i){
     state.frameKey=CHART_KEYS[j];
-    state.frameFlask=null; state.frameBand="all";
-    frameCSort={col:"n",dir:-1};                           // spec switch resets all three
+    frameCSort={col:"n",dir:-1};                           // spec switch resets the sort
     renderFrame(); paintFramed();                          // instant swap, zero motion
   }
 });
