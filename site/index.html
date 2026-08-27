@@ -357,6 +357,9 @@ td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 .frows td:first-child{color:var(--ink3); text-align:left; padding-right:1rem}
 .fblock .fchips{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 .45rem}
 .fblock .fchips .chip{font-size:.68rem; padding:.14rem .45rem}
+.fchips .chip{cursor:pointer; background:var(--surface1); border:1px solid var(--line2);
+  padding:.18rem .5rem; user-select:none}
+.fchips .chip:hover{border-color:var(--accent-line); color:var(--ink)}
 .fblock table.fstat{border-collapse:collapse}
 .fstat td{padding:.14rem .55rem .14rem 0; color:var(--ink); font-size:.74rem;
   font-variant-numeric:tabular-nums; white-space:nowrap}
@@ -2324,7 +2327,9 @@ function frameStatsHTML(ctx){
   const fkeys=(S.flasks&&typeof S.flasks==="object")?Object.keys(S.flasks):[];
   let fk=state.frameFlask;
   if(fk!=null&&(!fkeys.length||!S.flasks[fk])){fk=null; state.frameFlask=null}
-  const statMap=fk!=null?S.flasks[fk].stats:S.stats;
+  // the pipeline ships quantiles under "q"; "stats" was the blueprint's
+  // assumed name and survives only as a fallback
+  const statMap=fk!=null?(S.flasks[fk].q||S.flasks[fk].stats):(S.q||S.stats);
   let h='<div class="bt">Character stats</div>';
   if(fkeys.length){   // hasFlask pattern: absent/empty flasks ⇒ NO chips row
     h+='<div class="fchips"><span class="chip'+(fk==null?" on":"")+'" data-fi="-1">All</span>';
@@ -2352,8 +2357,9 @@ function frameStatsHTML(ctx){
       +'<td>'+fmtInt(p50)+' ('+fmtInt(p25)+'–'+fmtInt(p75)+')</td></tr>';
   }
   h+='</table></div>';
+  const fknown=S.flaskKnown||Object.values(S.flasks||{}).reduce((t,f)=>t+(f.n||0),0);
   const nline=fk!=null
-    ? "n="+fmtInt(S.flasks[fk].n)+" of "+fmtInt(S.flaskKnown||0)+" (flask-known)"
+    ? "n="+fmtInt(S.flasks[fk].n)+" of "+fmtInt(fknown)+" flask-known characters"
     : "n="+fmtInt(S.n);
   h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc(nline)
     +'<br>fixed build-time cohort — does not follow the filters, period, or lens above'
@@ -2450,11 +2456,13 @@ $("frame-x").onclick=()=>closeFrame();
 // Click-away dismiss (owner request, supersedes the blueprint's no-outside-
 // close veto): any click that is not inside the frame and not on a chart
 // bar/label (those open or switch frames themselves) closes an open frame.
-document.addEventListener("click",e=>{
+document.addEventListener("pointerdown",e=>{
   if(state.frameKey==null) return;
+  // capture phase: judged before any click handler re-renders the frame,
+  // otherwise a chip click detaches its target and reads as "outside"
   if(e.target.closest("#frame, #frame-pos, .bbar, .blbl")) return;
   closeFrame();
-});
+},true);
 document.addEventListener("keydown",e=>{
   if(state.frameKey==null) return;
   if(e.key==="Escape"){ closeFrame(); return }
