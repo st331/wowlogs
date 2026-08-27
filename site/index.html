@@ -2447,6 +2447,14 @@ function closeFrame(){
 }
 $("frame-x").onclick=()=>closeFrame();
 // Esc closes; ↑/↓ arrow-steps the chart ladder (first Escape listener in the file)
+// Click-away dismiss (owner request, supersedes the blueprint's no-outside-
+// close veto): any click that is not inside the frame and not on a chart
+// bar/label (those open or switch frames themselves) closes an open frame.
+document.addEventListener("click",e=>{
+  if(state.frameKey==null) return;
+  if(e.target.closest("#frame, #frame-pos, .bbar, .blbl")) return;
+  closeFrame();
+});
 document.addEventListener("keydown",e=>{
   if(state.frameKey==null) return;
   if(e.key==="Escape"){ closeFrame(); return }
