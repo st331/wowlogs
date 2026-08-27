@@ -69,3 +69,12 @@ pipeline aggregates are its data layer. Design both as a SYSTEM:
 - Out of scope without a separate decision: anything needing per-fight event data
   (rotation/cast analysis, cooldown usage) — orders of magnitude more API cost than
   summaries. Everything above comes from data already journaled or newly flowing.
+
+## Flask feature REMOVED (owner decision, 2026-08-27)
+"If the flask values are baked into the stats, then the flask doesn't matter. it is
+just a minor informational piece, so remove it." Remove: frame flask chips (both
+modes), specstats flasks sub-blocks + coverage clause, the sidecar flask column
+(new shape: "flaskcol": false, data = stats-only columns; client tolerates both
+shapes), and the CombatantInfo events sub-query (summary cost back to ~2.6/run).
+The journal keeps any flask values already captured (harmless, unread); collection
+can be re-enabled with a backfill later if ever wanted.
