@@ -261,7 +261,9 @@ for i in range(1, 13):
     noflask_recs.append(rc)
 nb = run_block(noflask_rows, noflask_recs)
 assert nb and "flasks" not in nb["specs"]["Monk|Brewmaster"]
-assert "flask" not in nb["cohort"], nb["cohort"]
+# the constant copy now names consumables ("flask, food"); only the coverage
+# CLAUSE must be absent without flask data
+assert "flask known" not in nb["cohort"], nb["cohort"]
 print("hasFlask  : zero coverage -> no flasks keys, no coverage claim")
 
 # --- payload size sanity at full scale: 27 specs x 24 chars, two flask
