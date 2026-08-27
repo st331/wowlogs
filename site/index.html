@@ -338,6 +338,11 @@ td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 .fhead{display:flex; align-items:baseline; gap:.5rem; margin-bottom:.45rem}
 .fhead b{font:600 .84rem var(--font); color:var(--ink)}   /* Inter — NEVER --font-display */
 .fh{color:var(--ink3)} .fs{color:var(--ink3); font-size:.72rem; margin-left:auto}
+#frame-pin{background:var(--surface1); border:1px solid var(--line2); color:var(--ink3);
+  font:inherit; font-size:.68rem; padding:.1rem .5rem; border-radius:var(--r1);
+  cursor:pointer; margin-right:.35rem}
+#frame-pin:hover{color:var(--ink); border-color:var(--accent-line)}
+#frame-pin.on{background:var(--metal); color:#241d0e; border-color:var(--metal-line); font-weight:600}
 #frame-x{background:none; border:0; color:var(--ink3); padding:.15rem .5rem;
   border-radius:var(--r1); cursor:pointer; font-size:.9rem}
 #frame-x:hover{color:var(--ink); background:rgba(234,227,208,.07)}
@@ -737,6 +742,7 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <span class="classdot" id="frame-dot"></span><b id="frame-name"></b>
     <span id="frame-hero" class="fh"></span>
     <span id="frame-scope" class="fs"></span>
+    <button id="frame-pin" title="Pin — clicking elsewhere no longer dismisses the frame">pin</button>
     <button id="frame-x" title="Close (Esc)">×</button>
   </div>
   <div id="frame-blocks"></div>   <!-- registry renders .fblock[data-block] children -->
@@ -821,7 +827,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20, csort:{col:"strength", dir:-1},
              compSpec:null,   // Top Comps "With spec" view slice — display-only, cleared on reload
-             frameKey:null, frameFlask:null,   // Spec Frame — display-only, cleared on reload
+             frameKey:null, frameFlask:null, framePinned:false,   // Spec Frame — display-only, cleared on reload
 
              ssort:{col:"pt", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
@@ -2446,18 +2452,25 @@ function openFrame(k){
 }
 function closeFrame(){
   state.frameKey=null; state.frameFlask=null;
+  state.framePinned=false; $("frame-pin")?.classList.remove("on");
+  const fp=$("frame-pin"); if(fp) fp.textContent="pin";
   const f=$("frame");
   if(f){ f.hidden=true; f.classList.remove("first") }
   paintFramed();
   frmPad();   // restores main's padding-bottom to ""
 }
 $("frame-x").onclick=()=>closeFrame();
+$("frame-pin").onclick=()=>{
+  state.framePinned=!state.framePinned;
+  $("frame-pin").classList.toggle("on",state.framePinned);
+  $("frame-pin").textContent=state.framePinned?"pinned":"pin";
+};
 // Esc closes; ↑/↓ arrow-steps the chart ladder (first Escape listener in the file)
 // Click-away dismiss (owner request, supersedes the blueprint's no-outside-
 // close veto): any click that is not inside the frame and not on a chart
 // bar/label (those open or switch frames themselves) closes an open frame.
 document.addEventListener("pointerdown",e=>{
-  if(state.frameKey==null) return;
+  if(state.frameKey==null||state.framePinned) return;
   // capture phase: judged before any click handler re-renders the frame,
   // otherwise a chip click detaches its target and reads as "outside"
   if(e.target.closest("#frame, #frame-pos, .bbar, .blbl")) return;
