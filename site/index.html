@@ -365,6 +365,9 @@ td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 .fchips .chip{cursor:pointer; background:var(--surface1); border:1px solid var(--line2);
   padding:.18rem .5rem; user-select:none}
 .fchips .chip:hover{border-color:var(--accent-line); color:var(--ink)}
+/* the on-state must survive .fchips' surface override (same-specificity rule
+   above would otherwise repaint the gilded fill dark — dark ink on dark) */
+.fchips .chip.on{background:var(--metal); border-color:var(--metal-line); color:var(--bg0)}
 .fblock table.fstat{border-collapse:collapse}
 .fstat td{padding:.14rem .55rem .14rem 0; color:var(--ink); font-size:.74rem;
   font-variant-numeric:tabular-nums; white-space:nowrap}
@@ -827,7 +830,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20, csort:{col:"strength", dir:-1},
              compSpec:null,   // Top Comps "With spec" view slice — display-only, cleared on reload
-             frameKey:null, frameFlask:null, framePinned:false,   // Spec Frame — display-only, cleared on reload
+             frameKey:null, frameFlask:null, frameBand:"all", framePinned:false,   // Spec Frame — display-only, cleared on reload
 
              ssort:{col:"pt", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
@@ -2179,6 +2182,98 @@ let FRAME_A=null, FRAME_B=null, CHART_KEYS=[];
 let frameCSort={col:"n",dir:-1};   // mini comps table: "top = most run" default
 const escA=s=>esc(s).replace(/"/g,"&quot;");
 
+/* ---- live-stats sidecar (stats.json.gz) — per-parse stat ratings, ROW-ALIGNED
+   with the payload's rows arrays. Fetched lazily on the FIRST frame open, once
+   per page load; while absent or still loading, the stats block stays in its
+   fixed build-time-cohort mode unchanged. Every failure is silent — the cached
+   promise never retries until the next page load. ---- */
+let STATSC=null, statsCP=null;
+function loadStatsSidecar(){
+  if(statsCP) return statsCP;
+  statsCP=(async()=>{
+    if(typeof DecompressionStream!=="function") return;   // no inflater ⇒ fixed mode
+    const gz=await fetch("stats.json.gz",{cache:"no-cache"});
+    if(!gz.ok) return;
+    const j=await new Response(
+      gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
+    const dec=decodeStatsSidecar(j);
+    if(dec){ STATSC=dec; if(state.frameKey!=null) renderFrame(); }
+  })().catch(()=>{});
+  return statsCP;
+}
+// {stats:[names], flasks:[names], flask0:"unknown", flask1:"none",
+//  enc:"dense"|"sparse", n:<payload rows length>, data:<base64 LE Uint16Array>,
+//  and sparse-only idx:<base64 LE Uint32Array of payload row indices>}.
+// dense: payload row i, stat k at data[i*(stats+1)+k], flask code in the last
+// column; sparse: data carries those columns for just the rows idx names.
+// Stat value 0 = unknown. Flask code: 0 unknown · 1 auras-visible-no-flask ·
+// v≥2 = flasks[v-2]. Shape is feature-detected, not assumed — anything
+// unexpected ⇒ null ⇒ the block simply stays in fixed mode.
+function decodeStatsSidecar(j){
+  try{
+    if(!j||!Array.isArray(j.stats)||!j.stats.length||typeof j.data!=="string") return null;
+    if((j.n>>>0)!==N){   // row-alignment is the whole contract — never guess past it
+      console.warn("stats sidecar ignored: n="+j.n+" does not match the payload's "
+        +N+" rows — staying in fixed-cohort mode");
+      return null;
+    }
+    const b64=s=>{const bin=atob(s), b=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b};
+    const cols=j.stats.length+1;              // stat columns + the flask column
+    const map=new Int32Array(N).fill(-1);     // payload row → sidecar row
+    const vb=b64(j.data);
+    const vals=new Uint16Array(vb.buffer,0,(vb.byteLength/2)|0);
+    if(j.enc==="sparse"){
+      if(typeof j.idx!=="string") return null;
+      const ib=b64(j.idx);
+      const idx=new Uint32Array(ib.buffer,0,(ib.byteLength/4)|0);
+      if(vals.length<idx.length*cols) return null;
+      for(let k=0;k<idx.length;k++) if(idx[k]<N) map[idx[k]]=k;
+    }else{                                    // dense (the default when enc is absent)
+      if(vals.length<N*cols) return null;
+      for(let k=0;k<N;k++) map[k]=k;
+    }
+    return {stats:j.stats, flasks:Array.isArray(j.flasks)?j.flasks:[], cols, vals, map};
+  }catch(e){ return null }
+}
+// The frame's live row set: the CHART's own row-pass (masks incl. key range,
+// dungeon, region, timed, tier cohort, period A — everything EXCEPT the
+// min-characters trust gate, which gates the roster, never the sample), sliced
+// to the framed group. In Archon-replica mode it mirrors aggregateElite's
+// dedicated pass instead, reusing the group's published key floor.
+function frameLiveIdx(){
+  const key=state.frameKey, out=[];
+  if(key==null) return out;
+  const m=baseMasks();
+  if(state.elite){
+    const g=FRAME_A?FRAME_A.groups.get(key):null;
+    if(!g||!(g.floorK>=0)) return out;
+    let maxDay=curMaxDay;
+    if(maxDay<0){maxDay=-1; for(let i=0;i<R.day.length;i++) if(R.day[i]>maxDay) maxDay=R.day[i];}
+    const dayLo=maxDay-(ELITE_DAYS-1);
+    for(let i=0;i<N;i++){
+      if(groupKey(i)!==key) continue;
+      if(R.day[i]<dayLo||R.key[i]<g.floorK) continue;
+      if(projSkip(i)) continue;
+      if(m.dun&&!m.dun.has(R.dun[i])) continue;
+      if(m.role&&!m.role.has(R.role[i])) continue;
+      if(m.atk&&R.atk[i]!==m.atk) continue;
+      if(m.reg&&!m.reg.has(R.reg[i])) continue;
+      out.push(i);
+    }
+  }else{
+    const cut=periodCut(state.weeksA);
+    for(let i=0;i<N;i++){
+      if(groupKey(i)!==key) continue;
+      if(!rowPass(i,m)) continue;
+      if(!periodPass(i,state.weeksA,cut)) continue;
+      if(projSkip(i)) continue;
+      out.push(i);
+    }
+  }
+  return out;
+}
+
 // the same scope fragments scopeLine() builds, without the labStamp/extra
 function frameScope(){
   const p=["p"+state.pctl+" lens"];
@@ -2328,7 +2423,25 @@ function wireFrameComps(el,ctx){
 }
 
 /* ---- block 3: character stats + flask chips (chips live HERE and nowhere else) ---- */
+// shared quantile-row renderer — quantiles drawn as quantiles (p25→p75 span +
+// p50 tick, never a histogram), p50-descending order IS the priority read (no
+// "A > B > C" prose — banned), one shared x-scale from 0 to the max p75.
+function statRowsHTML(entries){
+  entries.sort((a,b)=>b.q[1]-a.q[1]);
+  const maxP=Math.max(1,...entries.map(e=>e.q[2]));
+  let h='<div class="fwrap"><table class="fstat">';
+  for(const e of entries){
+    const [p25,p50,p75]=e.q;
+    h+='<tr><td>'+esc(e.name)+'</td>'
+      +'<td><span class="frange"><span class="fq" style="left:'+(100*p25/maxP).toFixed(2)
+      +'%;width:'+Math.max(0,100*(p75-p25)/maxP).toFixed(2)+'%"></span>'
+      +'<span class="fmed" style="left:'+(100*p50/maxP).toFixed(2)+'%"></span></span></td>'
+      +'<td>'+fmtInt(p50)+' ('+fmtInt(p25)+'–'+fmtInt(p75)+')</td></tr>';
+  }
+  return h+'</table></div>';
+}
 function frameStatsHTML(ctx){
+  if(STATSC) return frameLiveStatsHTML(ctx);   // sidecar loaded ⇒ the block goes live
   const S=ctx.stats;
   const fkeys=(S.flasks&&typeof S.flasks==="object")?Object.keys(S.flasks):[];
   let fk=state.frameFlask;
@@ -2345,24 +2458,11 @@ function frameStatsHTML(ctx){
     });
     h+='</div>';
   }
-  // p50-descending order IS the priority read (no "A > B > C" prose — banned);
   // tertiary rows simply drop while a flask slice (core 4 only) is active.
   const entries=Object.entries(statMap||{})
     .filter(([,q])=>Array.isArray(q)&&q.length>=3)
-    .map(([name,q])=>({name,q}))
-    .sort((a,b)=>b.q[1]-a.q[1]);
-  const maxP=Math.max(1,...entries.map(e=>e.q[2]));   // one shared x-scale, 0 → max p75
-  h+='<div class="fwrap"><table class="fstat">';
-  for(const e of entries){
-    const [p25,p50,p75]=e.q;
-    // quantiles drawn as quantiles — p25→p75 span + p50 tick, never a histogram
-    h+='<tr><td>'+esc(e.name)+'</td>'
-      +'<td><span class="frange"><span class="fq" style="left:'+(100*p25/maxP).toFixed(2)
-      +'%;width:'+Math.max(0,100*(p75-p25)/maxP).toFixed(2)+'%"></span>'
-      +'<span class="fmed" style="left:'+(100*p50/maxP).toFixed(2)+'%"></span></span></td>'
-      +'<td>'+fmtInt(p50)+' ('+fmtInt(p25)+'–'+fmtInt(p75)+')</td></tr>';
-  }
-  h+='</table></div>';
+    .map(([name,q])=>({name,q}));
+  h+=statRowsHTML(entries);
   const fknown=S.flaskKnown||Object.values(S.flasks||{}).reduce((t,f)=>t+(f.n||0),0);
   const nline=fk!=null
     ? "n="+fmtInt(S.flasks[fk].n)+" of "+fmtInt(fknown)+" flask-known characters"
@@ -2372,7 +2472,108 @@ function frameStatsHTML(ctx){
     +'<br>ordered by median rating; what gear drops biases this</div>';
   return h;
 }
+/* live mode — the sidecar is loaded, so the block follows every filter above.
+   Two INDEPENDENT chip axes over the frame's live row set: a DPS-skill band
+   (each parse ranked by the same dps the chart ranks, WITHIN the current
+   filtered spec rows) and the flask actually seen at the pull. The n line
+   reflects both. @lens = within ±10 percentile points of the lens, re-read on
+   every render — the pctl slider path ends in renderFrame(), so it tracks the
+   slider live while a frame is open. */
+const FRAME_BANDS=[
+  {id:"all", chip:"All",        lab:"all skill bands"},
+  {id:"bot", chip:"Bottom 25%", lab:"bottom 25%"},
+  {id:"mid", chip:"Mid 50%",    lab:"mid 50%"},
+  {id:"top", chip:"Top 25%",    lab:"top 25%"},
+  {id:"lens",chip:"@lens",      lab:"lens band"},
+];
+function bandPass(id,p,lo,hi){
+  return id==="bot"?p<25 : id==="mid"?(p>=25&&p<75) : id==="top"?p>=75
+       : id==="lens"?(p>=lo&&p<=hi) : true;
+}
+const fmtDps=v=>v>=1e4?Math.round(v/1e3)+"k":fmtInt(v);
+function frameLiveStatsHTML(ctx){
+  const C=STATSC, cols=C.cols, nst=cols-1;
+  const idx=frameLiveIdx(), Y=idx.length;
+  let h='<div class="bt">Character stats</div>';
+  if(!Y){ state.frameFlask=null;
+    return h+'<div class="foot" style="margin-top:0">no parses match the current filters</div>'; }
+  // per-parse DPS percentile WITHIN this filtered view — ranks, not raw dps
+  const order=[...idx].sort((a,b)=>dpsAt(a)-dpsAt(b));
+  const pctOf=new Map();
+  for(let p=0;p<Y;p++) pctOf.set(order[p], Y>1?100*p/(Y-1):50);
+  const sdps=order.map(dpsAt);          // ascending — band dps ranges read here
+  const lensLo=Math.max(0,state.pctl-10), lensHi=Math.min(100,state.pctl+10);
+  const rowAt=i=>C.map[i];
+  const known=i=>{const r=rowAt(i); if(r<0) return false;
+    const o=r*cols; for(let s=0;s<nst;s++) if(C.vals[o+s]) return true; return false};
+  const flaskOf=i=>{const r=rowAt(i); return r<0?0:C.vals[r*cols+nst]};
+  // flask chips carry view-level counts (the axes stay independent); they
+  // render only when ≥10 parses in view carry a KNOWN flask (k≥2)
+  const fCount=new Map(); let fParses=0, X=0;
+  for(const i of idx){
+    if(known(i)) X++;
+    const k=flaskOf(i);
+    if(k>=2){ fParses++;
+      const nm=C.flasks[k-2]!=null?C.flasks[k-2]:"Flask #"+(k-1);
+      fCount.set(nm,(fCount.get(nm)||0)+1); }
+  }
+  const showFlasks=fParses>=10;
+  let fk=state.frameFlask;
+  if(fk!=null&&(!showFlasks||!fCount.has(fk))){fk=null; state.frameFlask=null}
+  const band=FRAME_BANDS.find(b=>b.id===state.frameBand)||FRAME_BANDS[0];
+  h+='<div class="fchips" data-ax="band">';
+  for(const b of FRAME_BANDS)
+    h+='<span class="chip'+(band.id===b.id?" on":"")+'" data-band="'+b.id+'"'
+      +(b.id==="lens"?' title="parses whose within-view DPS percentile is within ±10 of the p'
+        +state.pctl+' lens"':'')+'>'+b.chip+'</span>';
+  h+='</div>';
+  if(showFlasks){
+    h+='<div class="fchips" data-ax="flask"><span class="chip'+(fk==null?" on":"")+'">All</span>';
+    [...fCount.entries()].sort((a,b)=>b[1]-a[1]).forEach(([name,cnt])=>{
+      h+='<span class="chip'+(fk===name?" on":"")+'" data-fname="'+escA(name)+'" title="'+escA(name)
+        +'">'+esc(name.replace(/^Flask of /,""))+' · '+fmtInt(cnt)+'</span>';
+    });
+    h+='</div>';
+  }
+  // the slice both axes agree on — stats-known parses only
+  const fkVal=fk==null?-1:C.flasks.indexOf(fk)+2;
+  const slice=idx.filter(i=>known(i)
+    &&bandPass(band.id,pctOf.get(i),lensLo,lensHi)
+    &&(fk==null||flaskOf(i)===fkVal));
+  const q=f=>qp(sdps,f), nlab="n="+fmtInt(slice.length);
+  h+='<div class="fsub">'+esc(
+      band.id==="bot"?band.lab+" · "+nlab+" · ≤"+fmtDps(q(.25))+" dps"
+     :band.id==="mid"?band.lab+" · "+nlab+" · "+fmtDps(q(.25))+"–"+fmtDps(q(.75))+" dps"
+     :band.id==="top"?band.lab+" · "+nlab+" · ≥"+fmtDps(q(.75))+" dps"
+     :band.id==="lens"?"p"+lensLo+"–p"+lensHi+" around the lens · "+nlab
+        +" · "+fmtDps(q(lensLo/100))+"–"+fmtDps(q(lensHi/100))+" dps"
+     :band.lab+" · "+nlab)+'</div>';
+  const entries=[];
+  for(let s=0;s<nst;s++){                // every stat with data gets a row; 0 = unknown
+    const v=[];
+    for(const i of slice){const x=C.vals[rowAt(i)*cols+s]; if(x) v.push(x)}
+    if(!v.length) continue;
+    v.sort((a,b)=>a-b);
+    entries.push({name:String(C.stats[s]), q:[qp(v,.25),qp(v,.5),qp(v,.75)]});
+  }
+  h+=entries.length?statRowsHTML(entries)
+    :'<div class="fsub">no stats-known parses in this slice</div>';
+  h+='<div class="foot">follows the filters above · n='+fmtInt(X)+' stats-known of '
+    +fmtInt(Y)+' in view ('+(100*X/Y).toFixed(1)+'%)'
+    +'<br>ratings as the character sheet read at the pull — flask and food included</div>';
+  return h;
+}
 function wireFrameStats(el,ctx){
+  el.querySelectorAll('.fchips[data-ax="band"] .chip').forEach(ch=>{
+    ch.onclick=()=>{ state.frameBand=ch.dataset.band; refreshFrameBlock("stats"); };
+  });
+  if(STATSC){
+    el.querySelectorAll('.fchips[data-ax="flask"] .chip').forEach(ch=>{
+      ch.onclick=()=>{ state.frameFlask=ch.dataset.fname!=null?ch.dataset.fname:null;
+        refreshFrameBlock("stats"); };   // re-slices this block only
+    });
+    return;
+  }
   const fkeys=(ctx.stats&&ctx.stats.flasks)?Object.keys(ctx.stats.flasks):[];
   el.querySelectorAll(".fchips .chip").forEach(ch=>{
     ch.onclick=()=>{
@@ -2388,7 +2589,8 @@ function wireFrameStats(el,ctx){
 const FRAME_BLOCKS=[
   {id:"identity", has:ctx=>true,        html:frameIdentityHTML, wire:wireFrameIdentity},
   {id:"comps",    has:ctx=>true,        html:frameCompsHTML,    wire:wireFrameComps},
-  {id:"stats",    has:ctx=>!!ctx.stats, html:frameStatsHTML,    wire:wireFrameStats},
+  // stats: the fixed payload cohort OR the live sidecar — whichever is present
+  {id:"stats",    has:ctx=>!!ctx.stats||!!STATSC, html:frameStatsHTML, wire:wireFrameStats},
 ];
 function refreshFrameBlock(id){
   if(state.frameKey==null) return;
@@ -2438,7 +2640,9 @@ function openFrame(k){
   const first=state.frameKey==null;
   state.frameKey=k;
   state.frameFlask=null;                 // display-only slice resets on spec switch
+  state.frameBand="all";                 // the skill band resets with it
   frameCSort={col:"n",dir:-1};           // "top = most run" default on spec switch
+  loadStatsSidecar();                    // lazy: the FIRST frame open kicks it off, once
   renderFrame();
   if(first){
     // first-open only: the one sanctioned slide; class removed on animationend
@@ -2451,7 +2655,7 @@ function openFrame(k){
   // focus is NOT stolen: no .focus() — #frame-x is reachable by the user's own Tab
 }
 function closeFrame(){
-  state.frameKey=null; state.frameFlask=null;
+  state.frameKey=null; state.frameFlask=null; state.frameBand="all";
   state.framePinned=false; $("frame-pin")?.classList.remove("on");
   const fp=$("frame-pin"); if(fp) fp.textContent="pin";
   const f=$("frame");
@@ -2488,7 +2692,8 @@ document.addEventListener("keydown",e=>{
   const j=Math.min(CHART_KEYS.length-1, Math.max(0, i+(e.key==="ArrowDown"?1:-1)));
   if(j!==i){
     state.frameKey=CHART_KEYS[j];
-    state.frameFlask=null; frameCSort={col:"n",dir:-1};   // spec switch resets both
+    state.frameFlask=null; state.frameBand="all";
+    frameCSort={col:"n",dir:-1};                           // spec switch resets all three
     renderFrame(); paintFramed();                          // instant swap, zero motion
   }
 });
