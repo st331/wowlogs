@@ -485,6 +485,136 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
   cursor:pointer; padding:.15rem .5rem; border-radius:var(--r1); line-height:1}
 .x:hover{color:var(--ink); background:rgba(234,227,208,.07)}
 @keyframes toastin{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+/* ============ Character screen — the Builds deep-dive (blueprint §3) ============
+   TOTAL main-column takeover in page flow: #sections and the rail hide, the
+   header + hero rule + sticky lens bar stay live. No overlay, no modal, no
+   inner scroll containers — the page scrollbar is the only scrollbar. */
+body.charscreen #sections{display:none}
+body.charscreen #frame-pos{display:none}
+body.charscreen main{padding-bottom:24px; padding-top:22px}  /* §C.1 compact chrome */
+body.charscreen .hero-rule{margin:10px 0 12px}
+/* the wordmark is one of the two deliberate exits — cursor/hover only in-mode */
+body.charscreen #lensbar .wordmark{cursor:pointer; transition:color .13s}
+body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
+#charscreen[hidden]{display:none}
+/* rail entry affordances: compact .btn + the spec-name trigger (color-only hover) */
+#frame-char{font-size:.72rem; padding:.2rem .55rem; margin-left:.5rem; margin-right:.35rem}
+.fnametrig{cursor:pointer; transition:color .13s}
+.fnametrig:hover{color:var(--accent)}
+/* ladder strip — the screen's only furniture above the identity band */
+#cs-ladder{display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-bottom:8px}
+#cs-ladder .btn{font-size:.72rem; padding:.2rem .5rem; flex:none; margin-right:.3rem}
+.cschip{display:inline-flex; align-items:center; gap:5px; font-size:.68rem;
+  padding:.12rem .4rem; line-height:1.35}
+.cschip .classdot{margin-right:0; width:9px; height:9px}
+.cschip i{font-style:normal; color:inherit; opacity:.75; font-size:.62rem}
+/* identity band — at most two dense lines (§C.1); digest stays */
+#cs-band{margin:0 0 6px}
+#cs-band .csrow1{display:flex; flex-wrap:wrap; align-items:baseline; gap:.3rem .6rem}
+#cs-band .csname{font:600 1.05rem var(--font); color:var(--ink)}   /* Inter, never display face */
+#cs-band .cshero{color:var(--ink3); font-size:.85rem}
+#cs-band .csscope{color:var(--ink3); font-size:.72rem}
+#cs-band .csnums{color:var(--ink); font-size:.78rem; font-variant-numeric:tabular-nums}
+#cs-band .cssub{display:flex; flex-wrap:wrap; align-items:baseline; gap:.25rem 1rem;
+  color:var(--ink3); font-size:.73rem; margin-top:2px; font-variant-numeric:tabular-nums}
+#cs-digest{color:var(--ink); font-size:.76rem; font-variant-numeric:tabular-nums}
+#cs-digest .dtrig{cursor:pointer; transition:color .13s}
+#cs-digest .dtrig:hover{color:var(--accent)}
+.cbtn{background:var(--surface1); border:1px solid var(--line2); color:var(--ink2);
+  border-radius:var(--r1); padding:.2rem .5rem; cursor:pointer; font-size:.68rem;
+  font-weight:500; transition:border-color .13s, color .13s}
+.cbtn:hover{border-color:var(--accent-line); color:var(--accent)}
+/* sub-nav — §15.3 .tabs with live known-counts; inactive tabs must read interactive */
+#cs-tabs{margin-bottom:10px}
+#cs-tabs button .tcnt{font-size:.72rem; color:var(--ink3); font-weight:400;
+  font-variant-numeric:tabular-nums}
+#cs-tabs button:hover{color:var(--ink); border-bottom-color:var(--line2)}
+#cs-tabs button.on:hover{border-bottom-color:transparent}  /* .on keeps its metal strip */
+/* compact §15.9 .sec rhythm inside the screen (§C.1) */
+#charscreen .sec{margin:.9rem 0 .55rem; padding-bottom:.4rem}
+#charscreen .secbody{margin-bottom:.4rem}
+/* gear overview grid — panel-recipe tiles, content-hugging triggers */
+#cs-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px}
+/* §C.1: on compact viewports the narrower main column must still land 8 tiles
+   per row, or the grid takes a third row and the pane loses the 768 bar */
+@media(max-width:1440px){#cs-grid{grid-template-columns:repeat(auto-fill,minmax(114px,1fr))}}
+.gtile{background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r2);
+  padding:.4rem .55rem .45rem; cursor:pointer; box-shadow:var(--gg-shadow);
+  transition:border-color .13s}
+.gtile:hover{border-color:var(--line2)}
+.gtile.on{border-color:var(--accent-line)}   /* active tile: color-only, nothing moves */
+.gtile .gs{font-size:.62rem; text-transform:uppercase; letter-spacing:.12em; color:var(--ink3)}
+.gtile .gn{font-size:.78rem; color:var(--ink); line-height:1.3; margin:.12rem 0;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+/* the Main Hand winner name is NEVER ellipsized — it wraps and the tile
+   (and its grid row) grows; grid rows stretch, so the row grows evenly */
+.gtile.mh .gn{display:block; -webkit-line-clamp:none; overflow:visible}
+.gtile .gn a{color:var(--accent)}
+.gtile .gv{font-size:.8rem; font-weight:650; color:var(--ink); font-variant-numeric:tabular-nums}
+.gtile .gv i{font-style:normal; font-size:.68rem; font-weight:400; color:var(--ink3)}
+.gtile .gi{font-size:.68rem; color:var(--ink3); font-variant-numeric:tabular-nums}
+.gtile .gfoot{font-size:.62rem; color:var(--ink3); margin-top:.15rem}  /* inert text */
+.gtag{font-size:.6rem; font-weight:600; text-transform:uppercase; letter-spacing:.1em;
+  border:1px solid var(--line2); border-radius:var(--r1); padding:0 .3rem; color:var(--ink3)}
+.gemb{color:var(--ink3)}
+/* the in-place per-slot fold-out — one full-grid-width panel + aligned caret */
+#cs-fold{grid-column:1/-1; position:relative; background:var(--surface1);
+  border:1px solid var(--accent-line); border-radius:var(--r2);
+  padding:.55rem .8rem .6rem; box-shadow:var(--gg-shadow)}
+#cs-fold .caret{position:absolute; top:-13px; width:0; height:0;
+  border:6.5px solid transparent; border-bottom-color:var(--accent-line)}
+table.fold-t{border-collapse:collapse; font-size:.76rem; width:100%}
+.fold-t td{padding:.16rem .6rem .16rem 0; color:var(--ink); text-align:right;
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+.fold-t td.txt{text-align:left; white-space:normal}
+.fold-t td:first-child{width:34%}
+/* neutral share bars — hue belongs to data, champagne stays ACTIVE-only */
+.sbar{position:relative; display:inline-block; width:110px; height:8px;
+  background:rgba(234,227,208,.07); border-radius:2px; vertical-align:middle}
+.sbar i{position:absolute; left:0; top:0; bottom:0; background:rgba(234,227,208,.28);
+  border-radius:2px}
+/* enchants — ~15% tighter rows + a FIXED-WIDTH −/+ expander column with hover state */
+table.cs-ench{border-collapse:collapse; font-size:.78rem; width:100%}
+.cs-ench td{padding:.3rem .6rem .3rem 0; border-top:1px solid var(--line0);
+  color:var(--ink); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+.cs-ench td.txt{text-align:left}
+.cs-ench td.gsl{font-size:.62rem; text-transform:uppercase; letter-spacing:.12em;
+  color:var(--ink3); width:7.5em}
+.cs-ench td.expm{width:2rem; text-align:center; color:var(--ink3); transition:color .13s}
+.cs-ench tr.erow{cursor:pointer}
+.cs-ench tr.erow:hover td{border-top-color:var(--line2)}
+.cs-ench tr.erow:hover .expm{color:var(--ink2)}
+.cs-ench tr.ealt td{border-top:0; color:var(--ink2); font-size:.74rem;
+  padding-top:.06rem; padding-bottom:.06rem}
+.cs-ench tr.ealt td.txt{padding-left:1.2rem}
+/* crafted & embellishments — equalized card pair, one shared gutter */
+#cs-crafted-pair{display:flex; gap:12px; align-items:stretch}
+#cs-crafted-pair>div{flex:1; background:var(--surface1); border:1px solid var(--line1);
+  border-radius:var(--r2); padding:.5rem .7rem; box-shadow:var(--gg-shadow)}
+#cs-crafted-pair .bt{font-size:.62rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.15em; color:var(--ink3); margin-bottom:.3rem}
+#cs-crafted-pair .caption{margin-top:.4rem}
+@media(max-width:900px){#cs-crafted-pair{flex-direction:column}}
+/* talent builds table */
+table.cs-tal{border-collapse:collapse; font-size:.78rem; width:100%}
+.cs-tal td{padding:.24rem .6rem .24rem 0; border-top:1px solid var(--line0);
+  color:var(--ink); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+.cs-tal td.txt{text-align:left}
+.cs-tal td .htag{font-size:.68rem; color:var(--ink3)}
+.cs-herodist{font-size:.72rem; color:var(--ink3)}
+.cs-herodist b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+.cs-herodist .hn{color:var(--ink2)}
+.cs-foot{font-size:.7rem; color:var(--ink3); line-height:1.5; margin-top:.35rem}
+.cs-thin{font-size:.73rem; color:var(--ink3); margin:.3rem 0 .6rem;
+  font-variant-numeric:tabular-nums}
+/* §7 loading treatment — sliding accent segment, no spinner, no skeleton grids */
+.csload{display:flex; align-items:center; gap:.8rem; padding:36px 0; color:var(--ink3);
+  font-size:.9rem}
+.csload::before{content:""; width:120px; height:2px; flex:none;
+  background-color:var(--line1);
+  background-image:linear-gradient(90deg,var(--accent),var(--accent));
+  background-size:40px 2px; background-repeat:no-repeat;
+  animation:loadslide 1s ease-in-out alternate infinite}
 /* mandatory one-row condensation at ≤1366×768 (E01 graft) */
 @media(max-width:1366px),(max-height:768px){
   :root{--barh:40px}
@@ -631,6 +761,10 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
 
   <div id="loading">Loading data…</div>
   <div id="app" style="display:none">
+    <!-- #sections wraps the rankings dashboard so the Character screen can take the
+         main column over in page flow (blueprint §3.1) — DOM relocation only; the
+         header, hero rule and sticky lens bar stay outside it and remain live -->
+    <div id="sections">
     <!-- sticky context strip: compressed KPIs · shown-count · scope chips · notice slot -->
     <div id="strip">
       <span class="skpi"><b id="k-runs-c">–</b><i>runs</i></span>
@@ -726,6 +860,9 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
       <a href="llms.txt">llms.txt</a> · <a href="llms/">HTML tables</a> ·
       <a href="data.json.gz">data.json.gz</a>.
     </footer>
+    </div><!-- /#sections -->
+    <!-- Character screen — the Builds deep-dive's TOTAL main-column takeover (§3) -->
+    <div id="charscreen" hidden></div>
   </div>
 </main>
 </div>
@@ -737,6 +874,7 @@ footer{color:var(--ink3); font-size:.74rem; margin-top:3rem; line-height:1.7;
     <span class="classdot" id="frame-dot"></span><b id="frame-name"></b>
     <span id="frame-hero" class="fh"></span>
     <span id="frame-scope" class="fs"></span>
+    <button id="frame-char" class="btn">Character screen →</button>
     <button id="frame-pin" title="Pin — clicking elsewhere no longer dismisses the frame">pin</button>
     <button id="frame-x" title="Close (Esc)">×</button>
   </div>
@@ -823,6 +961,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              compMin:20, csort:{col:"strength", dir:-1},
              compSpec:null,   // Top Comps "With spec" view slice — display-only, cleared on reload
              frameKey:null, framePinned:false,   // Spec Frame — display-only, cleared on reload
+             screen:null,     // Character screen ∈ {null,true} — never serialized to the URL (§3.1)
 
              ssort:{col:"pt", dir:-1},
              postTune:true,    // default: only runs after the latest tuning
@@ -1027,6 +1166,9 @@ $("timedseg").querySelectorAll("button").forEach(b=>{
 let __rsz=null;
 window.addEventListener("resize",()=>{
   if(!D) return;
+  // the Character screen's fold-out row placement depends on the grid's column
+  // count, so a resize re-renders the screen (debounced, state preserved)
+  if(state.screen){ clearTimeout(__rsz); __rsz=setTimeout(()=>renderScreen(),150); return }
   const body=$("sec-trajectory");
   if(state.trendView==="lines"&&body&&!body.hidden){
     clearTimeout(__rsz); __rsz=setTimeout(()=>render(),150);
@@ -1348,10 +1490,18 @@ function buildControls(){
     qbox.appendChild(c);
   }
 
-  $("merge").onchange=e=>{state.merge=e.target.checked;
+  $("merge").onchange=e=>{
+    const was=state.merge; state.merge=e.target.checked;
     // frame keys are keyspace-specific; a merged key mis-decodes split and
-    // vice versa, so an open frame closes rather than retitling itself wrong
-    if(state.frameKey!=null) closeFrame();
+    // vice versa, so an open frame closes rather than retitling itself wrong.
+    // The Character screen instead NEVER auto-exits (§3.1): it remaps to the
+    // same class+spec in the new keyspace once the fresh ranking exists.
+    if(state.frameKey!=null){
+      if(state.screen){
+        __screenRemapPres=was?state.frameKey:Math.floor(state.frameKey/200);
+        state.frameKey=null;
+      }else closeFrame();
+    }
     $("hero-box").style.display=state.merge?"none":""; render()};
   $("hero-box").style.display=state.merge?"none":"";
   $("melee").onchange=e=>{state.melee=e.target.checked; render()};
@@ -2458,27 +2608,40 @@ function frameStatsHTML(ctx){
    current filtered spec rows. The pctl slider path ends in renderFrame(), so
    the slice re-renders live as the slider moves while a frame is open. */
 const fmtDps=v=>v>=1e4?Math.round(v/1e3)+"k":fmtInt(v);
-function frameLiveStatsHTML(ctx){
-  const C=STATSC, cols=C.cols, nst=C.stats.length;
+/* ---- ONE lens, ONE slice (§3.3b) — shared by the stats block AND every
+   Character-screen section, so both surfaces read the identical window.
+   Ranks rows of frameLiveIdx() by dpsAt within the current view, keeps
+   percentile ∈ [max(0,pctl−10), min(100,pctl+10)] — the ends clamp so p0
+   keeps the worst parse in the window and p99 the best (rank 100 must never
+   fall out of a p99 lens). Elite/Archon mode needs zero extra code:
+   frameLiveIdx's elite branch already feeds the slice. ---- */
+function frameLensSlice(){
   const idx=frameLiveIdx(), Y=idx.length;
-  let h='<div class="bt">Character stats</div>';
-  if(!Y)
-    return h+'<div class="foot" style="margin-top:0">no parses match the current filters</div>';
+  const lo=Math.max(0,state.pctl-10), hi=Math.min(100,state.pctl+10);
+  if(!Y) return {idx, Y, lo, hi, sdps:[], inWin:new Set()};
   // per-parse DPS percentile WITHIN this filtered view — ranks, not raw dps
   const order=[...idx].sort((a,b)=>dpsAt(a)-dpsAt(b));
   const pctOf=new Map();
   for(let p=0;p<Y;p++) pctOf.set(order[p], Y>1?100*p/(Y-1):50);
   const sdps=order.map(dpsAt);          // ascending — the window's dps range reads here
-  // ±10 around the lens; the ends clamp so p0 keeps the worst parse in the
-  // window and p99 the best (rank 100 must never fall out of a p99 lens)
-  const lo=Math.max(0,state.pctl-10), hi=Math.min(100,state.pctl+10);
+  const inWin=new Set();
+  for(const i of idx){const p=pctOf.get(i); if(p>=lo&&p<=hi) inWin.add(i);}
+  return {idx, Y, lo, hi, sdps, inWin};
+}
+function frameLiveStatsHTML(ctx){
+  const C=STATSC, cols=C.cols, nst=C.stats.length;
+  const L=frameLensSlice(), idx=L.idx, Y=L.Y;
+  let h='<div class="bt">Character stats</div>';
+  if(!Y)
+    return h+'<div class="foot" style="margin-top:0">no parses match the current filters</div>';
+  const {lo,hi,sdps}=L;
   const rowAt=i=>C.map[i];
   const known=i=>{const r=rowAt(i); if(r<0) return false;
     const o=r*cols; for(let s=0;s<nst;s++) if(C.vals[o+s]) return true; return false};
   let X=0;
   for(const i of idx) if(known(i)) X++;
   // the lens window's stats-known slice — what the quantile rows read
-  const slice=idx.filter(i=>{const p=pctOf.get(i); return p>=lo&&p<=hi&&known(i)});
+  const slice=idx.filter(i=>L.inWin.has(i)&&known(i));
   h+='<div class="fsub">'+esc("players around p"+state.pctl+" (lens ±10) · n="
     +fmtInt(slice.length)+" · "+fmtDps(qp(sdps,lo/100))+"–"+fmtDps(qp(sdps,hi/100))
     +" dps")+'</div>';
@@ -2528,11 +2691,23 @@ function frmPad(){
   m.style.paddingBottom=(72+$("frame").offsetHeight)+"px";
 }
 function renderFrame(){
+  // dispatcher (§3.3b): while the Character screen is open, the L2865 master-
+  // refresh path re-slices the whole screen instead of the rail — zero new wiring
+  if(state.screen){ renderScreen(); return }
   const key=state.frameKey; if(key==null||!$("frame")) return;
   const f=$("frame"); f.hidden=false;
   const ctx=frameCtx();
   $("frame-dot").style.background=CLASS_COLORS[ctx.cls]||"#999";
-  $("frame-name").textContent=ctx.cls+" "+ctx.spec;   // Inter — never --font-display
+  // Inter — never --font-display. The spec name doubles as the second
+  // Character-screen entry affordance (content-hugging span, color-only hover);
+  // after a failed sidecar fetch it renders as plain text for the session.
+  const fn=$("frame-name");
+  if(buildsDead) fn.textContent=ctx.cls+" "+ctx.spec;
+  else{
+    fn.innerHTML='<span class="fnametrig">'+esc(ctx.cls+" "+ctx.spec)+'</span>';
+    fn.querySelector(".fnametrig").onclick=()=>enterScreen();
+  }
+  const fc=$("frame-char"); if(fc) fc.hidden=buildsDead;
   $("frame-hero").textContent=(!state.merge&&ctx.hero)?"· "+ctx.hero:"";
   $("frame-scope").textContent=frameScope();
   const host=$("frame-blocks"); host.innerHTML="";
@@ -2589,6 +2764,9 @@ $("frame-pin").onclick=()=>{
 // close veto): any click that is not inside the frame and not on a chart
 // bar/label (those open or switch frames themselves) closes an open frame.
 document.addEventListener("pointerdown",e=>{
+  // the Character screen is a place, not a popup: it NEVER dismisses on outside
+  // clicks (§3.1) — the rail below keeps its light click-away untouched.
+  if(state.screen) return;
   if(state.frameKey==null||state.framePinned) return;
   // capture phase: judged before any click handler re-renders the frame,
   // otherwise a chip click detaches its target and reads as "outside".
@@ -2598,11 +2776,22 @@ document.addEventListener("pointerdown",e=>{
   closeFrame();
 },true);
 document.addEventListener("keydown",e=>{
-  if(state.frameKey==null) return;
-  if(e.key==="Escape"){ closeFrame(); return }
-  if(e.key!=="ArrowUp"&&e.key!=="ArrowDown") return;
+  if(state.frameKey==null&&!state.screen) return;
+  if(e.key==="Escape"){
+    // In the Character screen, Esc is SWALLOWED (§3.1): its only permitted
+    // action is closing an open gear fold-out; with none open it does nothing
+    // — it never exits the mode and never falls through to close the rail.
+    if(state.screen){ if(screenFold!=null&&screenTab==="gear") closeSlotFold(); return }
+    closeFrame(); return }
   // arrows guarded: never hijack keys inside form controls
   if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)||e.target.isContentEditable) return;
+  if(state.screen&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){
+    // walk the open fold-out to the adjacent slot in tile order (§3.4)
+    if(screenFold!=null&&screenTab==="gear"){
+      e.preventDefault(); moveSlotFold(e.key==="ArrowRight"?1:-1); }
+    return;
+  }
+  if(e.key!=="ArrowUp"&&e.key!=="ArrowDown") return;
   const i=CHART_KEYS.indexOf(state.frameKey);
   if(i<0) return;                                   // framed spec not in current chart
   e.preventDefault();                               // swallow page scroll, ends included
@@ -2610,9 +2799,626 @@ document.addEventListener("keydown",e=>{
   if(j!==i){
     state.frameKey=CHART_KEYS[j];
     frameCSort={col:"n",dir:-1};                           // spec switch resets the sort
+    if(state.screen) resetScreenPerSpec();                 // fold-outs/expansions reset
     renderFrame(); paintFramed();                          // instant swap, zero motion
   }
 });
+
+/* ================= Character screen — the Builds deep-dive (blueprint §3) =================
+   TOTAL main-column takeover in page flow: #sections hides, #charscreen renders.
+   The SPEC is still state.frameKey (one source of truth — the screen is a
+   projection of the framed spec); the complete control surface is the sidebar
+   filters + the top bar, and the ENTIRE screen re-slices live through
+   render() → renderFrame() → renderScreen() (§3.3b). Exit is deliberate work:
+   ONLY the ← Rankings button and the wordmark leave the mode — Esc and
+   click-away are inert in-screen, while the rail keeps its light dismissal
+   (peek vs place, both behaviors side by side). Never serialized to the URL. */
+let screenReturnY=0;
+let screenTab="gear";             // active pane — persists across exit/re-enter (session)
+let screenFold=null;              // open fold-out: index into BUILDSC.slots, or null
+let screenEnchOpen=new Set();     // expanded enchant rows (retail slot ids)
+let screenSecClosed=new Set(["crafted"]);   // §15.9 collapse; crafted starts closed
+let __screenRemapPres=null;       // merge-toggle remap request (class*100+spec to re-find)
+let __csCopy=[];                  // import strings behind the rendered copy buttons
+
+/* ---- builds sidecar (builds.json.gz, §1) — the second lazy sidecar. Mirrors
+   loadStatsSidecar (cached promise, DecompressionStream guard, no-cache fetch);
+   kicked ONLY by the first screen entry. Fetch failure or decode reject (§1.2)
+   ⇒ exit the screen (full restore), remove BOTH entry affordances for the
+   session, console.warn — the affordance never sits dead. ---- */
+let BUILDSC=null, buildsCP=null, buildsDead=false;
+function loadBuildsSidecar(){
+  if(buildsCP) return buildsCP;
+  buildsCP=(async()=>{
+    let dec=null;
+    try{
+      if(typeof DecompressionStream!=="function") throw new Error("no inflater");
+      const gz=await fetch("builds.json.gz",{cache:"no-cache"});
+      if(!gz.ok) throw new Error("HTTP "+gz.status);
+      const j=await new Response(
+        gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
+      dec=decodeBuildsSidecar(j);
+    }catch(e){ dec=null }
+    if(dec){ BUILDSC=dec; if(state.screen) renderScreen(); }
+    else buildsSidecarFailed();
+  })();
+  return buildsCP;
+}
+function buildsSidecarFailed(){
+  buildsDead=true;
+  console.warn("builds sidecar unavailable — Character screen disabled for this session");
+  const b=$("frame-char"); if(b) b.remove();          // affordance 1: the rail button
+  if(state.screen) exitScreen();                      // auto-exit with full restore (§3.3)
+  else if(state.frameKey!=null) renderFrame();        // affordance 2: spec name un-wires
+}
+// §1.2 reject rules: n mismatch, missing/short columns, malformed slots/eslots
+// ⇒ treat as absent (null). Unknown extra keys are ignored (layout tolerance).
+function decodeBuildsSidecar(j){
+  try{
+    if(!j||typeof j!=="object") return null;
+    if((j.n>>>0)!==N){   // row-alignment is the whole contract — never guess past it
+      console.warn("builds sidecar ignored: n="+j.n+" does not match the payload's "
+        +N+" rows");
+      return null;
+    }
+    if(!Array.isArray(j.slots)||!Array.isArray(j.eslots)) return null;
+    const c=j.cols;
+    if(!c||typeof c.fl!=="string"||!Array.isArray(c.it)||typeof c.bld!=="string") return null;
+    if(c.it.length!==j.slots.length) return null;
+    const b64=s=>{const bin=atob(s), b=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b};
+    const map=new Int32Array(N).fill(-1);   // payload row → covered row (§1.3)
+    let M;
+    if(j.enc==="sparse"){
+      if(typeof j.idx!=="string") return null;
+      const ib=b64(j.idx);
+      const idx=new Uint32Array(ib.buffer,0,(ib.byteLength/4)|0);
+      M=idx.length;
+      for(let k=0;k<M;k++) if(idx[k]<N) map[idx[k]]=k;
+    }else{ M=N; for(let k=0;k<N;k++) map[k]=k; }
+    const col=s=>{const b=b64(s); return b.length<M?null:b};   // short ⇒ reject
+    const fl=col(c.fl); if(!fl) return null;
+    const it=[];
+    for(const s of c.it){const a=col(s); if(!a) return null; it.push(a);}
+    // cols.en is a ladder step (§1.4): absent ⇒ no enchant block, present ⇒ strict
+    let en=null;
+    if(Array.isArray(c.en)){
+      if(c.en.length!==Math.ceil(j.eslots.length/2)) return null;
+      en=[];
+      for(const s of c.en){const a=col(s); if(!a) return null; en.push(a);}
+    }
+    const bld=col(c.bld); if(!bld) return null;
+    return {map, fl, it, en, bld, slots:j.slots, eslots:j.eslots,
+      specs:(j.specs&&typeof j.specs==="object")?j.specs:{}};
+  }catch(e){ return null }
+}
+// §1.3 accessors — vocab is 1-based, 0 = other/none/unknown
+const bldItV=(si,i)=>{const r=BUILDSC.map[i]; return r<0?0:BUILDSC.it[si][r]};
+const bldEnV=(j,i)=>{const r=BUILDSC.map[i]; if(r<0) return 0;
+  const b=BUILDSC.en[j>>1][r]; return j%2?b>>4:b&15};
+const bldV=i=>{const r=BUILDSC.map[i]; return r<0?0:BUILDSC.bld[r]};
+
+// name rendering: "n":null ⇒ #id linking wowhead (plain <a>, target=_blank);
+// enchants render "enchant #id" unlinked. No third-party scripts, ever.
+function itemNameHTML(e){
+  if(!e) return '<span class="na">other / none</span>';
+  if(e.n!=null) return esc(e.n);
+  return '<a href="https://www.wowhead.com/item='+(+e.id)
+    +'" target="_blank" rel="noopener">#'+(+e.id)+'</a>';
+}
+function enchNameHTML(e){
+  if(!e) return '<span class="na">none</span>';
+  if(e.n!=null) return esc(e.n);
+  return 'enchant #'+(+e.id);
+}
+const CS_SLOT_LABEL={0:"Head",1:"Neck",2:"Shoulder",4:"Chest",5:"Waist",6:"Legs",
+  7:"Feet",8:"Wrist",9:"Hands",10:"Finger 1",11:"Finger 2",12:"Trinket 1",
+  13:"Trinket 2",14:"Back",15:"Main hand",16:"Off hand"};
+const CS_THIN=10;                       // §3.5 thin-n floor
+const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into "other"
+const fmtDpsM=v=>v>=1e6?(v/1e6).toFixed(2)+"M":fmtDps(v);
+
+/* ---- enter / exit / state (§3.1) ---- */
+function enterScreen(){
+  if(state.screen||buildsDead||state.frameKey==null) return;
+  hideTip();
+  screenReturnY=window.scrollY;         // lossless exit: the exact prior position
+  state.screen=true;
+  document.body.classList.add("charscreen");
+  const m=document.querySelector("main"); if(m) m.style.paddingBottom="";  // rail clearance off
+  resetScreenPerSpec();                 // fold-outs default CLOSED on every entry
+  loadBuildsSidecar();                  // lazy: the FIRST screen entry kicks it off, once
+  renderScreen();
+  window.scrollTo(0,0);
+}
+function exitScreen(){
+  if(!state.screen) return;
+  state.screen=null;
+  document.body.classList.remove("charscreen");
+  const cs=$("charscreen"); if(cs){ cs.hidden=true; cs.innerHTML=""; }
+  // rail re-renders exactly as left: frameKey intact, pinned state intact
+  renderFrame(); paintFramed(); frmPad();
+  requestAnimationFrame(()=>window.scrollTo(0,screenReturnY));
+}
+function resetScreenPerSpec(){          // active tab alone persists (§3.2.3)
+  screenFold=null;
+  screenEnchOpen=new Set();
+  screenSecClosed=new Set(["crafted"]);
+}
+function setScreenSpec(k){
+  if(k===state.frameKey) return;
+  state.frameKey=k;
+  frameCSort={col:"n",dir:-1};
+  resetScreenPerSpec();
+  renderScreen();
+}
+function closeSlotFold(){ screenFold=null; renderScreen(); }
+function moveSlotFold(dir){
+  const tiles=[...document.querySelectorAll("#cs-grid .gtile")];
+  if(!tiles.length) return;
+  const order=tiles.map(t=>+t.dataset.si);   // rendered tile order skips a suppressed Off Hand
+  let p=order.indexOf(screenFold);
+  if(p<0) p=0;
+  const q=Math.min(order.length-1, Math.max(0, p+dir));
+  if(q!==p){ screenFold=order[q]; renderScreen(); }
+}
+// both exits are deliberate: the ← Rankings .btn (wired in wireScreen) and the wordmark
+document.querySelector("#lensbar .wordmark").addEventListener("click",()=>{
+  if(state.screen) exitScreen();
+});
+$("frame-char").onclick=()=>enterScreen();
+
+/* ---- the one slice every screen section reads (§3.3b) ---- */
+function screenData(ctx){
+  const L=frameLensSlice();
+  const win=L.idx.filter(i=>L.inWin.has(i));
+  const vocab=BUILDSC?(BUILDSC.specs[ctx.cls+"|"+ctx.spec]||null):null;
+  const gearIdx=[], bldIdx=[];
+  if(BUILDSC){
+    for(const i of win){
+      const r=BUILDSC.map[i]; if(r<0) continue;
+      const fl=BUILDSC.fl[r];
+      if(fl&1) gearIdx.push(i);
+      if(fl&2) bldIdx.push(i);
+    }
+  }
+  return {L, win, vocab, gearIdx, bldIdx};
+}
+// the Talents pane's row model — the identity-band digest MIRRORS row 0 of this
+// exact computation (never a second one). null = builds unknown in the window
+// (<10 known rows, or spec absent from vocab) ⇒ callers render nothing dormant.
+function csTalentRows(d){
+  if(!d.vocab||!Array.isArray(d.vocab.builds)||!d.vocab.builds.length) return null;
+  if(d.bldIdx.length<CS_THIN) return null;
+  const byV=new Map();
+  for(const i of d.bldIdx){
+    const v=bldV(i);
+    let a=byV.get(v); if(!a){a=[]; byV.set(v,a);}
+    a.push(i);
+  }
+  let rows=[];
+  let other=0;
+  for(const [v,a] of byV){
+    const vb=v>0?d.vocab.builds[v-1]:null;
+    if(!vb){ other+=a.length; continue }
+    const dps=a.map(dpsAt).sort((x,y)=>x-y);
+    // an import string encodes exactly one hero tree, so the MODE of R.hero
+    // over the build's slice rows is its identity (resolver noise aside)
+    let hero="";
+    if(state.merge){
+      const hc=new Map();
+      for(const i of a) hc.set(R.hero[i],(hc.get(R.hero[i])||0)+1);
+      let bv=-1,bc=-1;
+      for(const [h,c] of hc) if(c>bc){bc=c; bv=h}
+      if(bv>=0&&D.heroes[bv]!=="Unknown") hero=D.heroes[bv];
+    }
+    rows.push({s:vb.s, n:a.length, share:100*a.length/d.bldIdx.length,
+      med:qp(dps,.5), hero});
+  }
+  rows.sort((a,b)=>b.n-a.n);
+  for(const r of rows.slice(8)) other+=r.n;   // ≤8 + "other"
+  rows=rows.slice(0,8);
+  return {rows, other, known:d.bldIdx.length};
+}
+// merged-only hero distribution — straight from R.hero, no sidecar data (§0)
+function csHeroDist(d){
+  const hc=new Map();
+  for(const i of d.win) hc.set(R.hero[i],(hc.get(R.hero[i])||0)+1);
+  return [...hc.entries()].sort((a,b)=>b[1]-a[1])
+    .map(([h,c])=>({name:D.heroes[h]||"?", share:100*c/d.win.length}));
+}
+
+/* ---- screen sections as a registry (client task 10) ---- */
+function csSecOpen(id,title,scope){
+  const closed=screenSecClosed.has(id);
+  return '<div class="sec'+(closed?" closed":"")+'" data-cssec="'+id
+    +'"><span class="mk"></span><span class="t">'+title+'</span>'
+    +'<span class="s">'+scope+'</span></div>'
+    +'<div class="secbody" data-csbody="'+id+'"'+(closed?" hidden":"")+'>';
+}
+function csThinHTML(n,what){
+  return '<div class="cs-thin">n='+fmtInt(n)+" "+what
+    +' known in window · sample too thin — widen the lens or filters</div>';
+}
+function csLadderHTML(){
+  let h='<div id="cs-ladder"><button class="btn" id="cs-back">← Rankings</button>';
+  for(const k of CHART_KEYS){
+    const pk=state.merge?k:Math.floor(k/200);
+    const cls=D.classes[Math.floor(pk/100)], spec=D.specs[pk%100];
+    const hero=state.merge?"":(D.heroes[k%200]||"");
+    h+='<span class="chip cschip'+(k===state.frameKey?" on":"")+'" data-k="'+k+'">'
+      +'<span class="classdot" style="background:'+(CLASS_COLORS[cls]||"#999")+'"></span>'
+      +esc(spec)+((hero&&hero!=="Unknown")?' <i>'+esc(hero)+'</i>':'')+'</span>';
+  }
+  return h+'</div>';
+}
+function csDigestHTML(d){
+  const T=csTalentRows(d);
+  if(!T||!T.rows.length) return "";     // never a dormant stub
+  const top=T.rows[0];
+  let seg="";
+  if(state.merge){                      // hero-split renders merged-only (§3.2.2)
+    const hd=csHeroDist(d).filter(e=>e.name!=="Unknown").slice(0,2);
+    if(hd.length) seg=" · "+hd.map(e=>esc(e.name)+" "+e.share.toFixed(0)+"%").join(" / ");
+  }
+  __csCopy[0]=top.s;
+  return '<span id="cs-digest"><span class="dtrig">top build '+top.share.toFixed(0)
+    +'% · median '+fmtDpsM(top.med)+seg+'</span>'
+    +(navigator.clipboard?' <button class="cbtn" data-copy="0">copy</button>':'')
+    +'</span>';
+}
+function csBandHTML(ctx,d){
+  const g=ctx.g;
+  let h='<div id="cs-band"><div class="csrow1">'
+    +'<span class="classdot" style="background:'+(CLASS_COLORS[ctx.cls]||"#999")
+    +'; align-self:center"></span>'
+    +'<span class="csname">'+esc(ctx.cls+" "+ctx.spec)+'</span>'
+    +((!state.merge&&ctx.hero)?'<span class="cshero">· '+esc(ctx.hero)+'</span>':'')
+    +'<span class="csscope">'+esc(frameScope())+'</span>';
+  if(g&&d){
+    // the identity block's key numbers, laid horizontally — no KPI cards
+    let timed="";
+    if(hasTimed&&R.timed){
+      let t=0,tn=0;
+      for(const i of d.L.idx) if(R.timed[i]>=0){tn++; if(R.timed[i]===1)t++;}
+      if(tn) timed=" · "+(100*t/tn).toFixed(0)+"% timed";
+    }
+    h+='<span class="csnums">'+fmtInt(g.n)+" parses · "
+      +esc(dpsLabel().toLowerCase())+" "+fmtDpsM(g.med)+timed+'</span>';
+  }
+  h+='</div>';
+  if(!g)
+    return h+'<div class="cssub">no parses match the current filters — '
+      +'the ladder chips above are the way out</div></div>';
+  if(d){
+    const wN=d.win.length;
+    const cov=BUILDSC&&wN
+      ?" · gear known "+Math.round(100*d.gearIdx.length/wN)
+        +"% · builds known "+Math.round(100*d.bldIdx.length/wN)+"%":"";
+    h+='<div class="cssub"><span>players around p'+state.pctl+" (lens ±10) · n="
+      +fmtInt(wN)+" of "+fmtInt(d.L.Y)+" in view"+cov+'</span>'
+      +csDigestHTML(d)+'</div>';
+  }
+  return h+'</div>';
+}
+function csSubnavHTML(d){
+  const t=(id,label,cnt)=>'<button data-t="'+id+'" class="'+(screenTab===id?"on":"")
+    +'">'+label+' <span class="tcnt">· '+fmtInt(cnt)+' known</span></button>';
+  // §C.1.3 redistribution: three panes so each sits above the fold at 1366×768
+  return '<div class="tabs" id="cs-tabs">'
+    +t("gear","Gear",d.gearIdx.length)
+    +t("ench","Enchants & Crafted",d.gearIdx.length)
+    +t("tal","Talents",d.bldIdx.length)+'</div>';
+}
+/* geargrid + slotfold (§3.4) */
+function csGearModel(d){
+  const slots=BUILDSC.slots, per=[];
+  for(let si=0;si<slots.length;si++){
+    const cnt=new Map();
+    for(const i of d.gearIdx){ const v=bldItV(si,i); cnt.set(v,(cnt.get(v)||0)+1); }
+    let wv=0,wn=-1;
+    for(const [v,c] of cnt) if(c>wn){wn=c; wv=v}
+    per.push({cnt, winner:wv, winN:Math.max(0,wn)});
+  }
+  return per;
+}
+function csFoldHTML(d,si){
+  const slot=BUILDSC.slots[si];
+  const cnt=new Map();
+  for(const i of d.gearIdx){ const v=bldItV(si,i); cnt.set(v,(cnt.get(v)||0)+1); }
+  const total=d.gearIdx.length||1;
+  const V=(d.vocab.items||[])[si]||[];
+  let other=cnt.get(0)||0;
+  const entries=[];
+  for(const [v,c] of cnt){
+    if(v===0) continue;
+    if(c<CS_ENTRY_MIN||!V[v-1]){ other+=c; continue }   // SPECMETA_ENTRY_MIN echo
+    entries.push({v,c});
+  }
+  entries.sort((a,b)=>b.c-a.c);
+  for(const e of entries.slice(10)) other+=e.c;         // ≤10 + "other/none"
+  const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
+  let rows="";
+  for(const {v,c} of entries.slice(0,10)){
+    const e=V[v-1], s=100*c/total;
+    rows+='<tr><td class="txt">'+itemNameHTML(e)+'</td><td>'+bar(s)+'</td>'
+      +'<td>'+s.toFixed(1)+'%</td><td>n='+fmtInt(c)+'</td>'
+      +'<td>'+((e&&e.ilvl)?"ilvl "+e.ilvl:"–")+'</td>'
+      +'<td class="txt">'+((e&&e.cr)?'<span class="gtag">crafted</span>':'')
+        +((e&&e.emb)?' <span class="gemb">'+esc(e.emb)+'</span>':'')+'</td></tr>';
+  }
+  if(other>0)
+    rows+='<tr><td class="txt na">other / none</td><td>'+bar(100*other/total)+'</td>'
+      +'<td>'+(100*other/total).toFixed(1)+'%</td><td>n='+fmtInt(other)+'</td>'
+      +'<td>–</td><td></td></tr>';
+  return '<div id="cs-fold"><span class="caret"></span>'
+    +'<div class="gs" style="text-transform:uppercase; font-size:.62rem; '
+    +'letter-spacing:.12em; color:var(--ink3); margin-bottom:.3rem">'
+    +CS_SLOT_LABEL[slot]+' — distribution in window</div>'
+    +'<table class="fold-t">'+rows+'</table></div>';
+}
+function csGearPaneHTML(ctx,d){
+  let h=csSecOpen("geargrid","Gear overview",
+    esc("share of "+fmtInt(d.gearIdx.length)
+    +" gear-known in window · click a slot to unfold its distribution in place"));
+  if(!d.vocab||!Array.isArray(d.vocab.items)||!d.gearIdx.length)
+    return h+csThinHTML(d.gearIdx.length,"gear")+'</div>';
+  if(d.gearIdx.length<CS_THIN)
+    return h+csThinHTML(d.gearIdx.length,"gear")+'</div>';
+  const slots=BUILDSC.slots, per=csGearModel(d);
+  const ohSi=slots.indexOf(16);
+  const ohNone=ohSi>=0&&per[ohSi].winner===0;   // 2H specs: no near-empty 17th tile
+  const total=d.gearIdx.length;
+  h+='<div id="cs-grid">';
+  slots.forEach((slot,si)=>{
+    if(slot===16&&ohNone) return;               // suppressed — footnote on Main Hand
+    const p=per[si];
+    const e=p.winner>0?((d.vocab.items[si]||[])[p.winner-1]||null):null;
+    const share=100*p.winN/total;
+    h+='<div class="gtile'+(slot===15?" mh":"")+(screenFold===si?" on":"")
+      +'" data-si="'+si+'">'
+      +'<div class="gs">'+CS_SLOT_LABEL[slot]+'</div>'
+      +'<div class="gn">'+(p.winner>0?itemNameHTML(e):'<span class="na">other / none</span>')+'</div>'
+      +'<div class="gv">'+share.toFixed(0)+'%<i> · n='+fmtInt(p.winN)+'</i></div>'
+      +((e&&e.ilvl)?'<div class="gi">ilvl '+e.ilvl+' · all records</div>':'')
+      +((e&&e.cr)?'<div class="gi"><span class="gtag">crafted</span>'
+        +(e.emb?' <span class="gemb">· '+esc(e.emb)+'</span>':'')+'</div>':'')
+      +((slot===15&&ohNone)?'<div class="gfoot">off hand: none — two-handed '
+        +(100*per[ohSi].winN/total).toFixed(0)+'%</div>':'')
+      +'</div>';
+  });
+  if(screenFold!=null&&slots[screenFold]!=null&&!(ohNone&&slots[screenFold]===16))
+    h+=csFoldHTML(d,screenFold);                // repositioned to its row in wireScreen
+  return h+'</div></div>';
+}
+/* enchants (§3.4) — denominator = slice rows with fl&1; an empty nibble on a
+   gear-known row IS "unenchanted", a real zero */
+function csEnchHTML(ctx,d){
+  if(!BUILDSC.en) return "";                    // ladder step: no cols.en ⇒ section absent
+  if(!d.vocab||!d.gearIdx.length||d.gearIdx.length<CS_THIN)
+    return csSecOpen("ench","Enchants",esc("share of gear-known in window"))
+      +csThinHTML(d.gearIdx.length,"gear")+'</div>';
+  const es=BUILDSC.eslots, total=d.gearIdx.length;
+  let rows="", any=false;
+  es.forEach((slot,j)=>{
+    const V=(d.vocab.ench||[])[j]||[];
+    const cnt=new Map();
+    for(const i of d.gearIdx){ const v=bldEnV(j,i); cnt.set(v,(cnt.get(v)||0)+1); }
+    let nz=0; for(const [v,c] of cnt) if(v>0) nz+=c;
+    if(!V.length&&!nz) return;                  // no data for this slot
+    any=true;
+    let wv=0,wn=-1;
+    for(const [v,c] of cnt) if(c>wn){wn=c; wv=v}
+    const open=screenEnchOpen.has(slot);
+    rows+='<tr class="erow" data-es="'+slot+'"><td class="txt gsl">'+CS_SLOT_LABEL[slot]
+      +'</td><td class="txt">'+(wv>0?enchNameHTML(V[wv-1]):'<span class="na">none</span>')
+      +'</td><td>'+(100*Math.max(0,wn)/total).toFixed(1)+'%</td>'
+      +'<td>n='+fmtInt(Math.max(0,wn))+'</td>'
+      +'<td class="expm">'+(open?"−":"+")+'</td></tr>';
+    if(open){
+      for(const [v,c] of [...cnt.entries()].sort((a,b)=>b[1]-a[1])){
+        if(v===wv) continue;
+        rows+='<tr class="ealt"><td></td><td class="txt">'
+          +(v>0?enchNameHTML(V[v-1]):'<span class="na">none / unenchanted</span>')
+          +'</td><td>'+(100*c/total).toFixed(1)+'%</td><td>n='+fmtInt(c)+'</td><td></td></tr>';
+      }
+    }
+  });
+  if(!any) return "";
+  return csSecOpen("ench","Enchants",
+    esc("share of "+fmtInt(total)+" gear-known in window · click a row for alternatives"))
+    +'<table class="cs-ench">'+rows+'</table></div>';
+}
+/* crafted & embellishments (§3.4) — collapsed by default with a live summary */
+function csCraftedModel(d){
+  const slots=BUILDSC.slots, bySlot=[], emb=new Map();
+  for(let si=0;si<slots.length;si++){
+    const V=(d.vocab.items||[])[si]||[];
+    const cnt=new Map();
+    for(const i of d.gearIdx){ const v=bldItV(si,i); if(v>0) cnt.set(v,(cnt.get(v)||0)+1); }
+    let top=null;
+    for(const [v,c] of cnt){
+      const e=V[v-1]; if(!e) continue;
+      if(e.cr&&(!top||c>top.c)) top={c,e};
+      if(e.emb) emb.set(e.emb,(emb.get(e.emb)||0)+c);   // counted per slot (a player can carry two)
+    }
+    if(top) bySlot.push({slot:slots[si], c:top.c, e:top.e});
+  }
+  return {bySlot, emb:[...emb.entries()].sort((a,b)=>b[1]-a[1])};
+}
+function csCraftedHTML(ctx,d){
+  if(!d.vocab||!d.gearIdx.length||d.gearIdx.length<CS_THIN) return "";
+  const M=csCraftedModel(d);
+  if(!M.bySlot.length&&!M.emb.length) return "";   // never an empty shell
+  const total=d.gearIdx.length;
+  let h=csSecOpen("crafted","Crafted & embellishments",
+    esc(M.bySlot.length+" slot"+(M.bySlot.length===1?"":"s")+" · "
+      +M.emb.length+" embellishment"+(M.emb.length===1?"":"s")));
+  h+='<div id="cs-crafted-pair"><div><div class="bt">Crafted worn</div>'
+    +'<table class="fold-t">';
+  for(const r of M.bySlot)
+    h+='<tr><td class="txt gsl" style="font-size:.62rem; text-transform:uppercase; '
+      +'letter-spacing:.12em; color:var(--ink3)">'+CS_SLOT_LABEL[r.slot]+'</td>'
+      +'<td class="txt">'+itemNameHTML(r.e)+'</td>'
+      +'<td>'+(100*r.c/total).toFixed(1)+'%</td><td>n='+fmtInt(r.c)+'</td></tr>';
+  h+='</table></div><div><div class="bt">Embellishments</div><table class="fold-t">';
+  for(const [name,c] of M.emb)
+    h+='<tr><td class="txt">'+esc(name)+'</td><td>'+fmtInt(c)+' carries</td>'
+      +'<td>'+(100*c/total).toFixed(1)+'%</td></tr>';
+  h+='</table><div class="caption">counted per slot; a player can carry two</div>'
+    +'</div></div></div>';
+  return h;
+}
+/* talents + hero logic (§3.4) — the Talents pane's whole content */
+function csTalentsHTML(ctx,d){
+  let scope="";
+  if(state.merge&&d.win.length){
+    // merged: one-line hero distribution as inline text chips, sorted desc
+    const hd=csHeroDist(d).filter(e=>e.name!=="Unknown");
+    if(hd.length)
+      scope='<span class="cs-herodist">'+hd.map(e=>'<span class="hn">'+esc(e.name)
+        +'</span> <b>'+e.share.toFixed(0)+'%</b>').join(' · ')+'</span>';
+  }
+  let h=csSecOpen("talents","Talent builds",scope);
+  const T=csTalentRows(d);
+  if(!T) return h+csThinHTML(d.bldIdx.length,"builds")+'</div>';
+  const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
+  const clip=!!navigator.clipboard;     // buttons only when the API exists — nothing dormant
+  let rows="";
+  T.rows.forEach((r,x)=>{
+    __csCopy[x+1]=r.s;
+    rows+='<tr><td class="txt">'+bar(r.share)+'</td>'
+      +'<td>'+r.share.toFixed(1)+'%</td><td>'+fmtDpsM(r.med)+' median</td>'
+      +'<td>n='+fmtInt(r.n)+'</td>'
+      +'<td class="txt">'+(r.hero?'<span class="htag">'+esc(r.hero)+'</span>':'')+'</td>'
+      +'<td>'+(clip?'<button class="cbtn" data-copy="'+(x+1)+'">copy</button>':'')+'</td></tr>';
+  });
+  if(T.other>0)
+    rows+='<tr><td class="txt">'+bar(100*T.other/T.known)+'</td>'
+      +'<td>'+(100*T.other/T.known).toFixed(1)+'%</td><td class="na">other</td>'
+      +'<td>n='+fmtInt(T.other)+'</td><td></td><td></td></tr>';
+  h+='<table class="cs-tal">'+rows+'</table>';
+  h+='<div class="cs-foot">builds known for '+fmtInt(T.known)+' of '
+    +fmtInt(d.win.length)+' in window · identity = exact talent-string match'
+    +(!state.merge?' · hero fixed — builds differ in class/spec trees only':'')
+    +'</div>';
+  return h+'</div>';
+}
+
+function renderScreen(){
+  const host=$("charscreen");
+  if(!state.screen||!host||!D) return;
+  document.body.classList.add("charscreen");
+  host.hidden=false;
+  __csCopy=[];
+  // merge-toggle remap: re-find the same class+spec in the fresh ranking
+  if(__screenRemapPres!=null){
+    const pk=__screenRemapPres; __screenRemapPres=null;
+    let k=CHART_KEYS.find(x=>(state.merge?x:Math.floor(x/200))===pk);
+    if(k==null&&!state.merge){
+      // spec fell off the ranking: keep the identity via its modal hero
+      for(let i=0;i<N;i++) if(R.cls[i]*100+R.spec[i]===pk){ k=pk*200+R.hero[i]; break }
+    }
+    if(k==null&&state.merge) k=pk;
+    if(k!=null){ state.frameKey=k; resetScreenPerSpec(); }
+  }
+  let h=csLadderHTML();
+  if(state.frameKey==null){
+    host.innerHTML=h+'<div class="cs-thin">no parses match the current filters — '
+      +'pick a spec from the ladder above</div>';
+    wireScreen(host,null,null);
+    return;
+  }
+  const ctx=frameCtx();
+  if(!BUILDSC&&!buildsDead){
+    // §7 loading treatment — ladder + identity band render immediately from
+    // payload data; no skeleton grids
+    host.innerHTML=h+csBandHTML(ctx,null)
+      +'<div class="csload">Loading builds data…</div>';
+    wireScreen(host,ctx,null);
+    return;
+  }
+  const d=screenData(ctx);
+  h+=csBandHTML(ctx,d);
+  if(ctx.g){
+    const gN=d.gearIdx.length, bN=d.bldIdx.length;
+    if(!gN&&!bN){
+      // both empty ⇒ no sub-nav — honest, not dormant (§3.5)
+      h+='<div class="cs-thin">no builds data for this spec yet</div>';
+    }else{
+      h+=csSubnavHTML(d);
+      if(screenTab==="gear") h+=csGearPaneHTML(ctx,d);
+      else if(screenTab==="ench"){
+        const eh=csEnchHTML(ctx,d), ch=csCraftedHTML(ctx,d);
+        h+=(eh||ch)?eh+ch:csThinHTML(gN,"gear");
+      }
+      else h+=csTalentsHTML(ctx,d);
+    }
+  }
+  host.innerHTML=h;
+  wireScreen(host,ctx,d);
+}
+function wireScreen(host,ctx,d){
+  const back=host.querySelector("#cs-back");
+  if(back) back.onclick=()=>exitScreen();
+  host.querySelectorAll("#cs-ladder .cschip").forEach(c=>
+    c.onclick=()=>setScreenSpec(+c.dataset.k));
+  host.querySelectorAll("#cs-tabs button").forEach(b=>
+    b.onclick=()=>{ screenTab=b.dataset.t; renderScreen(); });
+  host.querySelectorAll(".sec[data-cssec]").forEach(s=>{
+    s.onclick=()=>{
+      const id=s.dataset.cssec;
+      screenSecClosed.has(id)?screenSecClosed.delete(id):screenSecClosed.add(id);
+      renderScreen();
+    };
+  });
+  host.querySelectorAll("#cs-grid .gtile").forEach(t=>{
+    t.onclick=e=>{
+      if(e.target.closest("a")) return;          // wowhead links stay links
+      const si=+t.dataset.si;
+      screenFold=(screenFold===si)?null:si;      // one open at a time; same tile closes
+      renderScreen();
+    };
+  });
+  host.querySelectorAll(".cs-ench tr.erow").forEach(tr=>{
+    tr.onclick=()=>{
+      const s=+tr.dataset.es;
+      screenEnchOpen.has(s)?screenEnchOpen.delete(s):screenEnchOpen.add(s);
+      renderScreen();
+    };
+  });
+  const dt=host.querySelector("#cs-digest .dtrig");
+  if(dt) dt.onclick=()=>{ screenTab="tal"; renderScreen(); };
+  host.querySelectorAll("[data-copy]").forEach(b=>{
+    b.onclick=e=>{
+      e.stopPropagation();
+      const s=__csCopy[+b.dataset.copy];
+      if(s&&navigator.clipboard) navigator.clipboard.writeText(s).catch(()=>{});
+      b.textContent="copied";                    // color/text only, 1.2 s swap
+      setTimeout(()=>{ b.textContent="copy" },1200);
+    };
+  });
+  // slotfold row placement: the panel sits after the owning tile's grid ROW
+  // (grid-column 1/-1), caret aligned under the tile; last-row auto-reveal
+  const grid=host.querySelector("#cs-grid"), fold=host.querySelector("#cs-fold");
+  if(grid&&fold){
+    const tiles=[...grid.querySelectorAll(".gtile")];
+    const owner=tiles.find(t=>+t.dataset.si===screenFold);
+    if(owner){
+      const cols=getComputedStyle(grid).gridTemplateColumns.split(" ").length||1;
+      const idx=tiles.indexOf(owner);
+      const rowEnd=Math.min(tiles.length-1, Math.floor(idx/cols)*cols+cols-1);
+      tiles[rowEnd].after(fold);
+      const c=fold.querySelector(".caret");
+      if(c){
+        const or=owner.getBoundingClientRect(), fr=fold.getBoundingClientRect();
+        c.style.left=Math.max(6,(or.left+or.width/2-fr.left-6.5))+"px";
+      }
+      const r=fold.getBoundingClientRect();
+      if(r.bottom>innerHeight) fold.scrollIntoView({block:"nearest"});
+    }
+  }
+}
 
 /* -------- one shared sorting rule for EVERY table (feedback L51-52) --------
    Click toggles: first click sorts descending, a repeat flips. Strings compare

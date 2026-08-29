@@ -835,6 +835,7 @@ def meta_from_gear_journal() -> dict[tuple, dict]:
     neither are skipped; duplicate keys keep the last copy, matching the
     journal's append-and-supersede contract.
     """
+    _tal_diag: dict[str, int] = {}
     src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
     if not src.exists():
         return {}
@@ -854,6 +855,13 @@ def meta_from_gear_journal() -> dict[tuple, dict]:
                      if isinstance(tal, dict) else None)
             if not isinstance(build, str) or not build:
                 build = None
+            # diagnostic (talent-gap investigation): what the journal really
+            # carries — tree-only records can still identify builds by
+            # tree-hash even when the import string is absent
+            _tkind = ("string" if build
+                      else "tree" if isinstance(tal, dict) and tal.get("tree")
+                      else "neither")
+            _tal_diag[_tkind] = _tal_diag.get(_tkind, 0) + 1
             gear = rec.get("gear")
             if not isinstance(gear, list):
                 gear = None
@@ -862,6 +870,7 @@ def meta_from_gear_journal() -> dict[tuple, dict]:
             out[_gear_key(rec.get("report_code"), rec.get("fight_id"),
                           rec.get("character"), rec.get("server"))] = {
                 "build": build, "gear": gear}
+    print(f"[journal] talent shapes: {_tal_diag}")
     return out
 
 
