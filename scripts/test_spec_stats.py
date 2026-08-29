@@ -39,7 +39,7 @@ DAY_MS = 86_400_000
 def make_parse(code, fid, char, server, cls, spec, *, key=14, medal="gold",
                start_ms=BASE_MS, stats=None, flask=None, region="US",
                drop_flask=False, dmg=9_000_000, build=None, trinkets=None,
-               ench=None, gems=None):
+               ench=None, gems=None, tree=({"id": 1, "rank": 1},)):
     """One (player row, journal record) through the real collector path.
 
     stats: {"Crit": 1200, ...} rating minimums, or None for a stats-less
@@ -63,8 +63,11 @@ def make_parse(code, fid, char, server, cls, spec, *, key=14, medal="gold",
             gear_list[0] = dict(gear_list[0], gems=list(gems))
     else:
         gear_list = [{"id": 1001, "itemLevel": 720}]
-    ci = {"gear": gear_list,
-          "talentTree": [{"id": 1, "rank": 1}], "specID": 1}
+    ci = {"gear": gear_list, "specID": 1}
+    if tree is not None:
+        # tree=None omits the talent tree: no build identity without a
+        # string (records with a tree hash to a "t:" build id otherwise)
+        ci["talentTree"] = list(tree)
     if build:
         ci["talentImportString"] = build
     if stats is not None:
@@ -311,12 +314,25 @@ madd("HX", 1, "LowKey", "X", "Hunter", "Marksmanship", key=11,
 # under the floor, so the spec ships without a "top" band
 for i in range(1, 21):
     madd(f"L{i}", 1, f"Pal{i}", "Y", "Paladin", "Holy", dmg=i * 150_000,
-         build="BUILD_H" if i <= 10 else None)
+         build="BUILD_H" if i <= 10 else None,
+         tree=None if i > 10 else ({"id": 1, "rank": 1},))
+
+# Druids: 10 characters identified by TREE HASH only (the production shape:
+# no import strings anywhere) -- 6 on one tree in per-char shuffled journal
+# order, 4 on a rank variant; the builds dim must carry "t:" hashes and the
+# spec must say bkind "hash"
+_TA = [{"id": 10, "rank": 1}, {"id": 20, "rank": 2}, {"id": 30, "rank": 1}]
+_TB = [{"id": 10, "rank": 1}, {"id": 20, "rank": 3}, {"id": 30, "rank": 1}]
+for i in range(1, 11):
+    t = _TA if i <= 6 else _TB
+    madd(f"D{i}", 1, f"Boomy{i}", "Z", "Druid", "Restoration",
+         dmg=i * 150_000, tree=[t[(j + i) % 3] for j in range(3)])
 
 mb = run_block(mrows, mrecs, bsd.spec_meta_block)
 assert mb["bands"] == ["all", "top"], mb["bands"]
 assert mb["dims"] == ["builds", "trinkets", "enchants", "gems"], mb["dims"]
-assert set(mb["specs"]) == {"Hunter|Marksmanship", "Paladin|Holy"}
+assert set(mb["specs"]) == {"Hunter|Marksmanship", "Paladin|Holy",
+                            "Druid|Restoration"}
 
 h = mb["specs"]["Hunter|Marksmanship"]
 V = h["vals"]
@@ -350,6 +366,20 @@ assert "top" not in ga, ga        # no top-band char has a gem: band absent
 print("meta gear   : trinkets by slot pair, slot-qualified enchant, gems; "
       "empty top slices vanish instead of shipping thin")
 
+# build kinds (§1.5 addendum): string-identified vs tree-hash-identified
+import hashlib as _hl
+_HA = "t:" + _hl.md5(b"10:1|20:2|30:1").hexdigest()[:12]
+_HB = "t:" + _hl.md5(b"10:1|20:3|30:1").hexdigest()[:12]
+assert mb["specs"]["Hunter|Marksmanship"]["bkind"] == "string"
+dr = mb["specs"]["Druid|Restoration"]
+assert dr["bkind"] == "hash", dr.get("bkind")
+db = dr["dims"]["builds"]["all"]
+assert db["d"] == 10
+assert [(dr["vals"][e["v"]], e["n"]) for e in db["e"]] == \
+    [(_HA, 6), (_HB, 4)], db["e"]
+print("meta bkind  : Hunter string, Druid hash -- tree hashes canonical "
+      "over journal node order, rank variant splits the build")
+
 pl = mb["specs"]["Paladin|Holy"]
 assert pl["n"] == 20 and pl["ntop"] == 5, (pl["n"], pl["ntop"])
 assert set(pl["dims"]) == {"builds"}, set(pl["dims"])
@@ -367,9 +397,9 @@ print(f"meta cohort : {mb['cohort']!r}")
 
 # absence: empty journal, and a journal with neither builds nor gear
 assert run_block(mrows, [], bsd.spec_meta_block) is None
-bare_recs = [dict(rc, gear=None,
-                  talents={"tree": [{"id": 1, "rank": 1}], "specID": 1})
-             for rc in mrecs]
+# neither gear nor any build identity: no tree either, since a tree now
+# hashes to a "t:" build id and would keep the record alive
+bare_recs = [dict(rc, gear=None, talents={"specID": 1}) for rc in mrecs]
 assert run_block(mrows, bare_recs, bsd.spec_meta_block) is None
 print("meta absence: empty / build-and-gear-less journal -> block None")
 

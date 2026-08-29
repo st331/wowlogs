@@ -825,17 +825,41 @@ SPECMETA_DIMS = (("builds", _dim_builds, 3),
                  ("gems", _dim_gems, 5))
 
 
+def _tree_build_id(tree) -> str | None:
+    """Canonical build identity for a talent tree, as a short visible hash.
+
+    Production journals carry talents.tree only — talentImportString never
+    appears in real WCL summaries (430,507/430,507 records checked) — so
+    builds are identified by the tree itself: nodes sorted by id, serialized
+    "id:rank" (null rank = 0) joined with "|", md5 hex truncated to 12
+    chars, prefixed "t:" so the value can never be mistaken for a pasteable
+    import string. Node order in the journal is presentation order and must
+    not matter; a rank change is a different build.
+    """
+    if not isinstance(tree, list) or not tree:
+        return None
+    nodes = sorted((int(n["id"]), int(n.get("rank") or 0))
+                   for n in tree if isinstance(n, dict) and n.get("id"))
+    if not nodes:
+        return None
+    blob = "|".join(f"{i}:{r}" for i, r in nodes)
+    return "t:" + hashlib.md5(blob.encode()).hexdigest()[:12]
+
+
 def meta_from_gear_journal() -> dict[tuple, dict]:
     """(report, fight, character, server) -> {"build": ..., "gear": ...}.
 
-    The raw material for the meta dimensions: the talent loadout string and
-    the compact per-slot gear list exactly as journaled (items keep
+    The raw material for the meta dimensions: the build identity and the
+    compact per-slot gear list exactly as journaled (items keep
     id/ilvl/set/ench/gems/bonus, so a future dimension slices this same
-    record without a new reader or a re-collection). Records carrying
-    neither are skipped; duplicate keys keep the last copy, matching the
-    journal's append-and-supersede contract.
+    record without a new reader or a re-collection). build is the verbatim
+    talentImportString where one exists, else the _tree_build_id hash of
+    talents.tree (hashed here at read time — trees are never retained), else
+    None. Records carrying neither build nor gear are skipped; duplicate
+    keys keep the last copy, matching the journal's append-and-supersede
+    contract.
     """
-    _tal_diag: dict[str, int] = {}
+    shapes = {"string": 0, "tree": 0, "neither": 0}
     src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
     if not src.exists():
         return {}
@@ -855,13 +879,12 @@ def meta_from_gear_journal() -> dict[tuple, dict]:
                      if isinstance(tal, dict) else None)
             if not isinstance(build, str) or not build:
                 build = None
-            # diagnostic (talent-gap investigation): what the journal really
-            # carries — tree-only records can still identify builds by
-            # tree-hash even when the import string is absent
-            _tkind = ("string" if build
-                      else "tree" if isinstance(tal, dict) and tal.get("tree")
-                      else "neither")
-            _tal_diag[_tkind] = _tal_diag.get(_tkind, 0) + 1
+            if build:
+                shapes["string"] += 1
+            else:
+                build = _tree_build_id(tal.get("tree")
+                                       if isinstance(tal, dict) else None)
+                shapes["tree" if build else "neither"] += 1
             gear = rec.get("gear")
             if not isinstance(gear, list):
                 gear = None
@@ -870,7 +893,9 @@ def meta_from_gear_journal() -> dict[tuple, dict]:
             out[_gear_key(rec.get("report_code"), rec.get("fight_id"),
                           rec.get("character"), rec.get("server"))] = {
                 "build": build, "gear": gear}
-    print(f"[journal] talent shapes: {_tal_diag}")
+    print(f"[journal] build identities: {shapes['string']:,} import "
+          f"strings, {shapes['tree']:,} tree hashes, {shapes['neither']:,} "
+          f"without either")
     return out
 
 
@@ -979,8 +1004,16 @@ def spec_meta_block(df, started, timed, name: str, journal=None):
                 dims_out[dname] = per_band
         if not dims_out:
             continue
-        spec_out[f"{cls}|{spec}"] = {"n": n, "ntop": len(top),
-                                     "vals": pool, "dims": dims_out}
+        entry = {"n": n, "ntop": len(top), "vals": pool, "dims": dims_out}
+        # what kind of value the builds dim carries: "t:"-prefixed tree
+        # hashes cannot be pasted into the game, so the client suppresses
+        # copy affordances off this flag (per-value, "t:" itself decides)
+        bvals = [pool[e["v"]] for band in dims_out.get("builds", {}).values()
+                 for e in band["e"]]
+        if bvals:
+            entry["bkind"] = ("hash" if all(v.startswith("t:")
+                                            for v in bvals) else "string")
+        spec_out[f"{cls}|{spec}"] = entry
     if not spec_out:
         print(f"[{name}] every spec below {SPECSTATS_MIN_CHARS} journal-known "
               f"characters; specmeta block omitted")
@@ -1186,6 +1219,14 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
             if with_en:
                 entry["ench"] = en_v
             entry["builds"] = [{"s": s, "n": c} for s, c in b_ranked]
+            if b_ranked:
+                # §1.5 addendum: "t:" values are tree hashes, not pasteable
+                # import strings; the block-level flag lets the client
+                # suppress copy affordances wholesale (per-value, the "t:"
+                # prefix itself is the rule and wins in mixed data)
+                entry["bkind"] = ("hash" if all(s.startswith("t:")
+                                                for s, _ in b_ranked)
+                                  else "string")
             specs_out[sk] = entry
             lookups[sk] = {"it": it_lk, "en": en_lk,
                            "bld": {s: j + 1

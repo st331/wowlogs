@@ -601,6 +601,9 @@ table.cs-tal{border-collapse:collapse; font-size:.78rem; width:100%}
   color:var(--ink); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
 .cs-tal td.txt{text-align:left}
 .cs-tal td .htag{font-size:.68rem; color:var(--ink3)}
+/* hash-identified builds: ordinal label column ("Build N") in front of the bar */
+.cs-tal .bnm{display:inline-block; min-width:3.2rem; margin-right:.55rem;
+  font-size:.72rem; color:var(--ink2)}
 .cs-herodist{font-size:.72rem; color:var(--ink3)}
 .cs-herodist b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
 .cs-herodist .hn{color:var(--ink2)}
@@ -2820,6 +2823,7 @@ let screenEnchOpen=new Set();     // expanded enchant rows (retail slot ids)
 let screenSecClosed=new Set(["crafted"]);   // §15.9 collapse; crafted starts closed
 let __screenRemapPres=null;       // merge-toggle remap request (class*100+spec to re-find)
 let __csCopy=[];                  // import strings behind the rendered copy buttons
+                                  // (hash-identified builds never enter it)
 
 /* ---- builds sidecar (builds.json.gz, §1) — the second lazy sidecar. Mirrors
    loadStatsSidecar (cached promise, DecompressionStream guard, no-cache fetch);
@@ -2984,6 +2988,14 @@ function screenData(ctx){
   }
   return {L, win, vocab, gearIdx, bldIdx};
 }
+// hash-identified builds: WCL summaries carry no import strings, so production
+// builds are opaque tree-hashes ("t:…") and the pipeline marks the per-spec
+// vocab/specmeta block with bkind:"hash". Either signal ALONE flags the build;
+// hash identities render as "Build N" in share order and are never copyable —
+// the raw hash never reaches the DOM, a tooltip, or the clipboard store.
+const bldIsHash=(vocab,vb)=>!!((vocab&&vocab.bkind==="hash")
+  ||(vb&&vb.bkind==="hash")
+  ||(vb&&typeof vb.s==="string"&&vb.s.lastIndexOf("t:",0)===0));
 // the Talents pane's row model — the identity-band digest MIRRORS row 0 of this
 // exact computation (never a second one). null = builds unknown in the window
 // (<10 known rows, or spec absent from vocab) ⇒ callers render nothing dormant.
@@ -3013,7 +3025,7 @@ function csTalentRows(d){
       if(bv>=0&&D.heroes[bv]!=="Unknown") hero=D.heroes[bv];
     }
     rows.push({s:vb.s, n:a.length, share:100*a.length/d.bldIdx.length,
-      med:qp(dps,.5), hero});
+      med:qp(dps,.5), hero, hash:bldIsHash(d.vocab,vb)});
   }
   rows.sort((a,b)=>b.n-a.n);
   for(const r of rows.slice(8)) other+=r.n;   // ≤8 + "other"
@@ -3061,10 +3073,10 @@ function csDigestHTML(d){
     const hd=csHeroDist(d).filter(e=>e.name!=="Unknown").slice(0,2);
     if(hd.length) seg=" · "+hd.map(e=>esc(e.name)+" "+e.share.toFixed(0)+"%").join(" / ");
   }
-  __csCopy[0]=top.s;
+  if(!top.hash) __csCopy[0]=top.s;      // a hash identity has no copy affordance
   return '<span id="cs-digest"><span class="dtrig">top build '+top.share.toFixed(0)
     +'% · median '+fmtDpsM(top.med)+seg+'</span>'
-    +(navigator.clipboard?' <button class="cbtn" data-copy="0">copy</button>':'')
+    +(navigator.clipboard&&!top.hash?' <button class="cbtn" data-copy="0">copy</button>':'')
     +'</span>';
 }
 function csBandHTML(ctx,d){
@@ -3284,24 +3296,31 @@ function csTalentsHTML(ctx,d){
   if(!T) return h+csThinHTML(d.bldIdx.length,"builds")+'</div>';
   const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
   const clip=!!navigator.clipboard;     // buttons only when the API exists — nothing dormant
+  // hash identities: ordinal "Build N" labels in share order, zero copy surface
+  const anyHash=T.rows.some(r=>r.hash);
+  const bnm=t=>anyHash?'<span class="bnm">'+t+'</span>':'';
   let rows="";
   T.rows.forEach((r,x)=>{
-    __csCopy[x+1]=r.s;
-    rows+='<tr><td class="txt">'+bar(r.share)+'</td>'
+    if(!r.hash) __csCopy[x+1]=r.s;      // raw hashes never enter the copy store
+    rows+='<tr><td class="txt">'+bnm(r.hash?"Build "+(x+1):"")+bar(r.share)+'</td>'
       +'<td>'+r.share.toFixed(1)+'%</td><td>'+fmtDpsM(r.med)+' median</td>'
       +'<td>n='+fmtInt(r.n)+'</td>'
       +'<td class="txt">'+(r.hero?'<span class="htag">'+esc(r.hero)+'</span>':'')+'</td>'
-      +'<td>'+(clip?'<button class="cbtn" data-copy="'+(x+1)+'">copy</button>':'')+'</td></tr>';
+      +'<td>'+(clip&&!r.hash?'<button class="cbtn" data-copy="'+(x+1)+'">copy</button>':'')+'</td></tr>';
   });
   if(T.other>0)
-    rows+='<tr><td class="txt">'+bar(100*T.other/T.known)+'</td>'
+    rows+='<tr><td class="txt">'+bnm("")+bar(100*T.other/T.known)+'</td>'
       +'<td>'+(100*T.other/T.known).toFixed(1)+'%</td><td class="na">other</td>'
       +'<td>n='+fmtInt(T.other)+'</td><td></td><td></td></tr>';
   h+='<table class="cs-tal">'+rows+'</table>';
   h+='<div class="cs-foot">builds known for '+fmtInt(T.known)+' of '
-    +fmtInt(d.win.length)+' in window · identity = exact talent-string match'
+    +fmtInt(d.win.length)+' in window · identity = exact talent-'
+    +(anyHash?'tree':'string')+' match'
     +(!state.merge?' · hero fixed — builds differ in class/spec trees only':'')
     +'</div>';
+  if(anyHash)
+    h+='<div class="cs-foot">builds identified from talent trees; '
+      +"the game's import strings are not present in combat logs</div>";
   return h+'</div>';
 }
 

@@ -16,6 +16,7 @@ network failures change nothing and still exit 0.
 """
 import base64
 import gzip
+import hashlib
 import json
 import math
 import pathlib
@@ -45,9 +46,13 @@ def gear_item(iid, ilvl=720, ench=None, bonus=None):
     return d
 
 
-def make_parse(code, char, cls, spec, *, server="X", gear=None, build=None):
-    """One (player row, journal record|None) through the real collector."""
-    ci = {"talentTree": [{"id": 1, "rank": 1}], "specID": 1}
+def make_parse(code, char, cls, spec, *, server="X", gear=None, build=None,
+               tree=({"id": 1, "rank": 1},)):
+    """One (player row, journal record|None) through the real collector.
+    tree=None omits the talent tree (no build identity without a string)."""
+    ci = {"specID": 1}
+    if tree is not None:
+        ci["talentTree"] = list(tree)
     if gear is not None:
         ci["gear"] = gear
     if build:
@@ -167,8 +172,19 @@ for i in range(1, 21):
              else "BUILD_Z" if i <= 19 else None)
     add(f"P{i}", f"Ret{i}", "Paladin", "Retribution",
         server=(None if i == 5 else "X"),          # (f) null server joins
-        gear=paladin_gear(i), build=build)
+        gear=paladin_gear(i), build=build,
+        # Ret20 has neither string nor tree: the no-build-identity case
+        tree=None if i == 20 else ({"id": 1, "rank": 1},))
 add("PT", "TalOnly", "Paladin", "Retribution", gear=None, build="BUILD_X")
+# a hash-identified spec: trees only, no import strings anywhere (the
+# production shape) — 6 chars on tree A (journal order shuffled per char, it
+# must not matter), 4 on tree B (one rank different)
+TREE_A = [{"id": 10, "rank": 1}, {"id": 20, "rank": 2}, {"id": 30, "rank": 1}]
+TREE_B = [{"id": 10, "rank": 1}, {"id": 20, "rank": 3}, {"id": 30, "rank": 1}]
+for i in range(1, 11):
+    t = TREE_A if i <= 6 else TREE_B
+    add(f"M{i}", f"Arc{i}", "Mage", "Arcane", gear=None,
+        tree=[t[(j + i) % 3] for j in range(3)])   # rotated order per char
 rw, _ = make_parse("PN", "NoJournal", "Paladin", "Retribution",
                    gear=paladin_gear(3), build="BUILD_X")
 rows.append(rw)                                    # row present, record not
@@ -195,9 +211,44 @@ assert spec["ench"][0] == [{"id": 7100, "n": None}], spec["ench"]
 assert spec["ench"][1] == [{"id": 7008, "n": "Rune of Tests"}], spec["ench"]
 assert spec["builds"] == [{"s": "BUILD_X", "n": 13}, {"s": "BUILD_Y", "n": 5},
                           {"s": "BUILD_Z", "n": 2}], spec["builds"]
+assert spec["bkind"] == "string", spec.get("bkind")
 assert len(spec["items"]) == 16 and len(spec["ench"]) == 2
 print("vocab     : count-ordered entries; null-name fallback; median ilvl; "
       "cr from crafted_ids; emb split plain/named/#marker")
+
+# --- build identity by tree hash (§1.5 addendum): canonical over node
+# order, sensitive to rank, "t:"-prefixed, never derived from junk nodes
+HASH_A = "t:" + hashlib.md5(b"10:1|20:2|30:1").hexdigest()[:12]
+HASH_B = "t:" + hashlib.md5(b"10:1|20:3|30:1").hexdigest()[:12]
+assert bsd._tree_build_id(TREE_A) == HASH_A
+assert bsd._tree_build_id(TREE_A[::-1]) == HASH_A          # order-invariant
+assert bsd._tree_build_id(TREE_B) == HASH_B != HASH_A      # rank matters
+assert bsd._tree_build_id([{"id": 10}]) == \
+    "t:" + hashlib.md5(b"10:0").hexdigest()[:12]           # null rank = 0
+assert bsd._tree_build_id(None) is None
+assert bsd._tree_build_id([]) is None
+assert bsd._tree_build_id([{"rank": 1}, "junk"]) is None   # no usable node
+mage = doc["specs"]["Mage|Arcane"]
+assert mage["builds"] == [{"s": HASH_A, "n": 6},
+                          {"s": HASH_B, "n": 4}], mage["builds"]
+assert mage["bkind"] == "hash", mage.get("bkind")
+# precedence: a record carrying BOTH keeps the verbatim string; tree-only
+# hashes; the journal reader is where the choice is made
+with tempfile.TemporaryDirectory() as _tmp:
+    _tp = pathlib.Path(_tmp)
+    _, both = make_parse("PB", "Both", "Paladin", "Retribution",
+                         build="STR_WINS", tree=TREE_A)
+    _, only = make_parse("PO", "Only", "Paladin", "Retribution",
+                         tree=TREE_A)
+    (_tp / "gear.jsonl").write_text(json.dumps(both) + "\n"
+                                    + json.dumps(only) + "\n")
+    bsd.GEAR_JOURNAL = _tp / "gear.jsonl"
+    bsd.GEAR_EXPORT = _tp / "absent.jsonl.gz"
+    _j = bsd.meta_from_gear_journal()
+    _by = {k[0]: v["build"] for k, v in _j.items()}
+    assert _by == {"PB": "STR_WINS", "PO": HASH_A}, _by
+print("tree hash : canonical (order-free, rank-sensitive, 't:'-prefixed); "
+      "import string wins when both exist; bkind string/hash per spec")
 
 # per-row decode pins, both encodings, incl. fl bits and the uncovered row
 _, sdoc = run_builds(rows, recs, enc="sparse")
@@ -222,6 +273,10 @@ for d in (doc, sdoc):
     rt = int(df.index[df["character"] == "TalOnly"][0])
     assert R["fl"](rt) == 2 and R["bldV"](rt) == 1          # talents-only
     assert R["itV"](0, rt) == 0
+    m1 = int(df.index[df["character"] == "Arc1"][0])
+    assert R["fl"](m1) == 2 and R["bldV"](m1) == 1          # tree-hash build
+    m7 = int(df.index[df["character"] == "Arc7"][0])
+    assert R["bldV"](m7) == 2                               # the rank variant
     rn = int(df.index[df["character"] == "NoJournal"][0])
     assert R["fl"](rn) == 0 and R["bldV"](rn) == 0 and R["itV"](0, rn) == 0
     r5 = int(df.index[df["character"] == "Ret5"][0])
