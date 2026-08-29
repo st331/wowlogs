@@ -44,3 +44,8 @@
 
 9. **Delivery decision (2026-08-25):** build THREE distinct versions, deploy side by side,
    owner chooses; Claude provides ranked #1/#2/#3 recommendation with reasons.
+
+10. **Short screen — minimize scrolling.** "My screen is not that tall - I don't
+    want to have to scroll a lot... scrolling down not required often, scrolling
+    right almost never." Viewport-fit-first layouts; vertical growth only from
+    explicit user expansion; no horizontal scroll at desktop widths.

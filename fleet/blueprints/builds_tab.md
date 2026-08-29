@@ -532,3 +532,25 @@ never exits — the screen is a place, and only "← Rankings" (or the wordmark)
 it, returning to the rankings at the exact scroll they left; re-entering lands on the
 tab they left. Every section states its n. Nothing rotated, nothing purple, nothing
 full-bleed, no chip row reborn, and nothing leaves by accident.
+
+## §C.1 — Compact-viewport addendum (BINDING; owner, 2026-08-29; overrides anything above that conflicts)
+The owner: "my screen is not that tall - I don't want to have to scroll a lot.
+Organize my data in a way that scrolling down is not required often and scrolling
+right is almost never required." Rules:
+1. ACCEPTANCE BAR (replaces the earlier 1366 bar): at 1366×768, EACH sub-nav pane's
+   at-rest content — identity band + ladder + sub-nav + the pane — fits the viewport
+   WITHOUT vertical scrolling. Fold-outs and expansions are the only things allowed
+   to extend below the fold (with the auto-reveal already specced). Verify this
+   explicitly in the build's playwright pass (document.body scroll height at rest
+   <= viewport height per pane, all specs sampled: popular, rare, filtered-thin).
+2. Compress the fixed chrome: identity band at most two dense lines (digest stays);
+   ladder strip and sub-nav share a row if needed; no decorative vertical padding
+   beyond the design language's minimum scale.
+3. If the Gear pane cannot meet the bar with grid + enchants + crafted at rest,
+   REDISTRIBUTE rather than scroll: move Enchants + Crafted & Embellishments to a
+   third tab ("Gear | Enchants & Crafted | Talents") or collapse them to one-line
+   summaries that expand in place — builder's choice, judged by the bar.
+4. Horizontal scrolling: NEVER at >=1200px viewports — wrap or stack instead; inside
+   any narrower table the existing overflow-x-in-container rule applies but the
+   character screen must not produce such tables at all at 1366.
+5. This preference is STANDING for all future site work (recorded in user_prefs).
