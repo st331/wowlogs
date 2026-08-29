@@ -199,7 +199,16 @@ re-renders exactly as left (frameKey intact, pinned state intact),
 and page state; nothing trapped, just nothing accidental. Screen state is NOT serialized
 to the URL; reload lands on rankings. Re-entering goes straight to data (sidecar cached).
 
-### 3.2 Screen layout (top to bottom, all in page flow)
+### 3.2 Screen layout (top to bottom, all in page flow) — REVIEWED 2026-08-29
+
+Two-judge layout review (owner directive: "ease of use… I don't want much clutter…
+you can have sub-navs and other panes/pages/tabs"): both judges picked the
+SUB-NAVIGATED shell over the single scroll (84/66, 86/66). Binding outcome: a 2-pane
+`Gear | Talents` sub-nav with known-counts; the per-slot section AND its 16-chip
+selector are DELETED, replaced by an in-place fold-out anchored to the clicked gear
+tile; one hybrid element from the single-scroll variant survives — an always-visible
+one-line build digest in the identity band, so the daily "which build do I copy"
+needs zero navigation. Never reintroduce a second slot-navigation surface.
 
 1. **Ladder strip** — ONE slim row, the screen's only furniture above the identity band:
    `← Rankings` .btn, then rank-ordered spec chips = the chart's CURRENT ranking
@@ -219,14 +228,36 @@ to the URL; reload lands on rankings. Re-entering goes straight to data (sidecar
    `players around p60 (lens ±10) · n=214 of 1,842 in view · gear known 87% · builds
    known 91%`. Comps and character stats STAY in the Performance rail — the screen is
    the builds surface (owner's structure list), and it duplicates no dashboard element.
-3. **Gear overview grid** (§3.4 geargrid).
-4. **Per-slot distributions** (§3.4 slotdetail).
-5. **Crafted & embellishments** (§3.4 crafted).
-6. **Enchants** (§3.4 enchants).
-7. **Talent builds** (§3.4 talents).
-Sections 3–7 use the §15.9 `.sec` header treatment (static −/+, champagne tick,
+   **Build digest line (hybrid element, review-mandated):** one additional plain-text
+   inline line closing the band — `top build 61% · median 2.31M · Templar 88% /
+   Herald of the Sun 12%` + a compact `copy` .btn (.68rem) that copies the TOP build's
+   verbatim import string (same clipboard behavior + "copied" swap as the talents
+   rows; rendered only when navigator.clipboard exists). All values from the lens
+   slice, identical to the Talents pane's top row — the digest is a mirror, never a
+   second computation. The text portion is a content-hugging trigger that switches to
+   the Talents pane (hover: color only). Hero-split segment follows the §3.4 hero
+   logic: it renders merged-only; unmerged/hero-zoomed it is omitted (the band already
+   says "· Templar"). Builds unknown in the window (<10 known rows, or spec absent
+   from vocab) ⇒ the whole line is absent — never a dormant stub.
+3. **Sub-nav** — §15.3 .tabs rail, exactly two tabs: `Gear` and `Talents`, each with
+   a known-count suffix in .72rem --ink3 tabular (`Gear · 1,602 known`,
+   `Talents · 1,676 known` — the window's fl-bit counts, re-sliced live like
+   everything else). Active tab: §15.3 champagne underline treatment. Inactive tab
+   MUST read interactive: hover color:var(--ink) + a neutral (--line2) underline,
+   cursor:pointer. Tab switch is instant (no slide/fade). The active tab is module
+   state, NOT URL state (§3.1 stands): it survives every re-slice and lens move, and
+   persists across exit/re-enter within the session so a deliberate return lands on
+   the pane the owner left. Two destinations, both one click, counts visible — no
+   what-am-I-missing anxiety.
+4. **Gear pane** (default): gear overview grid with in-place per-slot fold-out
+   (§3.4 geargrid + slotfold), then enchants (§3.4 enchants), then crafted &
+   embellishments — collapsed by default (§3.4 crafted).
+5. **Talents pane**: talent builds + hero logic (§3.4 talents).
+In-pane sections use the §15.9 `.sec` header treatment (static −/+, champagne tick,
 collapsible) so the screen reads as native dashboard, not a foreign pane. All content
-sits directly in page flow — the page scrollbar is the only scrollbar.
+sits directly in page flow — the page scrollbar is the only scrollbar. At 1366×768
+the Gear pane's core loop — grid + an opened fold-out — sits entirely above the fold;
+that above-the-fold property is the layout's acceptance bar, do not regress it.
 
 ### 3.3 Loading & absence (nothing dormant)
 
@@ -239,7 +270,8 @@ slider, "Loading builds data…" --ink3) — no skeleton grids. On fetch failure
 reject (§1.2): exit the screen automatically (full restore), remove BOTH entry
 affordances for the session, console.warn — the affordance never sits dead, honoring
 "the mode button may simply not render until data is loadable" on the only knowable
-signal: the fetch result. Success: `renderScreen()` fills sections 3–7.
+signal: the fetch result. Success: `renderScreen()` fills the build digest line, the
+sub-nav, and the active pane.
 
 ### 3.3b One lens, one slice (the semantics guarantee)
 
@@ -260,42 +292,83 @@ prints n for the window and both coverage denominators from `fl` bits.
 
 ### 3.4 Screen sections (all live-only; every count from the lens slice)
 
-**geargrid — "Gear overview"** (the owner's #gear-overview ask). CSS grid
-`repeat(auto-fill,minmax(132px,1fr))` (16 tiles ≈ 8×2 on the 1116 px content width,
-4-up ≤900px). Tile (panel recipe on --surface1, --r1, §GG stacked shadow + top-edge
-lip): slot label (.62rem caps --ink3: HEAD, NECK, …, MAIN HAND, OFF HAND), most-common
-item name (.78rem --ink, 2-line clamp, `"n":null` ⇒ `#id` wowhead link), share (tabular
-.8rem 650 --ink) + `n` (.68rem --ink3), med ilvl (.68rem --ink3, "ilvl 723 · all
-records" honesty — vocab annotation, not lens-sliced). CRAFTED tag (.6rem caps, --line2
-border, --r1 — the §15.13 tag treatment, never accent) and `· <emb>` suffix when the
-winning entry carries them. Winner = argmax count of vocab values over gear-known slice
-rows; value 0 competes as "other/none" (offhand legitimately shows it for 2H specs).
-The whole tile is a content-hugging trigger: click SELECTS the slot for the per-slot
-section below (active tile: border-color --accent-line — color-only, nothing moves).
+**geargrid — "Gear overview"** (the owner's #gear-overview ask; Gear pane). CSS grid
+`repeat(auto-fill,minmax(132px,1fr))` (≈8 per row on the 1116 px content width, 4-up
+≤900px). Tile (panel recipe on --surface1, --r1, §GG stacked shadow + top-edge lip):
+slot label (.62rem caps --ink3: HEAD, NECK, …, MAIN HAND), most-common item name
+(.78rem --ink, 2-line clamp, `"n":null` ⇒ `#id` wowhead link), share (tabular .8rem
+650 --ink) + `n` (.68rem --ink3), med ilvl (.68rem --ink3, "ilvl 723 · all records"
+honesty — vocab annotation, not lens-sliced). CRAFTED tag (.6rem caps, --line2 border,
+--r1 — the §15.13 tag treatment, never accent) and `· <emb>` suffix when the winning
+entry carries them. Winner = argmax count of vocab values over gear-known slice rows;
+value 0 competes as "other/none". **Weapon-tile exceptions (review fixes):** the
+MAIN HAND winner name is never ellipsized — it wraps up to 3 lines and the tile (and
+its grid row) grows; and when the OFF HAND winner is "other/none" (2H specs), the Off
+Hand tile does NOT render — the Main Hand tile carries a footnote line (.62rem --ink3)
+`off hand: none — two-handed 99%`, and Off Hand is skipped in the fold-out arrow walk.
+When a real off-hand item wins, the Off Hand tile renders as an ordinary tile. The
+grid is therefore 15 or 16 tiles, never a near-empty 17th piece of furniture.
+The whole tile is a content-hugging trigger; the geargrid .sec's scope line carries
+the microcopy `click a slot to unfold its distribution in place` (never "below" —
+copy must point AT the click target). Active tile: border-color --accent-line —
+color-only, nothing moves. Tile row order is fixed regardless of fold-out insertion —
+muscle memory holds.
 
-**slotdetail — "Per-slot distribution"** (its own .sec, directly under the grid). A
-selected-slot table (default slot 0 Head; tile click or a 16-chip selector row switches
-it — chips mirror the tiles for keyboard/narrow use). Rows (≤10 + "other/none"):
-item name | flat share bar (hairline track rgba(234,227,208,.07), fill
-rgba(234,227,208,.28) — neutral: hue belongs to data, champagne stays ACTIVE-only) |
-share % · n · med ilvl · CRAFTED/emb tags. Entries with n<3 in the window fold into
-"other" (SPECMETA_ENTRY_MIN echo). Selection swap is instant (no height animation —
-the section keeps one table's height class).
+**slotfold — the in-place per-slot fold-out** (replaces the former standalone
+per-slot section AND its 16-chip selector — neither may return). Clicking a tile
+inserts ONE full-grid-width panel directly after that tile's grid row (grid-column
+1/-1 so later rows shift down without reflowing columns; row order stable): panel
+recipe on --surface1, border 1px --accent-line, plus a small top-edge caret/notch
+aligned under the owning tile (pure CSS triangle in the same border color — the
+parent-child link must be legible to a first-time viewer). Content: slot label
+header + the per-slot distribution table. Rows (≤10 + "other/none"): item name |
+flat share bar (hairline track rgba(234,227,208,.07), fill rgba(234,227,208,.28) —
+neutral: hue belongs to data, champagne stays ACTIVE-only) | share % · n · med ilvl ·
+CRAFTED/emb tags. Entries with n<3 in the window fold into "other" (SPECMETA_ENTRY_MIN
+echo). Exactly ONE fold-out open at a time: clicking another tile swaps the content
+(and moves the panel) in place, clicking the open tile closes it — all instant, no
+height animation. **Keyboard:** while a fold-out is open, Esc closes IT (the screen's
+Esc-swallow in §3.1 still never exits the mode — the handler closes the fold-out when
+one is open, otherwise does nothing); ArrowLeft/Right move the fold-out to the
+adjacent slot in tile order (skipping a suppressed Off Hand) — the one convenience
+the chip row had, without the furniture. ArrowUp/Down remain the spec ladder.
+**State:** fold-outs default CLOSED on every screen entry (deliberate-exit calm — no
+restored open panel), but an open fold-out and its slot SURVIVE every lens move and
+filter re-slice while the screen is open, so A/B-ing the lens against one slot's
+distribution works without re-aiming. Reset on spec switch. **1366:** when the
+fold-out opens in (or moves to) the last fully-visible grid row, auto-scroll the page
+just enough to reveal the panel's full height (scrollIntoView block:'nearest',
+instant) — a fold-out never renders partly off-screen.
 
-**crafted — "Crafted & embellishments"**. Two mini-tables side by side (stack ≤900px).
-(1) Crafted worn: rows = slots where a `cr` entry appears in the slice: slot · top
-crafted item · share of gear-known · n. (2) Embellishments: aggregate vocab entries by
-`emb` across ALL slots: name · players · share — denominator = gear-known rows in
-window; caption states "counted per slot; a player can carry two". Zero crafted entries
-in the slice ⇒ the whole .sec does not render (never an empty shell).
+**enchants** (Gear pane, under the grid). Table: one row per eslot with any data:
+slot label · top enchant name · share of enchant-known · n · a trailing FIXED-WIDTH
+expander column holding the static −/+ marker with a hover state (marker --ink3 →
+--ink2, row border --line2 — expandability must be discoverable, not decorative);
+click row → the row expands its alternatives list in place (static marker swap,
+instant); expanded rows are REMEMBERED per slot while the screen is open (surviving
+re-slices), reset on entry/spec switch, and the expanded state is obvious (marker −,
+alternatives indented under the row). Row height ~15% tighter than the standard
+§15.15 table (this is the last remaining furniture block — keep it dense but
+legible). Share denominator = slice rows with `fl&1` (an empty nibble on a gear-known
+row IS "unenchanted" — a real zero; show it as the "none" line when it wins). Absent
+`cols.en` (ladder step) ⇒ section absent.
 
-**enchants**. Table: one row per eslot with any data: slot label · top enchant name ·
-share of enchant-known · n; click row → the row expands its alternatives list in place
-(accordion-of-one, static −/+ marker, instant). Share denominator = slice rows with
-`fl&1` (an empty nibble on a gear-known row IS "unenchanted" — a real zero; show it as
-the "none" line when it wins). Absent `cols.en` (ladder step) ⇒ section absent.
+**crafted — "Crafted & embellishments"** (Gear pane, last; secondary daily reading —
+CRAFTED badges already surface on grid tiles). Its .sec renders COLLAPSED by default,
+with the collapsed state made explicit: static `+` marker AND a scope-line summary
+`3 slots · 4 embellishments` (live counts) so the header is legible without opening —
+no invisible collapse. Open ⇒ two mini-tables side by side (stack ≤900px), equalized
+heights and one shared gutter so the row reads as one band at 1366. (1) Crafted worn:
+rows = slots where a `cr` entry appears in the slice: slot · top crafted item · share
+of gear-known · n. (2) Embellishments: aggregate vocab entries by `emb` across ALL
+slots: name · players · share — denominator = gear-known rows in window; caption
+states "counted per slot; a player can carry two". Open/closed state persists while
+the screen is open; zero crafted entries in the slice ⇒ the whole .sec does not
+render (never an empty shell).
 
-**talents — "Talent builds"** (+ hero, per the owner's logic). Top rows (≤8 + "other"):
+**talents — "Talent builds"** (+ hero, per the owner's logic; the Talents pane's
+whole content — one click from anywhere via the sub-nav or the identity-band digest,
+which mirrors this section's top row and hero line exactly). Top rows (≤8 + "other"):
 share bar (same neutral bar) · share % · median DPS over that build's slice rows
 (`dpsAt`, fmtDps) · n · hero tag (see below) · `copy` button (.btn, .68rem, padding
 .2rem .5rem) that `navigator.clipboard.writeText(vocab.s)` and swaps its label to
@@ -317,17 +390,23 @@ now expresses; foot gains "hero fixed — builds differ in class/spec trees only
 - **Thin n**: any section whose known-row count in the window is <10 renders its n-line +
   "sample too thin — widen the lens or filters" (.fsub) and no rows. Never fake bars.
 - **No coverage for the spec** (spec key absent from `specs`, or zero `fl&1` rows):
-  gear/crafted/enchant sections absent; talents may still render (strings arrive
-  independently), and vice versa. All absent ⇒ the screen shows ladder + identity band +
-  "no builds data for this spec yet" — honest, not dormant (data exists file-wide, just
-  not here).
+  the Gear pane's sections are absent — the pane shows only its n-line + the thin-n
+  message, its tab count reads 0; talents may still render (strings arrive
+  independently), and vice versa (then the Talents pane and the digest go absent
+  instead). Both empty ⇒ the sub-nav does not render and the screen shows ladder +
+  identity band + "no builds data for this spec yet" — honest, not dormant (data
+  exists file-wide, just not here).
 - **Framed spec filtered out** (frameLiveIdx empty / key gone from CHART_KEYS): identity
-  band shows the existing "no parses match the current filters" line; sections 3–7 render
-  nothing; ladder chips (built from the live ranking) are the way out. Never auto-exit.
+  band shows the existing "no parses match the current filters" line; digest, sub-nav
+  and panes render nothing; ladder chips (built from the live ranking) are the way out.
+  Never auto-exit.
 - **Archon replica**: nothing special-cased (§3.3b). Scope line + lens semantics identical.
 - **Merged + sidebar hero filter**: hero mask only applies unmerged (rowPass L1830) — no
   interaction; do not add one.
 - **1366×768**: `main` is 1200 − 84 padding = 1116 px content — geargrid lands 8 columns;
+  grid + an opened fold-out sit above the fold (§3.2 acceptance bar); the last-row
+  fold-out auto-reveal (§3.4 slotfold) prevents any partly off-screen panel; a wrapped
+  3-line Main Hand name must not cause orphan-tile row jitter (the row grows evenly);
   everything in page flow, page scrollbar only; no horizontal scroll anywhere (tables
   keep §15.15 .tblwrap overflow-x as their own bounded scroll, per the standing rule).
 - **≤900px**: grid 4-up via auto-fill; crafted pair stacks; ladder chips wrap; sidebar

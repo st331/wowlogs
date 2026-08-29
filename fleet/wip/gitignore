@@ -1,0 +1,30 @@
+# credentials — never commit
+.secrets/
+
+# bulky pipeline checkpoints (re-created by scripts/fetch_data.py; compressed
+# snapshots live in data/checkpoints/ which IS committed for resumability)
+data/raw/
+data/processed/
+logs/
+
+__pycache__/
+*.pyc
+.venv/
+data/mythic_runs*.csv
+# transient: export() writes here then os.replace()s it into place, so a run
+# that happens to be mid-export leaves this behind for a moment
+data/*.csv.gz.tmp
+data/*.json.tmp
+node_modules/
+package-lock.json
+package.json
+data/.build_stamp
+data/*.jsonl.gz.tmp
+
+# per-parse stats sidecar: rebuilt from the gear journal every run, never committed
+site/stats.json.gz
+docs/stats.json.gz
+
+# builds sidecar: same — rebuilt every run from the journal + name caches
+site/builds.json.gz
+docs/builds.json.gz
