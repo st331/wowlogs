@@ -1,4 +1,4 @@
-# BLUEPRINT — Builds deep-dive (Spec Frame mode 2) · build-ready · 2026-08-29
+# BLUEPRINT — Builds deep-dive: the Character Screen · build-ready · 2026-08-29
 
 Contract: fleet/feature_builds.md. Skin: fleet/design_language.md **including §GG Gilded
 Glass**. Owner prefs override everything. Two build agents work from this file alone:
@@ -160,13 +160,17 @@ target=_blank; enchants render `enchant #<id>` unlinked). No third-party scripts
 ## 3. The Character Screen (CLIENT agent) — OWNER DECISION 2026-08-29, binding
 
 Performance stays the existing bottom rail, untouched and glanceable. **Builds is a
-MAIN-COLUMN TAKEOVER**: a full character screen for the framed spec replacing the
-rankings/sections area in NORMAL PAGE FLOW — no inner scroll containers, no overlay, no
-modal, no dimming, measure-bounded exactly like the rest of the page (`main` ≤1200 px,
-42 px side padding). The sidebar and the sticky lens bar remain visible and fully
-interactive throughout, and the ENTIRE screen re-slices live under filters + lens — the
-owner's anti-Archon property. It must feel as immersive as the dashboard and never
-restrictive: page flow, persistent controls, lossless exit are the mechanisms.
+TOTAL MAIN-COLUMN TAKEOVER**: a full character screen for the framed spec replacing
+EVERYTHING in the main column below the top bar — no rankings remnant, no KPI strip, no
+rail, no peek or summary of any other dashboard element (owner: "anything not in the
+area of those two bars is irrelevant in that mode"). Normal PAGE FLOW — no inner scroll
+containers, no overlay, no modal, no dimming, measure-bounded exactly like the rest of
+the page (`main` ≤1200 px, 42 px side padding). The COMPLETE control surface is the
+sidebar filters + the top bar (header + sticky lens bar) — both stay visible and fully
+interactive, and the ENTIRE screen re-slices live under them — the owner's anti-Archon
+property. The screen's own furniture is minimal by decree: identity band, a slim
+spec-hop affordance, the back affordance — nothing more; the canvas is 100% the spec.
+Immersive, never restrictive: page flow, persistent controls, lossless exit.
 
 ### 3.1 Enter / exit / state
 
@@ -181,34 +185,40 @@ list and the rail (`body.charscreen #sections, body.charscreen #frame-pos{displa
 — the CLIENT agent wraps the existing top-level sections in ONE `<div id="sections">`;
 header, hero rule, and the sticky lens bar stay outside it and remain live). The rail's
 state (frameKey, pin, comps sort) is preserved untouched behind the screen.
-Exit — three ways, identical result: a `← Rankings` .btn at the screen's top-left, Esc
-(takes precedence over the rail's Esc handler while the screen is open), and clicking the
-wordmark (cursor:pointer only while `body.charscreen`). Exit restores: sections un-hide,
-rail re-renders exactly as left (frameKey intact, pinned state intact),
+**Exit is deliberate work (owner addendum): the screen is a destination, not a popup.**
+Exactly two exits, both explicit: the `← Rankings` .btn and the wordmark
+(cursor:pointer only while `body.charscreen`). NO Esc-to-exit, NO click-outside-to-exit:
+while `state.screen`, the Esc branch of the keydown handler does nothing (and must not
+fall through to close the underlying rail state), and the pointerdown click-away
+listener returns early; clicking anywhere on the screen or working the sidebar/lens
+never leaves the mode. This contrasts DELIBERATELY with the Performance rail, which
+keeps its light Esc + click-away dismissal — the rail is a peek, the screen is a place;
+the client implements both behaviors side by side. Exit restores: sections un-hide, rail
+re-renders exactly as left (frameKey intact, pinned state intact),
 `window.scrollTo(0,screenReturnY)` on the next frame — the exact prior scroll position
-and page state; nothing trapped. Screen state is NOT serialized to the URL; reload lands
-on rankings. Mode is session-sticky only in the sense that re-entering goes straight to
-data (sidecar cached).
+and page state; nothing trapped, just nothing accidental. Screen state is NOT serialized
+to the URL; reload lands on rankings. Re-entering goes straight to data (sidecar cached).
 
 ### 3.2 Screen layout (top to bottom, all in page flow)
 
-1. **Ladder strip** — a slim spec-hopping row under the lens bar: `← Rankings` .btn, then
-   rank-ordered spec chips = the chart's CURRENT ranking (`CHART_KEYS` under live filters):
-   9×9 class dot + spec name, §15.4 chip treatment, active chip accent-bordered (§GG
-   sheen); chips wrap (measure-bounded, never a horizontal scroller). Click = switch spec
-   in place; ArrowUp/Down still steps the ladder (same CHART_KEYS walk as the rail —
-   reuse the existing keydown handler; it re-renders the screen when `state.screen`).
-   The strip re-orders live when filters change the ranking — chips repaint, active key
-   stays unless filtered out (then: screen shows the identity band's "no parses match"
-   state, chips offer the way out; never auto-exit).
-2. **Identity band** — absorbs the rail's content: class dot + "Class Spec" (Inter 600,
-   1.05rem — NOT Marcellus; the wordmark stays the page's only display-face use) +
-   "· Hero" when unmerged, the scope line (`frameScope()`), and the identity block's key
-   numbers as a KPI-note row (n, median DPS at lens, timed rate, median key — whatever
-   frameIdentityHTML computes today, re-laid horizontally). Below it the shared lens
-   sub-line (§3.3): `players around p60 (lens ±10) · n=214 of 1,842 in view · gear known
-   87% · builds known 91%`. Comps and character stats STAY in the Performance rail —
-   the screen is the builds surface (owner's structure list).
+1. **Ladder strip** — ONE slim row, the screen's only furniture above the identity band:
+   `← Rankings` .btn, then rank-ordered spec chips = the chart's CURRENT ranking
+   (`CHART_KEYS` under live filters): 9×9 class dot + spec name, §15.4 chip treatment,
+   active chip accent-bordered (§GG sheen); chips wrap (measure-bounded, never a
+   horizontal scroller). Click = switch spec in place; ArrowUp/Down still steps the
+   ladder (same CHART_KEYS walk as the rail — reuse the existing keydown handler; it
+   re-renders the screen when `state.screen`). The strip re-orders live when filters
+   change the ranking — chips repaint, active key stays unless filtered out (then: the
+   identity band shows its "no parses match" state, chips offer the way out; never
+   auto-exit).
+2. **Identity band** — minimal: class dot + "Class Spec" (Inter 600, 1.05rem — NOT
+   Marcellus; the wordmark stays the page's only display-face use) + "· Hero" when
+   unmerged, the scope line (`frameScope()`), one inline row of the identity block's key
+   numbers (n · median DPS at lens · timed rate — reuse frameIdentityHTML's computed
+   values, laid horizontally, no KPI cards), and the shared lens sub-line (§3.3b):
+   `players around p60 (lens ±10) · n=214 of 1,842 in view · gear known 87% · builds
+   known 91%`. Comps and character stats STAY in the Performance rail — the screen is
+   the builds surface (owner's structure list), and it duplicates no dashboard element.
 3. **Gear overview grid** (§3.4 geargrid).
 4. **Per-slot distributions** (§3.4 slotdetail).
 5. **Crafted & embellishments** (§3.4 crafted).
@@ -360,9 +370,11 @@ now expresses; foot gains "hero fixed — builds differ in class/spec trees only
    `<div id="charscreen" hidden>` after it; `body.charscreen` CSS hiding #sections and
    #frame-pos. Verify the rankings page is pixel-identical with the wrapper in place.
 4. Enter/exit per §3.1: `state.screen`, `screenReturnY`, the two rail affordances, the
-   `← Rankings` button, Esc precedence (screen exit before rail close in the keydown
-   handler), wordmark exit, scroll save/restore, session removal of affordances on
-   sidecar failure (§3.3). Screen never serialized to the URL.
+   `← Rankings` button + wordmark exit — the ONLY exits: while `state.screen`, the
+   keydown handler swallows Esc without acting and the click-away pointerdown listener
+   returns early (the rail keeps its light Esc/click-away untouched — peek vs place,
+   both behaviors verified side by side); scroll save/restore; session removal of the
+   affordances on sidecar failure (§3.3). Screen never serialized to the URL.
 5. `renderScreen()` + dispatcher: `renderFrame()` routes to it while `state.screen` (the
    L2865 master-refresh path then re-slices the whole screen on every control change,
    lens included). ArrowUp/Down + ladder chips both step `state.frameKey` through
@@ -399,7 +411,8 @@ shows the helm rune at 84%; the talent section lists two builds at 61%/22% with 
 DPS and copy buttons; the hero line reads "Templar 88% · Herald of the Sun 12%". The
 sidebar and lens bar never left: they drag keys to +14–+16 and the whole screen
 re-slices; they push the lens to p95 and the build order flips — the story Archon's
-fixed page cannot tell. ArrowDown hops to the next spec without leaving the mode.
-Unmerged and framed on "Ret · Templar", the hero line disappears — only the shared trees
-differ. Esc returns to the rankings at the exact scroll they left. Every section states
-its n. Nothing rotated, nothing purple, nothing full-bleed, nothing trapped.
+fixed page cannot tell. ArrowDown hops to the next spec without leaving the mode; a
+stray Esc or click does nothing — the screen is a place, and only "← Rankings" (or the
+wordmark) leaves it, returning to the rankings at the exact scroll they left. Every
+section states its n. Nothing rotated, nothing purple, nothing full-bleed, and nothing
+leaves by accident.
