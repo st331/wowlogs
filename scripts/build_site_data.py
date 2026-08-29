@@ -13,6 +13,7 @@ import argparse
 import base64
 import csv
 import gzip
+from collections import Counter
 import hashlib
 import json
 import pathlib
@@ -991,6 +992,284 @@ def spec_meta_block(df, started, timed, name: str, journal=None):
     return block
 
 
+# --- builds sidecar (site/builds.json.gz) — blueprint §1, pinned ------------
+# The Character Screen's data layer: per-row slot items, enchants and talent
+# build as tiny per-spec-vocab indices, column-major, plus the vocabularies
+# themselves (names resolved from the committed caches scripts/fetch_names.py
+# maintains — this file NEVER fetches; missing caches degrade to null names).
+# Interface is change-controlled by fleet/blueprints/builds_tab.md §1: emit
+# exactly that shape.
+BUILDS_SLOTS = (0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+BUILDS_BIG_SLOTS = frozenset((12, 13, 15, 16))   # trinkets + weapons
+BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG = 24, 40
+BUILDS_ENCH_CAP, BUILDS_BUILD_CAP = 15, 40       # 15 = nibble-bound
+BUILDS_ESLOT_MIN_SHARE = 0.01   # a slot ships an enchant column when >=1%
+                                # of gear-known records carry an ench there
+BUILDS_GZ_TARGET = 3_000_000
+BUILDS_GZ_CAP = 5_000_000
+
+NAMES_ITEMS = ROOT / "data" / "names_items.json"
+NAMES_ENCHANTS = ROOT / "data" / "names_enchants.json"
+CRAFTED_IDS = ROOT / "data" / "crafted_ids.json"
+NAMES_BONUS_EMB = ROOT / "data" / "names_bonus_emb.json"
+
+
+def _load_json(path: pathlib.Path, default):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return default
+
+
+def _name_caches():
+    """The fetch_names.py caches, id-keyed by int. Missing or torn files
+    degrade to empty — every name then ships null and the client falls back
+    to #id links; the build itself never fetches and never fails on this."""
+    items = {int(k): v for k, v in _load_json(NAMES_ITEMS, {}).items()
+             if str(k).isdigit() and isinstance(v, dict)}
+    enchs = {int(k): v for k, v in _load_json(NAMES_ENCHANTS, {}).items()
+             if str(k).isdigit()}
+    crafted = {v for v in _load_json(CRAFTED_IDS, []) if isinstance(v, int)}
+    emb = {int(k): v for k, v in _load_json(NAMES_BONUS_EMB, {}).items()
+           if str(k).isdigit()}
+    return items, enchs, crafted, emb
+
+
+def builds_sidecar(df, journal, name: str, enc: str | None = None,
+                   target: int = BUILDS_GZ_TARGET,
+                   cap: int = BUILDS_GZ_CAP) -> str | None:
+    """The Builds sidecar document (caller gzips it), or None when nothing
+    is coverable or the ladder refuses to ship.
+
+    One walk over df in payload row order — the same alignment discipline as
+    stats_sidecar, never a separate join. A covered row is a journal record
+    (meta_from_gear_journal) holding a gear list or an import string; its
+    fl byte says which (bit0 gear, bit1 build). Row values are 1-based
+    indices into the row's OWN spec vocabulary (0 = other/empty), enchants
+    nibble-packed over the measured eslots. Vocab entries are split by
+    embellishment identity — an item id worn plain and embellished is two
+    entries — and annotated cr/emb/ilvl/n from the fetch_names caches.
+
+    Ladder, loud at every rung: ship the smaller of dense/sparse; over the
+    target, halve the vocab caps and rebuild; still over, drop the enchant
+    columns and vocab (eslots ships [] so the client's array check passes
+    and the enchant section simply feature-detects off); over the hard cap,
+    ship nothing.
+    """
+    if not journal:
+        print(f"[{name}] no builds/gear in the gear journal; "
+              f"builds sidecar omitted")
+        return None
+    item_names, ench_names, crafted, emb_map = _name_caches()
+
+    def emb_of(item: dict):
+        """Embellishment identity bonus id for a journaled item, or None.
+        Embellished iff the bonus list intersects the known embellishment
+        bonus ids; identity prefers a NAMED bonus (the resolved reagent)
+        over an unnamed one (the generic marker), smallest id on ties."""
+        bonus = item.get("bonus")
+        if not isinstance(bonus, list):
+            return None
+        hits = [b for b in bonus if b in emb_map]
+        if not hits:
+            return None
+        named = sorted(b for b in hits if emb_map.get(b))
+        return named[0] if named else min(hits)
+
+    # ---- the one df-order walk: parse each covered row once
+    n = len(df)
+    rows_c = []          # (payload i, "Class|Spec", slotkeys, enchs, build, fl)
+    gear_known = 0
+    ench_hits: Counter = Counter()
+    for i, (code, fid, ch, sv, cls, spec) in enumerate(zip(
+            df["report_code"], df["fight_id"], df["character"],
+            df["server"], df["class"], df["spec"])):
+        rec = journal.get(_gear_key(code, fid, ch, sv))
+        if rec is None:
+            continue
+        gear = rec.get("gear")
+        build = rec.get("build")
+        fl = (1 if isinstance(gear, list) else 0) | (2 if build else 0)
+        if not fl:
+            continue
+        slotkeys: list[tuple | None] = [None] * len(BUILDS_SLOTS)
+        enchs: dict[int, int] = {}
+        if isinstance(gear, list):
+            gear_known += 1
+            for k, s in enumerate(BUILDS_SLOTS):
+                it = gear[s] if s < len(gear) else None
+                if isinstance(it, dict) and it.get("id"):
+                    slotkeys[k] = (it["id"], emb_of(it), it.get("ilvl"))
+            for s, it in enumerate(gear):
+                if isinstance(it, dict) and it.get("ench"):
+                    ench_hits[s] += 1
+                    enchs[s] = it["ench"]
+        rows_c.append((i, f"{cls}|{spec}", slotkeys, enchs, build, fl))
+    if not rows_c:
+        print(f"[{name}] no journal-covered payload rows; "
+              f"builds sidecar omitted")
+        return None
+    eslots = sorted(s for s, c in ench_hits.items()
+                    if c >= BUILDS_ESLOT_MIN_SHARE * max(gear_known, 1))
+
+    # ---- per-spec tallies over ALL journal-known rows of the spec (per the
+    # contract: vocab counts are df-wide, not lens- or cohort-sliced)
+    tallies: dict[str, dict] = {}
+    for _, sk, slotkeys, enchs, build, fl in rows_c:
+        t = tallies.setdefault(sk, {
+            "it": [Counter() for _ in BUILDS_SLOTS],
+            "ilvl": [{} for _ in BUILDS_SLOTS],
+            "en": {s: Counter() for s in eslots},
+            "bld": Counter()})
+        for k, key in enumerate(slotkeys):
+            if key is None:
+                continue
+            ident = key[:2]                       # (item id, emb identity)
+            t["it"][k][ident] += 1
+            if key[2]:
+                t["ilvl"][k].setdefault(ident, []).append(key[2])
+        for s in eslots:
+            if s in enchs:
+                t["en"][s][enchs[s]] += 1
+        if build:
+            t["bld"][build] += 1
+
+    def make_doc(item_cap: int, item_cap_big: int, build_cap: int,
+                 with_en: bool) -> str:
+        """Both encodings at these caps; the smaller gz wins, loudly."""
+        # vocabularies + the (id, emb) -> 1-based index lookups
+        specs_out: dict[str, dict] = {}
+        lookups: dict[str, dict] = {}
+        for sk in sorted(tallies):
+            t = tallies[sk]
+            items_v, it_lk = [], []
+            for k, s in enumerate(BUILDS_SLOTS):
+                capk = item_cap_big if s in BUILDS_BIG_SLOTS else item_cap
+                ranked = sorted(t["it"][k].items(),
+                                key=lambda kv: (-kv[1], kv[0][0],
+                                                kv[0][1] or 0))[:capk]
+                it_lk.append({ident: j + 1
+                              for j, (ident, _) in enumerate(ranked)})
+                col = []
+                for (iid, emb), _cnt in ranked:
+                    ilvls = t["ilvl"][k].get((iid, emb))
+                    e: dict = {"id": iid,
+                               "n": (item_names.get(iid) or {}).get("n"),
+                               "ilvl": (int(round(float(np.median(ilvls))))
+                                        if ilvls else None)}
+                    if iid in crafted:
+                        e["cr"] = 1
+                    if emb is not None:
+                        e["emb"] = emb_map.get(emb) or f"#{emb}"
+                    col.append(e)
+                items_v.append(col)
+            en_v, en_lk = [], []
+            for s in eslots:
+                ranked = sorted(t["en"][s].items(),
+                                key=lambda kv: (-kv[1], kv[0]))
+                ranked = ranked[:BUILDS_ENCH_CAP]
+                en_lk.append({eid: j + 1 for j, (eid, _) in enumerate(ranked)})
+                en_v.append([{"id": eid, "n": ench_names.get(eid)}
+                             for eid, _ in ranked])
+            b_ranked = sorted(t["bld"].items(),
+                              key=lambda kv: (-kv[1], kv[0]))[:build_cap]
+            entry = {"items": items_v}
+            if with_en:
+                entry["ench"] = en_v
+            entry["builds"] = [{"s": s, "n": c} for s, c in b_ranked]
+            specs_out[sk] = entry
+            lookups[sk] = {"it": it_lk, "en": en_lk,
+                           "bld": {s: j + 1
+                                   for j, (s, _) in enumerate(b_ranked)}}
+
+        # columns over covered rows, scattered to full length for dense
+        m = len(rows_c)
+        the_eslots = eslots if with_en else []
+        n_en = (len(the_eslots) + 1) // 2
+        fl_a = np.zeros(m, dtype="u1")
+        it_a = np.zeros((len(BUILDS_SLOTS), m), dtype="u1")
+        en_a = np.zeros((n_en, m), dtype="u1")
+        bld_a = np.zeros(m, dtype="u1")
+        idx_a = np.zeros(m, dtype="<u4")
+        for j, (i, sk, slotkeys, enchs, build, fl) in enumerate(rows_c):
+            lk = lookups[sk]
+            idx_a[j] = i
+            fl_a[j] = fl
+            for k, key in enumerate(slotkeys):
+                if key is not None:
+                    it_a[k, j] = lk["it"][k].get(key[:2], 0)
+            if with_en:
+                for jj, s in enumerate(the_eslots):
+                    v = lk["en"][jj].get(enchs.get(s), 0) if s in enchs else 0
+                    if jj % 2:
+                        en_a[jj >> 1, j] |= v << 4
+                    else:
+                        en_a[jj >> 1, j] |= v
+            if build:
+                bld_a[j] = lk["bld"].get(build, 0)
+
+        def doc_for(enc: str) -> str:
+            if enc == "dense":
+                def scat(a):
+                    full = np.zeros(n, dtype=a.dtype)
+                    full[idx_a] = a
+                    return full
+                fl_c, bld_c = scat(fl_a), scat(bld_a)
+                it_c = [scat(it_a[k]) for k in range(len(BUILDS_SLOTS))]
+                en_c = [scat(en_a[k]) for k in range(n_en)]
+            else:
+                fl_c, bld_c = fl_a, bld_a
+                it_c = [it_a[k] for k in range(len(BUILDS_SLOTS))]
+                en_c = [en_a[k] for k in range(n_en)]
+
+            def b64(a):
+                return base64.b64encode(a.tobytes()).decode()
+            obj: dict = {"v": 1, "n": n, "enc": enc,
+                         "slots": list(BUILDS_SLOTS),
+                         "eslots": list(the_eslots)}
+            if enc == "sparse":
+                obj["idx"] = b64(idx_a)
+            cols: dict = {"fl": b64(fl_c), "it": [b64(a) for a in it_c]}
+            if with_en:
+                cols["en"] = [b64(a) for a in en_c]
+            cols["bld"] = b64(bld_c)
+            obj["cols"] = cols
+            obj["specs"] = specs_out
+            return json.dumps(obj, separators=(",", ":"))
+
+        if enc in ("dense", "sparse"):        # forced, for tests
+            return doc_for(enc)
+        dense, sparse = doc_for("dense"), doc_for("sparse")
+        gz_d = len(gzip.compress(dense.encode(), 6))
+        gz_s = len(gzip.compress(sparse.encode(), 6))
+        print(f"[{name}] builds sidecar (caps {item_cap}/{item_cap_big}/"
+              f"{build_cap}, en={'y' if with_en else 'n'}): dense "
+              f"{gz_d / 1e6:.2f} MB gz vs sparse {gz_s / 1e6:.2f} MB gz -> "
+              f"{'dense' if gz_d <= gz_s else 'sparse'}")
+        return dense if gz_d <= gz_s else sparse
+
+    print(f"[{name}] builds sidecar: {len(rows_c):,}/{n:,} rows covered "
+          f"({len(rows_c) / n:.0%}), {len(tallies)} specs, "
+          f"eslots {eslots}")
+    doc = make_doc(BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG,
+                   BUILDS_BUILD_CAP, True)
+    if len(gzip.compress(doc.encode(), 6)) > target:
+        print(f"[{name}] builds sidecar over the {target / 1e6:.1f} MB "
+              f"target; halving vocab caps (24->12, 40->20, builds 40->24)")
+        doc = make_doc(BUILDS_ITEM_CAP // 2, BUILDS_ITEM_CAP_BIG // 2,
+                       24, True)
+    if len(gzip.compress(doc.encode(), 6)) > target:
+        print(f"[{name}] builds sidecar still over the target; dropping the "
+              f"enchant columns and vocab (client feature-detects)")
+        doc = make_doc(BUILDS_ITEM_CAP // 2, BUILDS_ITEM_CAP_BIG // 2,
+                       24, False)
+    if len(gzip.compress(doc.encode(), 6)) > cap:
+        print(f"[{name}] builds sidecar over the {cap / 1e6:.1f} MB hard "
+              f"cap even without enchants; NOT shipped")
+        return None
+    return doc
+
+
 def build(name: str, cfg: dict) -> None:
     csv = ROOT / "data" / cfg["csv"]
     if not csv.exists():                       # tolerate an un-gzipped copy
@@ -1060,7 +1339,10 @@ def build(name: str, cfg: dict) -> None:
     stats_journal = stats_from_gear_journal()
     specstats = spec_stats_block(df, started, timed, name,
                                  journal=stats_journal)
-    specmeta = spec_meta_block(df, started, timed, name)
+    # one meta-journal read serves both specmeta and the builds sidecar
+    meta_journal = meta_from_gear_journal()
+    specmeta = spec_meta_block(df, started, timed, name,
+                               journal=meta_journal)
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
@@ -1140,6 +1422,20 @@ def build(name: str, cfg: dict) -> None:
         sz = (SITE_DIRS[0] / "stats.json.gz").stat().st_size
         print(f"[{name}] stats sidecar -> stats.json.gz "
               f"({sz / 1e6:.2f} MB gz, {len(sidecar) / 1e6:.1f} MB raw)")
+    # builds sidecar, same discipline: rewritten or unlinked with the payload
+    builds = builds_sidecar(df, meta_journal, name)
+    for d in SITE_DIRS:
+        out = d / "builds.json.gz"
+        if builds is None:
+            out.unlink(missing_ok=True)
+        else:
+            with gzip.open(out, "wt", encoding="utf-8",
+                           compresslevel=9) as fh:
+                fh.write(builds)
+    if builds is not None:
+        sz = (SITE_DIRS[0] / "builds.json.gz").stat().st_size
+        print(f"[{name}] builds sidecar -> builds.json.gz "
+              f"({sz / 1e6:.2f} MB gz, {len(builds) / 1e6:.1f} MB raw)")
 
 
 # --------------------------------------------------------------------------

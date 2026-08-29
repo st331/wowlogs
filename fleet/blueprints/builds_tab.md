@@ -188,8 +188,10 @@ state (frameKey, pin, comps sort) is preserved untouched behind the screen.
 **Exit is deliberate work (owner addendum): the screen is a destination, not a popup.**
 Exactly two exits, both explicit: the `← Rankings` .btn and the wordmark
 (cursor:pointer only while `body.charscreen`). NO Esc-to-exit, NO click-outside-to-exit:
-while `state.screen`, the Esc branch of the keydown handler does nothing (and must not
-fall through to close the underlying rail state), and the pointerdown click-away
+while `state.screen`, the Esc branch of the keydown handler NEVER exits or falls
+through to close the underlying rail state — its only permitted action is closing an
+open gear fold-out within the screen (§3.4 slotfold; with none open it does nothing) —
+and the pointerdown click-away
 listener returns early; clicking anywhere on the screen or working the sidebar/lens
 never leaves the mode. This contrasts DELIBERATELY with the Performance rail, which
 keeps its light Esc + click-away dismissal — the rail is a peek, the screen is a place;
@@ -450,25 +452,51 @@ now expresses; foot gains "hero fixed — builds differ in class/spec trees only
    #frame-pos. Verify the rankings page is pixel-identical with the wrapper in place.
 4. Enter/exit per §3.1: `state.screen`, `screenReturnY`, the two rail affordances, the
    `← Rankings` button + wordmark exit — the ONLY exits: while `state.screen`, the
-   keydown handler swallows Esc without acting and the click-away pointerdown listener
+   keydown handler swallows Esc (acting only to close an open fold-out, never to
+   exit — §3.1/§3.4) and the click-away pointerdown listener
    returns early (the rail keeps its light Esc/click-away untouched — peek vs place,
    both behaviors verified side by side); scroll save/restore; session removal of the
    affordances on sidecar failure (§3.3). Screen never serialized to the URL.
 5. `renderScreen()` + dispatcher: `renderFrame()` routes to it while `state.screen` (the
-   L2865 master-refresh path then re-slices the whole screen on every control change,
-   lens included). ArrowUp/Down + ladder chips both step `state.frameKey` through
-   CHART_KEYS and re-render in place.
-6. Screen sections per §3.2/§3.4 as SCREEN_BLOCKS entries `{id, has, html, wire}` —
-   same registry pattern as FRAME_BLOCKS (which stays rail-only and untouched except the
-   two entry affordances). Selected-slot + accordion state = module vars, reset on spec
-   switch.
-7. CSS: ladder strip, identity band, geargrid tiles, neutral share bars, tags, .sec
-   reuse — radii 6/4, §GG materials, no rotation, no new tooltips (`title=""` nowhere
-   new), hover = color only, nothing full-bleed, no inner scroll containers (only
-   .tblwrap's standing overflow-x).
-8. Trigger discipline: tiles, chips, rows, spec-name are content-hugging targets; empty
-   cells inert. Click-away-close applies to the RAIL only — the screen never dismisses
-   on outside clicks (it is the page).
+   L2865 master-refresh path then re-slices the whole screen — digest, tab counts,
+   active pane, open fold-out — on every control change, lens included). ArrowUp/Down +
+   ladder chips both step `state.frameKey` through CHART_KEYS and re-render in place.
+6. Identity band per §3.2.2 including the build digest line: mirror of the Talents
+   top row (top share · median DPS · merged-only hero split), copy .btn (clipboard
+   guard + 1.2 s "copied" swap), text = content-hugging trigger switching to the
+   Talents pane; absent when builds are unknown/thin in the window.
+7. Sub-nav per §3.2.3: §15.3 .tabs, `Gear`/`Talents` with live known-count suffixes
+   from the fl bits; inactive-tab hover (ink color + neutral underline, pointer);
+   active tab = module var — survives every re-slice AND exit/re-enter within the
+   session; never serialized to the URL (§3.1 stands). Default pane: Gear.
+8. Gear pane per §3.4: geargrid (Off Hand tile suppressed when "none" wins — footnote
+   on Main Hand; Main Hand name wraps ≤3 lines, never ellipsized; microcopy "click a
+   slot to unfold its distribution in place"; stable tile order) + slotfold (single
+   full-grid-width panel inserted after the owning tile's row, --accent-line border +
+   aligned caret, one open at a time, swap/close instant, Esc closes the fold-out
+   only — the §3.1 Esc-swallow still never exits the screen — ArrowLeft/Right walk
+   adjacent slots skipping a suppressed Off Hand, last-visible-row auto-reveal via
+   scrollIntoView block:'nearest') + enchants (fixed-width −/+ expander column with
+   hover state, ~15% tighter rows, per-slot expanded memory) + crafted (collapsed by
+   default with live `N slots · M embellishments` scope summary, equalized card pair).
+9. Talents pane per §3.4 talents — unchanged hero logic, copy buttons, foot lines.
+10. Screen sections as SCREEN_BLOCKS entries `{id, has, html, wire}` — same registry
+   pattern as FRAME_BLOCKS (which stays rail-only and untouched except the two entry
+   affordances). Fold-out slot, enchant-row expansions, crafted open/closed = module
+   vars: fold-outs default closed on every entry, all of it survives re-slices while
+   open, resets on spec switch; active tab alone persists across exit/re-enter (§3.2).
+   Never rebuild any second slot-navigation surface (chip row) in any iteration.
+11. CSS: ladder strip, identity band + digest, sub-nav, geargrid tiles, fold-out
+   panel + caret, neutral share bars, tags, .sec reuse — radii 6/4, §GG materials, no
+   rotation, no new tooltips (`title=""` nowhere new), hover = color only, nothing
+   full-bleed, no inner scroll containers (only .tblwrap's standing overflow-x).
+12. Trigger discipline: tiles, tabs, rows, digest text, spec-name are content-hugging
+   targets; empty cells inert; the suppressed Off Hand footnote is inert text.
+   Click-away-close applies to the RAIL only — the screen never dismisses on outside
+   clicks (it is the page).
+13. Verify at 1366×768: Gear pane grid + an opened fold-out fully above the fold; no
+   partly off-screen fold-out from any row; no orphan-tile jitter when the panel
+   inserts or the Main Hand name wraps.
 
 ### Pinned between them
 
@@ -483,15 +511,24 @@ the same commit.
 
 Owner clicks the Ret Paladin bar → the Performance rail opens, unchanged. They click
 "Character screen →" — the rankings give way, in place, to a full-page character screen:
-ladder strip of rank-ordered spec chips, identity band with the scope line and lens
-sub-line, then the 16-tile gear grid — "Luminant Verdict's Unwavering Gaze · 98% ·
-ilvl 723 · n=214"; the wrist tile carries CRAFTED · its embellishment; the enchant table
-shows the helm rune at 84%; the talent section lists two builds at 61%/22% with median
-DPS and copy buttons; the hero line reads "Templar 88% · Herald of the Sun 12%". The
-sidebar and lens bar never left: they drag keys to +14–+16 and the whole screen
-re-slices; they push the lens to p95 and the build order flips — the story Archon's
-fixed page cannot tell. ArrowDown hops to the next spec without leaving the mode; a
-stray Esc or click does nothing — the screen is a place, and only "← Rankings" (or the
-wordmark) leaves it, returning to the rankings at the exact scroll they left. Every
-section states its n. Nothing rotated, nothing purple, nothing full-bleed, and nothing
-leaves by accident.
+ladder strip of rank-ordered spec chips; identity band with the scope line, lens
+sub-line, and the digest — "top build 61% · median 2.31M · Templar 88% / Herald of the
+Sun 12% · copy" — the daily build copied without a single navigation; then the Gear |
+Talents sub-nav with live known-counts, Gear open. The gear grid reads at a glance —
+"Luminant Verdict's Unwavering Gaze · 98% · ilvl 723 · n=214"; the wrist tile carries
+CRAFTED · its embellishment; the Main Hand tile shows the full greatblade name over
+three lines with "off hand: none — two-handed 99%" as its footnote. Clicking the wrist
+tile unfolds its distribution right under its row — caret pointing at the tile — and
+grid + fold-out sit whole above the fold at 1366; ArrowRight walks the fold-out to
+Hands, Esc folds it away without leaving the screen. Below, the tightened enchant
+table shows the helm rune at 84% with a discoverable −/+ column; Crafted &
+Embellishments waits collapsed under "3 slots · 4 embellishments". The Talents tab —
+one click, "1,676 known" on its face — lists two builds at 61%/22% with median DPS and
+copy buttons and the hero line. The sidebar and lens bar never left: they drag keys to
++14–+16 and digest, counts, grid, and the still-open wrist fold-out all re-slice; they
+push the lens to p95 and the build order flips — the story Archon's fixed page cannot
+tell. ArrowDown hops to the next spec without leaving the mode; a stray Esc or click
+never exits — the screen is a place, and only "← Rankings" (or the wordmark) leaves
+it, returning to the rankings at the exact scroll they left; re-entering lands on the
+tab they left. Every section states its n. Nothing rotated, nothing purple, nothing
+full-bleed, no chip row reborn, and nothing leaves by accident.

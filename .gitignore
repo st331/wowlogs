@@ -24,3 +24,7 @@ data/*.jsonl.gz.tmp
 # per-parse stats sidecar: rebuilt from the gear journal every run, never committed
 site/stats.json.gz
 docs/stats.json.gz
+
+# builds sidecar: same — rebuilt every run from the journal + name caches
+site/builds.json.gz
+docs/builds.json.gz
