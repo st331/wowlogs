@@ -339,7 +339,8 @@ big_caches["names_items.json"] = dict(
        for i in range(1, 31)})
 
 _, full = run_builds(big_rows, big_recs, big_caches, enc="dense")
-g1 = len(gzip.compress(json.dumps(full, separators=(",", ":")).encode(), 6))
+# level 9 = what the writer actually emits, which is what the ladder weighs
+g1 = len(gzip.compress(json.dumps(full, separators=(",", ":")).encode(), 9))
 assert len(full["specs"]["Hunter|Marksmanship"]["items"][0]) == 24  # cap
 assert len(full["specs"]["Hunter|Marksmanship"]["builds"]) == 30
 
@@ -357,7 +358,7 @@ ref_decode(no_en, len(big_rows))                          # still §1.3-valid
 
 # rung 3 is the intermediate item step (24->18, not straight to 12), so a small
 # overshoot costs a little of the tail rather than all of it
-g2 = len(gzip.compress(json.dumps(no_en, separators=(",", ":")).encode(), 6))
+g2 = len(gzip.compress(json.dumps(no_en, separators=(",", ":")).encode(), 9))
 _, mid = run_builds(big_rows, big_recs, big_caches, enc="dense", target=g2 - 1)
 assert mid is not None and "en" not in mid["cols"]        # rung 3
 assert len(mid["specs"]["Hunter|Marksmanship"]["items"][0]) == 18

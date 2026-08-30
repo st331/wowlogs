@@ -1728,18 +1728,40 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
               (BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG, BUILDS_BUILD_CAP, False),
               (18, 30, 32, False),
               (BUILDS_ITEM_CAP // 2, BUILDS_ITEM_CAP_BIG // 2, 24, False)]
-    doc = make_doc(*ladder[0])
-    for ic, icb, bc, wen in ladder[1:]:
-        if len(gzip.compress(doc.encode(), 6)) <= target:
+    # Measure at the level the file is actually WRITTEN at (9), not 6. The
+    # ladder decides which features ship, so it must weigh the bytes that go
+    # on the wire; level 6 reads ~1.3% heavy here, which is enough to trade
+    # away a whole section on a near-miss.
+    def gz(d: str) -> int:
+        return len(gzip.compress(d.encode(), 9))
+
+    rung = ladder[0]
+    doc = make_doc(*rung)
+    sizes = [(rung, gz(doc))]
+    for nxt in ladder[1:]:
+        if sizes[-1][1] <= target:
             break
-        print(f"[{name}] builds sidecar over the {target / 1e6:.1f} MB target; "
-              f"stepping down to caps {ic}/{icb}, builds {bc}, "
-              f"en={'y' if wen else 'n'}"
-              + ("" if wen else " (client feature-detects the enchant block)"))
-        doc = make_doc(ic, icb, bc, wen)
-    if len(gzip.compress(doc.encode(), 6)) > cap:
-        print(f"[{name}] builds sidecar over the {cap / 1e6:.1f} MB hard "
-              f"cap even without enchants; NOT shipped")
+        ic, icb, bc, wen = nxt
+        health(f"[{name}] builds sidecar {sizes[-1][1] / 1e6:.2f} MB gz is over "
+               f"the {target / 1e6:.1f} MB target; stepping down to caps "
+               f"{ic}/{icb}, builds {bc}, en={'y' if wen else 'n'}"
+               + ("" if wen else " (the enchant block feature-detects off)"))
+        rung = nxt
+        doc = make_doc(*rung)
+        sizes.append((rung, gz(doc)))
+    # The whole ladder, on the record: what each rung would have cost and what
+    # actually shipped. Without this the only way to learn why a section is
+    # missing is to reproduce the build.
+    health(f"[{name}] ladder: "
+           + " | ".join(f"caps {r[0]}/{r[1]} builds {r[2]} "
+                        f"en={'y' if r[3] else 'n'} -> {sz / 1e6:.2f} MB"
+                        for r, sz in sizes)
+           + f" || SHIPPED caps {rung[0]}/{rung[1]} builds {rung[2]} "
+             f"en={'y' if rung[3] else 'n'} at {sizes[-1][1] / 1e6:.2f} MB "
+             f"(target {target / 1e6:.1f}, hard cap {cap / 1e6:.1f})")
+    if sizes[-1][1] > cap:
+        health(f"[{name}] builds sidecar over the {cap / 1e6:.1f} MB hard "
+               f"cap even without enchants; NOT shipped")
         return None
     return doc
 
