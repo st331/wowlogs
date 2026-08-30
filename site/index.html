@@ -683,6 +683,72 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 /* hash-identified builds: ordinal label column ("Build N") in front of the bar */
 .cs-tal .bnm{display:inline-block; min-width:3.2rem; margin-right:.55rem;
   font-size:.8rem; color:var(--ink2)}
+/* Build 1..N chips — the tree selector; active chip carries the §GG sheen */
+#cs-bldchips{display:flex; flex-wrap:wrap; gap:6px; margin:.15rem 0 .65rem}
+.bldchip{display:inline-flex; align-items:center; gap:.55rem; padding:.26rem .62rem;
+  background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r1);
+  font-size:.74rem; color:var(--ink2); cursor:pointer; box-shadow:var(--gg-shadow);
+  font-variant-numeric:tabular-nums; transition:border-color .13s, color .13s}
+.bldchip:hover{border-color:var(--line2); color:var(--ink)}
+.bldchip.on{border-color:var(--metal-line)}
+.bldchip.on .bl{color:var(--accent)}
+.bldchip .bl{font-weight:650; color:var(--ink); font-size:.74rem}
+.bldchip .sh{font-weight:650; color:var(--ink)}
+.bldchip .mi{color:var(--ink3); font-size:.7rem}
+.bldchip .htag{color:var(--ink3); font-size:.7rem}
+.bldchip .cbtn{padding:.06rem .42rem; font-size:.66rem}
+.bldchip.oth{cursor:default; color:var(--ink3)}
+.bldchip.oth:hover{border-color:var(--line1); color:var(--ink3)}
+/* in-game-style tree panes — §GG panels; the selected build lights champagne.
+   Node size rides the computed --tn (34-44px band, pref #10 readability). */
+#cs-trees{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;
+  justify-content:center; overflow-x:auto; padding:2px 1px 6px}
+  /* overflow-x is the standing bounded-container rule — the PAGE never
+     scrolls sideways even if one tree's geometry is impossibly wide */
+.ttpane{background:var(--surface1); border:1px solid var(--line1);
+  border-radius:var(--r2); padding:7px 10px 10px; box-shadow:var(--gg-shadow)}
+.tthead{display:flex; align-items:baseline; gap:.5rem; margin-bottom:7px}
+.tthead .tl{font-size:.6rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.14em; color:var(--ink3)}
+.tthead .tn2{font-size:.76rem; font-weight:600; color:var(--ink)}
+.tthead .tp{margin-left:auto; font-size:.68rem; color:var(--ink3);
+  font-variant-numeric:tabular-nums}
+.ttcv{position:relative}
+.ttcv svg{position:absolute; inset:0; display:block}
+.ttcv line{stroke:rgba(234,227,208,.10); stroke-width:1.2}
+.ttcv line.lit{stroke:rgba(232,188,87,.5); stroke-width:1.6}
+.ttn{position:absolute; z-index:1; line-height:0}
+.tico{position:relative; display:block; width:var(--tn,40px); height:var(--tn,40px);
+  border-radius:var(--r1); border:1px solid var(--line2); background:var(--surface2);
+  overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 1px 2px rgba(0,0,0,.3)}
+.tico .tph{position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:center; font:600 .8rem/1 var(--font); color:var(--ink3);
+  text-transform:uppercase}
+.tico img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+/* choice nodes (t===2): a beveled octagon — a different SHAPE, nothing
+   rotates; the outer layer is the rim, inner layers clip 1px inside it */
+.tico.ch{border:none; border-radius:0; background:var(--line2);
+  clip-path:polygon(29% 0,71% 0,100% 29%,100% 71%,71% 100%,29% 100%,0 71%,0 29%);
+  box-shadow:none}
+.tico.ch .tph,.tico.ch img{inset:1px;
+  clip-path:polygon(29% 0,71% 0,100% 29%,100% 71%,71% 100%,29% 100%,0 71%,0 29%)}
+.tico.ch .tph{background:var(--surface2)}
+/* selection lighting: picked = champagne rim + full color; unpicked =
+   strongly dimmed (grayscale + faded) — the build reads at a glance */
+.ttn.pk .tico{border-color:var(--metal-line)}
+.ttn.pk .tico.ch{background:var(--metal-line)}
+.ttn.dm{opacity:.42}
+.ttn.dm .tico{border-color:var(--line1)}
+.ttn.dm .tico.ch{background:var(--line1)}
+.ttn.dm .tico img{filter:grayscale(1) brightness(.55)}
+.ttn a.whico:hover .tico{border-color:var(--accent-line)}   /* color-only hover */
+.ttn.pk a.whico:hover .tico.ch,.ttn.dm a.whico:hover .tico.ch{background:var(--accent-line)}
+/* rank pip — "2/2" on picked multi-rank nodes, legible at 1080p */
+.ttr{position:absolute; right:-5px; bottom:-5px; z-index:2;
+  font:650 .68rem/1.15 var(--font); color:var(--accent);
+  background:var(--surface2); border:1px solid var(--accent-line);
+  border-radius:var(--r1); padding:0 .2rem; font-variant-numeric:tabular-nums}
 .cs-herodist{font-size:.8rem; color:var(--ink3)}
 .cs-herodist b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
 .cs-herodist .hn{color:var(--ink2)}
@@ -2900,6 +2966,7 @@ document.addEventListener("keydown",e=>{
 let screenReturnY=0;
 let screenTab="gear";             // active pane — persists across exit/re-enter (session)
 let screenFold=null;              // open fold-out: index into BUILDSC.slots, or null
+let screenBuild=0;                // lit build on the talent trees (csTalentRows index)
 let screenEnchOpen=new Set();     // expanded enchant rows (retail slot ids)
 let screenSecClosed=new Set(["crafted"]);   // §15.9 collapse; crafted starts closed
 let __screenRemapPres=null;       // merge-toggle remap request (class*100+spec to re-find)
@@ -2977,6 +3044,39 @@ function decodeBuildsSidecar(j){
       specs:(j.specs&&typeof j.specs==="object")?j.specs:{}};
   }catch(e){ return null }
 }
+/* ---- talent-tree document (talents.json.gz, §1.7) — a third lazy doc.
+   Fetched the first time the Talents pane renders builds that carry "sel";
+   any absence (404, no inflater, malformed) is silent and permanent for the
+   session — the pane simply keeps its text rendering, nothing dormant. ---- */
+let TALDOC=null, taldocCP=null;
+function loadTalentsDoc(){
+  if(taldocCP) return taldocCP;
+  taldocCP=(async()=>{
+    if(typeof DecompressionStream!=="function") return;
+    const gz=await fetch("talents.json.gz",{cache:"no-cache"});
+    if(!gz.ok) return;
+    const j=await new Response(
+      gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
+    if(j&&j.trees&&typeof j.trees==="object"){
+      TALDOC=j;
+      if(state.screen&&screenTab==="tal") renderScreen();
+    }
+  })().catch(()=>{});
+  return taldocCP;
+}
+// the spec's tree panes, classRef-indirected (§1.7); null = doc/spec absent
+function talTreesFor(ctx){
+  if(!TALDOC) return null;
+  const t=TALDOC.trees[ctx.cls+"|"+ctx.spec];
+  if(!t) return null;
+  const cls=t.class||(t.classRef&&TALDOC.classes
+    ?TALDOC.classes[t.classRef]:null)||null;
+  const ok=p=>(p&&Array.isArray(p.nodes)&&p.nodes.length
+    &&Array.isArray(p.edges))?p:null;
+  return {cls:ok(cls), spec:ok(t.spec),
+    hero:(t.hero&&typeof t.hero==="object")?t.hero:{}};
+}
+
 // §1.3 accessors — vocab is 1-based, 0 = other/none/unknown
 const bldItV=(si,i)=>{const r=BUILDSC.map[i]; return r<0?0:BUILDSC.it[si][r]};
 const bldEnV=(j,i)=>{const r=BUILDSC.map[i]; if(r<0) return 0;
@@ -3094,6 +3194,7 @@ function exitScreen(){
 }
 function resetScreenPerSpec(){          // active tab alone persists (§3.2.3)
   screenFold=null;
+  screenBuild=0;
   screenEnchOpen=new Set();
   screenSecClosed=new Set(["crafted"]);
 }
@@ -3175,7 +3276,10 @@ function csTalentRows(d){
       if(bv>=0&&D.heroes[bv]!=="Unknown") hero=D.heroes[bv];
     }
     rows.push({s:vb.s, n:a.length, share:100*a.length/d.bldIdx.length,
-      med:qp(dps,.5), hero, hash:bldIsHash(d.vocab,vb)});
+      med:qp(dps,.5), hero, hash:bldIsHash(d.vocab,vb),
+      // §1.7 widening: the build's node selections, when the pipeline
+      // shipped them — the talent trees light these
+      sel:(Array.isArray(vb.sel)&&vb.sel.length)?vb.sel:null});
   }
   rows.sort((a,b)=>b.n-a.n);
   for(const r of rows.slice(8)) other+=r.n;   // ≤8 + "other"
@@ -3448,6 +3552,159 @@ function csCraftedHTML(ctx,d){
     +'</div></div></div>';
   return h;
 }
+/* ---- in-game-style talent trees (feature contract "Talent presentation
+   upgrade") — class + spec panes side by side (hero pane per the standing
+   merged/zoomed logic), nodes at their true db2 grid positions, edges
+   under them, spell icons over glyph fallbacks. The selected Build chip
+   lights its "sel": picked nodes full-color champagne with rank pips,
+   everything else strongly dimmed. The node ICON is the one wowhead
+   surface (/spell=<s>, pref #11); a native title carries name+rank. ---- */
+function csBuildChipsHTML(T){
+  const clip=!!navigator.clipboard;     // buttons only when the API exists
+  let h='<div id="cs-bldchips">';
+  T.rows.forEach((r,x)=>{
+    if(!r.hash) __csCopy[x+1]=r.s;      // raw hashes never enter the copy store
+    h+='<span class="bldchip'+(x===screenBuild?" on":"")+'" data-bld="'+x+'">'
+      +'<b class="bl">Build '+(x+1)+'</b>'
+      +'<span class="sh">'+r.share.toFixed(1)+'%</span>'
+      +'<span class="mi">'+fmtDpsM(r.med)+'</span>'
+      +'<span class="mi">n='+fmtInt(r.n)+'</span>'
+      +(r.hero?'<span class="htag">'+esc(r.hero)+'</span>':'')
+      +(clip&&!r.hash?'<button class="cbtn" data-copy="'+(x+1)+'">copy</button>':'')
+      +'</span>';
+  });
+  if(T.other>0)
+    h+='<span class="bldchip oth">other · '+(100*T.other/T.known).toFixed(1)
+      +'% · n='+fmtInt(T.other)+'</span>';
+  return h+'</div>';
+}
+function csTreePanesHTML(ctx,trees,row){
+  const panes=[];
+  const add=(lab,name,tree)=>{if(tree)panes.push({lab,name,tree})};
+  add("Class",ctx.cls,trees.cls);
+  add("Spec",ctx.spec,trees.spec);
+  if(state.merge&&row.hero){            // merged: the SELECTED build's hero pane
+    const ht=trees.hero[row.hero];
+    if(ht&&Array.isArray(ht.nodes)&&ht.nodes.length&&Array.isArray(ht.edges))
+      add("Hero",row.hero,ht);
+  }
+  if(!panes.length) return "";
+  // the lit selection: nodeId -> [rank, entryIdx|null] (sel ids missing
+  // from every pane are ignored silently)
+  const sel=new Map();
+  if(row.sel) for(const s of row.sel)
+    if(Array.isArray(s)&&s.length>=2) sel.set(+s[0],[+s[1],s.length>2?+s[2]:null]);
+  // geometry: true relative positions on the db2 grid (steps of 300/600),
+  // snapped to 50 units to kill export jitter (599-vs-600 style offsets).
+  // gx/gy = the pane's ROBUST grid step: the smallest same-row/same-column
+  // gap that occurs often (a couple of stray half-step pairs may stack a
+  // little, like the in-game half-columns, instead of dictating the scale;
+  // a genuinely dense pane still reads as dense and gets the bounded
+  // overflow fallback below).
+  const snap=v=>Math.round(v/50)*50;
+  const gstep=cnt=>{
+    let tot=0; for(const c of cnt.values()) tot+=c;
+    if(!tot) return 1/0;
+    const th=Math.max(2,tot*.1);
+    let best=1/0, mn=1/0;
+    for(const [g,c] of cnt){ if(g<mn)mn=g; if(c>=th&&g<best)best=g; }
+    return isFinite(best)?best:mn;
+  };
+  for(const p of panes){
+    let x0=1/0,x1=-1/0,y0=1/0,y1=-1/0;
+    const byY=new Map(), byX=new Map();
+    for(const n of p.tree.nodes){
+      const x=snap(n.x), y=snap(n.y);
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+      (byY.get(y)||byY.set(y,new Set()).get(y)).add(x);
+      (byX.get(x)||byX.set(x,new Set()).get(x)).add(y);
+    }
+    const gaps=m=>{const cnt=new Map();
+      for(const s of m.values()){const a=[...s].sort((u,v)=>u-v);
+        for(let i=1;i<a.length;i++){const g=a[i]-a[i-1];
+          cnt.set(g,(cnt.get(g)||0)+1);}}
+      return cnt};
+    p.x0=x0; p.y0=y0; p.spanX=Math.max(0,x1-x0); p.spanY=Math.max(0,y1-y0);
+    p.gx=gstep(gaps(byY)); p.gy=gstep(gaps(byX));
+  }
+  // fit the panes to the measure (pref #10: readable first — icons in the
+  // 34-44px band, never smaller; vertical gaps give way before icons do;
+  // an impossible tree scrolls INSIDE #cs-trees, the page never scrolls
+  // sideways)
+  const CHROME=22;                      // per-pane padding+border
+  const host=$("charscreen");
+  // 44px allowance: a pane is never narrower than its header line (the
+  // hero pane's "HERO <name> · N pts" can out-measure its scaled canvas)
+  const availW=Math.max(700,(host&&host.clientWidth?host.clientWidth:1116))
+    -(panes.length-1)*12-panes.length*CHROME-44;
+  const spanSum=panes.reduce((a,p)=>a+p.spanX,0)||1;
+  const gxMin=Math.min(...panes.map(p=>p.gx));   // Infinity on single-column panes
+  let node=40;
+  let sx=Math.max(0.001,(availW-panes.length*node)/spanSum);
+  if(isFinite(gxMin)&&gxMin*sx<node+4){
+    // tight: a smaller icon within the readable 34-44px band, never below it
+    node=Math.max(34,Math.min(node,Math.floor(gxMin*sx)-4));
+    sx=Math.max(0.001,(availW-panes.length*node)/spanSum);
+  }
+  sx=Math.min(sx,(node+26)/600);        // don't over-stretch sparse trees
+  const capH=Math.max(380,Math.min(560,(window.innerHeight||1080)-440));
+  const ySpanMax=Math.max(...panes.map(p=>p.spanY))||1;
+  let sy=Math.min(sx,(capH-node)/ySpanMax);
+  // per-pane scales hold the icon floor: a pane whose grid is tighter than
+  // the shared scale allows grows alone (bounded overflow — page intact);
+  // vertical gaps compress toward the cap but never into icon collisions
+  for(const p of panes){
+    p.sx=(isFinite(p.gx)&&p.gx*sx<node+4)?(node+4)/p.gx:sx;
+    p.sy=(isFinite(p.gy)&&p.gy*sy<node+6)?(node+6)/p.gy:sy;
+  }
+  let h='<div id="cs-trees" style="--tn:'+node+'px">';
+  for(const p of panes){
+    const W=Math.ceil(p.spanX*p.sx)+node, H=Math.ceil(p.spanY*p.sy)+node;
+    const px=n=>((snap(n.x)-p.x0)*p.sx), py=n=>((snap(n.y)-p.y0)*p.sy);
+    let pts=0, svg="", nds="";
+    const at=new Map();
+    for(const n of p.tree.nodes) at.set(n.id,n);
+    for(const e of p.tree.edges){
+      const a=at.get(e[0]), b=at.get(e[1]);
+      if(!a||!b) continue;
+      const lit=sel.has(a.id)&&sel.has(b.id);
+      svg+='<line x1="'+(px(a)+node/2).toFixed(1)+'" y1="'+(py(a)+node/2).toFixed(1)
+        +'" x2="'+(px(b)+node/2).toFixed(1)+'" y2="'+(py(b)+node/2).toFixed(1)
+        +'"'+(lit?' class="lit"':'')+'/>';
+    }
+    for(const n of p.tree.nodes){
+      const s=sel.get(n.id), picked=!!s;
+      let nm=n.n, ic=n.ic, sp=n.s;
+      // any multi-entry node (§1.7: "es" = every option, sel's entryIdx
+      // indexes it): the PICKED option fronts the node — icon, name, link
+      if(picked&&s[1]!=null&&Array.isArray(n.es)&&n.es[s[1]]){
+        const o=n.es[s[1]];
+        if(o.n!=null)nm=o.n; if(o.ic!=null)ic=o.ic; if(o.s!=null)sp=o.s;
+      }
+      if(picked) pts+=Math.max(1,s[0]);
+      const multi=picked&&+n.r>1;
+      let tile='<span class="tico'+(n.t===2?" ch":"")+'">'
+        +'<span class="tph">'+esc(nm?nm.trim().charAt(0):"•")+'</span>'
+        +(ic?'<img alt="" loading="lazy" src="icons/'+encodeURIComponent(String(ic))
+          +'.jpg" onerror="this.remove()">':'')
+        +'</span>';
+      if(sp)                            // the ONE wowhead surface (icon only)
+        tile='<a class="whico" href="https://www.wowhead.com/spell='+(+sp)
+          +'" target="_blank" rel="noopener">'+tile+'</a>';
+      nds+='<div class="ttn '+(picked?"pk":"dm")+'" style="left:'+px(n).toFixed(1)
+        +'px;top:'+py(n).toFixed(1)+'px"'
+        +(nm?' title="'+escA(nm)+(multi?" · "+s[0]+"/"+n.r:"")+'"':'')+'>'
+        +tile+(multi?'<span class="ttr">'+s[0]+"/"+n.r+'</span>':'')+'</div>';
+    }
+    h+='<div class="ttpane"><div class="tthead"><span class="tl">'+p.lab
+      +'</span><span class="tn2">'+esc(p.name)+'</span>'
+      +(pts?'<span class="tp">'+pts+(pts===1?' pt':' pts')+'</span>':'')+'</div>'
+      +'<div class="ttcv" style="width:'+W+'px;height:'+H+'px">'
+      +'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+svg+'</svg>'
+      +nds+'</div></div>';
+  }
+  return h+'</div>';
+}
 /* talents + hero logic (§3.4) — the Talents pane's whole content */
 function csTalentsHTML(ctx,d){
   let scope="";
@@ -3461,10 +3718,34 @@ function csTalentsHTML(ctx,d){
   let h=csSecOpen("talents","Talent builds",scope);
   const T=csTalentRows(d);
   if(!T) return h+csThinHTML(d.bldIdx.length,"builds")+'</div>';
+  const anyHash=T.rows.some(r=>r.hash);
+  // in-game-style trees render only when the pipeline shipped BOTH halves:
+  // the lazy talents doc AND per-build "sel" — anything less keeps the
+  // text rendering below exactly as it always was (nothing dormant)
+  const withSel=T.rows.some(r=>r.sel);
+  if(withSel&&!TALDOC) loadTalentsDoc();  // lazy: the first want kicks it off
+  const trees=withSel?talTreesFor(ctx):null;
+  if(trees&&(trees.cls||trees.spec)){
+    if(screenBuild>=T.rows.length||!T.rows[screenBuild].sel){
+      screenBuild=T.rows.findIndex(r=>r.sel);   // never light nothing
+      if(screenBuild<0) screenBuild=0;
+    }
+    h+=csBuildChipsHTML(T);
+    h+=csTreePanesHTML(ctx,trees,T.rows[screenBuild]);
+    h+='<div class="cs-foot">Build '+(screenBuild+1)+' lit — picked talents in '
+      +'full color, the rest dimmed · click a build chip to relight · '
+      +'builds known for '+fmtInt(T.known)+' of '+fmtInt(d.win.length)
+      +' in window · identity = exact talent-'+(anyHash?'tree':'string')+' match'
+      +(!state.merge?' · hero fixed — builds differ in class/spec trees only':'')
+      +'</div>';
+    if(anyHash)
+      h+='<div class="cs-foot">builds identified from talent trees; '
+        +"the game's import strings are not present in combat logs</div>";
+    return h+'</div>';
+  }
   const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
   const clip=!!navigator.clipboard;     // buttons only when the API exists — nothing dormant
   // hash identities: ordinal "Build N" labels in share order, zero copy surface
-  const anyHash=T.rows.some(r=>r.hash);
   const bnm=t=>anyHash?'<span class="bnm">'+t+'</span>':'';
   let rows="";
   T.rows.forEach((r,x)=>{
@@ -3577,6 +3858,14 @@ function wireScreen(host,ctx,d){
   });
   const dt=host.querySelector("#cs-digest .dtrig");
   if(dt) dt.onclick=()=>{ screenTab="tal"; renderScreen(); };
+  // Build chips light their build's talent trees (copy + wowhead stay theirs)
+  host.querySelectorAll("#cs-bldchips .bldchip[data-bld]").forEach(c=>{
+    c.onclick=e=>{
+      if(e.target.closest("[data-copy],a")) return;
+      screenBuild=+c.dataset.bld;
+      renderScreen();
+    };
+  });
   host.querySelectorAll("[data-copy]").forEach(b=>{
     b.onclick=e=>{
       e.stopPropagation();
