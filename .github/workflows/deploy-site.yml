@@ -75,6 +75,26 @@ jobs:
           else
             echo "::warning::no live refresh artifact; deploying committed files only"
           fi
+          # NEVER PUBLISH OLDER DATA THAN IS ALREADY LIVE. "Latest SUCCESSFUL
+          # refresh run" excludes a run that is still finishing -- so a UI push
+          # landing minutes after that run published its data seeds from the
+          # run BEFORE it and silently rolls the dataset backwards. That is not
+          # hypothetical: on 2026-08-30 a UI restore reverted the live data from
+          # the 05:53 build to the 05:14 one, taking a shipped fix with it.
+          # Compare build stamps and keep whichever data is newer; the UI
+          # overlay below is applied either way, so the UI still ships.
+          live_built=$(curl -sfL "https://st331.github.io/wowlogs/data.json.gz" \
+            | python3 -c 'import sys,gzip,json; print(json.load(gzip.open(sys.stdin.buffer)).get("built",""))' 2>/dev/null || echo "")
+          art_built=$(python3 -c 'import gzip,json; print(json.load(gzip.open("/tmp/out/data.json.gz")).get("built",""))' 2>/dev/null || echo "")
+          echo "data build stamps -- live: '${live_built}' artifact: '${art_built}'"
+          if [ -n "$live_built" ] && [ -n "$art_built" ] \
+             && [ "$art_built" \< "$live_built" ]; then
+            echo "::warning::artifact data (${art_built}) is OLDER than live (${live_built}); keeping the live data files"
+            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz; do
+              curl -sfL -o "/tmp/out/$f" "https://st331.github.io/wowlogs/$f" \
+                && echo "  kept live $f" || rm -f "/tmp/out/$f"
+            done
+          fi
           # Overlay ONLY the UI. Every generated data file is git-tracked and
           # therefore present in the checkout as a stale copy -- a plain cp of
           # site/. once rolled the live dataset back 33 hours. The build
