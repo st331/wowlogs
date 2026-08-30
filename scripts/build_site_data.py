@@ -1450,6 +1450,7 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     rows_c = []          # (payload i, "Class|Spec", slotkeys, enchs, build, fl)
     gear_known = 0
     ench_hits: Counter = Counter()
+    gkey: Counter = Counter()      # gear-item key presence, for the eslots diagnostic
     for i, (code, fid, ch, sv, cls, spec) in enumerate(zip(
             df["report_code"], df["fight_id"], df["character"],
             df["server"], df["class"], df["spec"])):
@@ -1470,7 +1471,13 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                 if isinstance(it, dict) and it.get("id"):
                     slotkeys[k] = (it["id"], emb_of(it), it.get("ilvl"))
             for s, it in enumerate(gear):
-                if isinstance(it, dict) and it.get("ench"):
+                if not isinstance(it, dict):
+                    continue
+                gkey["items"] += 1
+                for _k in ("ilvl", "set", "ench", "gems", "bonus"):
+                    if it.get(_k):
+                        gkey[_k] += 1
+                if it.get("ench"):
                     ench_hits[s] += 1
                     enchs[s] = it["ench"]
         rows_c.append((i, f"{cls}|{spec}", slotkeys, enchs, build, fl))
@@ -1480,6 +1487,23 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         return None
     eslots = sorted(s for s, c in ench_hits.items()
                     if c >= BUILDS_ESLOT_MIN_SHARE * max(gear_known, 1))
+    # The Enchants pane has been silently empty in production. eslots is
+    # MEASURED, so an empty list has two very different causes and the log
+    # never said which: the journal carries no enchant at all (the collector's
+    # field is absent from WCL's payload -- the same class of finding as the
+    # missing talent import strings and specIDs), or it carries some but no
+    # slot clears the 1% bar. Say which, with the numbers, whenever the pane
+    # would ship empty.
+    if not eslots:
+        floor = BUILDS_ESLOT_MIN_SHARE * max(gear_known, 1)
+        top = ", ".join(f"slot {s}: {c:,}"
+                        for s, c in ench_hits.most_common(5)) or "none"
+        print(f"[{name}] NO ENCHANT COLUMNS -- the Enchants pane will be empty. "
+              f"{gkey['items']:,} gear items over {gear_known:,} gear-known rows; "
+              f"per-item key presence ilvl={gkey['ilvl']:,} set={gkey['set']:,} "
+              f"ench={gkey['ench']:,} gems={gkey['gems']:,} bonus={gkey['bonus']:,}. "
+              f"Slot floor is {BUILDS_ESLOT_MIN_SHARE:.0%} = {floor:,.0f}; "
+              f"best slots: {top}")
 
     # ---- per-spec tallies over ALL journal-known rows of the spec (per the
     # contract: vocab counts are df-wide, not lens- or cohort-sliced)
