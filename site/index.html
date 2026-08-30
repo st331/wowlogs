@@ -3213,6 +3213,54 @@ function decodeBuildsSidecar(j){
    any absence (404, no inflater, malformed) is silent and permanent for the
    session — the pane simply keeps its text rendering, nothing dormant. ---- */
 let TALDOC=null, taldocCP=null;
+/* ---- THE HERO-TREE SELECTOR IS NOT A TALENT (normalisation, once, at load).
+   TraitNode.Type 3 is SubTreeSelection: the structural node the game uses to
+   pick WHICH hero tree you are in. It is not a talent — in the shipped doc all
+   41 of them are nameless with EVERY "es" option blank (s:0, n:null, ic:null),
+   so there is nothing to name, link, rank or count; each one sits in its own
+   private column AND row, parked off the side of the real tree; and none of
+   them is an endpoint of any edge (0 of 0). Left in the doc it lies three ways,
+   all measured against the live payload:
+     · DIFF  — every build's sel carries one, and its entryIdx IS the hero
+       choice, so csDiffMaps reports a choice SWAP on 3,374 of 3,374 cross-hero
+       ordered pairs (and 0 of 18,706 same-hero ones). That is a second, mute
+       copy of a substitution the diff bar and the ledger already state once, by
+       the design's own rule that a disjoint hero tree is ONE event — and it is
+       drawn as a marked tile with no name, no icon, no link and no tooltip.
+     · POINTS — it adds 1 to its pane's point total (Retribution's Spec pane
+       reads 33 pts for 32 spent).
+     · SPACE — 99 occurrences across the panes, each claiming a whole ladder
+       column and a whole ladder row that no talent uses; 52 panes pay for it,
+       against a width budget that is already the tightest thing on this screen.
+   So it is stripped here, at the one boundary every consumer is downstream of:
+   the ladders, the point totals, csPaneOf, csNodeIndex and the node loop then
+   see a document of talents only, with no per-site special-casing. The ids are
+   kept in TALSTRUCT because "sel" still carries them, and csDiffMaps has to
+   skip them by id — it diffs two sel arrays, not two trees.
+   Note this removes NO information: the hero substitution is stated by the
+   diff bar's substitution line and by the ledger's one hero-tree row. ---- */
+const TALSTRUCT=new Set();
+function talStripStructural(j){
+  const done=new Set();                 // classRef ⇒ one tree object, many specs
+  const strip=t=>{
+    if(!t||done.has(t)||!Array.isArray(t.nodes)) return;
+    done.add(t);
+    const gone=new Set();
+    for(const n of t.nodes) if(n&&+n.t===3) gone.add(+n.id);
+    if(!gone.size) return;
+    for(const id of gone) TALSTRUCT.add(id);
+    t.nodes=t.nodes.filter(n=>!gone.has(+n.id));
+    if(Array.isArray(t.edges))
+      t.edges=t.edges.filter(e=>!gone.has(+e[0])&&!gone.has(+e[1]));
+  };
+  if(j.classes&&typeof j.classes==="object")
+    for(const k in j.classes) strip(j.classes[k]);
+  for(const k in j.trees){
+    const x=j.trees[k]; if(!x||typeof x!=="object") continue;
+    strip(x.class); strip(x.spec);
+    if(x.hero&&typeof x.hero==="object") for(const hn in x.hero) strip(x.hero[hn]);
+  }
+}
 function loadTalentsDoc(){
   if(taldocCP) return taldocCP;
   taldocCP=(async()=>{
@@ -3222,7 +3270,8 @@ function loadTalentsDoc(){
     const j=await new Response(
       gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
     if(j&&j.trees&&typeof j.trees==="object"){
-      TALDOC=j;
+      talStripStructural(j);            // before publication: TALDOC is never
+      TALDOC=j;                         // observed carrying a selector node
       if(state.screen&&screenTab==="tal") renderScreen();
     }
   })().catch(()=>{});
@@ -3972,7 +4021,13 @@ function csSelMap(sel){
    feature exists to prevent). */
 function csDiffMaps(A,B){
   const dm=new Map();
+  // A "sel" array carries the hero-tree SELECTOR alongside the talents, and its
+  // entryIdx is the hero choice itself — so without this it reports a swap on
+  // every cross-hero pair, a mute second copy of the substitution line. It is
+  // stripped from the trees at load (talStripStructural); here it is skipped by
+  // id, because this function sees sel, not trees.
   for(const [id,b] of B){
+    if(TALSTRUCT.has(id)) continue;
     const a=A.get(id);
     if(!a){ dm.set(id,{k:"a", r:b[0], i:b[1]}); continue }
     if(a[1]!==b[1]){ dm.set(id,{k:"s", r:b[0], br:a[0], i:b[1], bi:a[1]}); continue }
@@ -3980,7 +4035,7 @@ function csDiffMaps(A,B){
     else if(b[0]<a[0]) dm.set(id,{k:"w", r:b[0], br:a[0], i:b[1], bi:a[1]});
   }
   for(const [id,a] of A)
-    if(!B.has(id)) dm.set(id,{k:"d", br:a[0], bi:a[1]});
+    if(!B.has(id)&&!TALSTRUCT.has(id)) dm.set(id,{k:"d", br:a[0], bi:a[1]});
   return dm;
 }
 // one flat nodeId -> "cls"|"spec"|"hero" map. Node ids are unique across every
@@ -4017,9 +4072,12 @@ function csHeroOfSel(sel,heroTrees){
    chip's hero tag does not already say in one word — all seven Retribution
    chips would read "+16 −16" when the truth is "2 to 11 talents plus a
    different hero tree". Rank/swap are safe over the full sel and cannot be
-   inflated by a hero substitution: cross-hero pairs share NO hero node ids
-   (disjoint trees, so no rank or swap event can arise there), and same-hero
-   pairs have measured 0 hero adds and 0 hero drops. */
+   inflated by a hero substitution: the hero TREES are disjoint, so no rank or
+   swap event can arise between them, and same-hero pairs have measured 0 hero
+   adds and 0 hero drops. The one node that DID break this — the hero-tree
+   selector, which lives in the SPEC tree and swaps on every cross-hero pair —
+   is not a talent and no longer reaches here (talStripStructural / TALSTRUCT);
+   with it gone the invariant is measured true on 22,080 of 22,080 pairs. */
 function csDiffCounts(dm,paneOf){
   const c={a:0,d:0,u:0,w:0,s:0,heroAD:0};
   for(const [id,r] of dm){
@@ -4109,8 +4167,9 @@ function csBuildChipsHTML(T,dx){
       +'<span class="sh">'+r.share.toFixed(1)+'%</span>'
       // ITEM 2: the median was already here as a bare, muted, unlabelled number.
       // Label it and weight it so it outranks the share and n around it.
-      +'<span class="med" title="median DPS of this build\'s parses in the current '
-      +'window — a cohort result, not a measured gain from the talents">'
+      +'<span class="med" title="median DPS of this build\'s parses inside the '
+      +'current lens window — the lens keeps a percentile band, so this moves '
+      +'when the lens does; a cohort result, not a measured gain from the talents">'
       +'<i>med</i>'+fmtDpsM(r.med)+'</span>'+mdel
       +'<span class="mi">n='+fmtInt(r.n)+'</span>'
       +cnt
@@ -4401,9 +4460,18 @@ function csTreePanesHTML(ctx,trees,row,base){
       const pip=(df&&(df.k==="u"||df.k==="w"))
         ?(Math.max(1,df.br)+"→"+rk)
         :(rk+"/"+n.r);
+      /* the title gate used to be `nm && ...`, which is exactly backwards for a
+         MARKED node: the one tile whose change the reader most needs explained
+         was the one that got no tooltip at all. A node earns a title when it
+         has a name OR a diff mark; a nameless mark says so rather than hovering
+         to nothing. (After talStripStructural the only nameless nodes left are
+         choice nodes whose picked option names them, so this is a guard, not a
+         path anything currently walks — 0 of 22,080 pairs reach it.) */
+      const ttl=(nm||df)
+        ?(nm||"unnamed node")+(multi?" · "+rk+"/"+n.r:"")+tnote:"";
       nds+='<div class="ttn '+cls+'" style="left:'+px(n).toFixed(1)
         +'px;top:'+py(n).toFixed(1)+'px"'
-        +(nm?' title="'+escA(nm)+(multi?" · "+rk+"/"+n.r:"")+escA(tnote)+'"':'')+'>'
+        +(ttl?' title="'+escA(ttl)+'"':'')+'>'
         +tile+ghost
         +(badge?'<span class="ttb">'+badge+'</span>':'')
         +(multi?'<span class="ttr'+pipCls+'">'+pip+'</span>':'')+'</div>';
@@ -4514,9 +4582,11 @@ function csDiffLedgerHTML(base,row,paneOf,trees){
   const KI={a:{o:5,g:"+",w:"add"}, u:{o:4,g:"+",w:"rank up"},
             s:{o:3,g:"≠",w:"swap"}, w:{o:2,g:"−",w:"rank down"},
             d:{o:1,g:"−",w:"drop"}};
-  // 103 of 5,010 nodes in the shipped doc genuinely carry no name, spell or
-  // icon (t=3 structural nodes). The tree already draws them with a "•" glyph;
-  // the ledger must name them honestly rather than printing "null".
+  // 4 of the doc's nodes carry no name of their own after talStripStructural
+  // took the 99 selector occurrences out (Monk 101093/101103/101235: a blank
+  // option 0 beside a real option 1). Live sel picks option 1 every time, so
+  // the es resolution below always names them — this is the guard for the day
+  // it does not, and it prints honestly rather than the literal string "null".
   const nmHTML=s=>s==null?'<span class="na">unnamed node</span>':esc(s);
   const ico=(name,c)=>(c?'<img class="dico" alt="" loading="lazy" src="icons/'
     +encodeURIComponent(String(c))+'.jpg" onerror="this.remove()">':'')+nmHTML(name);
@@ -4684,11 +4754,24 @@ function csTalentsHTML(ctx,d){
       +(!state.merge?' · hero fixed — builds differ in class/spec trees only in '
         +'the trees shown; hero-tree choices are counted but not drawn here':'')
       +'</div>';
+    /* This caption used to claim the percentile lens does not move the median
+       "because it is a median". False, and false in the worst direction: the
+       lens does not relabel this window, it SELECTS it — screenData keeps only
+       parses whose own DPS percentile is within 10 points of the lens, so a
+       build's parse set here is already a DPS band centred on the lens and its
+       middle value tracks the lens almost one-for-one. Measured on
+       Warlock|Demonology with nothing else touched, build t:815097b110e6 read
+       204k (n=15) at p10, 271k (n=18) at p50 and 322k (n=9) at p90. A reader
+       chasing the 1% would have parked the lens at p90, read 322k and taken it
+       for the build's median instead of the median of its top fifth. */
     h+='<div class="cs-foot">median = the middle DPS of that build’s parses '
-      +'in the current window — it moves with the filters and the trust gate. It '
-      +'is a median, so the percentile lens does not change it (the lens relabels '
-      +'every other DPS reading on this page). Builds are compared, not causes: a '
-      +'higher median is that cohort’s result, not a measured gain from the '
+      +'<b>inside the current window</b> — and the window is a band, not the '
+      +'whole ladder: the percentile lens keeps only parses within 10 percentile '
+      +'points of itself, so moving it moves this number and the n under it. At '
+      +'p90 you are reading the median of that build’s <b>top</b> parses, not the '
+      +'build’s median; the filters and the trust gate move it too. Compare '
+      +'medians at one lens setting. Builds are compared, not causes: a higher '
+      +'median is that cohort’s result, not a measured gain from the '
       +'talents.</div>';
     if(anyHash)
       h+='<div class="cs-foot">builds identified from talent trees; '
