@@ -1877,6 +1877,40 @@ def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,
         problems.append("derivation returned 0 ids; cached map retained")
     if not run.get("ok"):
         problems.append("db2 did not answer this run (map is the cached one)")
+    # ---- AUDIT: journal co-occurrence, the validator (never the classifier).
+    # Computed BEFORE the verdict because it is evidence the verdict must
+    # weigh: the realistic v1 shape (optional reagents wrongly in the identity
+    # set, all named, no conflicts) trips nothing else, so a verdict blind to
+    # this audit printed "ok" over exactly the failure it was built to catch.
+    seen: Counter = Counter()
+    withmk: Counter = Counter()
+    items_of: dict = {}
+    for iid, tup in cfgs:
+        s = set(tup)
+        mk = bool(s & markers)
+        for b in s:
+            if b in markers:
+                continue
+            seen[b] += 1
+            items_of.setdefault(b, set()).add(iid)
+            if mk:
+                withmk[b] += 1
+    SUP, NITEM = 12, 3
+    qual = [b for b in seen
+            if seen[b] >= SUP and len(items_of[b]) >= NITEM]
+    id_r = [(withmk[b] / seen[b], b) for b in qual if b in ids]
+    no_r = [(withmk[b] / seen[b], b) for b in qual if b not in ids]
+    warn = []
+    if id_r and min(id_r)[0] < 1.0:
+        warn.append(f"identity id {min(id_r)[1]} rides un-embellished items "
+                    f"(ratio {min(id_r)[0]:.3f}) -- the db2 model broke")
+    hot = sorted(b for r, b in no_r if r >= 1.0)
+    if hot:
+        warn.append(f"non-identity ids at ratio 1.000 with support: {hot} -- "
+                    f"a new embellishment, or a false name from the other side")
+    if warn:
+        problems.append("co-occurrence audit: " + "; ".join(warn))
+
     verdict = ("ok" if not problems
                else ("DEAD" if marked and not named else "DEGRADED"))
     health(f"[{name}] [emb] verdict: {verdict}"
@@ -1924,32 +1958,6 @@ def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,
     # spreads over a partly-embellished recipe family and lands near the base
     # rate. Counted per DISTINCT crafted configuration, not per carry, so one
     # popular item cannot dominate. WARN BOTH WAYS.
-    seen: Counter = Counter()
-    withmk: Counter = Counter()
-    items_of: dict = {}
-    for iid, tup in cfgs:
-        s = set(tup)
-        mk = bool(s & markers)
-        for b in s:
-            if b in markers:
-                continue
-            seen[b] += 1
-            items_of.setdefault(b, set()).add(iid)
-            if mk:
-                withmk[b] += 1
-    SUP, NITEM = 12, 3
-    qual = [b for b in seen
-            if seen[b] >= SUP and len(items_of[b]) >= NITEM]
-    id_r = [(withmk[b] / seen[b], b) for b in qual if b in ids]
-    no_r = [(withmk[b] / seen[b], b) for b in qual if b not in ids]
-    warn = []
-    if id_r and min(id_r)[0] < 1.0:
-        warn.append(f"identity id {min(id_r)[1]} rides un-embellished items "
-                    f"(ratio {min(id_r)[0]:.3f}) -- the db2 model broke")
-    hot = sorted(b for r, b in no_r if r >= 1.0)
-    if hot:
-        warn.append(f"non-identity ids at ratio 1.000 with support: {hot} -- "
-                    f"a new embellishment, or a false name from the other side")
     if not qual:
         health(f"[{name}] [emb] AUDIT co-occurrence: no bonus id reaches "
                f"support>={SUP} over >={NITEM} items -- not evaluated "

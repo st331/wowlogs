@@ -4135,14 +4135,29 @@ function csCraftedHTML(ctx,d){
       +", counted once per player: "+lst);
   }
   if(!degraded) h+=remainder;
-  h+='</tbody></table><div class="caption">'
-    +esc("share of the "+fmtInt(total)+" gear-known players in this window "
-      +"wearing this embellishment on at least one item; a player wears up to "
-      +"two different ones, so the column sums above 100% — no single row can. "
-      +"Rows are the top "+CS_EMB_CAP+" above an n≥"+CS_ENTRY_MIN+" floor; "
-      +"every other named embellishment is pooled into “other named”, "
-      +"counted once per player. "
-      +"Covers items inside the shipped per-slot vocabulary.")
+  // The caption states what THIS render actually did. The first version
+  // described a named world unconditionally -- top-N rows, an n-floor, an
+  // "other named" pool, a column summing over 100% -- while the shipped data
+  // had zero named embellishments, no row hit any floor, and the column summed
+  // to 93%. A caption that describes arithmetic the page did not perform is
+  // the same defect as a wrong number, so each clause now appears only when it
+  // is true of what is on screen.
+  const capSum = M.emb.reduce((a, x) => a + 100 * x.n / (total || 1), 0);
+  let cap = "share of the " + fmtInt(total) + " gear-known players in this "
+    + "window wearing this embellishment on at least one item, counted once "
+    + "per player.";
+  if (named.length)
+    cap += " A player can wear two different ones, so the column"
+      + (capSum > 100 ? " sums to " + capSum.toFixed(0) + "%" : " can exceed 100%")
+      + " — no single row can."
+      + (rest.length ? " Rows are the top " + CS_EMB_CAP + " above an n≥"
+          + CS_ENTRY_MIN + " floor; the rest are pooled into “other named”." : "");
+  else
+    cap += " No embellishment here is named yet — the pipeline knows these "
+      + "items carry one but not which, so they are pooled as a single "
+      + "unnamed row rather than guessed at.";
+  cap += " Covers items inside the shipped per-slot vocabulary.";
+  h+='</tbody></table><div class="caption">'+esc(cap)
     +'</div></div></div></div>';
   return h;
 }
