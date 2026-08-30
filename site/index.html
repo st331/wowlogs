@@ -776,7 +776,7 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
    language §"semantic — text-only deltas"). Nothing rotates, grows or
    glows: the only hover is still color-only (pref #7). */
 .ttb{position:absolute; left:-5px; top:-5px; z-index:3; pointer-events:none;
-  font:700 .66rem/1.15 var(--font); background:var(--surface2);
+  font:700 .74rem/1.15 var(--font); background:var(--surface2);
   border:1px solid var(--line2); border-radius:var(--r1); padding:0 .18rem;
   font-variant-numeric:tabular-nums}          /* opposite corner to .ttr */
 .ttn.da .ttb{color:var(--up); border-color:rgba(61,220,132,.5)}
@@ -790,22 +790,55 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
    Four channels, only one of them colour. Octagons carry no border at all
    (.tico.ch{border:none}) so they cannot dash — tier + badge + --down
    background rim carry them; the dash is never faked. */
-.ttn.dd{opacity:.68}
-.ttn.dd .tico{border-color:var(--down); border-style:dashed}
+/* A drop was .68 opacity over grayscale(1) brightness(.62) — against an
+   untaken node's .42/grayscale(1)/.55 that is a hair's difference, and the
+   owner reported dropped talents as "too dark" to pick out. The drop is a
+   FINDING, not background: it keeps full opacity and most of its colour, and
+   the --down rim is doubled into a ring so the mark carries at 40px. It still
+   cannot be mistaken for picked: dashed rim, red ring, −n badge, base's rank. */
+.ttn.dd{opacity:1}
+.ttn.dd .tico{border-color:var(--down); border-style:dashed;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 2px rgba(255,107,107,.30)}
 .ttn.dd .tico.ch{background:var(--down)}
-.ttn.dd .tico img{filter:grayscale(1) brightness(.62)}
+.ttn.dd .tico img{filter:grayscale(.3) brightness(.9)}
 /* a RANK-DOWN node carries .dd for its --down ink but is still PICKED here —
    it must not dim or dash, or it reads as a drop it isn't */
 .ttn.pk.dd{opacity:1}
 .ttn.pk.dd .tico{border-style:solid}
 .ttn.pk.dd .tico img{filter:none}
-/* SWAPPED: rim deliberately UNCHANGED — --accent on --metal-line is
-   champagne on champagne. The ≠ badge and the ghost carry it (shape). */
-.ttg{position:absolute; left:-4px; bottom:-4px; z-index:2; width:15px; height:15px;
+/* SWAPPED: the rim was deliberately left champagne, so a swap was carried by
+   a 0.66rem badge and a 15px ghost alone — and the owner reported that a
+   changed option "does not seem to show up at all". A swap is exactly one
+   option out and one in, so it now says both with the two colours already in
+   the language: an --up inner rim for what arrived, a --down outer ring for
+   what left. No new hue, no purple, nothing rotates. */
+.ttn.ds .tico{border-color:var(--up);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 2px rgba(255,107,107,.45)}
+.ttn.ds .tico.ch{background:var(--up)}
+.ttg{position:absolute; left:-4px; bottom:-4px; z-index:2; width:19px; height:19px;
   object-fit:cover; border:1px dashed var(--down); border-radius:var(--r1);
-  filter:grayscale(1) brightness(.7); pointer-events:none}
+  filter:grayscale(.55) brightness(.75); pointer-events:none}
 /* hover hole: a dropped node is NOT .pk/.dm, so :752-753 would repaint its
    --down rim champagne exactly when the reader looks hardest. Still color-only. */
+/* THE POP. A pane holds ~120 nodes and a typical diff marks 5-7 of them, so
+   the marks were competing with 70 fully-lit unchanged talents and the owner
+   read the result as "so small it is very hard to tell". While a base is
+   pinned the pane sorts into three plain tiers — MARKED at full strength with
+   a doubled rim, still-taken at .62, never-taken at .28 — so the changes are
+   what the eye lands on while the build's shape stays legible underneath.
+   Static state, not a hover effect: nothing grows or moves on cursor pass. */
+#cs-trees.diff .ttn.pk:not(.da):not(.dd):not(.ds){opacity:.62}
+#cs-trees.diff .ttn.dm{opacity:.28}
+#cs-trees.diff .ttn.da .tico,#cs-trees.diff .ttn.dd .tico,
+#cs-trees.diff .ttn.ds .tico{border-width:2px}
+#cs-trees.diff .ttn.da .tico{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
+  0 0 0 3px rgba(61,220,132,.34)}
+#cs-trees.diff .ttn.dd .tico{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
+  0 0 0 3px rgba(255,107,107,.38)}
+#cs-trees.diff .ttn.ds .tico{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
+  0 0 0 3px rgba(255,107,107,.52)}
+#cs-trees.diff .ttb{font-size:.82rem; padding:.02rem .28rem; left:-7px; top:-7px}
+#cs-trees.diff .ttg{width:22px; height:22px; left:-6px; bottom:-6px}
 .ttn.da a.whico:hover .tico,.ttn.dd a.whico:hover .tico{border-color:var(--accent-line)}
 .ttn.da a.whico:hover .tico.ch,.ttn.dd a.whico:hover .tico.ch{background:var(--accent-line)}
 /* rank pip states — the pip keeps its job (the value HERE); a rank move
@@ -833,11 +866,16 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 .bldchip.base:hover{border-color:var(--metal-line); color:#241d0e}
 .bldchip.base .pbtn{border-color:#4a3b12; color:#241d0e; background:transparent}
 .bldchip.base .pbtn:hover{border-color:#241d0e; color:#241d0e}
-.bldchip .pbtn{background:var(--surface1); border:1px solid var(--line2);
-  color:var(--ink2); border-radius:var(--r1); padding:.06rem .42rem;
-  font-size:.66rem; cursor:pointer; font-weight:500;
-  transition:border-color .13s, color .13s}
-.bldchip .pbtn:hover{border-color:var(--accent-line); color:var(--accent)}
+/* The one affordance that starts the whole diff. It shipped as quiet as the
+   copy button beside it and the owner could not find it, so it now reads as
+   the chip's action: accent ink on an accent rim at rest, champagne on hover.
+   Still colour-only on hover, still nothing that moves (prefs #3, #7). */
+.bldchip .pbtn{background:var(--surface1); border:1px solid var(--accent-line);
+  color:var(--accent); border-radius:var(--r1); padding:.1rem .5rem;
+  font-size:.72rem; cursor:pointer; font-weight:650; letter-spacing:.02em;
+  transition:border-color .13s, color .13s, background .13s}
+.bldchip .pbtn:hover{border-color:var(--accent); color:var(--ink);
+  background:var(--surface2)}
 .bldchip:focus-visible{outline:1px solid var(--accent-line); outline-offset:1px}
 /* ITEM 2 — the median was already computed and already drawn, as a bare
    muted .mi that read as one more anonymous number. Label it and give it
@@ -4371,6 +4409,7 @@ function csTreePanesHTML(ctx,trees,row,base){
   // a CENTRED overflowing flex row clips its LEADING edge, which would put the
   // Class pane out of reach; centre only when the solver says the row fits.
   let h='<div id="cs-trees" class="'+(sumW<=availW?"fit":"ovf")
+    +(dmapAll?" diff":"")
     +'" style="--tn:'+node+'px">';
   for(const p of panes){
     const W=(p.colLad.slots-1)*colPitch+node;
