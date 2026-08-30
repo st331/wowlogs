@@ -35,3 +35,17 @@ and see the data change. Filterable just like the stats are currently. I care ab
   quality fields as available in the journal — the design must verify what the
   writer actually stores and state what is and is not identifiable.
 - The Set Bonus / tier logic, comps, stats block: untouched.
+
+## Gear presentation upgrade (owner, 2026-08-30)
+"I want icons for the items, and much better presentation. the list of all items
+looks almost like the in-game character pane in Archon, this looks plain and ugly."
+- Item ICONS: icon names resolved per item id (wowhead XML endpoint, grow-only
+  cache data/names_icons.json), icon images downloaded at collection time and
+  SELF-HOSTED under site/icons/ (committed; no runtime hotlinking, no scripts).
+  Sidecar item vocab entries gain optional "ic" (§1 widening); client falls back
+  to an iconless tile when absent.
+- Gear pane becomes a PAPER-DOLL layout like the in-game character pane (and
+  Archon's): left/right slot columns with icon tiles, name + ilvl + share beside,
+  weapons row; slot fold-outs keep working and gain small icons per row.
+- Still bound by: viewport-fit-at-rest bar, Gilded Glass (icons get the metal-lip
+  border), calm hover, no rotation, live re-slicing.
