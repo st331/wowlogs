@@ -23,13 +23,30 @@ crux of any future attempt.
 
 ## In flight
 
-- **Gear slots** — kill the "other / none" headline on every doll slot (root cause: the
-  sidecar's degradation ladder halved every vocabulary to 12/20 because the 3.0 MB target
-  is too tight against a 5.0 MB hard cap, so the tail is truncated into the "other"
-  bucket); and pool rings/trinkets so the two ring spots show the #1 and #2 most-used ring
-  and the two trinket spots likewise. Needs a data rebuild once merged.
-- **Talent build diff** — pin a build as base, then show additions/subtractions/rank
-  changes/choice swaps on the trees. Client-only, no rebuild.
+Nothing. Both the gear-slot work and the talent pass are merged and live.
+
+## Landed 2026-08-30
+
+- **Gear slots** — no tile can headline "other / none"; rings and trinkets pooled so the
+  two spots show #1 and #2 most-used; doll rebalanced 7/7. Root cause was the emitter's
+  degradation ladder halving every vocabulary (12/20) because the 3.0 MB target was
+  unreachable — the lowest rung measures 3.29 MB. Target raised to 4.3 MB against the
+  5.0 MB hard cap and the ladder made a staircase. Confirmed live: vocabs back to 24/40.
+- **Talent pass** — base-pin diff (adds/drops/rank moves/choice swaps), median DPS made
+  legible with a delta vs base, one shared pane geometry, and a legibility round after
+  owner feedback (drops no longer near-black, swaps get their own rim, three-tier
+  emphasis while a base is pinned).
+- **Talent trees + all 1,898 spell icons**, crafted/embellishment identity v2, wowhead
+  icon-only tooltips.
+- **Two deploy races fixed**: deploy-site can no longer publish data older than what is
+  live, and refresh now publishes the newest committed UI instead of its own checkout's.
+
+## Known open
+
+- **Enchants ship empty** (`eslots: []`). Raising the size target restored the item
+  vocabularies but the enchant columns are still being dropped by the ladder, so the
+  Enchants half of that tab has been silently blank. Diagnose before designing anything
+  on top of it.
 
 ## Specced, queued
 
