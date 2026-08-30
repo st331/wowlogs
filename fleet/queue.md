@@ -3,16 +3,23 @@
 The owner sets priority explicitly; when they do, it is recorded here verbatim and it
 outranks whatever order the work happened to arrive in.
 
-## Standing priority rule (owner, 2026-08-30)
+## SCRAPPED — session persistence (owner, 2026-08-30)
 
-> "implement the refresh change after all other fixes and changes have landed. it is the
-> lowest priority fix. if I give other feature requests, prioritize them over the refresh
-> change."
+> "scrap the refresh change request"
 
-**Session persistence (fleet/blueprints/session_state.md) is LAST.** It is designed and
-specced, deliberately not implemented. Any other fix or feature — including ones the owner
-has not asked for yet — goes ahead of it. Implement it only when nothing else is
-outstanding, and never start it while another change is in flight against site/index.html.
+The owner first asked for filters/view state to survive a refresh, with Reset filters /
+Home / Reset site buttons, then set it as lowest priority, then **scrapped it outright**.
+Design was stopped before any spec or code was written; nothing was implemented, and no
+`session_state.md` exists. **Do not resurrect it** — not as a "small win", not as a
+side effect of another change. A refresh continues to open on payload defaults, and the
+character screen's `#cs=` URL hash remains the ONLY thing that survives a reload.
+
+If it is ever revived, the trap that made it worth thinking hard about is worth
+re-reading: the key-level range default is data-driven (a six-wide band anchored to the
+top key anyone has logged), so faithfully restoring a stored range would silently freeze
+the page on stale content while looking normal — which cuts against the owner's entire
+use of the site. Distinguishing a chosen range from a default-at-the-time one is the
+crux of any future attempt.
 
 ## In flight
 
@@ -24,12 +31,11 @@ outstanding, and never start it while another change is in flight against site/i
 - **Talent build diff** — pin a build as base, then show additions/subtractions/rank
   changes/choice swaps on the trees. Client-only, no rebuild.
 
-## Specced, queued (in priority order)
+## Specced, queued
 
 1. **Upgrade surface + universal sorting** (fleet/blueprints/upgrade_surface.md) — remove
    per-slot item level; add "Upgrade lean"; make sorting automatic by construction.
    Parts 1 and 3 ship without a rebuild; Part 2 needs sidecar addendum 1.8.
-2. **Session persistence** (fleet/blueprints/session_state.md) — LAST, per the rule above.
 
 ## Rule of thumb learned the hard way
 
