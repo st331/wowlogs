@@ -4001,7 +4001,7 @@ function csEnchHTML(ctx,d){
    (0/1/2 — the game caps it at two) for the prevalence line, which is the
    one number that stays true on the day naming breaks. */
 function csCraftedModel(d){
-  const slots=BUILDSC.slots, bySlot=[], emb=new Map();
+  const slots=BUILDSC.slots, bySlot=[], emb=new Map(), sets=[];
   const VV=[];
   for(let si=0;si<slots.length;si++) VV.push((d.vocab.items||[])[si]||[]);
   let anyN=0, oneN=0, twoN=0;
@@ -4015,6 +4015,7 @@ function csCraftedModel(d){
     }
     if(!items) continue;
     anyN++; if(items===1) oneN++; else twoN++;
+    sets.push([...labs]);      // per-player, so "other" can be a CARDINALITY
     for(const k of labs) emb.set(k,(emb.get(k)||0)+1);
   }
   for(let si=0;si<slots.length;si++){
@@ -4045,7 +4046,7 @@ function csCraftedModel(d){
   const unN=emb.get(CS_EMB_GENERIC)||0;
   emb.delete(CS_EMB_GENERIC);
   return {bySlot, emb:[...emb.entries()].map(([name,n])=>({name,n})),
-          anyN, oneN, twoN, unN, total:d.gearIdx.length};
+          sets, anyN, oneN, twoN, unN, total:d.gearIdx.length};
 }
 function csCraftedHTML(ctx,d){
   if(!d.vocab||!d.gearIdx.length||d.gearIdx.length<CS_THIN) return "";
@@ -4080,12 +4081,21 @@ function csCraftedHTML(ctx,d){
   // named rows: the same n≥3 floor every other fold surface applies, then a
   // cap of 10 with the tail folded — 49 embellishments exist, and a card this
   // size must not grow a ragged tail of 1-carry rows
-  const named=M.emb.filter(x=>x.n>=CS_ENTRY_MIN);
   // WHICH rows survive is always decided by prevalence, never by the display
   // sort — otherwise sorting by name folds the biggest embellishments into
   // the tail and "other named" outweighs every row above it
-  named.sort((a,b)=>(b.n-a.n)||(a.name<b.name?-1:a.name>b.name?1:0));
-  const show=named.slice(0,CS_EMB_CAP), rest=named.slice(CS_EMB_CAP);
+  const named=M.emb.slice()
+    .sort((a,b)=>(b.n-a.n)||(a.name<b.name?-1:a.name>b.name?1:0));
+  // the n≥3 floor and the cap of 10 are DISPLAY limits on the ROWS, never a
+  // filter on the population. Filtering `named` before the slice (as this did)
+  // made the floor a silent deletion: `rest` was sliced from the already-
+  // filtered list, so a spec's rarest embellishments reached no row, no fold-in
+  // and no caption — the table read as a complete list of what is worn while
+  // omitting half the identities, and the owner wearing one of them had no way
+  // to tell. Everything both limits exclude is pooled into "other named" below.
+  const show=named.filter(x=>x.n>=CS_ENTRY_MIN).slice(0,CS_EMB_CAP);
+  const shown=new Set(show.map(x=>x.name));
+  const rest=named.filter(x=>!shown.has(x.name));
   const sc=screenEmbSort;
   show.sort((a,b)=>{
     const r=sc.c==="name"?(a.name<b.name?-1:a.name>b.name?1:0):(a.n-b.n);
@@ -4107,14 +4117,31 @@ function csCraftedHTML(ctx,d){
     +"bonus, two candidates, or a reagent with no published name"):"";
   if(degraded) h+=remainder;
   for(const x of show) h+=row(x.name,x.n,"");
-  if(rest.length)
-    h+=row("other named ("+rest.length+")",
-           rest.reduce((s,x)=>s+x.n,0),"emb-rem");
+  if(rest.length){
+    // a CARDINALITY, not a sum of the folded counts — the same definition
+    // csPoolFoldHTML uses for "other / none": a player carrying two folded
+    // embellishments is one player, and summing would count them twice
+    let other=0;
+    for(const st of M.sets)
+      for(const k of st)
+        if(k!==CS_EMB_GENERIC&&!shown.has(k)){ other++; break }
+    // the tooltip names what was folded, so "I wear Kinetic Ankle Primers,
+    // why isn't it listed?" is answerable on the page instead of nowhere
+    const lst=rest.slice(0,15).map(x=>x.name+" ("+fmtInt(x.n)+")").join(", ")
+      +(rest.length>15?", +"+fmtInt(rest.length-15)+" more":"");
+    h+=row("other named ("+rest.length+")",other,"emb-rem",
+      rest.length+" named embellishment"+(rest.length===1?"":"s")
+      +" below the n≥"+CS_ENTRY_MIN+" floor or outside the top "+CS_EMB_CAP
+      +", counted once per player: "+lst);
+  }
   if(!degraded) h+=remainder;
   h+='</tbody></table><div class="caption">'
     +esc("share of the "+fmtInt(total)+" gear-known players in this window "
       +"wearing this embellishment on at least one item; a player wears up to "
       +"two different ones, so the column sums above 100% — no single row can. "
+      +"Rows are the top "+CS_EMB_CAP+" above an n≥"+CS_ENTRY_MIN+" floor; "
+      +"every other named embellishment is pooled into “other named”, "
+      +"counted once per player. "
       +"Covers items inside the shipped per-slot vocabulary.")
     +'</div></div></div></div>';
   return h;

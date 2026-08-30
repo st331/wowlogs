@@ -487,8 +487,29 @@ def migrate_emb2(names: dict) -> tuple[int, int]:
 def save_emb_identity(ids, names: dict, run: dict) -> None:
     """emb_identity.json: sorted ids, name map sorted by int key, and the
     run's own diagnostics (build_site_data republishes them into
-    site/build_health.txt, the only place a human ever reads them)."""
-    obj = {"ids": sorted(ids),
+    site/build_health.txt, the only place a human ever reads them).
+
+    THE FLOOR: a run that PARSED but derived nothing never empties the map.
+    _FAILED covers the network dying; it does not cover db2 answering 200
+    with a table that suddenly yields zero marker trees (a renamed column,
+    a schema change, a stub build pointed at the real data dir -- all three
+    have happened). Under v3-as-first-written those were "success" and
+    rewrote ids to [], which is unrecoverable-by-retry: emb_of then has no
+    path to a name, every carry falls into the generic bucket, and the next
+    run inherits the wipe. So the previous ids survive and the run is
+    marked NOT ok, which puts it on the build_health verdict line where a
+    human sees it, instead of shipping a silent regression."""
+    new_ids = sorted(ids)
+    prev = [i for i in ((load_json(EMB_IDENTITY, {}) or {}).get("ids") or [])
+            if isinstance(i, int)]
+    if prev and not new_ids:
+        new_ids = sorted(prev)
+        run["ok"] = False
+        run["empty_derivation"] = True
+        print(f"[emb] derivation returned 0 identity ids; keeping the "
+              f"cached {len(new_ids)} -- a parseable-but-empty table never "
+              f"empties the map", flush=True)
+    obj = {"ids": new_ids,
            "names": {k: names[k] for k in sorted(names, key=int)},
            "run": run}
     tmp = EMB_IDENTITY.with_name(EMB_IDENTITY.name + ".tmp")

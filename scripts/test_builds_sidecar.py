@@ -732,6 +732,24 @@ with tempfile.TemporaryDirectory() as tmp:
     dead = json.loads(fn.EMB_IDENTITY.read_text())
     assert dead["ids"] == ident["ids"] and dead["names"] == ident["names"]
     assert dead["run"]["ok"] is False and dead["run"]["failures"] >= 1
+    # THE EMPTY-DERIVATION FLOOR. _FAILED only covers the network dying.
+    # Here db2 answers 200 and the two structural tables parse to ZERO rows
+    # -- a renamed column, a schema change, or a stub run pointed at the
+    # real data dir. That was "success" to the first cut of v3: it rewrote
+    # ids to [] and shipped a cache that could not name anything, which is
+    # exactly the artifact that went out and reproduced the owner's bug.
+    # The map must survive and the run must say so out loud.
+    fn._get_csv = lambda path, params=None: (
+        [] if path in ("ItemBonusTreeNode", "ModifiedCraftingReagentItem")
+        else fake_get(path, params))
+    fn._get_raw = fake_raw
+    assert fn.main([]) == 0
+    assert _stable() == before
+    starved = json.loads(fn.EMB_IDENTITY.read_text())
+    assert starved["ids"] == ident["ids"], starved["ids"]
+    assert starved["names"] == ident["names"], starved["names"]
+    assert starved["run"]["empty_derivation"] is True, starved["run"]
+    assert starved["run"]["ok"] is False, starved["run"]
 print("fetch_names: stubbed run seeds every cache + the icon image (junk "
       "icon name sanitized to null); idempotent -- second run makes zero "
       "raw fetches; total failure keeps the identity map and says so")
@@ -985,5 +1003,33 @@ with tempfile.TemporaryDirectory() as tmp:
     assert ft.TRAIT_GEOMETRY.read_text() == before
 print("fetch_traits: stubbed run seeds geometry + spell cache + shared "
       "icon store; idempotent; failed refresh keeps the cached copy")
+
+# ---- the COMMITTED SEED itself, offline. v3's code shipped correct and its
+# ARTIFACT shipped broken: data/emb_identity.json went out with "ids": [], a
+# fixture name key, and a run block from a stub run -- so the first build named
+# nothing, the documented db2-outage floor ("the previous map survives") was
+# void because the previous map was empty, and a test string rode into a data
+# file. emb_of reaches a name only through this id set, so an empty one makes
+# naming structurally impossible however many names sit beside it. Nothing else
+# in the suite reads data/; these four lines are what would have caught it.
+SEED_DIR = pathlib.Path(__file__).resolve().parent.parent / "data"
+SEED = json.loads((SEED_DIR / "emb_identity.json").read_text())
+SEED_MARKERS = json.loads((SEED_DIR / "emb_markers.json").read_text())
+assert SEED["ids"], "the committed identity seed is EMPTY -- the first build " \
+                    "after a merge, and any build db2 cannot reach, names " \
+                    "nothing"
+assert SEED["ids"] == sorted(set(SEED["ids"])) and \
+    all(isinstance(i, int) for i in SEED["ids"]), SEED["ids"][:8]
+_stale = sorted(set(SEED["names"]) - {str(i) for i in SEED["ids"]})
+assert not _stale, f"name keys outside the identity set (fixtures?): {_stale}"
+assert all(isinstance(v, str) and v for v in SEED["names"].values()), \
+    "a null or empty name is stored -- the v2 sticky-null class is deleted"
+assert not (set(SEED["ids"]) & set(SEED_MARKERS)), "identity intersects markers"
+assert SEED["run"].get("markers") == sorted(SEED_MARKERS), \
+    f"run block is not from a real run against {SEED_MARKERS}"
+assert SEED["run"].get("marker_trees") and SEED["run"].get("backed"), SEED["run"]
+print(f"emb seed  : data/emb_identity.json carries {len(SEED['ids'])} identity "
+      f"ids, {len(SEED['names'])} names, none outside the set, none null; run "
+      f"block from a real derivation over markers {sorted(SEED_MARKERS)}")
 
 print("\nPASS")

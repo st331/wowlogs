@@ -273,6 +273,23 @@ embellishment's spell (`ItemBonus` Type=23 → ItemEffectID; 13771 → ItemEffec
 (absence means retry at one request), `ids` is rewritten on a successful
 derivation and never on `_FAILED`, `run` carries the diagnostics
 build_site_data republishes into `site/build_health.txt`.
+**The committed file IS the floor, and it is a shipped artifact with its own
+invariants** (REVISED 2026-08-30, v3.1 — v3 shipped correct code beside an
+`"ids": []` artifact, and since `emb_of` reaches a name only through that set,
+the site named nothing however many names sat beside it; the documented outage
+floor "the previous map survives" was void because the previous map was empty):
+`ids` non-empty and sorted-unique, every `names` key inside `ids` (no fixtures,
+no stale keys), no null or empty name, `ids ∩ emb_markers = ∅`, and
+`run.markers` equal to `data/emb_markers.json` with non-zero `marker_trees` and
+`backed` (a stub run is not a derivation). `test_builds_sidecar.py` asserts all
+six against the real `data/` — the only place the suite reads it.
+**THE EMPTY-DERIVATION FLOOR:** `_FAILED` covers the network dying; it does not
+cover db2 answering 200 with a table that parses to zero rows (renamed column,
+schema change, a stub pointed at the real `data/`). `save_emb_identity` refuses
+to shrink a non-empty `ids` to empty: the cached set survives, `run.ok` goes
+FALSE and `run.empty_derivation` TRUE, and `_emb_health` puts
+`derivation returned 0 ids; cached map retained` on the verdict line. Without
+it a single such run wipes the map and every run after inherits the wipe.
 `data/emb_items.json` `{"<itemid>": "name"}`. `data/emb_overrides.json`
 `{"names": {...}, "ids": [...]}` — **HUMAN ONLY, never machine-written, highest
 precedence**, and deliberately NOT round-tripped through `data/processed` so a
@@ -621,12 +638,26 @@ produced "141.1%", a rate wearing a share's clothes in a column of shares:
    share desc. WHICH rows survive is always decided by prevalence, never by the
    display sort, so "other named (N)" cannot outweigh the rows above it;
  * the `n ≥ CS_ENTRY_MIN` floor every other fold surface applies, then a cap of
-   `CS_EMB_CAP = 10` named rows with the tail folded into `other named (N)`;
+   `CS_EMB_CAP = 10` named rows — both are limits on the ROWS, **never a filter on
+   the population** (REVISED 2026-08-30, v3.1). Everything either limit excludes —
+   below the floor AND beyond the cap — folds into `other named (N)`, whose count is
+   a **CARDINALITY** (players carrying at least one folded embellishment, the
+   definition `csPoolFoldHTML` uses for "other / none"), never a sum of the folded
+   counts. Its `title` NAMES the folded embellishments with their counts, so "I wear
+   Kinetic Ankle Primers, why isn't it listed?" is answerable on the page. v3 filtered
+   `named` BEFORE slicing `rest`, so sub-floor embellishments reached no row, no
+   fold-in and no caption: measured over a named relabel of the live payload, 70
+   embellishments and 95 player-carries vanished across 18 specs (8 and 11 on
+   Paladin|Retribution alone) under a table that read as a complete list;
  * the unidentified remainder (the pipeline's generic "embellished" bucket) is pulled
    OUT of the ranking and pinned LAST in `var(--ink3)` with an explanatory `title` —
    it is a remainder, not a finding. Above HALF the embellished population the header
    appends ` · naming degraded` and the remainder renders FIRST;
- * the caption matches the arithmetic word for word and names the vocabulary floor.
+ * the caption matches the arithmetic word for word, names the vocabulary floor, and
+   DECLARES both display limits and the fold: `Rows are the top 10 above an n≥3 floor;
+   every other named embellishment is pooled into "other named", counted once per
+   player.` A caption that does not describe the arithmetic performed is the defect
+   class this section exists to kill.
 `embOf` passes the label through untouched — the vestigial `/^#\d+$/` guard is DELETED
 (the pipeline cannot emit that shape, and the guard would have swallowed a future
 placeholder and rendered the section emptier rather than louder). Open/closed state

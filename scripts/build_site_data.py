@@ -1873,6 +1873,8 @@ def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,
         problems.append(f"leak guard dropped {len(leaked)}")
     if ids & markers:
         problems.append("identity set intersects the marker set")
+    if run.get("empty_derivation"):
+        problems.append("derivation returned 0 ids; cached map retained")
     if not run.get("ok"):
         problems.append("db2 did not answer this run (map is the cached one)")
     verdict = ("ok" if not problems
