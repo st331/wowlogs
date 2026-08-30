@@ -186,11 +186,18 @@ jobs:
       # --limit bounds any one run's fetching; the seed spreads across runs.
       - name: Resolve names
         run: |
-          for f in names_items names_enchants crafted_ids names_bonus_emb2 names_icons; do
+          # names_bonus_emb2 is RETIRED but still copied IN for one
+          # release: the CI copy holds v2's sticky nulls and the
+          # migration in fetch_names.py has to read them once to
+          # report how many it dropped. It is never copied back.
+          # emb_overrides.json is deliberately NOT round-tripped:
+          # it is human-only, so the committed copy is the
+          # authority and a cached copy must never shadow an edit.
+          for f in names_items names_enchants crafted_ids names_bonus_emb2 emb_identity emb_items names_icons; do
             if [ -f "data/processed/$f.json" ]; then cp "data/processed/$f.json" "data/$f.json"; fi
           done
           python -u scripts/fetch_names.py --limit 2000 || echo "::warning::name fetch failed; building with existing caches"
-          for f in names_items names_enchants crafted_ids names_bonus_emb2 names_icons; do
+          for f in names_items names_enchants crafted_ids emb_identity emb_items names_icons; do
             cp "data/$f.json" "data/processed/$f.json" 2>/dev/null || true
           done
 
@@ -209,7 +216,15 @@ jobs:
           cp "data/names_spells.json" "data/processed/names_spells.json" 2>/dev/null || true
 
       - name: Build site
-        run: python -u scripts/build_site_data.py
+        run: |
+          python -u scripts/build_site_data.py
+          # Embellishment identity has now failed twice in
+          # production, both times silently. The verdict token is
+          # the first line of the [emb] block; surface it as an
+          # ANNOTATION -- a data problem must never stop the site
+          # publishing.
+          grep -q "\[emb\] verdict: ok" site/build_health.txt \
+            || echo "::warning::embellishment identity degraded -- see site/build_health.txt"
 
 
       # This workflow publishes ITS OWN checkout's site/, so a run that started
@@ -304,7 +319,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
           git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
-          git add data/names_items.json data/names_enchants.json data/crafted_ids.json data/names_bonus_emb2.json data/emb_markers.json 2>/dev/null || true
+          git add data/names_items.json data/names_enchants.json data/crafted_ids.json data/emb_markers.json 2>/dev/null || true
+          git add data/emb_identity.json data/emb_items.json data/emb_overrides.json 2>/dev/null || true
           git add data/names_icons.json data/names_spells.json data/trait_geometry.json 2>/dev/null || true
           # icon images sync_icons copied into site/ this run (grow-only, tiny)
           git add site/icons 2>/dev/null || true

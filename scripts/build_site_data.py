@@ -1105,7 +1105,9 @@ NAMES_ITEMS = ROOT / "data" / "names_items.json"
 NAMES_ENCHANTS = ROOT / "data" / "names_enchants.json"
 CRAFTED_IDS = ROOT / "data" / "crafted_ids.json"
 EMB_MARKERS = ROOT / "data" / "emb_markers.json"
-NAMES_BONUS_EMB2 = ROOT / "data" / "names_bonus_emb2.json"
+EMB_IDENTITY = ROOT / "data" / "emb_identity.json"
+EMB_ITEMS = ROOT / "data" / "emb_items.json"
+EMB_OVERRIDES = ROOT / "data" / "emb_overrides.json"
 NAMES_ICONS = ROOT / "data" / "names_icons.json"
 ICONS_SRC = ROOT / "data" / "processed" / "icons"
 
@@ -1126,13 +1128,39 @@ def _name_caches():
     enchs = {int(k): v for k, v in _load_json(NAMES_ENCHANTS, {}).items()
              if str(k).isdigit()}
     crafted = {v for v in _load_json(CRAFTED_IDS, []) if isinstance(v, int)}
-    emb = {int(k): v for k, v in _load_json(NAMES_BONUS_EMB2, {}).items()
-           if str(k).isdigit()}
     markers = {int(v) for v in _load_json(EMB_MARKERS, [])
                if isinstance(v, int) or str(v).isdigit()}
     icons = {int(k): v for k, v in _load_json(NAMES_ICONS, {}).items()
              if str(k).isdigit() and isinstance(v, str) and v}
-    return items, enchs, crafted, emb, markers, icons
+    return items, enchs, crafted, _emb_cfg(), markers, icons
+
+
+def _emb_cfg() -> dict:
+    """The embellishment identity map (v3): the db2-derived id set, its
+    names, the intrinsically-embellished items, and the run diagnostics
+    fetch_names recorded -- with data/emb_overrides.json (HUMAN ONLY) at
+    top precedence over both ids and names. Every part degrades to empty:
+    no identity map simply means every embellished item falls into the one
+    generic bucket, which is the previous behaviour, never a wrong name."""
+    doc = _load_json(EMB_IDENTITY, {})
+    if not isinstance(doc, dict):
+        doc = {}
+    ov = _load_json(EMB_OVERRIDES, {})
+    if not isinstance(ov, dict):
+        ov = {}
+    names = {int(k): v for k, v in (doc.get("names") or {}).items()
+             if str(k).isdigit() and isinstance(v, str) and v}
+    ids = {v for v in (doc.get("ids") or []) if isinstance(v, int)}
+    for k, v in (ov.get("names") or {}).items():
+        if str(k).isdigit() and isinstance(v, str) and v:
+            names[int(k)] = v                  # human wins
+            ids.add(int(k))
+    ids |= {v for v in (ov.get("ids") or []) if isinstance(v, int)}
+    intrinsic = {int(k) for k in _load_json(EMB_ITEMS, {})
+                 if str(k).isdigit()}
+    run = doc.get("run") if isinstance(doc.get("run"), dict) else {}
+    return {"ids": ids, "names": names, "intrinsic": intrinsic, "run": run,
+            "overrides": len(ov.get("names") or {}) + len(ov.get("ids") or [])}
 
 
 def sync_icons(name: str) -> None:
@@ -1449,25 +1477,53 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         print(f"[{name}] no builds/gear in the gear journal; "
               f"builds sidecar omitted")
         return None
-    item_names, ench_names, crafted, emb_map, emb_markers, icon_names = \
+    item_names, ench_names, crafted, embc, emb_markers, icon_names = \
         _name_caches()
+    emb_ids, emb_names = embc["ids"], embc["names"]
+    emb_intrinsic = embc["intrinsic"]
+    EMB: Counter = Counter()
+    emb_labels: Counter = Counter()
+    emb_cfgs: set[tuple] = set()       # distinct (item id, bonus tuple)
 
     def emb_of(item: dict):
         """Embellishment identity for a journaled item, or None.
+
         Embellished iff the bonus list hits a MARKER id (the Embellished
-        limit-category bonus). Identity is the smallest VALIDATED
-        reagent-name bonus when one is present; everything else clubs into
-        one generic bucket (-1, rendered "embellished"). Unnamed bonus ids
-        never split identity -- stat missives and sparks resolved through
-        the reagent chain too and used to pose as embellishments AND split
-        the same crafted item by stat combo (owner bug reports 2026-08-30)."""
+        limit-category bonus, data/emb_markers.json) or the item is one of
+        the intrinsically-embellished items. IDENTITY is then set
+        membership against the db2-derived identity set -- never a walk,
+        never a guess:
+          * exactly one identity id, named  -> that bonus id (the vocab
+            entry splits per embellishment, which is the point)
+          * an identity id present but unnamed, or a marker with no
+            identity id -> -1, the one generic bucket ("embellished")
+          * TWO identity ids -> -1 and a CONFLICT count. Two is impossible
+            under ItemLimitCategory 512 Quantity=2, so it is evidence the
+            model broke, not a tie to break; v2 picked sorted()[0] here,
+            and a smallest-id pick is a miniature of the v1 bug.
+        Non-identity bonus ids (stat missives, sparks, quality and ilvl
+        bonuses) can never split identity because they are not in the set.
+        """
         bonus = item.get("bonus")
         if not isinstance(bonus, list):
+            bonus = []          # an intrinsic item needs no bonus list
+        marked = any(b in emb_markers for b in bonus)
+        if crafted and item.get("id") in crafted:
+            emb_cfgs.add((item["id"], tuple(bonus)))     # AUDIT population
+        if not marked and item.get("id") not in emb_intrinsic:
             return None
-        if not any(b in emb_markers for b in bonus):
-            return None
-        named = sorted(b for b in bonus if emb_map.get(b))
-        return named[0] if named else -1
+        hits = [b for b in bonus if b in emb_ids]
+        if len(hits) > 1:
+            EMB["conflict"] += 1
+            EMB["marked"] += 1
+            return -1
+        EMB["marked"] += 1
+        if len(hits) == 1 and emb_names.get(hits[0]):
+            EMB["named"] += 1
+            emb_labels[emb_names[hits[0]]] += 1
+            return hits[0]
+        EMB["known_unnamed" if hits else "unidentified"] += 1
+        return -1
 
     # ---- the one df-order walk: parse each covered row once
     n = len(df)
@@ -1535,6 +1591,7 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     for _, sk, slotkeys, enchs, build, fl in rows_c:
         t = tallies.setdefault(sk, {
             "it": [Counter() for _ in BUILDS_SLOTS],
+            "flat": [Counter() for _ in BUILDS_SLOTS],
             "ilvl": [{} for _ in BUILDS_SLOTS],
             "en": {s: Counter() for s in eslots},
             "bld": Counter()})
@@ -1543,6 +1600,10 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                 continue
             ident = key[:2]                       # (item id, emb identity)
             t["it"][k][ident] += 1
+            # the SAME tally with embellishment identity collapsed back to
+            # one generic bucket: the only way to predict, rather than
+            # discover, which doll tiles the identity split moves
+            t["flat"][k][(key[0], None if key[1] is None else -1)] += 1
             if key[2]:
                 t["ilvl"][k].setdefault(ident, []).append(key[2])
         for s in eslots:
@@ -1609,7 +1670,10 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                     if iid in crafted:
                         e["cr"] = 1
                     if emb is not None:
-                        e["emb"] = emb_map.get(emb) or "embellished"
+                        # get(-1) is None by construction: the generic
+                        # bucket. Never a "#<id>" placeholder -- the client
+                        # would swallow it and render the section EMPTIER.
+                        e["emb"] = emb_names.get(emb) or "embellished"
                     col.append(e)
                 items_v.append(col)
             en_v, en_lk = [], []
@@ -1759,11 +1823,180 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
            + f" || SHIPPED caps {rung[0]}/{rung[1]} builds {rung[2]} "
              f"en={'y' if rung[3] else 'n'} at {sizes[-1][1] / 1e6:.2f} MB "
              f"(target {target / 1e6:.1f}, hard cap {cap / 1e6:.1f})")
+    _emb_health(name, embc, emb_markers, crafted, EMB, emb_labels, emb_cfgs,
+                tallies, rung)
     if sizes[-1][1] > cap:
         health(f"[{name}] builds sidecar over the {cap / 1e6:.1f} MB hard "
                f"cap even without enchants; NOT shipped")
         return None
     return doc
+
+
+def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,
+                rung) -> None:
+    """The embellishment proof block, published in site/build_health.txt.
+
+    Two versions of this feature failed in production and BOTH were
+    invisible, because the only thing the build ever said about
+    embellishments was nothing. Every line here is computed from data this
+    run already holds; the first is a greppable verdict so a human (or the
+    workflow) can check one token. v2's signature would have read
+    "verdict: DEAD" with "named 0 (0.0%)"; v1's would have surfaced on the
+    AUDIT line as a non-identity bonus id scoring ratio 1.000 at real
+    support.
+    """
+    run = embc.get("run") or {}
+    ids, names = embc["ids"], embc["names"]
+    gaps = sorted(b for b in ids if not names.get(b))
+    bad = list(run.get("bad_children") or [])
+    leaked = list(run.get("leaked") or [])
+    unbacked = list(run.get("unbacked") or [])
+    marked = EMB["marked"]
+    named = EMB["named"]
+    share = (100.0 * named / marked) if marked else 0.0
+    problems = []
+    if not ids:
+        problems.append("no identity map (db2 never answered)")
+    if marked and not named:
+        problems.append(f"{marked:,} marked carries, 0 named")
+    elif share < 50.0 and marked:
+        problems.append(f"only {share:.1f}% of embellished carries named")
+    elif marked >= 50 and len(labels) <= 1:
+        # v2's exact signature: healthy detection, ONE label everywhere.
+        # Volume-guarded so a fixture with one embellishment is not an alarm.
+        problems.append("one distinct label across every spec")
+    if EMB["conflict"]:
+        problems.append(f"{EMB['conflict']:,} CONFLICT carries")
+    if bad:
+        problems.append(f"{len(bad)} marker trees with != 2 children")
+    if leaked:
+        problems.append(f"leak guard dropped {len(leaked)}")
+    if ids & markers:
+        problems.append("identity set intersects the marker set")
+    if not run.get("ok"):
+        problems.append("db2 did not answer this run (map is the cached one)")
+    verdict = ("ok" if not problems
+               else ("DEAD" if marked and not named else "DEGRADED"))
+    health(f"[{name}] [emb] verdict: {verdict}"
+           + ("" if verdict == "ok" else " -- " + "; ".join(problems)))
+    bym = run.get("by_marker") or {}
+    health(f"[{name}] [emb] db2 map: {run.get('marker_trees', '?')} marker "
+           f"trees ("
+           + ", ".join(f"{k}:{v}" for k, v in sorted(bym.items()))
+           + f", nested:{(run.get('marker_trees') or 0) - (run.get('direct') or 0)}"
+           f"), {run.get('backed', '?')} reagent-backed -> {len(ids)} "
+           f"identity ids, {len(names)} named, {len(gaps)} unnamed "
+           f"{gaps if gaps else '[]'} | fetched {run.get('fetched', 0)}, "
+           f"failures {run.get('failures', 0)} | wago "
+           f"{'OK' if run.get('ok') else 'UNAVAILABLE'}")
+    health(f"[{name}] [emb] invariants: direct marker trees with != 2 "
+           f"children {len(bad)}/{run.get('direct', 0)} | max recursion "
+           f"depth {run.get('depth', 0)} | identity&markers "
+           f"{'EMPTY' if not (ids & markers) else sorted(ids & markers)} | "
+           f"leak-guard dropped {len(leaked)}{leaked if leaked else ''} | "
+           f"{len(unbacked)} unbacked trees skipped | intrinsic "
+           f"{len(embc['intrinsic'])} | overrides {embc['overrides']}")
+    health(f"[{name}] [emb] migrated {run.get('migrated', 0)} names from "
+           f"names_bonus_emb2 (dropped {run.get('dropped_nulls', 0)} nulls)")
+
+    # ---- vocab entries, pre-cap (the shipped counts are a subset of these)
+    ent_emb = ent_cr = 0
+    for t in tallies.values():
+        for col in t["it"]:
+            for (iid, emb) in col:
+                if iid in crafted:
+                    ent_cr += 1
+                if emb is not None:
+                    ent_emb += 1
+    top = ", ".join(f"{n} {c:,}" for n, c in labels.most_common(5)) or "none"
+    health(f"[{name}] [emb] journal: {ent_cr:,} crafted vocab entries "
+           f"(pre-cap), {ent_emb:,} embellished | {marked:,} embellished "
+           f"carries -> named {named:,} ({share:.1f}%), known-unnamed "
+           f"{EMB['known_unnamed']:,}, unidentified {EMB['unidentified']:,}, "
+           f"CONFLICT {EMB['conflict']:,} | labels {len(labels)} distinct | "
+           f"top {top}")
+
+    # ---- AUDIT: journal co-occurrence, the validator (never the classifier)
+    # An identity bonus is the marker's SIBLING in one tree, so it can only
+    # ever ride an embellished item: ratio exactly 1.000. A missive or spark
+    # spreads over a partly-embellished recipe family and lands near the base
+    # rate. Counted per DISTINCT crafted configuration, not per carry, so one
+    # popular item cannot dominate. WARN BOTH WAYS.
+    seen: Counter = Counter()
+    withmk: Counter = Counter()
+    items_of: dict = {}
+    for iid, tup in cfgs:
+        s = set(tup)
+        mk = bool(s & markers)
+        for b in s:
+            if b in markers:
+                continue
+            seen[b] += 1
+            items_of.setdefault(b, set()).add(iid)
+            if mk:
+                withmk[b] += 1
+    SUP, NITEM = 12, 3
+    qual = [b for b in seen
+            if seen[b] >= SUP and len(items_of[b]) >= NITEM]
+    id_r = [(withmk[b] / seen[b], b) for b in qual if b in ids]
+    no_r = [(withmk[b] / seen[b], b) for b in qual if b not in ids]
+    warn = []
+    if id_r and min(id_r)[0] < 1.0:
+        warn.append(f"identity id {min(id_r)[1]} rides un-embellished items "
+                    f"(ratio {min(id_r)[0]:.3f}) -- the db2 model broke")
+    hot = sorted(b for r, b in no_r if r >= 1.0)
+    if hot:
+        warn.append(f"non-identity ids at ratio 1.000 with support: {hot} -- "
+                    f"a new embellishment, or a false name from the other side")
+    if not qual:
+        health(f"[{name}] [emb] AUDIT co-occurrence: no bonus id reaches "
+               f"support>={SUP} over >={NITEM} items -- not evaluated "
+               f"({len(cfgs):,} crafted configurations seen)")
+    else:
+        health(f"[{name}] [emb] AUDIT co-occurrence: identity ids min "
+               f"withMarker/seen "
+               f"{(min(id_r)[0] if id_r else float('nan')):.3f} "
+               f"({len(id_r)} ids, support>={SUP}, >={NITEM} items) | "
+               f"non-identity max "
+               f"{(max(no_r)[0] if no_r else 0.0):.3f} ({len(no_r)} ids) -> "
+               + ("CLEAN" if not warn else "WARN: " + "; ".join(warn)))
+
+    # ---- what the identity split costs, PREDICTED rather than discovered
+    item_cap, item_cap_big = rung[0], rung[1]
+    sat = sat_emb = evicted = 0
+    tail = []
+    winners = win_emb = flips = 0
+    for t in tallies.values():
+        for k, s in enumerate(BUILDS_SLOTS):
+            capk = item_cap_big if s in BUILDS_BIG_SLOTS else item_cap
+            col = t["it"][k]
+            if not col:
+                continue
+            ranked = sorted(col.items(),
+                            key=lambda kv: (-kv[1], kv[0][0], kv[0][1] or 0))
+            tot = sum(col.values())
+            if len(ranked) > capk:
+                sat += 1
+                if any(e[0][1] is not None for e in ranked[:capk]):
+                    sat_emb += 1
+                for (iid, emb), c in ranked[capk:]:
+                    if emb is not None:
+                        evicted += 1
+                        tail.append(100.0 * c / max(tot, 1))
+            winners += 1
+            if ranked[0][0][1] is not None:
+                win_emb += 1
+            fr = sorted(t["flat"][k].items(),
+                        key=lambda kv: (-kv[1], kv[0][0], kv[0][1] or 0))
+            if fr and fr[0][0][0] != ranked[0][0][0]:
+                flips += 1
+    med = float(np.median(tail)) if tail else 0.0
+    health(f"[{name}] [emb] vocab: {sat}/{winners} columns saturated at caps "
+           f"{item_cap}/{item_cap_big}, {sat_emb} of them hold an emb entry | "
+           f"the cap evicted {evicted} emb entries (median tail share "
+           f"{med:.2f}%) | rank-1 entries carrying emb {win_emb}/{winners}, "
+           f"{flips} of them differ from the un-split identity (doll tiles "
+           f"that move)")
 
 
 def build(name: str, cfg: dict) -> None:
