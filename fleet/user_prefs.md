@@ -82,3 +82,36 @@
     no-third-party-scripts stance: wowhead's official tooltips.js is sanctioned,
     attached to icon anchors (items; later talent-spell nodes) only. Raw numeric
     ids must never render anywhere in the UI.
+
+12. **Every table sorts, on every column — standing (2026-08-30).** "any of the
+    tables in the character screen tabs (or in the future, anywhere else) should
+    have their columns sortable." This is a rule, not a request: a table that
+    ships without sorting is a defect, and "I forgot" is not available as an
+    excuse. Mechanism (fleet/blueprints/upgrade_surface.md Part 3): the ONE
+    comparator `cmpCells` stays; four shared helpers beside it —
+    `sortState`/`sortHead`/`sortRows`/`wireSort` — make it automatic by
+    construction. `sortHead` is the only path to a `<thead>`, so a future table
+    physically cannot ship an unsortable header; `wireSort` selects
+    `th[data-c]` with the attribute filter; a `null` column key emits a bare
+    `<th>` for the genuinely non-sortable column (expander, copy button, icon).
+    First click descending, a repeat flips. Accessors return numbers, strings or
+    `null`/`NaN` — never the string "–", so dashes park LAST in both directions
+    instead of interleaving as text. Caps are applied AFTER the sort. Sort state
+    lives outside render, survives every filter change and lens tick, and
+    reverts to the table's default only when its column disappears. Header
+    affordance is the static §GG one — accent ink plus a 2px inset underline
+    (desc) or overline (asc). No arrows, no carets, nothing rotates (see #3).
+    Exempt only: transposed key/value blocks with no column axis (the hover tip,
+    the frame identity block).
+
+13. **Per-slot item level is off the paper doll — standing (2026-08-30).** "I
+    don't care about the ilevels for the slots; get rid of them." An item level
+    printed beside a slot is a fact about Blizzard's loot table restated sixteen
+    times, and it answers no question the owner has. It never returns as a slot
+    statistic. It may appear only as the *baseline* a percentage is measured
+    against, inside the surface that states the percentage. The live question it
+    stood in for — which pieces a spec's players carry above that piece's own
+    usual level — is answered by Upgrade lean (upgrade_surface.md Part 2).
+    Naming rule that comes with it: "upgrade" may label a control, and must
+    never sit attached to a number; the log carries no upgrade track, so the UI
+    never says "upgraded", "crests", "invested" or "priority".
