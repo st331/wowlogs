@@ -708,10 +708,18 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 .bldchip.oth:hover{border-color:var(--line1); color:var(--ink3)}
 /* in-game-style tree panes — §GG panels; the selected build lights champagne.
    Node size rides the computed --tn (34-44px band, pref #10 readability). */
-#cs-trees{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;
-  justify-content:center; overflow-x:auto; padding:2px 1px 6px}
+#cs-trees{display:flex; flex-wrap:nowrap; gap:12px; align-items:stretch;
+  overflow-x:auto; padding:2px 1px 6px}
   /* overflow-x is the standing bounded-container rule — the PAGE never
-     scrolls sideways even if one tree's geometry is impossibly wide */
+     scrolls sideways even if one tree's geometry is impossibly wide.
+     NOWRAP + a computed fit/ovf class (Item 3): a wrapped row dropped the
+     Hero pane to a second line and centred it alone, and a CENTRED
+     overflowing flex row clips its leading edge — the Class pane became
+     unreachable. Centre only when the solver says the row fits.
+     align-items:stretch + one shared canvas height = no ragged bottoms. */
+#cs-trees.fit{justify-content:center}
+#cs-trees.ovf{justify-content:flex-start}
+.ttpane{flex:0 0 auto}
 .ttpane{background:var(--surface1); border:1px solid var(--line1);
   border-radius:var(--r2); padding:7px 10px 10px; box-shadow:var(--gg-shadow)}
 .tthead{display:flex; align-items:baseline; gap:.5rem; margin-bottom:7px}
@@ -720,7 +728,9 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 .tthead .tn2{font-size:.76rem; font-weight:600; color:var(--ink)}
 .tthead .tp{margin-left:auto; font-size:.68rem; color:var(--ink3);
   font-variant-numeric:tabular-nums}
-.ttcv{position:relative}
+/* a pane whose HEADER out-measures its canvas (the hero pane, always) centres
+   the tree under it rather than parking it against the left edge */
+.ttcv{position:relative; margin:0 auto}
 .ttcv svg{position:absolute; inset:0; display:block}
 .ttcv line{stroke:rgba(234,227,208,.10); stroke-width:1.2}
 .ttcv line.lit{stroke:rgba(232,188,87,.5); stroke-width:1.6}
@@ -756,6 +766,118 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
   font:650 .68rem/1.15 var(--font); color:var(--accent);
   background:var(--surface2); border:1px solid var(--accent-line);
   border-radius:var(--r1); padding:0 .2rem; font-variant-numeric:tabular-nums}
+/* ===== base/candidate DIFF layer (owner: "highlight the additions and
+   subtractions ... clear what is an addition and what is a subtraction").
+   SOURCE ORDER IS LOAD-BEARING: .ttn.dd .tico and .ttn.dm .tico have the
+   same specificity (0,2,1) — this block MUST stay AFTER the .ttn.dm rules
+   above or every dropped node silently loses its rim.
+   Direction is stated by a STATIC glyph in a fixed slot (pref #3, the
+   .sec .mk mechanism); --up/--down are ink only, never fills (design
+   language §"semantic — text-only deltas"). Nothing rotates, grows or
+   glows: the only hover is still color-only (pref #7). */
+.ttb{position:absolute; left:-5px; top:-5px; z-index:3; pointer-events:none;
+  font:700 .66rem/1.15 var(--font); background:var(--surface2);
+  border:1px solid var(--line2); border-radius:var(--r1); padding:0 .18rem;
+  font-variant-numeric:tabular-nums}          /* opposite corner to .ttr */
+.ttn.da .ttb{color:var(--up); border-color:rgba(61,220,132,.5)}
+.ttn.dd .ttb{color:var(--down); border-color:rgba(255,107,107,.5)}
+.ttn.ds .ttb{color:var(--accent); border-color:var(--accent-line)}
+/* ADDED: still .pk (it is taken here) + an --up rim */
+.ttn.da .tico{border-color:var(--up)}
+.ttn.da .tico.ch{background:var(--up)}
+/* DROPPED: the THIRD state. Untaken = .42 solid --line1; dropped = .68
+   DASHED --down + a −n badge + the BASE's icon/rank; picked = 1.0 champagne.
+   Four channels, only one of them colour. Octagons carry no border at all
+   (.tico.ch{border:none}) so they cannot dash — tier + badge + --down
+   background rim carry them; the dash is never faked. */
+.ttn.dd{opacity:.68}
+.ttn.dd .tico{border-color:var(--down); border-style:dashed}
+.ttn.dd .tico.ch{background:var(--down)}
+.ttn.dd .tico img{filter:grayscale(1) brightness(.62)}
+/* a RANK-DOWN node carries .dd for its --down ink but is still PICKED here —
+   it must not dim or dash, or it reads as a drop it isn't */
+.ttn.pk.dd{opacity:1}
+.ttn.pk.dd .tico{border-style:solid}
+.ttn.pk.dd .tico img{filter:none}
+/* SWAPPED: rim deliberately UNCHANGED — --accent on --metal-line is
+   champagne on champagne. The ≠ badge and the ghost carry it (shape). */
+.ttg{position:absolute; left:-4px; bottom:-4px; z-index:2; width:15px; height:15px;
+  object-fit:cover; border:1px dashed var(--down); border-radius:var(--r1);
+  filter:grayscale(1) brightness(.7); pointer-events:none}
+/* hover hole: a dropped node is NOT .pk/.dm, so :752-753 would repaint its
+   --down rim champagne exactly when the reader looks hardest. Still color-only. */
+.ttn.da a.whico:hover .tico,.ttn.dd a.whico:hover .tico{border-color:var(--accent-line)}
+.ttn.da a.whico:hover .tico.ch,.ttn.dd a.whico:hover .tico.ch{background:var(--accent-line)}
+/* rank pip states — the pip keeps its job (the value HERE); a rank move
+   prints both values, the badge prints the signed point delta */
+.ttr.rup{color:var(--up); border-color:rgba(61,220,132,.55)}
+.ttr.rdn,.ttr.dpip{color:var(--down); border-color:rgba(255,107,107,.55)}
+/* edges: three-way. lit = in both; newl = lit here only; wasl = lit in base only */
+.ttcv line.newl{stroke:rgba(61,220,132,.5)}
+.ttcv line.wasl{stroke:rgba(255,107,107,.26); stroke-width:1.4; stroke-dasharray:3 3}
+/* per-pane tally in the existing baseline header row — zero added height */
+.tthead .tdf{font-size:.68rem; font-variant-numeric:tabular-nums}
+/* the shared direction ink — one vocabulary on every diff surface (chip
+   counter, pane tally, diff bar, ledger, foot legend) so they cannot drift.
+   These are INK, never fills (design language: "semantic — text-only deltas"). */
+.dp{color:var(--up)} .dn{color:var(--down)} .dz{color:var(--accent)}
+.dr{color:var(--ink2)} .dsame{color:var(--ink3)}
+/* three separable chip states, no new colour: idle --line1 rim, lit
+   --metal-line rim + accent label (both already shipped), BASE = the metal
+   FILL that .chip.on and #frame-pin.on already use. NOTE: .bldchip's
+   transition lists border-color+color only — the fill lands instantly.
+   Do not "complete" that list. */
+.bldchip.base{background:var(--metal); color:#241d0e; border-color:var(--metal-line)}
+.bldchip.base .bl,.bldchip.base .sh,.bldchip.base .med{color:#241d0e}
+.bldchip.base .mi,.bldchip.base .htag,.bldchip.base .med i{color:#4a3b12}
+.bldchip.base:hover{border-color:var(--metal-line); color:#241d0e}
+.bldchip.base .pbtn{border-color:#4a3b12; color:#241d0e; background:transparent}
+.bldchip.base .pbtn:hover{border-color:#241d0e; color:#241d0e}
+.bldchip .pbtn{background:var(--surface1); border:1px solid var(--line2);
+  color:var(--ink2); border-radius:var(--r1); padding:.06rem .42rem;
+  font-size:.66rem; cursor:pointer; font-weight:500;
+  transition:border-color .13s, color .13s}
+.bldchip .pbtn:hover{border-color:var(--accent-line); color:var(--accent)}
+.bldchip:focus-visible{outline:1px solid var(--accent-line); outline-offset:1px}
+/* ITEM 2 — the median was already computed and already drawn, as a bare
+   muted .mi that read as one more anonymous number. Label it and give it
+   ink weight so it outranks share and n, which stay muted. */
+.bldchip .med{color:var(--ink); font-weight:650; font-variant-numeric:tabular-nums}
+.bldchip .med i{font:700 .6rem/1 var(--font); text-transform:uppercase;
+  letter-spacing:.14em; color:var(--ink3); font-style:normal; margin-right:.28rem}
+.bldchip .dcnt{font-size:.7rem; font-variant-numeric:tabular-nums}
+.bldchip .hsw{color:var(--accent)}
+/* one-line diff bar between the chips and the trees — the reader crosses it */
+#cs-diffbar{display:flex; flex-wrap:wrap; gap:.6rem; align-items:baseline;
+  font-size:.74rem; color:var(--ink2); margin:0 0 .5rem;
+  padding:.3rem .55rem; background:var(--surface1);
+  border:1px solid var(--line1); border-radius:var(--r1);
+  box-shadow:var(--gg-shadow)}
+#cs-diffbar .tl{font-size:.6rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.14em; color:var(--ink3)}
+#cs-diffbar .dbi{color:var(--ink); font-weight:600}
+#cs-diffbar .dbn{color:var(--ink2)}
+#cs-diffbar .dbb{margin-left:auto; display:flex; gap:.4rem; align-items:baseline}
+#cs-diffbar .btn{padding:.16rem .5rem; font-size:.68rem; font-weight:500}
+/* diff ledger — a disclosure CLOSED at rest, below the trees, so pinning a
+   base never shrinks the trees. It exists for the one thing a tree cannot
+   do: print a difference that has no pixel. Static −/+ marker (pref #3). */
+.dl-trig{display:flex; align-items:baseline; gap:.55rem; margin:.7rem 0 .45rem;
+  cursor:pointer; user-select:none; font-size:.76rem; color:var(--ink2)}
+.dl-trig .mk{width:.85rem; flex:0 0 auto; color:var(--ink3); font-size:.72rem}
+.dl-trig .mk::before{content:"−"}
+.dl-trig.closed .mk::before{content:"+"}
+.dl-trig:hover{color:var(--ink)}
+.dl-note{font-size:.74rem; color:var(--ink3); margin:0 0 .4rem}
+table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
+                                      two state columns collapse into each other */
+.dl-w{max-height:340px; overflow-y:auto}   /* only past 10 rows — see the caller */
+.dl-t .dg{font-weight:700; margin-right:.35rem; display:inline-block; width:.8rem}
+.dl-t .dw{font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink3)}
+.dl-t td .dico{display:inline-block; width:18px; height:18px; vertical-align:-4px;
+  margin-right:.4rem; border:1px solid var(--line2); border-radius:2px;
+  object-fit:cover}
 .cs-herodist{font-size:.8rem; color:var(--ink3)}
 .cs-herodist b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
 .cs-herodist .hn{color:var(--ink2)}
@@ -2946,6 +3068,29 @@ document.addEventListener("keydown",e=>{
     // walk the open fold-out to the adjacent slot in tile order (§3.4)
     if(screenFold!=null&&screenTab==="gear"){
       e.preventDefault(); moveSlotFold(e.key==="ArrowRight"?1:-1); }
+    // on the Talents tab the arrows walk the LIT build along the chip row
+    else if(screenTab==="tal"){
+      const cs=[...document.querySelectorAll("#cs-bldchips .bldchip[data-bld]")];
+      if(cs.length){
+        e.preventDefault();
+        let i=cs.findIndex(c=>+c.dataset.bld===screenBuild); if(i<0) i=0;
+        const j=Math.min(cs.length-1,Math.max(0,i+(e.key==="ArrowRight"?1:-1)));
+        if(j!==i){ screenBuild=+cs[j].dataset.bld; renderScreen() }
+      }
+    }
+    return;
+  }
+  // b = pin/unpin the lit build as the diff base, f = flip base and candidate.
+  // Both just drive the visible control, so there is one behaviour, not two.
+  if(state.screen&&screenTab==="tal"&&(e.key==="b"||e.key==="B")){
+    const b=document.querySelector("#cs-bldchips .bldchip.on [data-base]")
+      ||document.querySelector("#cs-bldchips [data-base]");
+    if(b){ e.preventDefault(); b.click() }
+    return;
+  }
+  if(state.screen&&screenTab==="tal"&&(e.key==="f"||e.key==="F")){
+    const b=document.querySelector("#cs-diffbar [data-flip]");
+    if(b){ e.preventDefault(); b.click() }
     return;
   }
   if(e.key!=="ArrowUp"&&e.key!=="ArrowDown") return;
@@ -2975,6 +3120,17 @@ let screenTab="gear";             // active pane — persists across exit/re-ent
 let screenFold=null;              // open fold-out: a cell fold id
                                   // ("s<si>" | "ring" | "trk"), or null
 let screenBuild=0;                // lit build on the talent trees (csTalentRows index)
+                                  // sentinel -1 = "the pinned base" (flip target when
+                                  // the base has left the top-8 chip row)
+let screenBaseS=null;             // PINNED BASE — the build HASH (r.s), never the
+                                  // ordinal: data-bld indexes T.rows, which is recomputed
+                                  // from the lens window every render (a base pinned at
+                                  // chip 8 leaves the row on ~59% of lens moves). The
+                                  // base's sel is re-resolved from d.vocab.builds, which
+                                  // is 24 static entries per spec and immune to the lens.
+let screenDlSort={col:null,dir:-1};  // diff-ledger sort (pref #12, via cmpCells)
+let screenDlOpen=false;              // diff ledger disclosure — closed at rest
+let __csBldS=[];                     // chip ordinal → build hash, for the wiring layer
 let screenEnchOpen=new Set();     // expanded enchant rows (retail slot ids)
 let screenSecClosed=new Set(["crafted"]);   // §15.9 collapse; crafted starts closed
 let __screenRemapPres=null;       // merge-toggle remap request (class*100+spec to re-find)
@@ -3237,6 +3393,14 @@ function exitScreen(){
 function resetScreenPerSpec(){          // active tab alone persists (§3.2.3)
   screenFold=null;
   screenBuild=0;
+  // the 960 build hashes are globally distinct, so a base pinned in another
+  // spec resolves to nothing in the new vocab and would render this spec's
+  // trees against a blank — a lie by omission. Clearing is the only honest
+  // option. (A merge on/off flip on the SAME spec keeps the base: its sel is
+  // unchanged and its hero tree is derivable from sel alone.)
+  screenBaseS=null;
+  screenDlOpen=false;
+  screenDlSort={col:null,dir:-1};
   screenEnchOpen=new Set();
   screenSecClosed=new Set(["crafted"]);
 }
@@ -3328,7 +3492,11 @@ function csTalentRows(d){
   rows.sort((a,b)=>b.n-a.n);
   for(const r of rows.slice(8)) other+=r.n;   // ≤8 + "other"
   rows=rows.slice(0,8);
-  return {rows, other, known:d.bldIdx.length};
+  // byV rides along so a PINNED BASE that has left the top-8 chip row can say
+  // which of the two truths applies — "below top 8 in this window" (it has
+  // runs, they are just not in the top 8) vs "0 runs in this window" — instead
+  // of showing a stale number from the previous slice.
+  return {rows, other, known:d.bldIdx.length, byV};
 }
 // merged-only hero distribution — straight from R.hero, no sidecar data (§0)
 function csHeroDist(d){
@@ -3772,17 +3940,187 @@ function csCraftedHTML(ctx,d){
    lights its "sel": picked nodes full-color champagne with rank pips,
    everything else strongly dimmed. The node ICON is the one wowhead
    surface (/spell=<s>, pref #11); a native title carries name+rank. ---- */
-function csBuildChipsHTML(T){
+
+/* ================= BASE/CANDIDATE DIFF MODEL =================
+   Owner: "select a talent layout as a base layout, then when clicking other
+   trees should highlight the additions and subtractions (in a way that it is
+   clear what is an addition and what is a subtraction)."
+
+   NO PIPELINE CHANGE. Everything consumed already ships: per-build `sel`
+   ([nodeId,rank] doublets / [nodeId,rank,entryIdx] triplets, 960/960 builds)
+   and talents.json.gz's nodes{id,x,y,r,n,ic,t,s,es}. The diff is a map-vs-map
+   over two arrays of <=81 entries — microseconds, once per render. Precomputing
+   it would be 22,080 ordered pairs and a second source of truth. ---- */
+
+// nodeId -> [rank, entryIdx|null]. The exact idiom csTreePanesHTML already uses.
+function csSelMap(sel){
+  const m=new Map();
+  if(Array.isArray(sel)) for(const s of sel)
+    if(Array.isArray(s)&&s.length>=2) m.set(+s[0],[+s[1],s.length>2?+s[2]:null]);
+  return m;
+}
+/* SIX categories exhaust the ways two sel arrays can differ. A = base, B = the
+   build being shown. Records: a=add, d=drop, u=rank up, w=rank down, s=swap;
+   "shared" (same node, same rank, same entryIdx) records nothing.
+   SWAP IS TESTED BEFORE RANK. They are disjoint families in live data (all 185
+   measured rank changes sit on plain r=2 / t=0 nodes carrying no entryIdx), but
+   if they ever collide the spell identity changed, which is the bigger event —
+   and the pip still prints both ranks.
+   A swap is ONE event, never an add plus a drop: the node stays lit and only
+   the spell behind it changes (26,378 instances; 7.8% of build-1 pairs differ
+   by NOTHING ELSE, so flattening it into "shared" is the silent lie this
+   feature exists to prevent). */
+function csDiffMaps(A,B){
+  const dm=new Map();
+  for(const [id,b] of B){
+    const a=A.get(id);
+    if(!a){ dm.set(id,{k:"a", r:b[0], i:b[1]}); continue }
+    if(a[1]!==b[1]){ dm.set(id,{k:"s", r:b[0], br:a[0], i:b[1], bi:a[1]}); continue }
+    if(b[0]>a[0])      dm.set(id,{k:"u", r:b[0], br:a[0], i:b[1], bi:a[1]});
+    else if(b[0]<a[0]) dm.set(id,{k:"w", r:b[0], br:a[0], i:b[1], bi:a[1]});
+  }
+  for(const [id,a] of A)
+    if(!B.has(id)) dm.set(id,{k:"d", br:a[0], bi:a[1]});
+  return dm;
+}
+// one flat nodeId -> "cls"|"spec"|"hero" map. Node ids are unique across every
+// pane of a spec (0 sel ids land in no pane, 0 land in two, over 960 builds),
+// so ONE map serves all three panes with no namespacing. EVERY hero tree is
+// folded in, so the base's hero nodes are classified even when a different
+// hero pane is the one on screen.
+function csPaneOf(trees){
+  const m=new Map();
+  const put=(t,p)=>{ if(t&&Array.isArray(t.nodes)) for(const n of t.nodes) m.set(+n.id,p) };
+  put(trees.cls,"cls"); put(trees.spec,"spec");
+  if(trees.hero) for(const k in trees.hero) put(trees.hero[k],"hero");
+  return m;
+}
+// the build's hero tree, from sel ALONE. Every build's sel touches exactly one
+// hero tree (0 touch two, 0 touch none) and the sel-derived hero agrees with the
+// modal R.hero tag in 960/960 cases — so a base pinned with merge on can still
+// name its hero tree with merge off, where row.hero is never computed.
+function csHeroOfSel(sel,heroTrees){
+  if(!Array.isArray(sel)||!heroTrees) return "";
+  const ids=new Set();
+  for(const s of sel) if(Array.isArray(s)&&s.length) ids.add(+s[0]);
+  for(const k in heroTrees){
+    const t=heroTrees[k];
+    if(t&&Array.isArray(t.nodes)) for(const n of t.nodes) if(ids.has(+n.id)) return k;
+  }
+  return "";
+}
+/* THE COUNTING RULE, stated once and applied on every surface so they agree.
+   Adds and drops count the CLASS+SPEC panes ONLY. Rank changes and swaps count
+   the FULL sel.
+   Why: a cross-hero pair churns the entire 14-node hero allocation every time
+   (measured min = median = max = 14 adds + 14 drops), which says nothing the
+   chip's hero tag does not already say in one word — all seven Retribution
+   chips would read "+16 −16" when the truth is "2 to 11 talents plus a
+   different hero tree". Rank/swap are safe over the full sel and cannot be
+   inflated by a hero substitution: cross-hero pairs share NO hero node ids
+   (disjoint trees, so no rank or swap event can arise there), and same-hero
+   pairs have measured 0 hero adds and 0 hero drops. */
+function csDiffCounts(dm,paneOf){
+  const c={a:0,d:0,u:0,w:0,s:0,heroAD:0};
+  for(const [id,r] of dm){
+    const p=paneOf.get(id), cs=(p==="cls"||p==="spec");
+    if(r.k==="a"){ cs?c.a++:c.heroAD++ }
+    else if(r.k==="d"){ cs?c.d++:c.heroAD++ }
+    else c[r.k]++;
+  }
+  c.rank=c.u+c.w;
+  c.total=c.a+c.d+c.rank+c.s;
+  return c;
+}
+const csSgn=v=>(v>0?"+":v<0?"−":"")+Math.abs(v);   // "−" U+2212, the house minus
+// the shared counter phrase: +add −drop ≠swap ±rank, zero terms OMITTED rather
+// than printed as +0. Never drops a category — a rank-only or swap-only
+// difference is exactly the case a naive set diff renders as "identical".
+function csCountHTML(c){
+  const p=[];
+  if(c.a) p.push('<span class="dp">+'+c.a+'</span>');
+  if(c.d) p.push('<span class="dn">−'+c.d+'</span>');
+  if(c.s) p.push('<span class="dz">≠'+c.s+'</span>');
+  if(c.rank) p.push('<span class="dr">±'+c.rank+'</span>');
+  return p.length?p.join(" "):'<span class="dsame">identical</span>';
+}
+const CS_MEDN=20;   // below this many parses a median is not separable (the 95%
+                    // interval on a median is roughly +/-1.25 sigma/sqrt(n), which
+                    // below ~20 is wider than the gaps between adjacent builds)
+// median delta vs base. SIGN CONVENTION: candidate − base. Positive = this
+// build's cohort median is higher, inked --up. Reuses .delta verbatim (:304-306).
+function csMedDeltaHTML(med,bmed,n,bn){
+  if(!isFinite(med)||!isFinite(bmed)) return "";
+  const dv=med-bmed;
+  if(!isFinite(n)||!isFinite(bn)||Math.min(n,bn)<CS_MEDN)
+    return '<span class="delta na" title="one of these builds has fewer than '
+      +CS_MEDN+' parses — the median is not separable">±'
+      +fmtDpsM(Math.abs(dv))+'</span>';
+  return '<span class="delta '+(dv>=0?"up":"down")+'">'+(dv>=0?"+":"−")
+    +fmtDpsM(Math.abs(dv))+'</span>';
+}
+function csBuildChipsHTML(T,dx){
   const clip=!!navigator.clipboard;     // buttons only when the API exists
   let h='<div id="cs-bldchips">';
+  __csBldS=T.rows.map(r=>r.s);          // ordinal -> hash, for the wiring layer
+  // EDGE CASE: the pinned base can leave the top-8 chip row when the lens or a
+  // filter moves (measured over 3,200 lens observations: on the chips 76.2%,
+  // folded into "other" 18.9%, gone entirely 4.6% — chip 1 survives 99.2% of
+  // moves, chip 8 only 40.6%). The DIFF always survives, because the base's sel
+  // lives in the static per-spec vocab; only its STATISTICS cease to exist. So
+  // hoist a ghost base chip to the head of the row, keep its metal fill and its
+  // unpin control, and blank share/median/n rather than showing a stale number.
+  // Never a silent unpin: the owner moved the lens, not the base.
+  if(dx&&dx.baseS&&!T.rows.some(r=>r.s===dx.baseS)){
+    h+='<span class="bldchip base'+(screenBuild===-1?" on":"")+'" data-bld="-1"'
+      +' tabindex="0" role="button" title="the pinned base — not in the top 8 of '
+      +'the current window">'
+      +'<b class="bl">Base</b>'
+      +'<span class="sh na">—</span>'
+      +'<span class="med"><i>med</i>—</span>'
+      +'<span class="mi">n=—</span>'
+      +'<span class="dcnt dsame">base</span>'
+      +(dx.baseHero?'<span class="htag">'+esc(dx.baseHero)+'</span>':'')
+      +'<span class="mi">'+(dx.baseRuns>0?'below top 8 in this window'
+        :'0 runs in this window')+'</span>'
+      +'<button class="pbtn" data-base="">unpin</button>'
+      +'</span>';
+  }
   T.rows.forEach((r,x)=>{
     if(!r.hash) __csCopy[x+1]=r.s;      // raw hashes never enter the copy store
-    h+='<span class="bldchip'+(x===screenBuild?" on":"")+'" data-bld="'+x+'">'
+    const isBase=!!(dx&&dx.baseS&&r.s===dx.baseS);
+    const lit=(x===screenBuild);
+    let cnt="", mdel="", hpre="";
+    if(dx){
+      if(isBase) cnt='<span class="dcnt dsame">base</span>';
+      else{
+        const c=csDiffCounts(csDiffMaps(dx.baseSel,csSelMap(r.sel)),dx.paneOf);
+        cnt='<span class="dcnt" title="vs base — adds/drops count Class+Spec; '
+          +'rank changes and choice swaps count every pane">'+csCountHTML(c)+'</span>';
+        mdel=csMedDeltaHTML(r.med,dx.baseMed,r.n,dx.baseN);
+        // one glyph, zero pixels: does this chip cost a hero respec? On
+        // Retribution that is six of seven chips.
+        if(r.hero&&dx.baseHero&&r.hero!==dx.baseHero) hpre='<span class="hsw">≠</span> ';
+      }
+    }
+    h+='<span class="bldchip'+(lit?" on":"")+(isBase?" base":"")+'" data-bld="'+x+'"'
+      +' tabindex="0" role="button">'
       +'<b class="bl">Build '+(x+1)+'</b>'
       +'<span class="sh">'+r.share.toFixed(1)+'%</span>'
-      +'<span class="mi">'+fmtDpsM(r.med)+'</span>'
+      // ITEM 2: the median was already here as a bare, muted, unlabelled number.
+      // Label it and weight it so it outranks the share and n around it.
+      +'<span class="med" title="median DPS of this build\'s parses in the current '
+      +'window — a cohort result, not a measured gain from the talents">'
+      +'<i>med</i>'+fmtDpsM(r.med)+'</span>'+mdel
       +'<span class="mi">n='+fmtInt(r.n)+'</span>'
-      +(r.hero?'<span class="htag">'+esc(r.hero)+'</span>':'')
+      +cnt
+      +(r.hero?'<span class="htag">'+hpre+esc(r.hero)+'</span>':'')
+      // the pin offer sits under the cursor already: you light a chip to look
+      // at it. Eight permanent buttons is clutter for a once-a-session control.
+      // In production every build is a hash, so `copy` never renders and `base`
+      // costs nothing in layout.
+      +((r.sel&&(lit||isBase))
+        ?'<button class="pbtn" data-base="'+x+'">'+(isBase?"unpin":"base")+'</button>':'')
       +(clip&&!r.hash?'<button class="cbtn" data-copy="'+(x+1)+'">copy</button>':'')
       +'</span>';
   });
@@ -3791,7 +4129,7 @@ function csBuildChipsHTML(T){
       +'% · n='+fmtInt(T.other)+'</span>';
   return h+'</div>';
 }
-function csTreePanesHTML(ctx,trees,row){
+function csTreePanesHTML(ctx,trees,row,base){
   const panes=[];
   const add=(lab,name,tree)=>{if(tree)panes.push({lab,name,tree})};
   add("Class",ctx.cls,trees.cls);
@@ -3804,16 +4142,22 @@ function csTreePanesHTML(ctx,trees,row){
   if(!panes.length) return "";
   // the lit selection: nodeId -> [rank, entryIdx|null] (sel ids missing
   // from every pane are ignored silently)
-  const sel=new Map();
-  if(row.sel) for(const s of row.sel)
-    if(Array.isArray(s)&&s.length>=2) sel.set(+s[0],[+s[1],s.length>2?+s[2]:null]);
+  const sel=csSelMap(row.sel);
+  // the pinned base, and the diff of THIS build against it. Both maps are built
+  // the identical way; the classifier is csDiffMaps (six categories, swap
+  // tested before rank). null base ⇒ dmapAll stays null and every line below
+  // that mentions it is inert: with no base pinned the trees render exactly as
+  // they always have, byte for byte.
+  const selA=base?csSelMap(base.sel):null;
+  const dmapAll=(selA&&base.s!==row.s)?csDiffMaps(selA,sel):null;
+  // CROSS-HERO: the base's 14 hero nodes have no coordinates in this pane and
+  // this build's 14 have no counterpart in the base's — a node-level diff there
+  // is 14 adds + 14 drops every single time (measured min = median = max), i.e.
+  // "different hero tree" written 28 times. Suppress the hero pane's diff LAYER
+  // and state the substitution once, in its header, with the same markers.
+  const heroSub=(base&&base.hero&&row.hero&&base.hero!==row.hero)?base.hero:"";
   // geometry: true relative positions on the db2 grid (steps of 300/600),
   // snapped to 50 units to kill export jitter (599-vs-600 style offsets).
-  // gx/gy = the pane's ROBUST grid step: the smallest same-row/same-column
-  // gap that occurs often (a couple of stray half-step pairs may stack a
-  // little, like the in-game half-columns, instead of dictating the scale;
-  // a genuinely dense pane still reads as dense and gets the bounded
-  // overflow fallback below).
   const snap=v=>Math.round(v/50)*50;
   const gstep=cnt=>{
     let tot=0; for(const c of cnt.values()) tot+=c;
@@ -3823,79 +4167,195 @@ function csTreePanesHTML(ctx,trees,row){
     for(const [g,c] of cnt){ if(g<mn)mn=g; if(c>=th&&g<best)best=g; }
     return isFinite(best)?best:mn;
   };
+  /* ===== ITEM 3 — "the talent panes are different sizes even when they
+     shouldn't be". DIAGNOSED, not guessed, against the live doc (40 specs):
+       1. the old code normalised each pane to ITS OWN topmost row (a per-pane
+          y0), so 26 of 40 specs rendered Class and Spec vertically offset —
+          Warrior|Arms class y0=600 vs spec y0=900 puts every spec row 300 db2
+          units off every class row. Rows never lined up in 65% of specs.
+       2. heights were spanY*sy+node with a per-pane spanY, and
+          |spanY_class − spanY_spec| is NEVER 0 across all 40 specs (150 units
+          in 24 of them, 750 in 14, 450 in 2) — so one pane ALWAYS hung lower.
+       3. the empty band near the top is a real 900-unit gap where the grid step
+          is 600, drawn at full scale, and it differs per pane, which also
+          CAUSES (2).
+       4. the wrap was a header overflow: the width budget subtracted one global
+          44px for "a pane is never narrower than its header", but the Hero
+          pane's header line ("HERO  Herald of the Sun  14 pts") measures ~200px
+          against a ~150px canvas, so the row exceeded the budget and wrapped.
+     FIX: one pooled grid UNIT, LADDERS instead of raw scaling, ONE row ladder
+     shared by Class+Spec (identical rhythm AND true cross-pane row alignment),
+     one common canvas height, and a real per-pane header measure. */
+  const cntAll=new Map();               // pooled gap census over ALL panes, BOTH axes
   for(const p of panes){
-    let x0=1/0,x1=-1/0,y0=1/0,y1=-1/0;
     const byY=new Map(), byX=new Map();
     for(const n of p.tree.nodes){
       const x=snap(n.x), y=snap(n.y);
-      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
       (byY.get(y)||byY.set(y,new Set()).get(y)).add(x);
       (byX.get(x)||byX.set(x,new Set()).get(x)).add(y);
     }
-    const gaps=m=>{const cnt=new Map();
-      for(const s of m.values()){const a=[...s].sort((u,v)=>u-v);
-        for(let i=1;i<a.length;i++){const g=a[i]-a[i-1];
-          cnt.set(g,(cnt.get(g)||0)+1);}}
-      return cnt};
-    p.x0=x0; p.y0=y0; p.spanX=Math.max(0,x1-x0); p.spanY=Math.max(0,y1-y0);
-    p.gx=gstep(gaps(byY)); p.gy=gstep(gaps(byX));
+    const acc=m=>{for(const s of m.values()){const a=[...s].sort((u,v)=>u-v);
+      for(let i=1;i<a.length;i++){const g=a[i]-a[i-1];
+        cntAll.set(g,(cntAll.get(g)||0)+1);}}};
+    acc(byY); acc(byX);
+  }
+  let UNIT=gstep(cntAll);               // derived, never hardcoded (measures 600 live)
+  if(!isFinite(UNIT)||UNIT<=0) UNIT=600;
+  // a ladder maps distinct snapped coordinates to integer SLOTS: consecutive
+  // coordinates advance one slot, a larger gap advances TWO — one empty slot
+  // preserved (the gap is real structure), never more. Applied UNIFORMLY to
+  // every pane and both axes, so compressing the empty band cannot break the
+  // cross-pane alignment it exists to protect.
+  const ladder=vals=>{
+    const a=[...new Set(vals)].sort((u,v)=>u-v);
+    const m=new Map(); let slot=0;
+    for(let i=0;i<a.length;i++){
+      if(i) slot+=((a[i]-a[i-1])<=1.5*UNIT)?1:2;
+      m.set(a[i],slot);
+    }
+    return {m, slots:slot+1};
+  };
+  const csY=[];
+  for(const p of panes) if(p.lab!=="Hero")
+    for(const n of p.tree.nodes) csY.push(snap(n.y));
+  const rowLad=ladder(csY);             // ONE ladder over the UNION of Class+Spec y
+  for(const p of panes){
+    p.colLad=ladder(p.tree.nodes.map(n=>snap(n.x)));   // columns aren't comparable
+                                        // across trees — own ladder, shared PITCH
+    // the hero tree keeps its OWN row origin: its true y0 sits up to 4200 units
+    // (seven empty rows) below the class/spec origin, and a shared origin would
+    // open an absurd blank band above it. Separate tree ⇒ the PITCH must match,
+    // not the origin.
+    p.rowLad=(p.lab==="Hero")?ladder(p.tree.nodes.map(n=>snap(n.y))):rowLad;
   }
   // fit the panes to the measure (pref #10: readable first — icons in the
-  // 34-44px band, never smaller; vertical gaps give way before icons do;
-  // an impossible tree scrolls INSIDE #cs-trees, the page never scrolls
-  // sideways)
+  // 34-44px band, never smaller; an impossible tree scrolls INSIDE #cs-trees,
+  // the page never scrolls sideways)
   const CHROME=22;                      // per-pane padding+border
   const host=$("charscreen");
-  // 44px allowance: a pane is never narrower than its header line (the
-  // hero pane's "HERO <name> · N pts" can out-measure its scaled canvas)
   const availW=Math.max(700,(host&&host.clientWidth?host.clientWidth:1116))
-    -(panes.length-1)*12-panes.length*CHROME-44;
-  const spanSum=panes.reduce((a,p)=>a+p.spanX,0)||1;
-  const gxMin=Math.min(...panes.map(p=>p.gx));   // Infinity on single-column panes
-  let node=40;
-  let sx=Math.max(0.001,(availW-panes.length*node)/spanSum);
-  if(isFinite(gxMin)&&gxMin*sx<node+4){
-    // tight: a smaller icon within the readable 34-44px band, never below it
-    node=Math.max(34,Math.min(node,Math.floor(gxMin*sx)-4));
-    sx=Math.max(0.001,(availW-panes.length*node)/spanSum);
+    -(panes.length-1)*12-panes.length*CHROME;
+  /* a real per-pane header measure replaces the old global 44 fudge — the
+     direct fix for the Hero pane wrapping to its own row (diagnosis 4). The
+     header is BUILT here, before the solver, so the solver measures the text
+     that will actually be drawn: the pane name, the diff tally, the point
+     total, and — the one that broke the old 44 — the cross-hero substitution
+     line, which is far longer than any pane name. The 62px tally slot is
+     reserved UNCONDITIONALLY, pinned base or not, so pinning a base never
+     resizes the icons under the cursor (pref #7: nothing moves). */
+  for(const p of panes){
+    const dmap=(p.lab==="Hero"&&heroSub)?null:dmapAll;
+    let pts=0, bpts=0;
+    for(const n of p.tree.nodes){
+      const s=sel.get(n.id); if(s) pts+=Math.max(1,s[0]);
+      if(selA){ const b=selA.get(n.id); if(b) bpts+=Math.max(1,b[0]) }
+    }
+    p.pts=pts; p.bpts=bpts;
+    if(heroSub&&p.lab==="Hero"){
+      // both directions stated once, in the same static markers as the nodes.
+      // The pane NAME is the incoming tree, so "+ <name>" IS the name slot —
+      // repeating it as a third copy is what blew the width budget.
+      // drop first, then gain: the substitution reads was → now, and the
+      // pane NAME is the incoming tree, so "+ <name>" IS the name slot
+      p.midHTML='<span class="tdf"><b class="dn">− '+esc(heroSub)+'</b></span>'
+        +'<span class="tn2"><b class="dp">+</b> '+esc(p.name)+'</span>';
+      p.htext="+ "+p.name; p.ttext="− "+heroSub;
+    }else{
+      let tally="";
+      p.htext=String(p.name||""); p.ttext="";
+      if(dmap){
+        const c={a:0,d:0,u:0,w:0,s:0};
+        for(const n of p.tree.nodes){const r=dmap.get(n.id); if(r) c[r.k]++}
+        c.rank=c.u+c.w;
+        tally='<span class="tdf">'+csCountHTML(c)+'</span>';
+        // the same phrase the tally will print, measured rather than guessed
+        p.ttext=(c.a?" +"+c.a:"")+(c.d?" −"+c.d:"")+(c.s?" ≠"+c.s:"")
+          +(c.rank?" ±"+c.rank:"");
+        if(!p.ttext) p.ttext="identical";
+      }
+      p.midHTML='<span class="tn2">'+esc(p.name)+'</span>'+tally;
+    }
+    p.ptHTML=(dmapAll&&!(heroSub&&p.lab==="Hero")&&bpts!==pts)
+      ?' · base '+bpts+' <b class="'+(pts>=bpts?"dp":"dn")+'">'+csSgn(pts-bpts)+'</b>':'';
+    p.ptText=pts?(pts+(pts===1?" pt":" pts")+(p.ptHTML?" · base 99 -9":"")):"";
   }
-  sx=Math.min(sx,(node+26)/600);        // don't over-stretch sparse trees
+  // 34 = the uppercase .tl label slot; .tn2 ~7.2px/char at .76rem; the tally
+  // and .tp ~6.4px/char at .68rem; 8px per flex gap; 12px trailing slack
+  const headW=p=>34+7.2*p.htext.length+6.4*(p.ttext.length+p.ptText.length)+24+12;
+  const boxW=(p,nd,cp)=>Math.max((p.colLad.slots-1)*cp+nd, headW(p));
+  let node=34, colPitch=38;
+  for(let nd=44; nd>=34; nd-=2){        // pref #10: 34px icon floor, never below
+    const cp=nd+4;
+    node=nd; colPitch=cp;
+    let sum=0; for(const p of panes) sum+=boxW(p,nd,cp);
+    if(sum<=availW) break;
+  }
+  let sumW=0; for(const p of panes) sumW+=boxW(p,node,colPitch);
+  if(sumW<availW){                      // spend the slack on column pitch...
+    const gaps=panes.reduce((a,p)=>a+Math.max(0,p.colLad.slots-1),0);
+    if(gaps>0){
+      colPitch=Math.min(node+26, colPitch+Math.floor((availW-sumW)/gaps));
+      sumW=0; for(const p of panes) sumW+=boxW(p,node,colPitch);
+    }
+  }                                     // ...but never over-stretch a sparse tree
   const capH=Math.max(380,Math.min(560,(window.innerHeight||1080)-440));
-  const ySpanMax=Math.max(...panes.map(p=>p.spanY))||1;
-  let sy=Math.min(sx,(capH-node)/ySpanMax);
-  // per-pane scales hold the icon floor: a pane whose grid is tighter than
-  // the shared scale allows grows alone (bounded overflow — page intact);
-  // vertical gaps compress toward the cap but never into icon collisions
+  const rowsMax=Math.max(...panes.map(p=>p.rowLad.slots));
+  const rowPitch=(rowsMax>1)
+    ?Math.max(node+6,Math.min(node+22,Math.floor((capH-node)/(rowsMax-1))))
+    :node+6;
+  // ONE height for EVERY pane's canvas. Sizing each to its own content is what
+  // produced the ragged bottoms: the class/spec span difference is non-zero in
+  // 40 of 40 specs, so "identical metrics but content-sized" still leaves one
+  // pane hanging. Common height + top-aligned content + a shared row ladder =
+  // equivalent rows line up across panes and the panes read as one instrument.
+  const H=(rowsMax-1)*rowPitch+node;
+  // a CENTRED overflowing flex row clips its LEADING edge, which would put the
+  // Class pane out of reach; centre only when the solver says the row fits.
+  let h='<div id="cs-trees" class="'+(sumW<=availW?"fit":"ovf")
+    +'" style="--tn:'+node+'px">';
   for(const p of panes){
-    p.sx=(isFinite(p.gx)&&p.gx*sx<node+4)?(node+4)/p.gx:sx;
-    p.sy=(isFinite(p.gy)&&p.gy*sy<node+6)?(node+6)/p.gy:sy;
-  }
-  let h='<div id="cs-trees" style="--tn:'+node+'px">';
-  for(const p of panes){
-    const W=Math.ceil(p.spanX*p.sx)+node, H=Math.ceil(p.spanY*p.sy)+node;
-    const px=n=>((snap(n.x)-p.x0)*p.sx), py=n=>((snap(n.y)-p.y0)*p.sy);
-    let pts=0, svg="", nds="";
+    const W=(p.colLad.slots-1)*colPitch+node;
+    const px=n=>(p.colLad.m.get(snap(n.x))||0)*colPitch;
+    const py=n=>(p.rowLad.m.get(snap(n.y))||0)*rowPitch;
+    // the hero pane of a cross-hero comparison carries no node-level diff
+    const dmap=(p.lab==="Hero"&&heroSub)?null:dmapAll;
+    const pts=p.pts;                    // computed in the header pre-pass above
+    let svg="", nds="";
     const at=new Map();
     for(const n of p.tree.nodes) at.set(n.id,n);
     for(const e of p.tree.edges){
       const a=at.get(e[0]), b=at.get(e[1]);
       if(!a||!b) continue;
       const lit=sel.has(a.id)&&sel.has(b.id);
+      // three-way once a base is pinned: lit in both / lit only here (newl) /
+      // lit only in the base (wasl) — otherwise a dropped node floats unconnected
+      const wasLit=dmap?(selA.has(a.id)&&selA.has(b.id)):false;
+      const ec=lit?(dmap&&!wasLit?"lit newl":"lit"):(dmap&&wasLit?"wasl":"");
       svg+='<line x1="'+(px(a)+node/2).toFixed(1)+'" y1="'+(py(a)+node/2).toFixed(1)
         +'" x2="'+(px(b)+node/2).toFixed(1)+'" y2="'+(py(b)+node/2).toFixed(1)
-        +'"'+(lit?' class="lit"':'')+'/>';
+        +'"'+(ec?' class="'+ec+'"':'')+'/>';
     }
     for(const n of p.tree.nodes){
       const s=sel.get(n.id), picked=!!s;
+      const df=dmap?dmap.get(n.id):null;
+      const drop=!!(df&&df.k==="d");
+      // a DROPPED node has s===null, so without this the old code would front
+      // the generic first-entry glyph, print no rank pip and skip the es
+      // resolution entirely — the one node class the reader most needs named
+      const eIdx=picked?s[1]:(drop?df.bi:null);
+      const rk=picked?s[0]:(drop?df.br:0);
+      const multi=(picked||drop)&&+n.r>1;
       let nm=n.n, ic=n.ic, sp=n.s;
       // any multi-entry node (§1.7: "es" = every option, sel's entryIdx
-      // indexes it): the PICKED option fronts the node — icon, name, link
-      if(picked&&s[1]!=null&&Array.isArray(n.es)&&n.es[s[1]]){
-        const o=n.es[s[1]];
+      // indexes it): the PICKED option fronts the node — icon, name, link.
+      // On a drop it is the BASE's option that fronts it: you are looking at
+      // the thing you would lose.
+      if((picked||drop)&&eIdx!=null&&Array.isArray(n.es)&&n.es[eIdx]){
+        const o=n.es[eIdx];
         if(o.n!=null)nm=o.n; if(o.ic!=null)ic=o.ic; if(o.s!=null)sp=o.s;
       }
-      if(picked) pts+=Math.max(1,s[0]);
-      const multi=picked&&+n.r>1;
+      // (pts/bpts were accumulated in the header pre-pass; a drop never
+      //  inflates the point total, so nothing is added on this path)
       let tile='<span class="tico'+(n.t===2?" ch":"")+'">'
         +'<span class="tph">'+esc(nm?nm.trim().charAt(0):"•")+'</span>'
         +(ic?'<img alt="" loading="lazy" src="icons/'+encodeURIComponent(String(ic))
@@ -3904,19 +4364,243 @@ function csTreePanesHTML(ctx,trees,row){
       if(sp)                            // the ONE wowhead surface (icon only)
         tile='<a class="whico" href="https://www.wowhead.com/spell='+(+sp)
           +'" target="_blank" rel="noopener">'+tile+'</a>';
-      nds+='<div class="ttn '+(picked?"pk":"dm")+'" style="left:'+px(n).toFixed(1)
+      /* the diff encoding. The BADGE is the signed POINT delta at this node
+         (≠ when the points are unchanged and the spell is not); the rank pip
+         keeps its own job, the value in THIS build. Two corners, two
+         questions — .ttb top-left, .ttr bottom-right, so they cannot collide
+         even at the 34px floor, and both overhang into the pane's padding
+         rather than covering the icon face (which also sidesteps the octagon
+         clip: no special-casing for t===2).
+         INVARIANT: a pane's badges sum exactly to that pane's .tp point delta. */
+      let dcl="", badge="", ghost="", tnote="";
+      if(df){
+        const bp=Math.max(1,df.br||0), np=Math.max(1,df.r||0);
+        if(df.k==="a"){ dcl=" da"; badge="+"+np; tnote=" · added"; }
+        else if(df.k==="d"){ dcl=" dd"; badge="−"+bp;
+          tnote=" · dropped (base had "+bp+"/"+n.r+")"; }
+        else if(df.k==="u"||df.k==="w"){ dcl=df.k==="u"?" da":" dd";
+          badge=csSgn(np-bp); tnote=" · rank "+bp+"→"+np; }
+        else if(df.k==="s"){ dcl=" ds";
+          badge="≠"+(np!==bp?csSgn(np-bp):"");
+          let bn="another option";
+          if(Array.isArray(n.es)&&n.es[df.bi]&&n.es[df.bi].n!=null) bn=n.es[df.bi].n;
+          tnote=" · choice swapped — base had "+bn;
+          // the base's option as a greyscale ghost: "was that, now this",
+          // stated on the map with no hover. pointer-events:none keeps the
+          // icon the sole wowhead surface (pref #11) — which is exactly why
+          // its detail rides the .ttn title above and never a title of its own.
+          if(Array.isArray(n.es)&&n.es[df.bi]&&n.es[df.bi].ic)
+            ghost='<img class="ttg" alt="" loading="lazy" src="icons/'
+              +encodeURIComponent(String(n.es[df.bi].ic))+'.jpg" onerror="this.remove()">';
+        }
+      }
+      // rank-DOWN stays .pk (it is still lit here, only worth less) — the CSS
+      // carries .ttn.pk.dd overrides so only a TRUE drop dims and dashes
+      const cls=picked?("pk"+dcl):(drop?"dd":"dm");
+      const pipCls=(df&&df.k==="u")?" rup":(df&&df.k==="w")?" rdn":(drop?" dpip":"");
+      const pip=(df&&(df.k==="u"||df.k==="w"))
+        ?(Math.max(1,df.br)+"→"+rk)
+        :(rk+"/"+n.r);
+      nds+='<div class="ttn '+cls+'" style="left:'+px(n).toFixed(1)
         +'px;top:'+py(n).toFixed(1)+'px"'
-        +(nm?' title="'+escA(nm)+(multi?" · "+s[0]+"/"+n.r:"")+'"':'')+'>'
-        +tile+(multi?'<span class="ttr">'+s[0]+"/"+n.r+'</span>':'')+'</div>';
+        +(nm?' title="'+escA(nm)+(multi?" · "+rk+"/"+n.r:"")+escA(tnote)+'"':'')+'>'
+        +tile+ghost
+        +(badge?'<span class="ttb">'+badge+'</span>':'')
+        +(multi?'<span class="ttr'+pipCls+'">'+pip+'</span>':'')+'</div>';
     }
+    // the header was BUILT in the pre-pass so the width solver could measure
+    // the text it would actually draw — WHICH tree changed is a different
+    // respec cost from HOW MUCH changed, and the cross-hero substitution line
+    // is longer than any pane name. Zero added height: .tthead is an existing
+    // single baseline row.
     h+='<div class="ttpane"><div class="tthead"><span class="tl">'+p.lab
-      +'</span><span class="tn2">'+esc(p.name)+'</span>'
-      +(pts?'<span class="tp">'+pts+(pts===1?' pt':' pts')+'</span>':'')+'</div>'
+      +'</span>'+p.midHTML
+      +(pts?'<span class="tp">'+pts+(pts===1?' pt':' pts')+p.ptHTML+'</span>':'')+'</div>'
       +'<div class="ttcv" style="width:'+W+'px;height:'+H+'px">'
       +'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+svg+'</svg>'
       +nds+'</div></div>';
   }
   return h+'</div>';
+}
+/* ---- one flat nodeId -> {node, pane} index over every pane of the spec,
+   including EVERY hero tree, so the ledger can name a difference that has no
+   pixel on screen (a cross-hero drop, or any hero node in hero-zoomed mode) ---- */
+function csNodeIndex(trees){
+  const m=new Map();
+  const put=(t,p)=>{ if(t&&Array.isArray(t.nodes)) for(const n of t.nodes)
+    m.set(+n.id,{n, pane:p}) };
+  put(trees.cls,"Class"); put(trees.spec,"Spec");
+  if(trees.hero) for(const k in trees.hero) put(trees.hero[k],"Hero");
+  return m;
+}
+/* ---- the diff bar: ONE line between the chips and the trees, so the reader
+   crosses it on the way down. It carries the identity of the comparison, the
+   counts, the median delta (Item 2's prominence for the LIT build) and, when
+   the panes cannot show the whole truth, the sentence that says so. ---- */
+function csDiffBarHTML(T,d,base,brow,row,paneOf,trees,baseRuns){
+  const same=(base.s===row.s);
+  const bn=brow?("Build "+(T.rows.indexOf(brow)+1)):"the pinned base";
+  const cn=(screenBuild===-1)?"the pinned base"
+    :("Build "+(screenBuild+1));
+  let h='<div id="cs-diffbar"><span class="tl">Diff</span>';
+  if(same){
+    // base == candidate: all six categories are zero BY DEFINITION, so the
+    // words "shown plain" are safe here in a way they are not in the
+    // hero-zoomed case below. No diff layer, no zero counters, no auto-unpin.
+    h+='<span class="dbi">'+bn+' is the base</span>'
+      +'<span class="dbn">shown plain · click another chip to diff against it</span>';
+  }else{
+    const dm=csDiffMaps(csSelMap(base.sel),csSelMap(row.sel));
+    const c=csDiffCounts(dm,paneOf);
+    const rowHero=row.hero||csHeroOfSel(row.sel,trees.hero);
+    const cross=!!(base.hero&&rowHero&&base.hero!==rowHero);
+    let cs=0, heroOnly=0;
+    for(const [id,r] of dm){
+      const p=paneOf.get(id);
+      if(p==="cls"||p==="spec") cs++;
+      // cross-hero hero records are the wholesale churn, not a finding
+      else if(!cross) heroOnly++;
+    }
+    h+='<span class="dbi">'+bn+' → '+cn+'</span>'
+      +'<span class="dcnt">'+csCountHTML(c)+'</span>';
+    // ITEM 2, the actionable reading: once a base is pinned the question is
+    // the DELTA, which is precisely why the trees were opened.
+    if(brow&&isFinite(row.med)&&isFinite(brow.med))
+      h+='<span>median <b>'+fmtDpsM(row.med)+'</b> '
+        +csMedDeltaHTML(row.med,brow.med,row.n,brow.n)+' vs base</span>';
+    else
+      // the base's sel is static, so the DIFF survives any re-slice; its
+      // STATISTICS do not. Say which of the two truths applies — never a
+      // stale number carried over from the previous slice.
+      h+='<span class="dbn">median <b>'+fmtDpsM(row.med)+'</b> · no delta — the '
+        +'base is '+(baseRuns>0?'below the top 8 in this window, so its median '
+          +'is not computed here':'absent from this window')+'</span>';
+    /* THE SILENT-LIE CASE. In hero-zoomed mode no hero pane renders at all, but
+       the diff is computed over the FULL sel regardless. For 15 of 920 build-1
+       pairs the ENTIRE difference is a hero-tree choice, and today those render
+       as two byte-identical pane pairs at the exact moment the owner is asking
+       why one out-DPSes the other. Never two clean trees and silence. */
+    if(!cs&&heroOnly)
+      h+='<span class="dbn">identical in Class and Spec · '+heroOnly
+        +(heroOnly===1?' hero-tree choice differs':' hero-tree choices differ')
+        +(state.merge?'':' (hero pane not shown in hero-zoomed view)')+'</span>';
+    else if(cross)
+      h+='<span class="dbn">plus a hero-tree substitution — '
+        +'<b class="dn">− '+esc(base.hero)+'</b> '
+        +'<b class="dp">+ '+esc(rowHero)+'</b> '
+        +'(hero nodes are not diffed node-by-node: the trees are disjoint)</span>';
+  }
+  h+='<span class="dbb">'
+    +(same?'':'<button class="btn" data-flip title="make '+esc(cn)+' the base and '
+      +esc(bn)+' the lit build">flip</button>')
+    +'<button class="btn" data-clearbase>clear base</button></span></div>';
+  return h;
+}
+/* ---- the diff LEDGER — a disclosure CLOSED at rest, below the trees, so
+   pinning a base never shrinks the trees (they are the subject). It exists for
+   the one thing a tree cannot do: print a difference that has no pixel — a
+   cross-hero drop, or any hero-tree change in hero-zoomed mode. Every column
+   sorts through the shared cmpCells comparator (pref #12). ---- */
+function csDiffLedgerHTML(base,row,paneOf,trees){
+  if(base.s===row.s) return "";
+  const idx=csNodeIndex(trees);
+  const dm=csDiffMaps(csSelMap(base.sel),csSelMap(row.sel));
+  const heroShown=!!(state.merge&&row.hero);
+  // BOTH heroes from sel alone: row.hero is only computed when state.merge, so
+  // reading it here would blind the ledger in hero-zoomed view. sel-derived
+  // agrees with the modal R.hero tag in 960/960 builds.
+  const rowHero=row.hero||csHeroOfSel(row.sel,trees.hero);
+  const crossHero=!!(base.hero&&rowHero&&base.hero!==rowHero);
+  const KI={a:{o:5,g:"+",w:"add"}, u:{o:4,g:"+",w:"rank up"},
+            s:{o:3,g:"≠",w:"swap"}, w:{o:2,g:"−",w:"rank down"},
+            d:{o:1,g:"−",w:"drop"}};
+  // 103 of 5,010 nodes in the shipped doc genuinely carry no name, spell or
+  // icon (t=3 structural nodes). The tree already draws them with a "•" glyph;
+  // the ledger must name them honestly rather than printing "null".
+  const nmHTML=s=>s==null?'<span class="na">unnamed node</span>':esc(s);
+  const ico=(name,c)=>(c?'<img class="dico" alt="" loading="lazy" src="icons/'
+    +encodeURIComponent(String(c))+'.jpg" onerror="this.remove()">':'')+nmHTML(name);
+  const optOf=(n,i)=>(i!=null&&Array.isArray(n.es)&&n.es[i])?n.es[i]:null;
+  const rows=[];
+  for(const [id,r] of dm){
+    const e=idx.get(id); if(!e) continue;   // 0 orphans measured; silent if ever
+    // a CROSS-HERO pair churns the whole 14-node hero allocation every time
+    // (measured min = median = max = 14 adds + 14 drops). Listing those 28 rows
+    // is "different hero tree" written 28 times; the substitution below says it
+    // once, and nothing is lost because the trees are disjoint — no rank or
+    // swap event can arise between them.
+    if(crossHero&&e.pane==="Hero") continue;
+    const n=e.n, ki=KI[r.k];
+    const bo=optOf(n,r.bi), no=optOf(n,r.i);
+    const bnm=(bo&&bo.n!=null)?bo.n:n.n, nnm=(no&&no.n!=null)?no.n:n.n;
+    const bic=(bo&&bo.ic!=null)?bo.ic:n.ic, nic=(no&&no.ic!=null)?no.ic:n.ic;
+    const bp=r.br!=null?Math.max(1,r.br):null, np=r.r!=null?Math.max(1,r.r):null;
+    const pane=e.pane+((e.pane==="Hero"&&!heroShown)?" (not shown)":"");
+    rows.push({
+      o:ki.o, glyph:ki.g, word:ki.w,
+      name:(r.k==="d")?bnm:nnm, ic:(r.k==="d")?bic:nic, swap:r.k==="s",
+      bnm, bic, nnm, nic,
+      brank:(r.k==="a")?null:(bp!=null?bp+"/"+n.r:null),
+      nrank:(r.k==="d")?null:(np!=null?np+"/"+n.r:null),
+      bs:r.br==null?null:bp, ns:r.r==null?null:np,
+      pane, po:(e.pane==="Class"?1:e.pane==="Spec"?2:3),
+      y:+n.y||0,
+      dp:(r.k==="a")?np:(r.k==="d")?-bp:(np-bp)
+    });
+  }
+  // a cross-hero substitution is ONE event with no node to sit on — the hero
+  // pane's 28 churned nodes carry no information the tag does not already give
+  if(crossHero) rows.push({o:3, glyph:"≠", word:"hero tree", name:"hero tree",
+    ic:null, swap:false, bnm:base.hero, bic:null, nnm:rowHero, nic:null,
+    brank:base.hero, nrank:rowHero, bs:base.hero, ns:rowHero,
+    pane:"Hero"+(heroShown?"":" (not shown)"), po:3, y:-1, dp:0});
+  if(!rows.length) return "";
+  const cols=[["o","Δ"],["name","Talent","txt"],["bs","Base","txt"],
+    ["ns","This build","txt"],["po","Pane","txt"],["dp","Δpts"]];
+  const val=(r,k)=>k==="bs"?(r.swap?r.bnm:r.bs):k==="ns"?(r.swap?r.nnm:r.ns):r[k];
+  const {col,dir}=screenDlSort;
+  const sorted=col?[...rows].sort((a,b)=>cmpCells(val(a,col),val(b,col),dir))
+    // default reading order = the tree's own: pane, then node y — so the ledger
+    // and the map agree line for line
+    :[...rows].sort((a,b)=>a.po-b.po||a.y-b.y||a.o-b.o);
+  let h='<div class="dl-trig'+(screenDlOpen?"":" closed")+'" data-dltrig>'
+    +'<span class="mk"></span><span>Diff ledger · '+rows.length
+    +(rows.length===1?' change':' changes')+'</span></div>';
+  if(!screenDlOpen) return h;
+  const notes=[];
+  if(!heroShown&&rows.some(r=>r.po===3))
+    notes.push('hero-tree rows are counted here but have no pane on screen in '
+      +'hero-zoomed view');
+  if(crossHero)
+    notes.push('the hero trees are disjoint, so the substitution is one row, '
+      +'not 14 adds and 14 drops');
+  if(notes.length)
+    h+='<div class="dl-note">'+notes.map(esc).join(' · ')+'</div>';
+  // the cap and its scrollbar only exist when there is something to scroll —
+  // a one-row ledger must not grow a stray scrollbar
+  h+='<div class="tblwrap'+(rows.length>10?' dl-w':'')
+    +'"><table class="data dl-t" id="cs-dl"><thead><tr>';
+  for(const [k,label,txt] of cols)
+    h+='<th class="'+(txt||"")+(k===col?" sorted "+(dir<0?"desc":"asc"):"")
+      +'" data-dc="'+k+'">'+label+'</th>';
+  h+='</tr></thead><tbody>';
+  for(const r of sorted){
+    const gc=r.glyph==="+"?"dp":r.glyph==="−"?"dn":"dz";
+    h+='<tr><td class="txt"><span class="dg '+gc+'">'+r.glyph+'</span>'
+      +'<span class="dw">'+esc(r.word)+'</span></td>'
+      // pref #11: the icon lives in whichever cell names a DISTINCT spell —
+      // one icon under Talent for add/drop/rank; on a swap the spell identity
+      // IS the before/after, so the two icons sit in Base and This build
+      +'<td class="txt">'+(r.swap?nmHTML(r.name):ico(r.name,r.ic))+'</td>'
+      +'<td class="txt">'+(r.swap?ico(r.bnm,r.bic)
+        :(r.brank!=null?esc(String(r.brank)):'<span class="na">—</span>'))+'</td>'
+      +'<td class="txt">'+(r.swap?ico(r.nnm,r.nic)
+        :(r.nrank!=null?esc(String(r.nrank)):'<span class="na">—</span>'))+'</td>'
+      +'<td class="txt'+(/not shown/.test(r.pane)?' na':'')+'">'+esc(r.pane)+'</td>'
+      +'<td>'+(r.dp?'<b class="delta '+(r.dp>0?"up":"down")+'">'+csSgn(r.dp)+'</b>'
+        :'<span class="na">0</span>')+'</td></tr>';
+  }
+  return h+'</tbody></table></div>';
 }
 /* talents + hero logic (§3.4) — the Talents pane's whole content */
 function csTalentsHTML(ctx,d){
@@ -3939,18 +4623,73 @@ function csTalentsHTML(ctx,d){
   if(withSel&&!TALDOC) loadTalentsDoc();  // lazy: the first want kicks it off
   const trees=withSel?talTreesFor(ctx):null;
   if(trees&&(trees.cls||trees.spec)){
-    if(screenBuild>=T.rows.length||!T.rows[screenBuild].sel){
+    /* ---- the pinned BASE, re-resolved from the STATIC per-spec vocab, never
+       from T.rows. T.rows is recomputed from the lens window on every render,
+       so resolving the base there works right up until the lens moves and then
+       the diff silently vanishes for the ~23.5% of cases where the base leaves
+       the top 8. The vocab is 24 entries per spec and immune to the lens, so
+       the DIFF ALWAYS SURVIVES; only the base's statistics can cease to be. */
+    let base=null;
+    if(screenBaseS){
+      const vb=d.vocab.builds.find(b=>b&&b.s===screenBaseS
+        &&Array.isArray(b.sel)&&b.sel.length);
+      if(vb) base={s:vb.s, sel:vb.sel,
+        hero:csHeroOfSel(vb.sel,trees.hero)};   // from sel alone (960/960)
+      else screenBaseS=null;                    // stale key ⇒ never a blank diff
+    }
+    // the clamp: -1 is the "pinned base" sentinel that `flip` needs when the
+    // base has left the chip row; it is only legal while a base is resolved
+    if(screenBuild===-1&&!base) screenBuild=0;
+    if(screenBuild!==-1&&(screenBuild>=T.rows.length||!T.rows[screenBuild].sel)){
       screenBuild=T.rows.findIndex(r=>r.sel);   // never light nothing
       if(screenBuild<0) screenBuild=0;
     }
-    h+=csBuildChipsHTML(T);
-    h+=csTreePanesHTML(ctx,trees,T.rows[screenBuild]);
-    h+='<div class="cs-foot">Build '+(screenBuild+1)+' lit — picked talents in '
-      +'full color, the rest dimmed · click a build chip to relight · '
-      +'builds known for '+fmtInt(T.known)+' of '+fmtInt(d.win.length)
+    const brow=T.rows.find(r=>base&&r.s===base.s)||null;
+    const row=(screenBuild===-1)
+      ?{s:base.s, sel:base.sel, hero:base.hero, n:NaN, share:NaN, med:NaN}
+      :T.rows[screenBuild];
+    const paneOf=csPaneOf(trees);
+    let dx=null;
+    if(base){
+      // the base's runs in THIS window, from the byV map csTalentRows already
+      // builds — so the ghost chip can say WHICH truth applies instead of
+      // showing a number from the previous slice
+      const vi=d.vocab.builds.findIndex(b=>b&&b.s===base.s)+1;
+      const runs=brow?brow.n:((T.byV&&T.byV.get(vi))?T.byV.get(vi).length:0);
+      dx={baseS:base.s, baseSel:csSelMap(base.sel), baseHero:base.hero,
+          baseMed:brow?brow.med:NaN, baseN:brow?brow.n:NaN,
+          baseRuns:runs, paneOf};
+    }
+    h+=csBuildChipsHTML(T,dx);
+    if(base) h+=csDiffBarHTML(T,d,base,brow,row,paneOf,trees,dx.baseRuns);
+    h+=csTreePanesHTML(ctx,trees,row,base);
+    if(base) h+=csDiffLedgerHTML(base,row,paneOf,trees);
+    const lab=screenBuild===-1?"the base build":"Build "+(screenBuild+1);
+    h+='<div class="cs-foot">'
+      +(base
+        ? 'Base: '+(brow?'Build '+(T.rows.indexOf(brow)+1):'the pinned build')
+          +(base.hero?' · '+esc(base.hero):'')+' — '+lab+' shown. '
+          +'<b class="dp">+</b> added · <b class="dn">−</b> dropped (dimmed one '
+          +'tier, dashed rim, the base’s icon and rank shown) · '
+          +'<b class="dz">≠</b> choice swapped (the base’s option ghosted '
+          +'bottom-left) · a signed rank pip (1→2) = the rank moved · unmarked = '
+          +'the same in both'
+        : lab+' lit — picked talents in full color, the rest dimmed · click a '
+          +'build chip to relight · pin a build as base to diff the others '
+          +'against it')
+      +' · builds known for '+fmtInt(T.known)+' of '+fmtInt(d.win.length)
       +' in window · identity = exact talent-'+(anyHash?'tree':'string')+' match'
-      +(!state.merge?' · hero fixed — builds differ in class/spec trees only':'')
+      // true about the PANES, and — once a diff is on screen — load-bearingly
+      // false by implication about the BUILDS, so it is amended
+      +(!state.merge?' · hero fixed — builds differ in class/spec trees only in '
+        +'the trees shown; hero-tree choices are counted but not drawn here':'')
       +'</div>';
+    h+='<div class="cs-foot">median = the middle DPS of that build’s parses '
+      +'in the current window — it moves with the filters and the trust gate. It '
+      +'is a median, so the percentile lens does not change it (the lens relabels '
+      +'every other DPS reading on this page). Builds are compared, not causes: a '
+      +'higher median is that cohort’s result, not a measured gain from the '
+      +'talents.</div>';
     if(anyHash)
       h+='<div class="cs-foot">builds identified from talent trees; '
         +"the game's import strings are not present in combat logs</div>";
@@ -4000,7 +4739,12 @@ function renderScreen(){
       for(let i=0;i<N;i++) if(R.cls[i]*100+R.spec[i]===pk){ k=pk*200+R.hero[i]; break }
     }
     if(k==null&&state.merge) k=pk;
-    if(k!=null){ state.frameKey=k; resetScreenPerSpec(); }
+    // a merge on/off flip on the SAME class+spec keeps the pinned diff base:
+    // its sel is unchanged and its hero tree is derivable from sel alone, so
+    // clearing it here would be a reset the owner never asked for. Only a real
+    // SPEC change (setScreenSpec / the arrow walk) drops the base.
+    if(k!=null){ const keepBase=screenBaseS;
+      state.frameKey=k; resetScreenPerSpec(); screenBaseS=keepBase; }
   }
   let h=csLadderHTML();
   if(state.frameKey==null){
@@ -4075,9 +4819,55 @@ function wireScreen(host,ctx,d){
   if(dt) dt.onclick=()=>{ screenTab="tal"; renderScreen(); };
   // Build chips light their build's talent trees (copy + wowhead stay theirs)
   host.querySelectorAll("#cs-bldchips .bldchip[data-bld]").forEach(c=>{
+    const light=()=>{ screenBuild=+c.dataset.bld; renderScreen() };
     c.onclick=e=>{
-      if(e.target.closest("[data-copy],a")) return;
-      screenBuild=+c.dataset.bld;
+      if(e.target.closest("[data-copy],[data-base],a")) return;
+      light();
+    };
+    // the chip is the pane's primary control and was a <span onclick>,
+    // unreachable by keyboard. Enter/Space now light it.
+    c.onkeydown=e=>{
+      if(e.key==="Enter"||e.key===" "){ e.preventDefault(); light() }
+    };
+  });
+  /* ---- base pin / unpin / flip / clear, mirroring the [data-copy] delegate ---- */
+  host.querySelectorAll("#cs-bldchips [data-base]").forEach(b=>{
+    b.onclick=e=>{
+      e.stopPropagation();
+      const x=b.dataset.base;
+      const s=(x===""?screenBaseS:__csBldS[+x]);
+      if(!s) return;
+      if(screenBaseS===s){ screenBaseS=null; screenDlOpen=false; }
+      else screenBaseS=s;
+      if(screenBuild===-1) screenBuild=0;
+      renderScreen();
+    };
+  });
+  const fl=host.querySelector("#cs-diffbar [data-flip]");
+  // "what does build 2 add over mine" and the reverse are the same question read
+  // backwards; reading a + as a − in your head is the error this exists to stop
+  if(fl) fl.onclick=()=>{
+    const lit=(screenBuild===-1)?screenBaseS:__csBldS[screenBuild];
+    const old=screenBaseS;
+    if(!lit||!old||lit===old) return;
+    screenBaseS=lit;
+    const j=__csBldS.indexOf(old);
+    screenBuild=(j>=0)?j:-1;          // -1 = "the pinned base", the only sentinel
+    renderScreen();
+  };
+  const cb=host.querySelector("#cs-diffbar [data-clearbase]");
+  if(cb) cb.onclick=()=>{
+    screenBaseS=null; screenDlOpen=false;
+    if(screenBuild===-1) screenBuild=0;
+    renderScreen();
+  };
+  const dt2=host.querySelector("[data-dltrig]");
+  if(dt2) dt2.onclick=()=>{ screenDlOpen=!screenDlOpen; renderScreen() };
+  host.querySelectorAll("#cs-dl th[data-dc]").forEach(th=>{
+    th.onclick=()=>{                  // pref #12 — every column, shared comparator
+      const k=th.dataset.dc;
+      screenDlSort=(screenDlSort.col===k)
+        ?{col:k,dir:-screenDlSort.dir}:{col:k,dir:-1};
       renderScreen();
     };
   });
