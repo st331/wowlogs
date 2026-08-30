@@ -49,3 +49,17 @@ looks almost like the in-game character pane in Archon, this looks plain and ugl
   weapons row; slot fold-outs keep working and gain small icons per row.
 - Still bound by: viewport-fit-at-rest bar, Gilded Glass (icons get the metal-lip
   border), calm hover, no rotation, live re-slicing.
+
+## Talent presentation upgrade (owner, 2026-08-30)
+"The talent page is almost impossible to read. On Archon it resembles the in-game
+talent display. Make it much nicer and easier to grok."
+- Render REAL talent trees in-game-style: class + spec trees side by side (hero
+  tree per the existing merged/zoomed logic), nodes at their true positions with
+  edges, spell icons, rank pips; a Build 1..N selector lights up that build's
+  selections (dimmed unpicked nodes). Node name on native title hover.
+- Static tree geometry from wago.tools db2 (TraitNode/TraitEdge/TraitNodeEntry/
+  TraitDefinition + spell names/icons), cached grow-only like names, shipped as a
+  lazy site/talents.json.gz; icons self-hosted alongside item icons.
+- Sidecar build vocab entries gain their node selections ("sel") for the top
+  builds so the client can light trees per build (§1 widening).
+- Trees scale to fit the pane within the viewport-at-rest bar at 1366x768.
