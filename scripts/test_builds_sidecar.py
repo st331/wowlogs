@@ -77,7 +77,10 @@ CACHES = {
                          "222": {"n": None}},      # 112/444/555 never asked
     "names_enchants.json": {"7008": "Rune of Tests"},   # 7100 never asked
     "crafted_ids.json": [222],
-    "names_bonus_emb.json": {"8960": None, "12001": "Radiant Hem"},
+    "emb_markers.json": [8960],
+    # v2 semantics: 12001 = validated embellishment reagent; 6652 = a stat
+    # missive validated NOT-an-embellishment (null) — must never split
+    "names_bonus_emb2.json": {"12001": "Radiant Hem", "6652": None},
     # 111 has an icon; 222 was asked and has none (null); 112 never asked
     "names_icons.json": {"111": "inv_helm_test", "222": None},
 }
@@ -94,7 +97,8 @@ def run_builds(rows, recs, caches=CACHES, **kw):
         bsd.NAMES_ITEMS = tp / "names_items.json"
         bsd.NAMES_ENCHANTS = tp / "names_enchants.json"
         bsd.CRAFTED_IDS = tp / "crafted_ids.json"
-        bsd.NAMES_BONUS_EMB = tp / "names_bonus_emb.json"
+        bsd.NAMES_BONUS_EMB2 = tp / "names_bonus_emb2.json"
+        bsd.EMB_MARKERS = tp / "emb_markers.json"
         bsd.NAMES_ICONS = tp / "names_icons.json"
         bsd.TRAIT_GEOMETRY = tp / "trait_geometry.json"
         bsd.NAMES_SPELLS = tp / "names_spells.json"
@@ -181,7 +185,11 @@ def paladin_gear(i):
     g += [gear_item(300 + s) for s in (1, 2)]               # 1 neck 2 shoulder
     g += [{"id": 0}]                                        # 3 shirt (empty)
     g += [gear_item(400 + s) for s in (4, 5, 6, 7)]         # chest..feet
-    bonus = ([8960, 12001] if i <= 6 else [8960] if i <= 10 else None)
+    # i<=6: marker + named reagent + missive; 7-10: marker only (generic
+    # bucket); 11-13: missive alone on a NON-embellished item (must club
+    # with plain); 14+: no bonus at all (same plain entry)
+    bonus = ([8960, 12001, 6652] if i <= 6 else [8960] if i <= 10
+             else [6652] if i <= 13 else None)
     g += [gear_item(222, bonus=bonus)]                      # 8 wrist
     g += [gear_item(400 + s) for s in (9, 10, 11, 12, 13, 14)]
     g += [gear_item(555, ench=7008)]                        # 15 mainhand
@@ -229,7 +237,7 @@ assert wrist[0] == {"id": 222, "n": None, "ilvl": 720, "cr": 1}, wrist[0]
 assert wrist[1] == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
                     "emb": "Radiant Hem"}, wrist[1]
 assert wrist[2] == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
-                    "emb": "#8960"}, wrist[2]
+                    "emb": "embellished"}, wrist[2]   # generic bucket, no id
 assert spec["ench"][0] == [{"id": 7100, "n": None}], spec["ench"]
 assert spec["ench"][1] == [{"id": 7008, "n": "Rune of Tests"}], spec["ench"]
 assert spec["builds"] == [{"s": "BUILD_X", "n": 13}, {"s": "BUILD_Y", "n": 5},
@@ -237,7 +245,7 @@ assert spec["builds"] == [{"s": "BUILD_X", "n": 13}, {"s": "BUILD_Y", "n": 5},
 assert spec["bkind"] == "string", spec.get("bkind")
 assert len(spec["items"]) == 16 and len(spec["ench"]) == 2
 print("vocab     : count-ordered entries; null-name fallback; median ilvl; "
-      "cr from crafted_ids; emb split plain/named/#marker")
+      "cr from crafted_ids; emb split plain/named/generic, missives club")
 
 # --- build identity by tree hash (§1.5 addendum): canonical over node
 # order, sensitive to rank, "t:"-prefixed, never derived from junk nodes
@@ -391,7 +399,10 @@ def fake_get(path, params=None):
             return [{"Display_lang": "Crown of Testing",
                      "OverallQualityID": "4"}]
         if p.get("filter[ID]") == "exact:31337":
-            return [{"Display_lang": "Radiant Hem"}]
+            return [{"Display_lang": "Radiant Hem", "LimitCategory": "512"}]
+        if p.get("filter[ID]") == "exact:31338":   # a missive: no emb cat
+            return [{"Display_lang": "Draconic Missive of Nope",
+                     "LimitCategory": "0"}]
         return []
     if path == "SpellItemEnchantment":
         if p.get("filter[ID]") == "exact:7008":
@@ -400,14 +411,20 @@ def fake_get(path, params=None):
     if path == "ItemBonusTreeNode":
         if p.get("filter[ChildItemBonusListID]") == "exact:12001":
             return [{"ParentItemBonusTreeID": "500"}]
+        if p.get("filter[ChildItemBonusListID]") == "exact:13001":
+            return [{"ParentItemBonusTreeID": "501"}]
         return []
     if path == "ModifiedCraftingReagentItem":
         if p.get("filter[ItemBonusTreeID]") == "exact:500":
             return [{"ID": "600"}]
+        if p.get("filter[ItemBonusTreeID]") == "exact:501":
+            return [{"ID": "601"}]
         return []
     if path == "Item":
         if p.get("filter[ModifiedCraftingReagentItemID]") == "exact:600":
             return [{"ID": "31337"}]
+        if p.get("filter[ModifiedCraftingReagentItemID]") == "exact:601":
+            return [{"ID": "31338"}]
         return []
     return []
 
@@ -431,17 +448,18 @@ with tempfile.TemporaryDirectory() as tmp:
     tp = pathlib.Path(tmp)
     _, rec = make_parse("F1", "Fx", "Mage", "Arcane",
                         gear=[gear_item(111, ench=7008,
-                                        bonus=[8960, 12001])])
+                                        bonus=[8960, 12001, 13001])])
     (tp / "gear.jsonl").write_text(json.dumps(rec) + "\n")
     fn.GEAR_FILE = tp / "gear.jsonl"
     fn.GEAR_CSV = tp / "absent.jsonl.gz"
     fn.NAMES_ITEMS = tp / "names_items.json"
     fn.NAMES_ENCHANTS = tp / "names_enchants.json"
     fn.CRAFTED_IDS = tp / "crafted_ids.json"
-    fn.NAMES_BONUS_EMB = tp / "names_bonus_emb.json"
+    fn.NAMES_BONUS_EMB2 = tp / "names_bonus_emb2.json"
+    fn.EMB_MARKERS = tp / "emb_markers.json"
     fn.NAMES_ICONS = tp / "names_icons.json"
     fn.ICONS_DIR = tp / "icons"
-    fn.NAMES_BONUS_EMB.write_text(json.dumps({"9999": "Manual Name"}))
+    fn.NAMES_BONUS_EMB2.write_text(json.dumps({"9999": "Manual Name"}))
     # 333 already known to the item cache: the icon phase must still ask
     # wowhead for it (icons trail names) and cache the sanitized-out answer
     fn.NAMES_ITEMS.write_text(json.dumps({"333": {"n": None}}))
@@ -454,9 +472,13 @@ with tempfile.TemporaryDirectory() as tmp:
     assert json.loads(fn.NAMES_ENCHANTS.read_text()) == \
         {"7008": "Rune of Tests"}
     assert json.loads(fn.CRAFTED_IDS.read_text()) == [222]
-    emb = json.loads(fn.NAMES_BONUS_EMB.read_text())
-    assert emb == {"8960": None, "9999": "Manual Name",
-                   "12001": "Radiant Hem"}, emb
+    emb = json.loads(fn.NAMES_BONUS_EMB2.read_text())
+    # markers live in their own file, never in the reagent cache; the
+    # missive-shaped candidate validates to null (reagent lacks an
+    # Embellished limit category), the true reagent keeps its name
+    assert emb == {"9999": "Manual Name", "12001": "Radiant Hem",
+                   "13001": None}, emb
+    assert json.loads(fn.EMB_MARKERS.read_text()) == [8960]
     icons = json.loads(fn.NAMES_ICONS.read_text())
     assert icons == {"111": "inv_helm_test", "333": None}, icons
     assert (tp / "icons" / "inv_helm_test.jpg").read_bytes() == b"JPEGDATA"

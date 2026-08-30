@@ -15,10 +15,15 @@ entries survive every run):
   data/names_items.json     {"<itemid>": {"n": "...", "q": 4} | {"n": null}}
   data/names_enchants.json  {"<enchid>": "cleaned name" | null}
   data/crafted_ids.json     sorted int list (CraftingData's CraftedItemIDs)
-  data/names_bonus_emb.json {"<bonusid>": "name" | null} -- embellishment
-                            marker bonus ids plus the reagent-identity bonus
-                            ids seen alongside them; null = asked, unnamed
-                            (rendered "#<id>"; nameable manually, once)
+  data/emb_markers.json     sorted int list -- the Embellished limit-category
+                            marker bonus ids (whole-table probe, grow-only)
+  data/names_bonus_emb2.json {"<bonusid>": "name" | null} -- VALIDATED
+                            embellishment reagent names for bonus ids seen
+                            alongside a marker; null = validated not-an-
+                            embellishment (missives, sparks...) or chain
+                            open -- never re-asked, nameable manually.
+                            (v2: the v1 cache conflated markers, reagents
+                            and every co-occurring bonus id -- retired.)
   data/names_icons.json     {"<itemid>": "inv_..." | null} -- icon NAME per
                             item id (wowhead XML), resolved only for ids the
                             item cache already knows; null = asked, absent
@@ -54,7 +59,8 @@ GEAR_CSV = DATA / "gear.jsonl.gz"
 NAMES_ITEMS = DATA / "names_items.json"
 NAMES_ENCHANTS = DATA / "names_enchants.json"
 CRAFTED_IDS = DATA / "crafted_ids.json"
-NAMES_BONUS_EMB = DATA / "names_bonus_emb.json"
+EMB_MARKERS = DATA / "emb_markers.json"
+NAMES_BONUS_EMB2 = DATA / "names_bonus_emb2.json"
 NAMES_ICONS = DATA / "names_icons.json"
 ICONS_DIR = DATA / "processed" / "icons"
 
@@ -245,16 +251,20 @@ def fetch_crafted() -> set[int] | object:
     return out
 
 
-def fetch_markers() -> dict[int, None] | object:
-    """Embellishment marker bonus ids: ItemBonus rows of Type=35 whose
-    ItemLimitCategory's name contains "Embellished" (512 Embellished,
-    697 Outdoor Embellished today). Stored with null names -- the marker is
-    generic; identity comes from the reagent bonus resolved separately."""
+def fetch_emb_cats() -> set[str] | object:
+    """ItemLimitCategory ids whose name contains "Embellished"
+    (512 Embellished, 697 Outdoor Embellished today)."""
     cats = _get_csv("ItemLimitCategory")
     if cats is _FAILED:
         return _FAILED
-    emb_cats = {str(r.get("ID")) for r in cats
-                if "embellished" in (_field(r, "Name_lang") or "").lower()}
+    return {str(r.get("ID")) for r in cats
+            if "embellished" in (_field(r, "Name_lang") or "").lower()}
+
+
+def fetch_markers(emb_cats: set[str]) -> dict[int, None] | object:
+    """Embellishment marker bonus ids: ItemBonus rows of Type=35 whose
+    ItemLimitCategory is an Embellished category. The marker is generic;
+    identity comes from the reagent bonus resolved separately."""
     if not emb_cats:
         return {}
     rows = _get_csv("ItemBonus", {"filter[Type]": "exact:35"})
@@ -269,11 +279,16 @@ def fetch_markers() -> dict[int, None] | object:
     return out
 
 
-def resolve_emb_name(bid: int):
-    """Reagent name for an embellishment-candidate bonus id, walking
-    ItemBonusTreeNode -> ModifiedCraftingReagentItem -> Item -> ItemSparse.
-    None = the chain does not close (a real answer: stored null, displayed
-    "#<id>", manually nameable); _FAILED = network, retried next run."""
+def resolve_emb_name(bid: int, emb_cats: set[str]):
+    """VALIDATED reagent name for an embellishment-candidate bonus id,
+    walking ItemBonusTreeNode -> ModifiedCraftingReagentItem -> Item ->
+    ItemSparse. The chain closes for EVERY optional crafting reagent --
+    stat missives, sparks, embellishments alike (owner bug reports
+    2026-08-30: "Draconic Missive of the Peerless", "Spark of Tides",
+    "Spark of Radiance" surfaced as embellishments) -- so the reagent item
+    itself must carry an Embellished ItemLimitCategory to count. None =
+    validated not-an-embellishment or chain open (stored null, never
+    re-asked, manually nameable); _FAILED = network, retried next run."""
     nodes = _get_csv("ItemBonusTreeNode",
                      {"filter[ChildItemBonusListID]": f"exact:{bid}"})
     if nodes is _FAILED:
@@ -301,6 +316,9 @@ def resolve_emb_name(bid: int):
         return _FAILED
     if not sparse:
         return None
+    lim = _field(sparse[0], "LimitCategory", "ItemLimitCategory")
+    if str(lim) not in emb_cats:
+        return None      # a plain optional reagent, not an embellishment
     return _field(sparse[0], "Display_lang") or None
 
 
@@ -314,7 +332,7 @@ def main(argv=None) -> int:
     items_c = load_json(NAMES_ITEMS, {})
     enchs_c = load_json(NAMES_ENCHANTS, {})
     crafted_c = set(load_json(CRAFTED_IDS, []))
-    emb_c = load_json(NAMES_BONUS_EMB, {})
+    emb_c = load_json(NAMES_BONUS_EMB2, {})
     icons_c = load_json(NAMES_ICONS, {})
 
     item_ids, ench_ids, bonus_tuples = scan_journal()
@@ -339,12 +357,21 @@ def main(argv=None) -> int:
         if len(crafted_c) != before:
             print(f"[names] crafted set: +{len(crafted_c) - before} "
                   f"({len(crafted_c)} total)")
-    markers = fetch_markers()
+    emb_cats = fetch_emb_cats()
+    if emb_cats is _FAILED:
+        got["failed"] += 1
+        emb_cats = set()
+    markers = fetch_markers(emb_cats)
     if markers is _FAILED:
         got["failed"] += 1
         markers = {}
-    merge_grow_only(emb_c, {str(k): v for k, v in markers.items()})
-    marker_ids = {int(k) for k in emb_c} | set(markers)
+    # the marker set lives in its OWN committed file (grow-only union) --
+    # markers must never mix with reagent-name candidates: treating every
+    # cached candidate as a marker is exactly the bug that let stat missives
+    # and sparks split item identity and pose as embellishments
+    marker_ids = {int(v) for v in load_json(EMB_MARKERS, [])
+                  if str(v).isdigit()} | set(markers)
+    save_cache(EMB_MARKERS, sorted(marker_ids))
 
     # per-id item / enchant names, unseen only
     for iid in unseen(item_ids, items_c):
@@ -373,9 +400,11 @@ def main(argv=None) -> int:
         if any(b in marker_ids for b in t):
             candidates |= {b for b in t if b not in marker_ids}
     for bid in unseen(candidates, emb_c):
+        if not emb_cats:     # cannot validate without the category table
+            break
         if not spend():
             break
-        nm = resolve_emb_name(bid)
+        nm = resolve_emb_name(bid, emb_cats)
         if nm is _FAILED:
             got["failed"] += 1
             continue
@@ -412,7 +441,7 @@ def main(argv=None) -> int:
     save_cache(NAMES_ITEMS, items_c)
     save_cache(NAMES_ENCHANTS, enchs_c)
     save_cache(CRAFTED_IDS, crafted_c)
-    save_cache(NAMES_BONUS_EMB, emb_c)
+    save_cache(NAMES_BONUS_EMB2, emb_c)
     save_cache(NAMES_ICONS, icons_c)
     n_img = sum(1 for p in ICONS_DIR.glob("*.jpg"))
     print(f"[names] items {got['items']} fetched "

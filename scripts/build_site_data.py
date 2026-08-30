@@ -1068,7 +1068,8 @@ BUILDS_GZ_CAP = 5_000_000
 NAMES_ITEMS = ROOT / "data" / "names_items.json"
 NAMES_ENCHANTS = ROOT / "data" / "names_enchants.json"
 CRAFTED_IDS = ROOT / "data" / "crafted_ids.json"
-NAMES_BONUS_EMB = ROOT / "data" / "names_bonus_emb.json"
+EMB_MARKERS = ROOT / "data" / "emb_markers.json"
+NAMES_BONUS_EMB2 = ROOT / "data" / "names_bonus_emb2.json"
 NAMES_ICONS = ROOT / "data" / "names_icons.json"
 ICONS_SRC = ROOT / "data" / "processed" / "icons"
 
@@ -1089,11 +1090,13 @@ def _name_caches():
     enchs = {int(k): v for k, v in _load_json(NAMES_ENCHANTS, {}).items()
              if str(k).isdigit()}
     crafted = {v for v in _load_json(CRAFTED_IDS, []) if isinstance(v, int)}
-    emb = {int(k): v for k, v in _load_json(NAMES_BONUS_EMB, {}).items()
+    emb = {int(k): v for k, v in _load_json(NAMES_BONUS_EMB2, {}).items()
            if str(k).isdigit()}
+    markers = {int(v) for v in _load_json(EMB_MARKERS, [])
+               if isinstance(v, int) or str(v).isdigit()}
     icons = {int(k): v for k, v in _load_json(NAMES_ICONS, {}).items()
              if str(k).isdigit() and isinstance(v, str) and v}
-    return items, enchs, crafted, emb, icons
+    return items, enchs, crafted, emb, markers, icons
 
 
 def sync_icons(name: str) -> None:
@@ -1377,21 +1380,25 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         print(f"[{name}] no builds/gear in the gear journal; "
               f"builds sidecar omitted")
         return None
-    item_names, ench_names, crafted, emb_map, icon_names = _name_caches()
+    item_names, ench_names, crafted, emb_map, emb_markers, icon_names = \
+        _name_caches()
 
     def emb_of(item: dict):
-        """Embellishment identity bonus id for a journaled item, or None.
-        Embellished iff the bonus list intersects the known embellishment
-        bonus ids; identity prefers a NAMED bonus (the resolved reagent)
-        over an unnamed one (the generic marker), smallest id on ties."""
+        """Embellishment identity for a journaled item, or None.
+        Embellished iff the bonus list hits a MARKER id (the Embellished
+        limit-category bonus). Identity is the smallest VALIDATED
+        reagent-name bonus when one is present; everything else clubs into
+        one generic bucket (-1, rendered "embellished"). Unnamed bonus ids
+        never split identity -- stat missives and sparks resolved through
+        the reagent chain too and used to pose as embellishments AND split
+        the same crafted item by stat combo (owner bug reports 2026-08-30)."""
         bonus = item.get("bonus")
         if not isinstance(bonus, list):
             return None
-        hits = [b for b in bonus if b in emb_map]
-        if not hits:
+        if not any(b in emb_markers for b in bonus):
             return None
-        named = sorted(b for b in hits if emb_map.get(b))
-        return named[0] if named else min(hits)
+        named = sorted(b for b in bonus if emb_map.get(b))
+        return named[0] if named else -1
 
     # ---- the one df-order walk: parse each covered row once
     n = len(df)
@@ -1509,7 +1516,7 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                     if iid in crafted:
                         e["cr"] = 1
                     if emb is not None:
-                        e["emb"] = emb_map.get(emb) or f"#{emb}"
+                        e["emb"] = emb_map.get(emb) or "embellished"
                     col.append(e)
                 items_v.append(col)
             en_v, en_lk = [], []

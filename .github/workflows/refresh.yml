@@ -186,11 +186,11 @@ jobs:
       # --limit bounds any one run's fetching; the seed spreads across runs.
       - name: Resolve names
         run: |
-          for f in names_items names_enchants crafted_ids names_bonus_emb names_icons; do
+          for f in names_items names_enchants crafted_ids names_bonus_emb2 names_icons; do
             if [ -f "data/processed/$f.json" ]; then cp "data/processed/$f.json" "data/$f.json"; fi
           done
           python -u scripts/fetch_names.py --limit 2000 || echo "::warning::name fetch failed; building with existing caches"
-          for f in names_items names_enchants crafted_ids names_bonus_emb names_icons; do
+          for f in names_items names_enchants crafted_ids names_bonus_emb2 names_icons; do
             cp "data/$f.json" "data/processed/$f.json" 2>/dev/null || true
           done
 
@@ -286,7 +286,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
           git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
-          git add data/names_items.json data/names_enchants.json data/crafted_ids.json data/names_bonus_emb.json 2>/dev/null || true
+          git add data/names_items.json data/names_enchants.json data/crafted_ids.json data/names_bonus_emb2.json data/emb_markers.json 2>/dev/null || true
           git add data/names_icons.json data/names_spells.json data/trait_geometry.json 2>/dev/null || true
           # icon images sync_icons copied into site/ this run (grow-only, tiny)
           git add site/icons 2>/dev/null || true

@@ -185,14 +185,22 @@ ids (all four fetches returned 200 with the expected fields):
   `CraftedItemID` values (222435 Everforged Vambraces verified present).
 - Embellishment markers: bonus ids whose `ItemBonus` rows (Type=35) set an
   `ItemLimitCategory` whose name contains "Embellished" — today 8960→512 "Embellished"
-  and 13555→697 "Outdoor Embellished" (both verified). A journaled item is embellished
-  iff its `bonus` list intersects the marker set. Identity: (a) inherently-embellished
-  items carry LimitCategory 512 in ItemSparse directly (6 items today, e.g. 251073
-  Voidstone Shielding Array) — name = item name; (b) optional-reagent embellishments:
-  resolve bonus→reagent through ItemBonusTreeNode(ChildItemBonusListID)→ParentItemBonusTreeID
-  →ModifiedCraftingReagentItem(ItemBonusTreeID)→reagent item name where the chain closes,
-  else record `null` and display `#<bonusid>` — data/names_bonus_emb.json accepts MANUAL
-  entries (grow-only union), so the owner can name stragglers once per season.
+  and 13555→697 "Outdoor Embellished" (both verified). Markers live in their OWN file
+  `data/emb_markers.json` (sorted int list, grow-only union) — REVISED 2026-08-30 after
+  owner bug reports ("Draconic Missive of the Peerless", "Spark of Tides", "Spark of
+  Radiance" posing as embellishments; the same crafted item splitting by stat combo):
+  v1 conflated markers, reagents, and every co-occurring bonus id in one cache, and the
+  reagent chain closes for EVERY optional reagent. A journaled item is embellished iff
+  its `bonus` list intersects the MARKER set only. Identity: the smallest bonus id with
+  a VALIDATED reagent name, else one generic bucket (-1, rendered "embellished") — an
+  unnamed bonus id never splits identity. Validation (`data/names_bonus_emb2.json`,
+  grow-only, accepts MANUAL entries): resolve bonus→reagent through
+  ItemBonusTreeNode(ChildItemBonusListID)→ParentItemBonusTreeID
+  →ModifiedCraftingReagentItem(ItemBonusTreeID)→Item→ItemSparse, and the reagent item
+  must itself carry an Embellished `LimitCategory` — otherwise store `null`
+  (validated not-an-embellishment, never re-asked). Known gap: the ~6
+  inherently-embellished items (LimitCategory 512 in ItemSparse directly, e.g. 251073)
+  are not yet counted in the embellishment table.
 
 **Cache files (committed, grow-only — merge, never overwrite):**
 `data/names_items.json` `{ "<itemid>": {"n": "...", "q": 4} | {"n": null} }`,
