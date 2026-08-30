@@ -3100,6 +3100,12 @@ function enchNameHTML(e){
 }
 window.whRefresh=function(){try{const P=window.$WowheadPower;
   P&&P.refreshLinks&&P.refreshLinks()}catch(e){}};
+// icon miss: try the other store once, else fall back to the glyph layer
+window.csIcoFail=function(img){
+  const a=img.getAttribute("data-alt");
+  if(a){ img.removeAttribute("data-alt"); img.src=a; return }
+  img.remove();
+};
 // embellishment display name — an unresolved "#<bonusid>" never renders
 const embOf=e=>{const m=e&&e.emb; return (m&&!/^#\d+$/.test(m))?m:null};
 // icon tile (§1 widening) — vocab "ic" ⇒ self-hosted icons/<ic>.jpg over the
@@ -3107,11 +3113,19 @@ const embOf=e=>{const m=e&&e.emb; return (m&&!/^#\d+$/.test(m))?m:null};
 // img, so a broken-image glyph never renders and the miss stays silent)
 function csIcoHTML(e,ph,small){
   let h='<span class="gico'+(small?' s':'')+'"><span class="gph">'+esc(ph)+'</span>';
-  // icons are self-hosted keyed by ITEM ID (site/icons/i<id>.jpg), so no
-  // sidecar annotation is needed; a vocab "ic" name, if present, overrides
-  const src=e&&e.ic?encodeURIComponent(String(e.ic)):(e&&e.id?"i"+e.id:null);
-  if(src!=null)
-    h+='<img alt="" loading="lazy" src="icons/'+src+'.jpg" onerror="this.remove()">';
+  // TWO self-hosted stores can hold an item's icon: the id-keyed harvest
+  // (icons/i<id>.jpg — committed, complete for the current vocab) and the
+  // pipeline's name-keyed store (icons/<ic>.jpg — grows as CI downloads
+  // images). The ID path is tried FIRST because the sidecar's "ic" name
+  // annotation lands a run or more BEFORE the image it names does; preferring
+  // the name blanked every tile the moment names started resolving.
+  // csIcoFail walks to the other store, then to the glyph layer.
+  const byId=e&&e.id?"icons/i"+(+e.id)+".jpg":"";
+  const byName=e&&e.ic?"icons/"+encodeURIComponent(String(e.ic))+".jpg":"";
+  const first=byId||byName, second=byId?byName:"";
+  if(first)
+    h+='<img alt="" loading="lazy" src="'+first+'" data-alt="'+second
+      +'" onerror="csIcoFail(this)">';
   h+='</span>';
   // the icon is the ONE wowhead surface: hover = wowhead tooltip, click =
   // the wowhead page (glyph fallback included, so id-only items still work)
