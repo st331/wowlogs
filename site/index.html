@@ -3155,7 +3155,12 @@ const CS_SLOT_LABEL={0:"Head",1:"Neck",2:"Shoulder",4:"Chest",5:"Waist",6:"Legs"
 // ring positions now show the #1 and #2 ring of ONE distribution pooled across
 // both sockets, and likewise for trinkets. Which socket an item sits in is
 // irrelevant here, so nothing in the doll names one.
-const CS_DOLL={L:[0,1,2,14,4,8], R:[9,5,6,7,"ring:1","ring:2","trk:1","trk:2"],
+// Pooling rings and trinkets freed the arrangement from anatomy: a pooled cell
+// is a RANK, not a socket, so it has no natural side. The old 6/8 split left
+// 131px of dead space under the left column (the pooled tiles are also a hair
+// taller, carrying a rank caption), so the trinket pair moves left for a 7/7
+// balance. Armour still reads top-to-bottom down each side as in the armory.
+const CS_DOLL={L:[0,1,2,14,4,8,"trk:1"], R:[9,5,6,7,"ring:1","ring:2","trk:2"],
   B:[15,16]};
 // the pooled cells' physical source columns, by retail slot id
 const CS_POOL_SLOTS={ring:[10,11], trk:[12,13]};
