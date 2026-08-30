@@ -54,6 +54,17 @@
     compact second; vertical growth only from explicit user expansion; no
     horizontal scroll at 1920w. Never shrink type/icons to buy fit again.
 
+11a. **Model fallback at 95% Fable 5 weekly usage (2026-08-30).** "Switch my
+    model to Opus 5 on Ultracode once I reach 95% of my fable5 weekly usage."
+    Claude cannot read the /usage meter from inside a session, so the trigger
+    is owner-side: when the owner says the usage threshold is hit (any phrasing,
+    e.g. "switch to opus now"), or when a session actually hits the usage hard
+    stop, IMMEDIATELY (a) run all subsequent subagents/workflows with
+    model:'opus', and (b) write {"model":"claude-opus-5"} into
+    .claude/settings.json and commit it so future sessions on this repo default
+    to Opus 5. The live session's own model is switched by the owner via
+    /model. Revert both when the weekly window resets and the owner says so.
+
 11. **Wowhead tooltips/links — ICON-ONLY surface (2026-08-30).** "item ids are
     completely useless to me, remove them"; "show the wowhead tooltip on
     hovering on the icon, and that's it"; "take me to the wowhead page only on
