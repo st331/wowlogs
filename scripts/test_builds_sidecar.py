@@ -47,10 +47,10 @@ def gear_item(iid, ilvl=720, ench=None, bonus=None):
 
 
 def make_parse(code, char, cls, spec, *, server="X", gear=None, build=None,
-               tree=({"id": 1, "rank": 1},)):
+               tree=({"id": 1, "rank": 1},), spec_id=1):
     """One (player row, journal record|None) through the real collector.
     tree=None omits the talent tree (no build identity without a string)."""
-    ci = {"specID": 1}
+    ci = {"specID": spec_id}
     if tree is not None:
         ci["talentTree"] = list(tree)
     if gear is not None:
@@ -78,6 +78,8 @@ CACHES = {
     "names_enchants.json": {"7008": "Rune of Tests"},   # 7100 never asked
     "crafted_ids.json": [222],
     "names_bonus_emb.json": {"8960": None, "12001": "Radiant Hem"},
+    # 111 has an icon; 222 was asked and has none (null); 112 never asked
+    "names_icons.json": {"111": "inv_helm_test", "222": None},
 }
 
 
@@ -93,12 +95,32 @@ def run_builds(rows, recs, caches=CACHES, **kw):
         bsd.NAMES_ENCHANTS = tp / "names_enchants.json"
         bsd.CRAFTED_IDS = tp / "crafted_ids.json"
         bsd.NAMES_BONUS_EMB = tp / "names_bonus_emb.json"
+        bsd.NAMES_ICONS = tp / "names_icons.json"
+        bsd.TRAIT_GEOMETRY = tp / "trait_geometry.json"
+        bsd.NAMES_SPELLS = tp / "names_spells.json"
         for fname, obj in caches.items():
             (tp / fname).write_text(json.dumps(obj))
         df = pd.DataFrame(rows)
         doc = bsd.builds_sidecar(df, bsd.meta_from_gear_journal(),
                                  "test", **kw)
         return df, (json.loads(doc) if doc is not None else None)
+
+
+def run_talents(rows, recs, caches=CACHES):
+    """Journal + caches on disk -> the real talents_doc, parsed or None."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tp = pathlib.Path(tmp)
+        with (tp / "gear.jsonl").open("w") as fh:
+            for r in recs:
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+        bsd.GEAR_JOURNAL = tp / "gear.jsonl"
+        bsd.GEAR_EXPORT = tp / "absent.jsonl.gz"
+        bsd.TRAIT_GEOMETRY = tp / "trait_geometry.json"
+        bsd.NAMES_SPELLS = tp / "names_spells.json"
+        for fname, obj in caches.items():
+            (tp / fname).write_text(json.dumps(obj))
+        doc = bsd.talents_doc("test")
+        return json.loads(doc) if doc is not None else None
 
 
 def ref_decode(doc, N):
@@ -199,8 +221,9 @@ spec = doc["specs"]["Paladin|Retribution"]
 # vocab construction: order by count, names from cache, null fallback,
 # median ilvl, crafted flag, embellishment splits
 head = spec["items"][0]
-assert head[0] == {"id": 111, "n": "Crown of Testing", "ilvl": 720}, head[0]
-assert head[1] == {"id": 112, "n": None, "ilvl": 720}, head[1]
+assert head[0] == {"id": 111, "n": "Crown of Testing", "ilvl": 720,
+                   "ic": "inv_helm_test"}, head[0]      # §1.6 icon widening
+assert head[1] == {"id": 112, "n": None, "ilvl": 720}, head[1]  # never asked
 wrist = spec["items"][doc["slots"].index(8)]
 assert wrist[0] == {"id": 222, "n": None, "ilvl": 720, "cr": 1}, wrist[0]
 assert wrist[1] == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
@@ -332,6 +355,7 @@ print("ladder    : full caps -> halved (24->12, builds->24) -> en dropped "
 _, bare = run_builds(rows, recs, caches={}, enc="dense")
 b_spec = bare["specs"]["Paladin|Retribution"]
 assert b_spec["items"][0][0]["n"] is None
+assert "ic" not in b_spec["items"][0][0]
 assert "cr" not in b_spec["items"][0][0]
 assert "emb" not in b_spec["items"][doc["slots"].index(8)][0]
 print("caches    : absent cache files -> all-null names, no crafted/emb "
@@ -388,6 +412,21 @@ def fake_get(path, params=None):
     return []
 
 
+RAW_CALLS = []
+
+
+def fake_raw(url):
+    RAW_CALLS.append(url)
+    if "wowhead.com/item=111&" in url:      # icon present (case-normalized)
+        return (b'<wowhead><item id="111">'
+                b'<icon displayId="7">INV_Helm_Test</icon></item></wowhead>')
+    if "wowhead.com/item=333&" in url:      # junk icon name -> sanitized out
+        return b"<wowhead><item><icon>../evil</icon></item></wowhead>"
+    if "zamimg.com" in url and url.endswith("inv_helm_test.jpg"):
+        return b"JPEGDATA"
+    return b"<wowhead></wowhead>"           # no icon tag -> null
+
+
 with tempfile.TemporaryDirectory() as tmp:
     tp = pathlib.Path(tmp)
     _, rec = make_parse("F1", "Fx", "Mage", "Arcane",
@@ -400,26 +439,248 @@ with tempfile.TemporaryDirectory() as tmp:
     fn.NAMES_ENCHANTS = tp / "names_enchants.json"
     fn.CRAFTED_IDS = tp / "crafted_ids.json"
     fn.NAMES_BONUS_EMB = tp / "names_bonus_emb.json"
+    fn.NAMES_ICONS = tp / "names_icons.json"
+    fn.ICONS_DIR = tp / "icons"
     fn.NAMES_BONUS_EMB.write_text(json.dumps({"9999": "Manual Name"}))
+    # 333 already known to the item cache: the icon phase must still ask
+    # wowhead for it (icons trail names) and cache the sanitized-out answer
+    fn.NAMES_ITEMS.write_text(json.dumps({"333": {"n": None}}))
     fn._get_csv = fake_get
+    fn._get_raw = fake_raw
     assert fn.main([]) == 0
     items = json.loads(fn.NAMES_ITEMS.read_text())
-    assert items == {"111": {"n": "Crown of Testing", "q": 4}}, items
+    assert items == {"111": {"n": "Crown of Testing", "q": 4},
+                     "333": {"n": None}}, items
     assert json.loads(fn.NAMES_ENCHANTS.read_text()) == \
         {"7008": "Rune of Tests"}
     assert json.loads(fn.CRAFTED_IDS.read_text()) == [222]
     emb = json.loads(fn.NAMES_BONUS_EMB.read_text())
     assert emb == {"8960": None, "9999": "Manual Name",
                    "12001": "Radiant Hem"}, emb
-    # second run: nothing unseen -> byte-identical caches (idempotent)
+    icons = json.loads(fn.NAMES_ICONS.read_text())
+    assert icons == {"111": "inv_helm_test", "333": None}, icons
+    assert (tp / "icons" / "inv_helm_test.jpg").read_bytes() == b"JPEGDATA"
+    # second run: nothing unseen -> byte-identical caches (idempotent), the
+    # stored image is never re-fetched and the null icon never re-asked
     before = {p.name: p.read_text() for p in tp.glob("*.json")}
+    n_raw = len(RAW_CALLS)
     assert fn.main([]) == 0
     assert {p.name: p.read_text() for p in tp.glob("*.json")} == before
+    assert len(RAW_CALLS) == n_raw, RAW_CALLS[n_raw:]
     # total network failure: caches unchanged, still exit 0
     fn._get_csv = lambda path, params=None: fn._FAILED
+    fn._get_raw = lambda url: fn._FAILED
     assert fn.main([]) == 0
     assert {p.name: p.read_text() for p in tp.glob("*.json")} == before
-print("fetch_names: stubbed run seeds all four caches (chain resolves "
-      "12001 -> 'Radiant Hem'); idempotent; total failure changes nothing")
+print("fetch_names: stubbed run seeds all five caches + the icon image "
+      "(junk icon name sanitized to null); idempotent -- second run makes "
+      "zero raw fetches; total failure changes nothing")
+
+# --- the site-copy step: new/changed only, never deletes
+with tempfile.TemporaryDirectory() as tmp:
+    tp = pathlib.Path(tmp)
+    for d in ("src", "site", "docs"):
+        (tp / d).mkdir()
+    (tp / "src" / "a.jpg").write_bytes(b"AAA")
+    (tp / "src" / "b.jpg").write_bytes(b"BB")
+    _old = bsd.ICONS_SRC, bsd.SITE_DIRS
+    bsd.ICONS_SRC = tp / "src"
+    bsd.SITE_DIRS = [tp / "site", tp / "docs"]
+    bsd.sync_icons("test")
+    assert (tp / "site" / "icons" / "a.jpg").read_bytes() == b"AAA"
+    assert (tp / "docs" / "icons" / "b.jpg").read_bytes() == b"BB"
+    (tp / "site" / "icons" / "stray.jpg").write_bytes(b"S")
+    m0 = (tp / "site" / "icons" / "a.jpg").stat().st_mtime_ns
+    bsd.sync_icons("test")                     # no-op: nothing changed
+    assert (tp / "site" / "icons" / "a.jpg").stat().st_mtime_ns == m0
+    (tp / "src" / "b.jpg").write_bytes(b"BBBB")
+    bsd.sync_icons("test")                     # changed size -> recopied
+    assert (tp / "site" / "icons" / "b.jpg").read_bytes() == b"BBBB"
+    assert (tp / "site" / "icons" / "stray.jpg").exists()   # never deleted
+    bsd.ICONS_SRC, bsd.SITE_DIRS = _old
+print("sync_icons : publishes new/changed only; unchanged untouched; "
+      "stray published files never deleted")
+
+# ===========================================================================
+# talent trees (§1.7): geometry cache -> talents doc; sel on build vocab
+# ===========================================================================
+GEO = {
+    "specs": {"70": 900, "62": 901},
+    "subtrees": {"48": "Templar"},
+    "trees": {
+        "900": {"nodes": {"1001": [3000, 1200, 0, 0],    # class page
+                          "1002": [3600, 1200, 0, 0],
+                          "2001": [9900, 1200, 0, 0],    # spec page
+                          "2002": [10500, 1800, 2, 0],   # choice node
+                          "3001": [7800, 9000, 0, 48]},  # hero (Templar)
+                "edges": [[1001, 1002], [1001, 2001],
+                          [2001, 2002], [3001, 1001]]},
+        "901": {"nodes": {"1101": [3000, 1200, 0, 0],
+                          "2101": [9900, 1200, 0, 0]}, "edges": []}},
+    "entries": {"50001": [1001, 1, 111111, None],
+                "50002": [1002, 2, 222222, None],
+                "60001": [2001, 1, 333333, "Override Name"],
+                "60002": [2002, 1, 444444, None],
+                "60003": [2002, 1, 555555, None],       # choice, same node
+                "70001": [3001, 1, 666666, None],
+                "51101": [1101, 1, 777777, None]},
+}
+SPELLS = {"111111": {"n": "Spell One", "ic": "spell_one_icon"},
+          "222222": {"n": "Spell Two", "ic": None},
+          "333333": {"n": "Shadowed By Override", "ic": "spell_three_icon"},
+          "444444": {"n": "Choice A", "ic": "choice_a_icon"},
+          "666666": {"n": "Hero Spell", "ic": "hero_icon"}}
+TCACHES = dict(CACHES, **{"trait_geometry.json": GEO,
+                          "names_spells.json": SPELLS})
+
+TREE_P1 = [{"id": 50001, "rank": 1}, {"id": 50002, "rank": 2},
+           {"id": 60001, "rank": 1}, {"id": 70001, "rank": 1}]
+TREE_P2 = [{"id": 50001, "rank": 1}, {"id": 50002, "rank": 1},
+           {"id": 60002, "rank": 1}, {"id": 70001, "rank": 1}]
+trows, trecs = [], []
+for i in range(1, 13):
+    t = TREE_P1 if i <= 8 else TREE_P2
+    rw, rc = make_parse(f"T{i}", f"Pal{i}", "Paladin", "Retribution",
+                        spec_id=70, tree=[t[(j + i) % 4] for j in range(4)])
+    trows.append(rw)
+    trecs.append(rc)
+for i in range(1, 4):
+    rw, rc = make_parse(f"TM{i}", f"Mg{i}", "Mage", "Arcane", spec_id=62,
+                        tree=[{"id": 51101, "rank": 1}])
+    trows.append(rw)
+    trecs.append(rc)
+
+tdoc = run_talents(trows, trecs, TCACHES)
+assert tdoc["v"] == 1 and set(tdoc["trees"]) == \
+    {"Paladin|Retribution", "Mage|Arcane"}, tdoc.keys()
+
+
+def class_pane(doc, sk):
+    e = doc["trees"][sk]
+    return e["class"] if "class" in e else doc["classes"][e["classRef"]]
+
+
+cp = class_pane(tdoc, "Paladin|Retribution")
+pr = tdoc["trees"]["Paladin|Retribution"]
+assert [n["id"] for n in cp["nodes"]] == [1001, 1002]
+assert [n["id"] for n in pr["spec"]["nodes"]] == [2001, 2002]
+assert list(pr["hero"]) == ["Templar"]
+assert [n["id"] for n in pr["hero"]["Templar"]["nodes"]] == [3001]
+n1002 = cp["nodes"][1]
+assert n1002 == {"id": 1002, "x": 3600, "y": 1200, "r": 2,
+                 "n": "Spell Two", "ic": None, "t": 0}, n1002
+n2001 = pr["spec"]["nodes"][0]
+assert n2001["n"] == "Override Name", n2001       # def override beats spell
+assert n2001["ic"] == "spell_three_icon", n2001   # shared icon-store name
+n2002 = pr["spec"]["nodes"][1]
+assert n2002["t"] == 2 and n2002["n"] == "Choice A", n2002
+assert cp["edges"] == [[1001, 1002]]              # cross-pane edges dropped
+assert pr["spec"]["edges"] == [[2001, 2002]]
+assert pr["hero"]["Templar"]["edges"] == []
+mg = tdoc["trees"]["Mage|Arcane"]
+assert [n["id"] for n in class_pane(tdoc, "Mage|Arcane")["nodes"]] == [1101]
+assert mg["spec"]["nodes"] == [] and mg["hero"] == {}, mg
+print("talents doc : panes split hero/class/spec (subtree + X-gap), ranks, "
+      "override names, shared-store icons, per-pane edges")
+
+# sel on the sidecar's build vocab: entry ids -> node ids, modal blob
+HP1 = "t:" + hashlib.md5(b"50001:1|50002:2|60001:1|70001:1").hexdigest()[:12]
+HP2 = "t:" + hashlib.md5(b"50001:1|50002:1|60002:1|70001:1").hexdigest()[:12]
+_, sdoc2 = run_builds(trows, trecs, TCACHES, enc="dense")
+pb = sdoc2["specs"]["Paladin|Retribution"]
+assert pb["bkind"] == "hash"
+assert pb["builds"][0] == {"s": HP1, "n": 8, "sel": [[1001, 1], [1002, 2],
+                                                     [2001, 1], [3001, 1]]}
+assert pb["builds"][1] == {"s": HP2, "n": 4, "sel": [[1001, 1], [1002, 1],
+                                                     [2002, 1], [3001, 1]]}
+# string-identified build with two tree variants: modal selection wins
+vrows, vrecs = [], []
+for i, t in enumerate((TREE_P1, TREE_P1, TREE_P2), 1):
+    rw, rc = make_parse(f"V{i}", f"Var{i}", "Paladin", "Retribution",
+                        spec_id=70, build="STR_BUILD", tree=t)
+    vrows.append(rw)
+    vrecs.append(rc)
+_, vdoc = run_builds(vrows, vrecs, TCACHES, enc="dense")
+vb = vdoc["specs"]["Paladin|Retribution"]["builds"][0]
+assert vb["s"] == "STR_BUILD" and vb["n"] == 3
+assert vb["sel"] == [[1001, 1], [1002, 2], [2001, 1], [3001, 1]], vb
+# absence: no geometry cache -> no sel keys anywhere, no talents doc
+_, nodoc = run_builds(trows, trecs, enc="dense")
+assert all("sel" not in b for s in nodoc["specs"].values()
+           for b in s["builds"])
+assert run_talents(trows, trecs) is None
+print("sel         : entry->node conversion, hash-identical sets, modal "
+      "for string variants; absent without the geometry cache")
+
+# --- fetch_traits offline: stubbed geometry + spell run, idempotent
+DB2 = {
+    "TraitTreeLoadout": [{"ID": "1", "ChrSpecializationID": "70",
+                          "TraitTreeID": "900"}],
+    "TraitSubTree": [{"ID": "48", "Name_lang": "Templar"},
+                     {"ID": "9", "Name_lang": "Yellow [DNT]"}],
+    "TraitNode": [{"ID": "1001", "TraitTreeID": "900", "PosX": "3000",
+                   "PosY": "1200", "Type": "0", "TraitSubTreeID": "0"},
+                  {"ID": "3001", "TraitTreeID": "900", "PosX": "7800",
+                   "PosY": "9000", "Type": "0", "TraitSubTreeID": "48"}],
+    "TraitEdge": [{"ID": "5", "LeftTraitNodeID": "1001",
+                   "RightTraitNodeID": "3001", "Type": "0"},
+                  {"ID": "6", "LeftTraitNodeID": "1001",
+                   "RightTraitNodeID": "999", "Type": "0"}],   # foreign end
+    "TraitNodeXTraitNodeEntry": [
+        {"ID": "1", "TraitNodeID": "1001", "TraitNodeEntryID": "50001",
+         "_Index": "100"},
+        {"ID": "2", "TraitNodeID": "999", "TraitNodeEntryID": "9999",
+         "_Index": "100"}],                                    # foreign node
+    "TraitNodeEntry": [{"ID": "50001", "TraitDefinitionID": "80001",
+                        "MaxRanks": "2", "NodeEntryType": "0"}],
+    "TraitDefinition": [{"ID": "80001", "SpellID": "111111",
+                         "OverrideName_lang": ""}],
+}
+
+
+def fake_db2(path, params=None):
+    return [dict(r) for r in DB2.get(path, [])]
+
+
+def fake_traw(url):
+    RAW_CALLS.append(url)
+    if "nether.wowhead.com/tooltip/spell/111111" in url:
+        return b'{"name":"Spell One","icon":"Spell_One_Icon"}'
+    if "zamimg.com" in url and url.endswith("spell_one_icon.jpg"):
+        return b"SPELLJPEG"
+    return b"{}"
+
+
+import fetch_traits as ft
+with tempfile.TemporaryDirectory() as tmp:
+    tp = pathlib.Path(tmp)
+    ft.TRAIT_GEOMETRY = tp / "trait_geometry.json"
+    ft.NAMES_SPELLS = tp / "names_spells.json"
+    fn.ICONS_DIR = tp / "icons"
+    fn._get_csv = fake_db2
+    fn._get_raw = fake_traw
+    assert ft.main([]) == 0
+    g = json.loads(ft.TRAIT_GEOMETRY.read_text())
+    assert g["specs"] == {"70": 900}
+    assert g["subtrees"] == {"48": "Templar"}       # DNT rows dropped
+    assert g["trees"]["900"]["nodes"] == {"1001": [3000, 1200, 0, 0],
+                                          "3001": [7800, 9000, 0, 48]}
+    assert g["trees"]["900"]["edges"] == [[1001, 3001]]   # foreign end cut
+    assert g["entries"] == {"50001": [1001, 2, 111111, None]}
+    sp = json.loads(ft.NAMES_SPELLS.read_text())
+    assert sp == {"111111": {"n": "Spell One", "ic": "spell_one_icon"}}
+    assert (tp / "icons" / "spell_one_icon.jpg").read_bytes() == b"SPELLJPEG"
+    # second run: geometry cached, spells seen, image present -> no fetches
+    n_raw = len(RAW_CALLS)
+    before = ft.TRAIT_GEOMETRY.read_text()
+    assert ft.main([]) == 0
+    assert len(RAW_CALLS) == n_raw and ft.TRAIT_GEOMETRY.read_text() == before
+    # total failure: nothing lost, still exit 0
+    fn._get_csv = lambda path, params=None: fn._FAILED
+    fn._get_raw = lambda url: fn._FAILED
+    assert ft.main(["--refresh"]) == 0
+    assert ft.TRAIT_GEOMETRY.read_text() == before
+print("fetch_traits: stubbed run seeds geometry + spell cache + shared "
+      "icon store; idempotent; failed refresh keeps the cached copy")
 
 print("\nPASS")

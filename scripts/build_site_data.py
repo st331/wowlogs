@@ -825,6 +825,20 @@ SPECMETA_DIMS = (("builds", _dim_builds, 3),
                  ("gems", _dim_gems, 5))
 
 
+def _tree_blob(tree) -> str | None:
+    """The canonical serialization a tree hashes over: nodes with a truthy
+    id as "id:rank" (null rank = 0), sorted by id, joined "|". Also the
+    canonical selection-set serialization for §1.7 "sel" emission — one
+    definition, so identity and selections can never disagree."""
+    if not isinstance(tree, list) or not tree:
+        return None
+    nodes = sorted((int(n["id"]), int(n.get("rank") or 0))
+                   for n in tree if isinstance(n, dict) and n.get("id"))
+    if not nodes:
+        return None
+    return "|".join(f"{i}:{r}" for i, r in nodes)
+
+
 def _tree_build_id(tree) -> str | None:
     """Canonical build identity for a talent tree, as a short visible hash.
 
@@ -836,14 +850,20 @@ def _tree_build_id(tree) -> str | None:
     import string. Node order in the journal is presentation order and must
     not matter; a rank change is a different build.
     """
-    if not isinstance(tree, list) or not tree:
+    blob = _tree_blob(tree)
+    if blob is None:
         return None
-    nodes = sorted((int(n["id"]), int(n.get("rank") or 0))
-                   for n in tree if isinstance(n, dict) and n.get("id"))
-    if not nodes:
-        return None
-    blob = "|".join(f"{i}:{r}" for i, r in nodes)
     return "t:" + hashlib.md5(blob.encode()).hexdigest()[:12]
+
+
+def _record_build_id(tal) -> str | None:
+    """One record's build identity: the verbatim import string when the
+    journal carries one, else the tree hash. The single definition the meta
+    reader and the trait pass share -- they must never disagree."""
+    build = tal.get("talentImportString") if isinstance(tal, dict) else None
+    if isinstance(build, str) and build:
+        return build
+    return _tree_build_id(tal.get("tree") if isinstance(tal, dict) else None)
 
 
 def meta_from_gear_journal() -> dict[tuple, dict]:
@@ -874,17 +894,12 @@ def meta_from_gear_journal() -> dict[tuple, dict]:
                 rec = json.loads(line)
             except ValueError:
                 continue                       # tolerate a torn trailing line
-            tal = rec.get("talents")
-            build = (tal.get("talentImportString")
-                     if isinstance(tal, dict) else None)
-            if not isinstance(build, str) or not build:
-                build = None
-            if build:
-                shapes["string"] += 1
-            else:
-                build = _tree_build_id(tal.get("tree")
-                                       if isinstance(tal, dict) else None)
-                shapes["tree" if build else "neither"] += 1
+            build = _record_build_id(rec.get("talents"))
+            # ":" is outside the import-string alphabet, so the prefix test
+            # can never misclassify a real string as a hash
+            shapes["neither" if build is None
+                   else "tree" if build.startswith("t:")
+                   else "string"] += 1
             gear = rec.get("gear")
             if not isinstance(gear, list):
                 gear = None
@@ -1054,6 +1069,8 @@ NAMES_ITEMS = ROOT / "data" / "names_items.json"
 NAMES_ENCHANTS = ROOT / "data" / "names_enchants.json"
 CRAFTED_IDS = ROOT / "data" / "crafted_ids.json"
 NAMES_BONUS_EMB = ROOT / "data" / "names_bonus_emb.json"
+NAMES_ICONS = ROOT / "data" / "names_icons.json"
+ICONS_SRC = ROOT / "data" / "processed" / "icons"
 
 
 def _load_json(path: pathlib.Path, default):
@@ -1074,7 +1091,235 @@ def _name_caches():
     crafted = {v for v in _load_json(CRAFTED_IDS, []) if isinstance(v, int)}
     emb = {int(k): v for k, v in _load_json(NAMES_BONUS_EMB, {}).items()
            if str(k).isdigit()}
-    return items, enchs, crafted, emb
+    icons = {int(k): v for k, v in _load_json(NAMES_ICONS, {}).items()
+             if str(k).isdigit() and isinstance(v, str) and v}
+    return items, enchs, crafted, emb, icons
+
+
+def sync_icons(name: str) -> None:
+    """Publish the collector-downloaded icon images under site/ and docs/.
+
+    Copies only new or changed files and NEVER deletes: the icon set is
+    grow-only (like the caches feeding it), and a deletion here would 404
+    tiles on pages already open in browsers. Missing source directory means
+    icon collection has not run yet -- nothing to do, not an error.
+    """
+    if not ICONS_SRC.is_dir():
+        return
+    srcs = sorted(p for p in ICONS_SRC.iterdir() if p.is_file())
+    copied = 0
+    for d in SITE_DIRS:
+        dest_dir = d / "icons"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for src in srcs:
+            dest = dest_dir / src.name
+            if dest.exists() and dest.stat().st_size == src.stat().st_size:
+                continue
+            shutil.copyfile(src, dest)
+            copied += 1
+    if copied:
+        print(f"[{name}] icons: {copied} new/changed copies published "
+              f"({len(srcs)} in the store)")
+
+
+# --- talent trees (site/talents.json.gz) — blueprint §1.7 -------------------
+TRAIT_GEOMETRY = ROOT / "data" / "trait_geometry.json"
+NAMES_SPELLS = ROOT / "data" / "names_spells.json"
+
+
+def _trait_caches():
+    """fetch_traits.py's caches: (geometry, spells). Missing files degrade
+    to empty -- no talents doc, no sel annotations, never an error."""
+    geo = _load_json(TRAIT_GEOMETRY, {})
+    if not isinstance(geo, dict) or not isinstance(geo.get("trees"), dict):
+        geo = {}
+    spells = {k: v for k, v in _load_json(NAMES_SPELLS, {}).items()
+              if isinstance(v, dict)}
+    return geo, spells
+
+
+def _trait_journal_pass(wanted: dict[str, set]) -> dict[str, dict]:
+    """One extra walk over the raw journal for talent-tree material.
+
+    Per "Class|Spec": the modal WCL spec id, the union of TraitNodeENTRY ids
+    its players ever allocated (the journal's talents.tree ids are entry
+    ids -- verified against hero_talent_map and wago's TraitNodeXTraitNode-
+    Entry), and, for the build identities listed in `wanted`, the canonical
+    selection blob. For hash-identified builds every record of a hash
+    serializes to the same blob by construction (the hash IS the blob's
+    md5); a string-identified build could vary, so the modal blob wins and
+    any variance is counted and reported by the caller.
+    """
+    src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
+    out: dict[str, dict] = {}
+    if not src.exists():
+        return out
+    opener = gzip.open if src.suffix == ".gz" else open
+    with opener(src, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue                       # tolerate a torn trailing line
+            tal = rec.get("talents")
+            if not isinstance(tal, dict):
+                continue
+            tree = tal.get("tree")
+            blob = _tree_blob(tree)
+            sk = f"{rec.get('class')}|{rec.get('spec')}"
+            o = out.setdefault(sk, {"specid": Counter(), "entries": set(),
+                                    "sel": {}})
+            spec_id = tal.get("specID")
+            if isinstance(spec_id, int) and spec_id:
+                o["specid"][spec_id] += 1
+            if blob is None:
+                continue
+            for part in blob.split("|"):
+                o["entries"].add(int(part.split(":", 1)[0]))
+            if sk in wanted:
+                build = _record_build_id(tal)
+                if build in wanted[sk]:
+                    o["sel"].setdefault(build, Counter())[blob] += 1
+    for o in out.values():
+        o["specid"] = (o["specid"].most_common(1)[0][0]
+                       if o["specid"] else None)
+    return out
+
+
+def _sel_pairs(blob: str, entries: dict) -> list:
+    """Canonical selection blob -> [[nodeId, rank], ...] via the geometry
+    entry->node mapping; unmapped entry ids are dropped (the client dims
+    what it cannot light) and duplicate nodes keep the higher rank."""
+    nodes: dict[int, int] = {}
+    for part in blob.split("|"):
+        eid, rank = part.split(":", 1)
+        ent = entries.get(eid)
+        if ent:
+            nid = int(ent[0])
+            nodes[nid] = max(nodes.get(nid, 0), int(rank))
+    return [[n, r] for n, r in sorted(nodes.items())]
+
+
+def talents_doc(name: str, usage: dict | None = None) -> str | None:
+    """The lazy talent-tree document (caller gzips it), or None.
+
+    Per spec key: the class pane, the spec pane and the observed hero trees
+    of its class tree, each as {"nodes":[{"id","x","y","r","n","ic","t"}],
+    "edges":[[a,b],...]} with true db2 grid positions. Node membership is
+    the union of nodes the spec's players ever allocated (journal-wide;
+    with hundreds of thousands of records the viable tree is covered) --
+    hero nodes split off by their TraitSubTreeID, the rest split class-vs-
+    spec at the largest PosX gap, which is how the two pages are laid out
+    in the data. Names/icons come from the spell cache (icons live in the
+    shared self-hosted store); missing names ship null.
+
+    A "classes" + "classRef" indirection dedupes the class pane when it
+    saves real gzipped bytes -- both variants are measured and the smaller
+    ships, loudly.
+    """
+    geo, spells = _trait_caches()
+    if not geo:
+        print(f"[{name}] no trait geometry cache; talents doc omitted")
+        return None
+    if usage is None:
+        usage = _trait_journal_pass({})
+    if not usage:
+        print(f"[{name}] no talent trees in the journal; talents doc omitted")
+        return None
+    entries = geo.get("entries", {})
+    subtrees = geo.get("subtrees", {})
+    node_entries: dict[str, list] = {}     # node -> its entry ids, stable
+    for eid in sorted(entries, key=int):
+        node_entries.setdefault(str(entries[eid][0]), []).append(eid)
+
+    def tree_obj(tid: str, nids: list[int]) -> dict:
+        tgeo = geo["trees"][tid]
+        nodes_out = []
+        for nid in sorted(nids):
+            g = tgeo["nodes"][str(nid)]
+            eids = node_entries.get(str(nid), [])
+            r = max((int(entries[e][1]) for e in eids), default=1)
+            n = ic = None
+            if eids:
+                e0 = entries[eids[0]]
+                sp = spells.get(str(e0[2])) or {}
+                n = e0[3] or sp.get("n")
+                ic = sp.get("ic")
+            node = {"id": nid, "x": g[0], "y": g[1], "r": r, "n": n,
+                    "ic": ic, "t": g[2]}
+            nodes_out.append(node)
+        keep = set(nids)
+        edges = [e for e in tgeo["edges"] if e[0] in keep and e[1] in keep]
+        return {"nodes": nodes_out, "edges": edges}
+
+    per_spec: dict[str, dict] = {}
+    class_panes: dict[str, tuple] = {}     # cls -> (tid, set of node ids)
+    for sk in sorted(usage):
+        u = usage[sk]
+        tid = str(geo.get("specs", {}).get(str(u["specid"]), ""))
+        tgeo = geo["trees"].get(tid)
+        if not tgeo or not u["entries"]:
+            continue
+        used_nodes = {int(entries[str(e)][0]) for e in u["entries"]
+                      if str(e) in entries
+                      and str(entries[str(e)][0]) in tgeo["nodes"]}
+        if not used_nodes:
+            continue
+        hero: dict[int, list] = {}
+        rest = []
+        for nid in used_nodes:
+            st = tgeo["nodes"][str(nid)][3]
+            if st:
+                hero.setdefault(st, []).append(nid)
+            else:
+                rest.append(nid)
+        # class page left, spec page right, separated by the largest X gap
+        xs = sorted({tgeo["nodes"][str(n)][0] for n in rest})
+        cut = None
+        if len(xs) > 1:
+            gaps = [(xs[i + 1] - xs[i], xs[i + 1]) for i in range(len(xs) - 1)]
+            g, at = max(gaps)
+            cut = at if g >= 900 else None
+        cls_nodes = [n for n in rest
+                     if cut is None or tgeo["nodes"][str(n)][0] < cut]
+        spec_nodes = [n for n in rest if n not in set(cls_nodes)]
+        cls = sk.split("|", 1)[0]
+        ck = class_panes.setdefault(cls, (tid, set()))
+        if ck[0] == tid:
+            ck[1].update(cls_nodes)
+        per_spec[sk] = {"tid": tid, "cls_nodes": set(cls_nodes),
+                        "spec": tree_obj(tid, spec_nodes),
+                        "hero": {subtrees.get(str(st), f"#{st}"):
+                                 tree_obj(tid, nids)
+                                 for st, nids in sorted(hero.items())}}
+    if not per_spec:
+        print(f"[{name}] no spec matched the trait geometry; "
+              f"talents doc omitted")
+        return None
+
+    # variant A: each spec carries its own class pane
+    doc_a = {"v": 1, "trees": {
+        sk: {"class": tree_obj(v["tid"], sorted(v["cls_nodes"])),
+             "spec": v["spec"], "hero": v["hero"]}
+        for sk, v in per_spec.items()}}
+    # variant B: one shared class pane per class, referenced by name
+    doc_b = {"v": 1, "classes": {
+        cls: tree_obj(tid, sorted(nids))
+        for cls, (tid, nids) in sorted(class_panes.items())},
+        "trees": {sk: {"classRef": sk.split("|", 1)[0],
+                       "spec": v["spec"], "hero": v["hero"]}
+                  for sk, v in per_spec.items()}}
+    ja = json.dumps(doc_a, separators=(",", ":"))
+    jb = json.dumps(doc_b, separators=(",", ":"))
+    gz_a, gz_b = (len(gzip.compress(ja.encode(), 6)),
+                  len(gzip.compress(jb.encode(), 6)))
+    print(f"[{name}] talents doc: {len(per_spec)} specs; per-spec class "
+          f"panes {gz_a / 1024:.0f} KB gz vs classRef {gz_b / 1024:.0f} KB "
+          f"gz -> {'classRef' if gz_b < gz_a else 'per-spec'}")
+    return jb if gz_b < gz_a else ja
 
 
 def builds_sidecar(df, journal, name: str, enc: str | None = None,
@@ -1098,11 +1343,12 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     and the enchant section simply feature-detects off); over the hard cap,
     ship nothing.
     """
+    builds_sidecar.usage = None      # trait-pass result, reused by build()
     if not journal:
         print(f"[{name}] no builds/gear in the gear journal; "
               f"builds sidecar omitted")
         return None
-    item_names, ench_names, crafted, emb_map = _name_caches()
+    item_names, ench_names, crafted, emb_map, icon_names = _name_caches()
 
     def emb_of(item: dict):
         """Embellishment identity bonus id for a journaled item, or None.
@@ -1176,6 +1422,33 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         if build:
             t["bld"][build] += 1
 
+    # §1.7: selection sets for the emitted top builds -- one extra journal
+    # pass keyed by the full-cap ranking (a superset of every ladder rung);
+    # emission needs the geometry's entry->node mapping, so no geometry
+    # cache simply means no sel keys (feature-detected client-side)
+    geo, _ = _trait_caches()
+    wanted = {sk: {s for s, _ in
+                   sorted(t["bld"].items(),
+                          key=lambda kv: (-kv[1], kv[0]))[:BUILDS_BUILD_CAP]}
+              for sk, t in tallies.items() if t["bld"]}
+    usage = _trait_journal_pass(wanted) if wanted else {}
+    builds_sidecar.usage = usage
+    sel_by: dict[tuple, list] = {}
+    geo_entries = geo.get("entries", {}) if geo else {}
+    if geo_entries:
+        n_var = 0
+        for sk, o in usage.items():
+            for build, blobs in o["sel"].items():
+                if len(blobs) > 1:
+                    n_var += 1
+                pairs = _sel_pairs(blobs.most_common(1)[0][0], geo_entries)
+                if pairs:
+                    sel_by[(sk, build)] = pairs
+        if n_var:
+            print(f"[{name}] WARNING: {n_var} build identities carry more "
+                  f"than one selection variant (modal set shipped) - "
+                  f"expected only for string-identified builds")
+
     def make_doc(item_cap: int, item_cap_big: int, build_cap: int,
                  with_en: bool) -> str:
         """Both encodings at these caps; the smaller gz wins, loudly."""
@@ -1199,6 +1472,9 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                                "n": (item_names.get(iid) or {}).get("n"),
                                "ilvl": (int(round(float(np.median(ilvls))))
                                         if ilvls else None)}
+                    ic = icon_names.get(iid)
+                    if ic:                      # §1.6: optional, self-hosted
+                        e["ic"] = ic
                     if iid in crafted:
                         e["cr"] = 1
                     if emb is not None:
@@ -1218,7 +1494,14 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
             entry = {"items": items_v}
             if with_en:
                 entry["ench"] = en_v
-            entry["builds"] = [{"s": s, "n": c} for s, c in b_ranked]
+            b_out = []
+            for s, c in b_ranked:
+                b: dict = {"s": s, "n": c}
+                sel = sel_by.get((sk, s))
+                if sel:                        # §1.7 selection widening
+                    b["sel"] = sel
+                b_out.append(b)
+            entry["builds"] = b_out
             if b_ranked:
                 # §1.5 addendum: "t:" values are tree hashes, not pasteable
                 # import strings; the block-level flag lets the client
@@ -1486,6 +1769,22 @@ def build(name: str, cfg: dict) -> None:
         sz = (SITE_DIRS[0] / "builds.json.gz").stat().st_size
         print(f"[{name}] builds sidecar -> builds.json.gz "
               f"({sz / 1e6:.2f} MB gz, {len(builds) / 1e6:.1f} MB raw)")
+    # lazy talent-tree document, same rewritten-or-unlinked discipline; the
+    # trait journal pass from the sidecar is reused rather than re-walked
+    talents = talents_doc(name, usage=getattr(builds_sidecar, "usage", None))
+    for d in SITE_DIRS:
+        out = d / "talents.json.gz"
+        if talents is None:
+            out.unlink(missing_ok=True)
+        else:
+            with gzip.open(out, "wt", encoding="utf-8",
+                           compresslevel=9) as fh:
+                fh.write(talents)
+    if talents is not None:
+        sz = (SITE_DIRS[0] / "talents.json.gz").stat().st_size
+        print(f"[{name}] talents doc -> talents.json.gz "
+              f"({sz / 1024:.0f} KB gz, {len(talents) / 1024:.0f} KB raw)")
+    sync_icons(name)
 
 
 # --------------------------------------------------------------------------

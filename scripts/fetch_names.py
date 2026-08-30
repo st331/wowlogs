@@ -19,6 +19,14 @@ entries survive every run):
                             marker bonus ids plus the reagent-identity bonus
                             ids seen alongside them; null = asked, unnamed
                             (rendered "#<id>"; nameable manually, once)
+  data/names_icons.json     {"<itemid>": "inv_..." | null} -- icon NAME per
+                            item id (wowhead XML), resolved only for ids the
+                            item cache already knows; null = asked, absent
+
+Icon IMAGES are downloaded once per unseen icon name (zamimg medium JPGs,
+~2-6 KB each) into data/processed/icons/<icon>.jpg; the build step copies
+them into site/icons/ for self-hosting -- the page never hotlinks and never
+runs third-party scripts.
 
 Failure contract: a value of null means "asked, the source had no name" and
 is never re-asked; an ABSENT key means "not asked yet / fetch failed" and is
@@ -47,11 +55,21 @@ NAMES_ITEMS = DATA / "names_items.json"
 NAMES_ENCHANTS = DATA / "names_enchants.json"
 CRAFTED_IDS = DATA / "crafted_ids.json"
 NAMES_BONUS_EMB = DATA / "names_bonus_emb.json"
+NAMES_ICONS = DATA / "names_icons.json"
+ICONS_DIR = DATA / "processed" / "icons"
 
 WAGO = "https://wago.tools/db2"
+WOWHEAD_XML = "https://www.wowhead.com/item={iid}&xml"
+ZAM_ICON = "https://wow.zamimg.com/images/wow/icons/medium/{icon}.jpg"
 HEADERS = {"User-Agent": "wowlogs-collector/1.0"}
 SLEEP_S = 0.15
 TIMEOUT_S = 30
+
+# <icon displayId="...">inv_helm_...</icon> in wowhead's item XML
+ICON_TAG_RE = re.compile(r"<icon[^>]*>([^<]+)</icon>")
+# icon names become filenames and URL segments: anything outside this strict
+# alphabet is discarded as junk rather than written to disk
+ICON_NAME_RE = re.compile(r"[a-z0-9_\-]+", re.IGNORECASE)
 
 # "Enchant Helm - Empowered Rune of Avoidance |A:...|a" -> the rune name:
 # strip the atlas markup and the "Enchant <slot> - " prefix
@@ -91,6 +109,34 @@ def _field(row: dict, *names: str) -> str | None:
         if nm in row:
             return row[nm]
     return None
+
+
+def _get_raw(url: str):
+    """One raw GET -> response bytes, or _FAILED on any error. Same spacing
+    and UA discipline as the CSV fetches; never raises."""
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=TIMEOUT_S)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}")
+        return r.content
+    except Exception as e:                       # noqa: BLE001 -- never block
+        print(f"[names] fetch failed: {url} ({e})", flush=True)
+        return _FAILED
+    finally:
+        time.sleep(SLEEP_S)
+
+
+def fetch_icon_name(iid: int):
+    """The icon name for an item id off wowhead's item XML, None when the
+    page carries no usable <icon> (asked-and-absent: cached as null)."""
+    raw = _get_raw(WOWHEAD_XML.format(iid=iid))
+    if raw is _FAILED:
+        return _FAILED
+    m = ICON_TAG_RE.search(raw.decode("utf-8", "replace"))
+    if not m:
+        return None
+    name = m.group(1).strip().lower()
+    return name if ICON_NAME_RE.fullmatch(name) else None
 
 
 def _get_csv(path: str, params: dict | None = None):
@@ -269,6 +315,7 @@ def main(argv=None) -> int:
     enchs_c = load_json(NAMES_ENCHANTS, {})
     crafted_c = set(load_json(CRAFTED_IDS, []))
     emb_c = load_json(NAMES_BONUS_EMB, {})
+    icons_c = load_json(NAMES_ICONS, {})
 
     item_ids, ench_ids, bonus_tuples = scan_journal()
     budget = [args.limit if args.limit > 0 else float("inf")]
@@ -279,7 +326,8 @@ def main(argv=None) -> int:
         budget[0] -= 1
         return True
 
-    got = {"items": 0, "enchants": 0, "emb": 0, "failed": 0}
+    got = {"items": 0, "enchants": 0, "emb": 0, "icons": 0, "images": 0,
+           "failed": 0}
 
     # whole-table refreshes: crafted set + embellishment markers (grow-only)
     crafted = fetch_crafted()
@@ -334,14 +382,45 @@ def main(argv=None) -> int:
         emb_c[str(bid)] = nm
         got["emb"] += 1
 
+    # icon names for item ids the item cache already knows (icons resolve
+    # off a different source, so they trail the name fetch by design), then
+    # each unseen icon IMAGE exactly once into the local store -- the build
+    # step publishes copies under site/icons/, nothing ever hotlinks
+    for iid in unseen(sorted(int(k) for k in items_c), icons_c):
+        if not spend():
+            break
+        ic = fetch_icon_name(iid)
+        if ic is _FAILED:
+            got["failed"] += 1
+            continue
+        icons_c[str(iid)] = ic
+        got["icons"] += 1
+    ICONS_DIR.mkdir(parents=True, exist_ok=True)
+    for ic in sorted({v for v in icons_c.values() if v}):
+        dest = ICONS_DIR / f"{ic}.jpg"
+        if dest.exists():
+            continue                    # downloaded once, never re-fetched
+        if not spend():
+            break
+        raw = _get_raw(ZAM_ICON.format(icon=ic))
+        if raw is _FAILED or not raw:
+            got["failed"] += 1
+            continue
+        dest.write_bytes(raw)
+        got["images"] += 1
+
     save_cache(NAMES_ITEMS, items_c)
     save_cache(NAMES_ENCHANTS, enchs_c)
     save_cache(CRAFTED_IDS, crafted_c)
     save_cache(NAMES_BONUS_EMB, emb_c)
+    save_cache(NAMES_ICONS, icons_c)
+    n_img = sum(1 for p in ICONS_DIR.glob("*.jpg"))
     print(f"[names] items {got['items']} fetched "
           f"({len(items_c)} cached) | enchants {got['enchants']} "
           f"({len(enchs_c)}) | emb bonuses {got['emb']} ({len(emb_c)}) | "
-          f"crafted {len(crafted_c)} | {got['failed']} fetch failures "
+          f"crafted {len(crafted_c)} | icons {got['icons']} "
+          f"({len(icons_c)} cached, {got['images']} images fetched, "
+          f"{n_img} stored) | {got['failed']} fetch failures "
           f"(retried next run)", flush=True)
     return 0
 

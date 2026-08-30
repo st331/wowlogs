@@ -133,6 +133,38 @@ widenings (unknown-key tolerance already admits them):
   sending strings, they simply win at read time (string preferred over hash per
   record) and `bkind` flips per spec.
 
+### 1.6 Addendum — item icons (2026-08-30, WIDENING)
+
+Per the "Gear presentation upgrade" contract: item vocab entries MAY carry
+`"ic":"<icon name>"` (e.g. `"ic":"inv_helm_plate_raidpaladin_x_01"`), present only
+when the grow-only icon cache (data/names_icons.json, wowhead item-XML resolved)
+knows the id. The image is SELF-HOSTED at `icons/<ic>.jpg` relative to the page
+(site/icons/, zamimg medium JPGs downloaded once by the collector, published by the
+build, committed daily) — the client never hotlinks and renders its iconless tile
+when `ic` is absent or the image 404s. Widening only: unknown-key tolerance already
+admits `ic`; no column, no size ladder impact (vocab text only).
+
+### 1.7 Addendum — talent trees + build selections (2026-08-30, WIDENING)
+
+Verified on wago.tools: the journal's `talents.tree` ids are TraitNodeENTRY ids
+(mapped to nodes via TraitNodeXTraitNodeEntry; confirmed against hero_talent_map).
+Two additions:
+- Sidecar build vocab entries MAY carry `"sel":[[nodeId,rank],...]` (sorted by node
+  id) — the build's selection set converted to TraitNode ids, from the modal
+  selection blob of that identity's records (identical by construction for hash
+  builds). Absent when the trait-geometry cache is unavailable. Choice-node entry
+  identity is NOT carried (node+rank only).
+- A second lazy document `talents.json.gz` beside the sidecar (rebuilt-or-unlinked
+  every build, gitignored): `{"v":1, "trees":{"Class|Spec":{"class":TREE|absent,
+  "spec":TREE, "hero":{"<HeroName>":TREE}}}, "classes":{...}?}` with
+  `TREE = {"nodes":[{"id","x","y","r","n","ic","t"}], "edges":[[a,b],...]}` — raw
+  db2 grid positions, r = max ranks, t = TraitNode.Type, n/ic from the spell cache
+  (null when unresolved; `ic` lives in the shared self-hosted icons/ store). When a
+  top-level `"classes"` map is present, spec entries carry `"classRef":"<Class>"`
+  instead of `"class"` (emitter ships whichever variant gzips smaller). Node
+  membership = union of nodes the spec's players ever allocated (journal-wide);
+  class-vs-spec pane split at the largest PosX gap; hero panes by TraitSubTreeID.
+
 ## 2. Name vocabulary pipeline (PIPELINE agent)
 
 **Source: wago.tools db2 CSV exports — verified working 2026-08-29** against Archon-current
