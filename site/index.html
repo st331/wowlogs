@@ -39,7 +39,7 @@
 }
 *{box-sizing:border-box; margin:0}
 html{scrollbar-color:#3A362E var(--bg0)}
-body{color:var(--ink); font:14.5px/1.5 var(--font);
+body{color:var(--ink); font:16px/1.5 var(--font);
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   background:
     radial-gradient(1100px 420px at 78% -120px, rgba(232,188,87,.04), transparent 62%),
@@ -497,27 +497,36 @@ body.charscreen .hero-rule{margin:10px 0 12px}
 body.charscreen #lensbar .wordmark{cursor:pointer; transition:color .13s}
 body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
 #charscreen[hidden]{display:none}
-/* rail entry affordances: compact .btn + the spec-name trigger (color-only hover) */
-#frame-char{font-size:.72rem; padding:.2rem .55rem; margin-left:.5rem; margin-right:.35rem}
+/* rail entry affordances: the Character-screen button is the popup's PRIMARY
+   action (owner 2026-08-30: "more prominent") — metallic champagne, dark ink */
+#frame-char{font-size:.84rem; font-weight:650; padding:.34rem .85rem;
+  margin-left:.5rem; margin-right:.35rem; background:var(--metal);
+  border-color:transparent; color:#17130c; transition:filter .13s}
+#frame-char:hover{filter:brightness(1.07)}
 .fnametrig{cursor:pointer; transition:color .13s}
 .fnametrig:hover{color:var(--accent)}
 /* ladder strip — the screen's only furniture above the identity band */
-#cs-ladder{display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-bottom:5px}
-#cs-ladder .btn{font-size:.72rem; padding:.2rem .5rem; flex:none; margin-right:.3rem}
-.cschip{display:inline-flex; align-items:center; gap:5px; font-size:.68rem;
+#cs-ladder{display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-bottom:8px}
+#cs-ladder .btn{flex:none; margin-right:.3rem}
+/* the two deliberate exits — visibly framed in accent, calm color-only hover */
+.csexit{font-size:.8rem; font-weight:600; padding:.28rem .7rem;
+  color:var(--accent); border-color:var(--accent-line)}
+.csexit:hover{color:var(--ink); border-color:var(--accent)}
+.csexit.x{margin-left:auto; margin-right:0}
+.cschip{display:inline-flex; align-items:center; gap:5px; font-size:.75rem;
   padding:.12rem .4rem; line-height:1.35}
 .cschip .classdot{margin-right:0; width:9px; height:9px}
-.cschip i{font-style:normal; color:inherit; opacity:.75; font-size:.62rem}
+.cschip i{font-style:normal; color:inherit; opacity:.75; font-size:.68rem}
 /* identity band — at most two dense lines (§C.1); digest stays */
-#cs-band{margin:0 0 4px}
+#cs-band{margin:0 0 8px}
 #cs-band .csrow1{display:flex; flex-wrap:wrap; align-items:baseline; gap:.3rem .6rem}
-#cs-band .csname{font:600 1.05rem var(--font); color:var(--ink)}   /* Inter, never display face */
-#cs-band .cshero{color:var(--ink3); font-size:.85rem}
-#cs-band .csscope{color:var(--ink3); font-size:.72rem}
-#cs-band .csnums{color:var(--ink); font-size:.78rem; font-variant-numeric:tabular-nums}
+#cs-band .csname{font:600 1.25rem var(--font); color:var(--ink)}   /* Inter, never display face */
+#cs-band .cshero{color:var(--ink3); font-size:.95rem}
+#cs-band .csscope{color:var(--ink3); font-size:.8rem}
+#cs-band .csnums{color:var(--ink); font-size:.86rem; font-variant-numeric:tabular-nums}
 #cs-band .cssub{display:flex; flex-wrap:wrap; align-items:baseline; gap:.25rem 1rem;
-  color:var(--ink3); font-size:.73rem; margin-top:2px; font-variant-numeric:tabular-nums}
-#cs-digest{color:var(--ink); font-size:.76rem; font-variant-numeric:tabular-nums}
+  color:var(--ink3); font-size:.8rem; margin-top:2px; font-variant-numeric:tabular-nums}
+#cs-digest{color:var(--ink); font-size:.84rem; font-variant-numeric:tabular-nums}
 #cs-digest .dtrig{cursor:pointer; transition:color .13s}
 #cs-digest .dtrig:hover{color:var(--accent)}
 .cbtn{background:var(--surface1); border:1px solid var(--line2); color:var(--ink2);
@@ -525,8 +534,8 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
   font-weight:500; transition:border-color .13s, color .13s}
 .cbtn:hover{border-color:var(--accent-line); color:var(--accent)}
 /* sub-nav — §15.3 .tabs with live known-counts; inactive tabs must read interactive */
-#cs-tabs{margin-bottom:6px}
-#cs-tabs button .tcnt{font-size:.72rem; color:var(--ink3); font-weight:400;
+#cs-tabs{margin-bottom:10px}
+#cs-tabs button .tcnt{font-size:.78rem; color:var(--ink3); font-weight:400;
   font-variant-numeric:tabular-nums}
 #cs-tabs button:hover{color:var(--ink); border-bottom-color:var(--line2)}
 #cs-tabs button.on:hover{border-bottom-color:transparent}  /* .on keeps its metal strip */
@@ -538,13 +547,13 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
    content-hugging triggers; hover/active are color-only. */
 #cs-doll{display:grid; grid-template-columns:minmax(264px,318px) minmax(0,1fr) minmax(264px,318px);
   gap:8px 14px; align-items:start}
-#cs-doll .dcol{display:flex; flex-direction:column; gap:3px; min-width:0}
+#cs-doll .dcol{display:flex; flex-direction:column; gap:6px; min-width:0}
 #cs-doll .dcol.l{grid-column:1; grid-row:1}
 #cs-doll .dcenter{grid-column:2; grid-row:1; align-self:stretch; min-width:0}
 #cs-doll .dcol.r{grid-column:3; grid-row:1}
 #cs-doll .dbottom{grid-column:1/-1; grid-row:2; display:flex; justify-content:center;
   gap:6px 8px; flex-wrap:wrap}
-#cs-doll .dbottom .gtile{flex:0 1 296px; min-width:0}
+#cs-doll .dbottom .gtile{flex:0 1 340px; min-width:0}
 /* narrow measures: columns pair up, the fold-out drops to a full-width panel */
 @media(max-width:1150px){
   #cs-doll{grid-template-columns:1fr 1fr}
@@ -562,9 +571,9 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
   #cs-doll .dbottom{grid-row:4}
   .dcol.r .gtile{flex-direction:row; text-align:left}
 }
-.gtile{display:flex; align-items:center; gap:9px; min-width:0; position:relative;
+.gtile{display:flex; align-items:center; gap:10px; min-width:0; position:relative;
   background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r2);
-  padding:.12rem .55rem .16rem .28rem; cursor:pointer; box-shadow:var(--gg-shadow);
+  padding:.26rem .6rem .3rem .32rem; cursor:pointer; box-shadow:var(--gg-shadow);
   transition:border-color .13s}
 .gtile:hover{border-color:var(--line2)}
 .gtile.on{border-color:var(--accent-line)}   /* active tile: color-only, nothing moves */
@@ -576,18 +585,18 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
    The .gph slot glyph is the ALWAYS-PRESENT fallback layer; when the vocab
    entry carries "ic" an <img> covers it, and onerror removes the img so a
    broken image can never render. */
-.gico{position:relative; flex:none; width:30px; height:30px; border-radius:var(--r1);
+.gico{position:relative; flex:none; width:42px; height:42px; border-radius:var(--r1);
   border:1px solid var(--line2); background:var(--surface2); overflow:hidden;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 1px 2px rgba(0,0,0,.3)}
 .gico .gph{position:absolute; inset:0; display:flex; align-items:center;
-  justify-content:center; font-size:.66rem; font-weight:600; letter-spacing:.08em;
+  justify-content:center; font-size:.8rem; font-weight:600; letter-spacing:.08em;
   color:var(--ink3); text-transform:uppercase}
 .gico img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
   display:block; border-radius:3px}
-.gico.s{width:22px; height:22px; box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
-.gico.s .gph{font-size:.52rem; letter-spacing:.02em}
+.gico.s{width:28px; height:28px; box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.gico.s .gph{font-size:.62rem; letter-spacing:.02em}
 .gtile .gtxt{flex:1; min-width:0}
-.gtile .gn{font-size:.76rem; color:var(--ink); line-height:1.2;
+.gtile .gn{font-size:.88rem; color:var(--ink); line-height:1.25;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 /* the Main Hand winner name is NEVER ellipsized — it wraps and the tile grows */
 .gtile.mh .gn{white-space:normal; overflow:visible}
@@ -598,15 +607,15 @@ a.whico{display:inline-flex; color:inherit; text-decoration:none;
   vertical-align:middle; line-height:0}
 .gtile .gmeta{display:flex; align-items:baseline; gap:.45rem; line-height:1.25;
   font-variant-numeric:tabular-nums; min-width:0}
-.gtile .gmeta b{font-size:.72rem; font-weight:650; color:var(--ink)}
-.gtile .gmeta i{font-style:normal; font-size:.64rem; color:var(--ink3);
+.gtile .gmeta b{font-size:.82rem; font-weight:650; color:var(--ink)}
+.gtile .gmeta i{font-style:normal; font-size:.74rem; color:var(--ink3);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.gtile .gfoot{font-size:.6rem; color:var(--ink3); line-height:1.3}  /* inert text */
+.gtile .gfoot{font-size:.7rem; color:var(--ink3); line-height:1.3}  /* inert text */
 /* winner share — thin bar under the row; neutral fill, champagne stays ACTIVE-only */
 .gtile .gbar{position:absolute; left:1px; bottom:1px; height:3px; max-width:calc(100% - 2px);
   background:rgba(234,227,208,.20); border-radius:0 0 0 3px; pointer-events:none}
 .dcol.r .gtile .gbar{left:auto; right:1px; border-radius:0 0 3px 0}
-.gtag{font-size:.6rem; font-weight:600; text-transform:uppercase; letter-spacing:.1em;
+.gtag{font-size:.66rem; font-weight:600; text-transform:uppercase; letter-spacing:.1em;
   border:1px solid var(--line2); border-radius:var(--r1); padding:0 .3rem; color:var(--ink3)}
 .gemb{color:var(--ink3)}
 /* the per-slot fold-out — the center inspect panel; caret points at the owner */
@@ -618,22 +627,22 @@ a.whico{display:inline-flex; color:inherit; text-decoration:none;
 #cs-fold .caret.cr{right:-14px; border-left-color:var(--accent-line)}
 #cs-fold .caret.cb{bottom:-14px; border-top-color:var(--accent-line)}
 #cs-fold .caret.ct{top:-14px; border-bottom-color:var(--accent-line)}
-#cs-fold .fh{font-size:.62rem; text-transform:uppercase; letter-spacing:.12em;
+#cs-fold .fh{font-size:.7rem; text-transform:uppercase; letter-spacing:.12em;
   color:var(--ink3); margin-bottom:.35rem}
 .frow{display:flex; align-items:center; gap:7px; min-width:0; position:relative;
   padding:.16rem 0 .22rem}
 .frow+.frow{border-top:1px solid var(--line0)}
 .frow .fx{flex:1; min-width:0}
 .frow .ftop{display:flex; align-items:baseline; gap:.5rem; min-width:0}
-.frow .fn{flex:1; min-width:0; font-size:.74rem; color:var(--ink);
+.frow .fn{flex:1; min-width:0; font-size:.84rem; color:var(--ink);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.frow .fs{flex:none; font-size:.64rem; color:var(--ink3); font-variant-numeric:tabular-nums}
-.frow .fs b{color:var(--ink); font-weight:650; font-size:.68rem}
-.frow .fsub{font-size:.62rem; color:var(--ink3); margin-top:.06rem;
+.frow .fs{flex:none; font-size:.74rem; color:var(--ink3); font-variant-numeric:tabular-nums}
+.frow .fs b{color:var(--ink); font-weight:650; font-size:.78rem}
+.frow .fsub{font-size:.72rem; color:var(--ink3); margin-top:.06rem;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.frow .fbar{position:absolute; left:29px; bottom:0; height:2px; max-width:calc(100% - 29px);
+.frow .fbar{position:absolute; left:35px; bottom:0; height:2px; max-width:calc(100% - 35px);
   background:rgba(234,227,208,.20); pointer-events:none}
-table.fold-t{border-collapse:collapse; font-size:.76rem; width:100%}
+table.fold-t{border-collapse:collapse; font-size:.85rem; width:100%}
 .fold-t td{padding:.16rem .6rem .16rem 0; color:var(--ink); text-align:right;
   font-variant-numeric:tabular-nums; white-space:nowrap}
 .fold-t td.txt{text-align:left; white-space:normal}
@@ -644,41 +653,41 @@ table.fold-t{border-collapse:collapse; font-size:.76rem; width:100%}
 .sbar i{position:absolute; left:0; top:0; bottom:0; background:rgba(234,227,208,.28);
   border-radius:2px}
 /* enchants — ~15% tighter rows + a FIXED-WIDTH −/+ expander column with hover state */
-table.cs-ench{border-collapse:collapse; font-size:.78rem; width:100%}
+table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
 .cs-ench td{padding:.3rem .6rem .3rem 0; border-top:1px solid var(--line0);
   color:var(--ink); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
 .cs-ench td.txt{text-align:left}
-.cs-ench td.gsl{font-size:.62rem; text-transform:uppercase; letter-spacing:.12em;
+.cs-ench td.gsl{font-size:.68rem; text-transform:uppercase; letter-spacing:.12em;
   color:var(--ink3); width:7.5em}
 .cs-ench td.expm{width:2rem; text-align:center; color:var(--ink3); transition:color .13s}
 .cs-ench tr.erow{cursor:pointer}
 .cs-ench tr.erow:hover td{border-top-color:var(--line2)}
 .cs-ench tr.erow:hover .expm{color:var(--ink2)}
-.cs-ench tr.ealt td{border-top:0; color:var(--ink2); font-size:.74rem;
+.cs-ench tr.ealt td{border-top:0; color:var(--ink2); font-size:.82rem;
   padding-top:.06rem; padding-bottom:.06rem}
 .cs-ench tr.ealt td.txt{padding-left:1.2rem}
 /* crafted & embellishments — equalized card pair, one shared gutter */
 #cs-crafted-pair{display:flex; gap:12px; align-items:stretch}
 #cs-crafted-pair>div{flex:1; background:var(--surface1); border:1px solid var(--line1);
   border-radius:var(--r2); padding:.5rem .7rem; box-shadow:var(--gg-shadow)}
-#cs-crafted-pair .bt{font-size:.62rem; font-weight:700; text-transform:uppercase;
+#cs-crafted-pair .bt{font-size:.7rem; font-weight:700; text-transform:uppercase;
   letter-spacing:.15em; color:var(--ink3); margin-bottom:.3rem}
 #cs-crafted-pair .caption{margin-top:.4rem}
 @media(max-width:900px){#cs-crafted-pair{flex-direction:column}}
 /* talent builds table */
-table.cs-tal{border-collapse:collapse; font-size:.78rem; width:100%}
+table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 .cs-tal td{padding:.24rem .6rem .24rem 0; border-top:1px solid var(--line0);
   color:var(--ink); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
 .cs-tal td.txt{text-align:left}
-.cs-tal td .htag{font-size:.68rem; color:var(--ink3)}
+.cs-tal td .htag{font-size:.76rem; color:var(--ink3)}
 /* hash-identified builds: ordinal label column ("Build N") in front of the bar */
 .cs-tal .bnm{display:inline-block; min-width:3.2rem; margin-right:.55rem;
-  font-size:.72rem; color:var(--ink2)}
-.cs-herodist{font-size:.72rem; color:var(--ink3)}
+  font-size:.8rem; color:var(--ink2)}
+.cs-herodist{font-size:.8rem; color:var(--ink3)}
 .cs-herodist b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
 .cs-herodist .hn{color:var(--ink2)}
-.cs-foot{font-size:.7rem; color:var(--ink3); line-height:1.5; margin-top:.35rem}
-.cs-thin{font-size:.73rem; color:var(--ink3); margin:.3rem 0 .6rem;
+.cs-foot{font-size:.78rem; color:var(--ink3); line-height:1.5; margin-top:.35rem}
+.cs-thin{font-size:.8rem; color:var(--ink3); margin:.3rem 0 .6rem;
   font-variant-numeric:tabular-nums}
 /* §7 loading treatment — sliding accent segment, no spinner, no skeleton grids */
 .csload{display:flex; align-items:center; gap:.8rem; padding:36px 0; color:var(--ink3);
@@ -1216,6 +1225,7 @@ function initData(d,cfg){
   $("app").style.display=""; $("side").style.display="";
   $("built").textContent=" Data built "+d.built+".";
   setCompare(false);   // also resets gain/loss sort state, then renders
+  csRestoreFromHash(); // #cs=… survives refresh AND the reload-based reset
 }
 
 $("compmin").oninput=e=>{state.compMin=+e.target.value;
@@ -2851,10 +2861,13 @@ document.addEventListener("pointerdown",e=>{
 document.addEventListener("keydown",e=>{
   if(state.frameKey==null&&!state.screen) return;
   if(e.key==="Escape"){
-    // In the Character screen, Esc is SWALLOWED (§3.1): its only permitted
-    // action is closing an open gear fold-out; with none open it does nothing
-    // — it never exits the mode and never falls through to close the rail.
-    if(state.screen){ if(screenFold!=null&&screenTab==="gear") closeSlotFold(); return }
+    // In the Character screen (revised 2026-08-30 — "there seems to be no
+    // intuitive way to get out"): Esc first closes an open gear fold-out;
+    // with none open it EXITS the screen back to the rankings.
+    if(state.screen){
+      if(screenFold!=null&&screenTab==="gear") closeSlotFold();
+      else exitScreen();
+      return }
     closeFrame(); return }
   // arrows guarded: never hijack keys inside form controls
   if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)||e.target.isContentEditable) return;
@@ -3024,6 +3037,38 @@ const CS_THIN=10;                       // §3.5 thin-n floor
 const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into "other"
 const fmtDpsM=v=>v>=1e6?(v/1e6).toFixed(2)+"M":fmtDps(v);
 
+/* ---- URL persistence (owner, 2026-08-30): "I don't want the character
+   screen to go away every time I reset the filters, or even when I refresh."
+   The screen's identity lives in the hash — #cs=<presKey>[.<heroId>].<tab> —
+   via replaceState (no history spam). Reset filters is a location.reload(),
+   so the same mechanism survives both reset and refresh. Filters themselves
+   stay un-persisted: a fresh load opens on defaults, only the PLACE returns. */
+function csSyncHash(){
+  try{
+    let h="";
+    if(state.screen&&state.frameKey!=null){
+      const k=state.frameKey, pk=state.merge?k:Math.floor(k/200);
+      h="#cs="+pk+(state.merge?"":"."+(k%200))+"."+screenTab;
+    }else if(state.screen) return;         // spec fell off: keep the last hash
+    if(location.hash===h) return;
+    history.replaceState(null,"",h||location.pathname+location.search);
+  }catch(e){}
+}
+function csRestoreFromHash(){
+  const m=location.hash.match(/^#cs=(\d+)(?:\.(\d+))?\.(gear|ench|tal)$/);
+  if(!m||state.screen) return;
+  const pk=+m[1], hero=m[2]!=null?+m[2]:null;
+  let k=CHART_KEYS.find(x=>state.merge
+    ? x===pk
+    : Math.floor(x/200)===pk&&(hero==null||x%200===hero));
+  if(k==null&&!state.merge)
+    k=CHART_KEYS.find(x=>Math.floor(x/200)===pk);
+  if(k==null) return;                      // spec not in the default view
+  state.frameKey=k;
+  screenTab=m[3];
+  enterScreen();
+}
+
 /* ---- enter / exit / state (§3.1) ---- */
 function enterScreen(){
   if(state.screen||buildsDead||state.frameKey==null) return;
@@ -3040,6 +3085,7 @@ function enterScreen(){
 function exitScreen(){
   if(!state.screen) return;
   state.screen=null;
+  csSyncHash();
   document.body.classList.remove("charscreen");
   const cs=$("charscreen"); if(cs){ cs.hidden=true; cs.innerHTML=""; }
   // rail re-renders exactly as left: frameKey intact, pinned state intact
@@ -3157,7 +3203,7 @@ function csThinHTML(n,what){
     +' known in window · sample too thin — widen the lens or filters</div>';
 }
 function csLadderHTML(){
-  let h='<div id="cs-ladder"><button class="btn" id="cs-back">← Rankings</button>';
+  let h='<div id="cs-ladder"><button class="btn csexit" id="cs-back">← Rankings</button>';
   for(const k of CHART_KEYS){
     const pk=state.merge?k:Math.floor(k/200);
     const cls=D.classes[Math.floor(pk/100)], spec=D.specs[pk%100];
@@ -3166,7 +3212,9 @@ function csLadderHTML(){
       +'<span class="classdot" style="background:'+(CLASS_COLORS[cls]||"#999")+'"></span>'
       +esc(spec)+((hero&&hero!=="Unknown")?' <i>'+esc(hero)+'</i>':'')+'</span>';
   }
-  return h+'</div>';
+  // a second, always-visible way out at the row's far end (owner 2026-08-30:
+  // "no intuitive way to get out"; Esc with no fold open exits too)
+  return h+'<button class="btn csexit x" id="cs-close" title="Back to the rankings (Esc)">✕ Close</button></div>';
 }
 function csDigestHTML(d){
   const T=csTalentRows(d);
@@ -3499,6 +3547,8 @@ function renderScreen(){
 function wireScreen(host,ctx,d){
   const back=host.querySelector("#cs-back");
   if(back) back.onclick=()=>exitScreen();
+  const cx=host.querySelector("#cs-close");
+  if(cx) cx.onclick=()=>exitScreen();
   host.querySelectorAll("#cs-ladder .cschip").forEach(c=>
     c.onclick=()=>setScreenSpec(+c.dataset.k));
   host.querySelectorAll("#cs-tabs button").forEach(b=>
@@ -3564,6 +3614,7 @@ function wireScreen(host,ctx,d){
     if(r.bottom>innerHeight) fold.scrollIntoView({block:"nearest"});
   }
   whRefresh();   // wowhead tooltips attach to freshly rendered item links
+  csSyncHash();  // the URL always names the place being looked at
 }
 
 /* -------- one shared sorting rule for EVERY table (feedback L51-52) --------

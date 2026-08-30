@@ -319,9 +319,12 @@ needs zero navigation. Never reintroduce a second slot-navigation surface.
 5. **Talents pane**: talent builds + hero logic (§3.4 talents).
 In-pane sections use the §15.9 `.sec` header treatment (static −/+, champagne tick,
 collapsible) so the screen reads as native dashboard, not a foreign pane. All content
-sits directly in page flow — the page scrollbar is the only scrollbar. At 1366×768
-the Gear pane's core loop — grid + an opened fold-out — sits entirely above the fold;
-that above-the-fold property is the layout's acceptance bar, do not regress it.
+sits directly in page flow — the page scrollbar is the only scrollbar.
+REVISED 2026-08-30 (user_prefs #10): the acceptance viewport is now 1920×1080
+("you can expect the screensize to be a minimum of 1080p... the entire
+text/icons everything is way too small") — the Gear pane's core loop (grid +
+an opened fold-out) sits above the fold AT 1080p, and readability outranks
+compactness: never shrink type/icons below the 2026-08-30 sizes to buy fit.
 
 ### 3.3 Loading & absence (nothing dormant)
 
