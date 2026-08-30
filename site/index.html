@@ -502,14 +502,14 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
 .fnametrig{cursor:pointer; transition:color .13s}
 .fnametrig:hover{color:var(--accent)}
 /* ladder strip — the screen's only furniture above the identity band */
-#cs-ladder{display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-bottom:8px}
+#cs-ladder{display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-bottom:5px}
 #cs-ladder .btn{font-size:.72rem; padding:.2rem .5rem; flex:none; margin-right:.3rem}
 .cschip{display:inline-flex; align-items:center; gap:5px; font-size:.68rem;
   padding:.12rem .4rem; line-height:1.35}
 .cschip .classdot{margin-right:0; width:9px; height:9px}
 .cschip i{font-style:normal; color:inherit; opacity:.75; font-size:.62rem}
 /* identity band — at most two dense lines (§C.1); digest stays */
-#cs-band{margin:0 0 6px}
+#cs-band{margin:0 0 4px}
 #cs-band .csrow1{display:flex; flex-wrap:wrap; align-items:baseline; gap:.3rem .6rem}
 #cs-band .csname{font:600 1.05rem var(--font); color:var(--ink)}   /* Inter, never display face */
 #cs-band .cshero{color:var(--ink3); font-size:.85rem}
@@ -525,7 +525,7 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
   font-weight:500; transition:border-color .13s, color .13s}
 .cbtn:hover{border-color:var(--accent-line); color:var(--accent)}
 /* sub-nav — §15.3 .tabs with live known-counts; inactive tabs must read interactive */
-#cs-tabs{margin-bottom:10px}
+#cs-tabs{margin-bottom:6px}
 #cs-tabs button .tcnt{font-size:.72rem; color:var(--ink3); font-weight:400;
   font-variant-numeric:tabular-nums}
 #cs-tabs button:hover{color:var(--ink); border-bottom-color:var(--line2)}
@@ -538,7 +538,7 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
    content-hugging triggers; hover/active are color-only. */
 #cs-doll{display:grid; grid-template-columns:minmax(264px,318px) minmax(0,1fr) minmax(264px,318px);
   gap:8px 14px; align-items:start}
-#cs-doll .dcol{display:flex; flex-direction:column; gap:6px; min-width:0}
+#cs-doll .dcol{display:flex; flex-direction:column; gap:3px; min-width:0}
 #cs-doll .dcol.l{grid-column:1; grid-row:1}
 #cs-doll .dcenter{grid-column:2; grid-row:1; align-self:stretch; min-width:0}
 #cs-doll .dcol.r{grid-column:3; grid-row:1}
@@ -564,7 +564,7 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
 }
 .gtile{display:flex; align-items:center; gap:9px; min-width:0; position:relative;
   background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r2);
-  padding:.2rem .6rem .26rem .34rem; cursor:pointer; box-shadow:var(--gg-shadow);
+  padding:.12rem .55rem .16rem .28rem; cursor:pointer; box-shadow:var(--gg-shadow);
   transition:border-color .13s}
 .gtile:hover{border-color:var(--line2)}
 .gtile.on{border-color:var(--accent-line)}   /* active tile: color-only, nothing moves */
@@ -576,7 +576,7 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
    The .gph slot glyph is the ALWAYS-PRESENT fallback layer; when the vocab
    entry carries "ic" an <img> covers it, and onerror removes the img so a
    broken image can never render. */
-.gico{position:relative; flex:none; width:40px; height:40px; border-radius:var(--r1);
+.gico{position:relative; flex:none; width:30px; height:30px; border-radius:var(--r1);
   border:1px solid var(--line2); background:var(--surface2); overflow:hidden;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 1px 2px rgba(0,0,0,.3)}
 .gico .gph{position:absolute; inset:0; display:flex; align-items:center;
@@ -587,13 +587,14 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
 .gico.s{width:22px; height:22px; box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .gico.s .gph{font-size:.52rem; letter-spacing:.02em}
 .gtile .gtxt{flex:1; min-width:0}
-.gtile .gs{font-size:.58rem; text-transform:uppercase; letter-spacing:.12em;
-  color:var(--ink3); line-height:1.15}
 .gtile .gn{font-size:.76rem; color:var(--ink); line-height:1.2;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 /* the Main Hand winner name is NEVER ellipsized — it wraps and the tile grows */
 .gtile.mh .gn{white-space:normal; overflow:visible}
-.gtile .gn a{color:var(--accent)}
+/* wowhead item links: read as calm text, accent on hover; the wowhead script
+   supplies the hover tooltip so no underline is needed at rest */
+a.whi{color:inherit; text-decoration:none}
+a.whi:hover{color:var(--accent)}
 .gtile .gmeta{display:flex; align-items:baseline; gap:.45rem; line-height:1.25;
   font-variant-numeric:tabular-nums; min-width:0}
 .gtile .gmeta b{font-size:.72rem; font-weight:650; color:var(--ink)}
@@ -2970,31 +2971,40 @@ const bldEnV=(j,i)=>{const r=BUILDSC.map[i]; if(r<0) return 0;
   const b=BUILDSC.en[j>>1][r]; return j%2?b>>4:b&15};
 const bldV=i=>{const r=BUILDSC.map[i]; return r<0?0:BUILDSC.bld[r]};
 
-// name rendering: "n":null ⇒ #id linking wowhead (plain <a>, target=_blank);
-// enchants render "enchant #id" unlinked. No third-party scripts, ever.
+// name rendering: every item is a wowhead link (owner request 2026-08-30 —
+// hover shows the live wowhead tooltip via their official tooltips.js, and
+// renameLinks fills in any name the pipeline hasn't resolved; raw ids never
+// render). Enchants have no stable wowhead entity id in the log data, so they
+// stay plain text.
 function itemNameHTML(e){
   if(!e) return '<span class="na">other / none</span>';
-  if(e.n!=null) return esc(e.n);
-  return '<a href="https://www.wowhead.com/item='+(+e.id)
-    +'" target="_blank" rel="noopener">#'+(+e.id)+'</a>';
+  return '<a class="whi" href="https://www.wowhead.com/item='+(+e.id)
+    +'" target="_blank" rel="noopener">'
+    +(e.n!=null?esc(e.n):'<span class="na">item…</span>')+'</a>';
 }
 function enchNameHTML(e){
   if(!e) return '<span class="na">none</span>';
   if(e.n!=null) return esc(e.n);
-  return 'enchant #'+(+e.id);
+  return '<span class="na">unnamed enchant</span>';
 }
+window.whRefresh=function(){try{const P=window.$WowheadPower;
+  P&&P.refreshLinks&&P.refreshLinks()}catch(e){}};
+// embellishment display name — an unresolved "#<bonusid>" never renders
+const embOf=e=>{const m=e&&e.emb; return (m&&!/^#\d+$/.test(m))?m:null};
 // icon tile (§1 widening) — vocab "ic" ⇒ self-hosted icons/<ic>.jpg over the
 // glyph layer; no "ic", or a 404, ⇒ the glyph tile alone (onerror removes the
 // img, so a broken-image glyph never renders and the miss stays silent)
 function csIcoHTML(e,ph,small){
   let h='<span class="gico'+(small?' s':'')+'"><span class="gph">'+esc(ph)+'</span>';
-  if(e&&e.ic!=null&&e.ic!=="")
-    h+='<img alt="" loading="lazy" src="icons/'
-      +encodeURIComponent(String(e.ic))+'.jpg" onerror="this.remove()">';
+  // icons are self-hosted keyed by ITEM ID (site/icons/i<id>.jpg), so no
+  // sidecar annotation is needed; a vocab "ic" name, if present, overrides
+  const src=e&&e.ic?encodeURIComponent(String(e.ic)):(e&&e.id?"i"+e.id:null);
+  if(src!=null)
+    h+='<img alt="" loading="lazy" src="icons/'+src+'.jpg" onerror="this.remove()">';
   return h+'</span>';
 }
-// fold-row glyph: the item name's initial ("#" for id-only, "–" for other/none)
-const csFoldPh=e=>!e?"–":(e.n?e.n.trim().charAt(0):"#");
+// fold-row glyph: the item name's initial ("•" for unnamed, "–" for other/none)
+const csFoldPh=e=>!e?"–":(e.n?e.n.trim().charAt(0):"•");
 // attribute-context escape (title="…"): esc + double quotes
 const escA=s=>esc(s).replace(/"/g,"&quot;");
 const CS_SLOT_LABEL={0:"Head",1:"Neck",2:"Shoulder",4:"Chest",5:"Waist",6:"Legs",
@@ -3002,7 +3012,7 @@ const CS_SLOT_LABEL={0:"Head",1:"Neck",2:"Shoulder",4:"Chest",5:"Waist",6:"Legs"
   13:"Trinket 2",14:"Back",15:"Main hand",16:"Off hand"};
 // paper-doll arrangement (in-game character pane): left / right columns top-to-
 // bottom, trinkets + weapons bottom-center. Keys are retail slot ids.
-const CS_DOLL={L:[0,1,2,14,4,8], R:[9,5,6,7,10,11], B:[12,13,15,16]};
+const CS_DOLL={L:[0,1,2,14,4,8], R:[9,5,6,7,10,11,12,13], B:[15,16]};
 // slot-glyph fallback initials for iconless 40px tiles (never a broken image)
 const CS_SLOT_ABBR={0:"Hd",1:"Nk",2:"Sh",4:"Ch",5:"Wa",6:"Lg",7:"Ft",8:"Wr",
   9:"Ha",10:"R1",11:"R2",12:"T1",13:"T2",14:"Bk",15:"MH",16:"OH"};
@@ -3240,15 +3250,14 @@ function csFoldHTML(d,si){
   entries.sort((a,b)=>b.c-a.c);
   for(const e of entries.slice(10)) other+=e.c;         // ≤10 + "other/none"
   // compact inspect rows: 22px icon tile + name + share/n/ilvl; thin share bar
-  const row=(e,nameHTML,s,c,ph)=>'<div class="frow"'
-    +((e&&e.n!=null)?' title="'+escA(e.n)+'"':'')+'>'
+  const row=(e,nameHTML,s,c,ph)=>'<div class="frow">'
     +csIcoHTML(e,ph,true)
     +'<div class="fx"><div class="ftop"><span class="fn">'+nameHTML+'</span>'
     +'<span class="fs"><b>'+s.toFixed(1)+'%</b> · n='+fmtInt(c)+' · '
     +((e&&e.ilvl)?"ilvl "+e.ilvl:"–")+'</span></div>'
-    +((e&&(e.cr||e.emb))?'<div class="fsub">'
+    +((e&&(e.cr||embOf(e)))?'<div class="fsub">'
       +(e.cr?'<span class="gtag">crafted</span>':'')
-      +(e.emb?' <span class="gemb">'+esc(e.emb)+'</span>':'')+'</div>':'')
+      +(embOf(e)?' <span class="gemb">'+esc(embOf(e))+'</span>':'')+'</div>':'')
     +'</div><i class="fbar" style="width:'+Math.min(100,s).toFixed(1)+'%"></i></div>';
   let rows="";
   for(const {v,c} of entries.slice(0,10)){
@@ -3282,10 +3291,9 @@ function csGearPaneHTML(ctx,d){
     const share=100*p.winN/total;
     return '<div class="gtile'+(slot===15?" mh":"")+(screenFold===si?" on":"")
       +'" data-si="'+si+'"'
-      +((e&&e.n!=null)?' title="'+escA(e.n)+(e.emb?" — "+escA(e.emb):"")+'"':'')+'>'
+      +' title="'+CS_SLOT_LABEL[slot]+(embOf(e)?" — "+escA(embOf(e)):"")+'">'
       +csIcoHTML(e,CS_SLOT_ABBR[slot]||"?",false)
-      +'<div class="gtxt"><div class="gs">'+CS_SLOT_LABEL[slot]+'</div>'
-      +'<div class="gn">'+(p.winner>0?itemNameHTML(e):'<span class="na">other / none</span>')+'</div>'
+      +'<div class="gtxt"><div class="gn">'+(p.winner>0?itemNameHTML(e):'<span class="na">other / none</span>')+'</div>'
       +'<div class="gmeta"><b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(p.winN)+'</i>'
       +((e&&e.ilvl)?'<i>ilvl '+e.ilvl+'</i>':'')
       +((e&&e.cr)?'<span class="gtag">crafted</span>':'')+'</div>'
@@ -3357,7 +3365,8 @@ function csCraftedModel(d){
     for(const [v,c] of cnt){
       const e=V[v-1]; if(!e) continue;
       if(e.cr&&(!top||c>top.c)) top={c,e};
-      if(e.emb) emb.set(e.emb,(emb.get(e.emb)||0)+c);   // counted per slot (a player can carry two)
+      const em=embOf(e);
+      if(em) emb.set(em,(emb.get(em)||0)+c);   // counted per slot (a player can carry two)
     }
     if(top) bySlot.push({slot:slots[si], c:top.c, e:top.e});
   }
@@ -3376,7 +3385,8 @@ function csCraftedHTML(ctx,d){
   for(const r of M.bySlot)
     h+='<tr><td class="txt gsl" style="font-size:.62rem; text-transform:uppercase; '
       +'letter-spacing:.12em; color:var(--ink3)">'+CS_SLOT_LABEL[r.slot]+'</td>'
-      +'<td class="txt">'+itemNameHTML(r.e)+'</td>'
+      +'<td class="txt">'+csIcoHTML(r.e,csFoldPh(r.e),true)+' '
+      +itemNameHTML(r.e)+'</td>'
       +'<td>'+(100*r.c/total).toFixed(1)+'%</td><td>n='+fmtInt(r.c)+'</td></tr>';
   h+='</table></div><div><div class="bt">Embellishments</div><table class="fold-t">';
   for(const [name,c] of M.emb)
@@ -3549,6 +3559,7 @@ function wireScreen(host,ctx,d){
     const r=fold.getBoundingClientRect();
     if(r.bottom>innerHeight) fold.scrollIntoView({block:"nearest"});
   }
+  whRefresh();   // wowhead tooltips attach to freshly rendered item links
 }
 
 /* -------- one shared sorting rule for EVERY table (feedback L51-52) --------
@@ -4904,5 +4915,14 @@ function renderTable(rows,tab){
   }catch(e){}
 })();
 </script>
+<script>
+// wowhead hover tooltips (owner request 2026-08-30): official embed. Icons on
+// links stay off (we self-host icons); renameLinks lets wowhead resolve any
+// item name the pipeline hasn't cached yet; link colors stay ours (quality
+// coloring would flood the pane with purple — the tooltip itself shows it).
+var whTooltips={colorLinks:false,iconizeLinks:false,renameLinks:true};
+</script>
+<script src="https://wow.zamimg.com/js/tooltips.js" defer
+  onload="window.whRefresh&&window.whRefresh()" onerror="void 0"></script>
 </body>
 </html>

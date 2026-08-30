@@ -49,3 +49,11 @@
     want to have to scroll a lot... scrolling down not required often, scrolling
     right almost never." Viewport-fit-first layouts; vertical growth only from
     explicit user expansion; no horizontal scroll at desktop widths.
+
+11. **Wowhead item links + hover tooltips (2026-08-30).** "item ids are completely
+    useless to me, remove them. instead insert wowhead links to the items. when I
+    hover over an item, the wowhead tooltip shows (pulled directly from wowhead)."
+    This is a SCOPED exception to pref #7's no-cursor-tooltips rule and to the
+    no-third-party-scripts stance: wowhead's official tooltips.js is sanctioned,
+    for item (and later talent-spell) links only. Raw numeric ids must never
+    render anywhere in the UI.

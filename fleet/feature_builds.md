@@ -25,8 +25,18 @@ and see the data change. Filterable just like the stats are currently. I care ab
   first opens; main payload and stats sidecar untouched. Target <=3 MB gz, cap 5 MB.
 - Item/enchant/embellishment NAMES: journal has ids only. Resolve names at build
   time into a committed, slowly-growing vocabulary (a public static item DB fetched
-  by the collector and cached), with plain-id + wowhead-link fallback when a name is
-  missing. No third-party runtime scripts on the page.
+  by the collector and cached).
+- SUPERSEDED (owner, 2026-08-30): "item ids are completely useless to me, remove
+  them. instead insert wowhead links to the items. when I hover over an item, the
+  wowhead tooltip shows (pulled directly from wowhead)." So: EVERY item name is a
+  wowhead <a href="…/item=ID"> link; the official wowhead tooltips.js loads at
+  runtime (the one sanctioned third-party script) with renameLinks:true (wowhead
+  fills names the pipeline hasn't resolved — raw ids NEVER render anywhere),
+  iconizeLinks:false (icons stay self-hosted), colorLinks:false (quality-purple
+  floods would fight the design language; the tooltip itself shows quality).
+  whRefresh() after every charscreen render re-attaches tooltips. Unresolved
+  "#<bonusid>" embellishment strings are suppressed client-side (embOf).
+  Future talent-tree nodes should get the same treatment via /spell=ID links.
 - Talent builds: identified by talentImportString; top builds per spec with share,
   median DPS, and a copy-import-string affordance. Hero display per the owner's
   logic above (merged -> hero distribution visible; unmerged/hero-zoomed -> the two
