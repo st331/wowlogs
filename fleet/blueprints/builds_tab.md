@@ -202,29 +202,126 @@ ids (all four fetches returned 200 with the expected fields):
   has NO enchantment entity — 404 "invalid"; items-only there. We standardize on wago.)
 - Crafted set: `.../db2/CraftingData/csv` (whole table, 133 KB) → the set of
   `CraftedItemID` values (222435 Everforged Vambraces verified present).
-- Embellishment markers: bonus ids whose `ItemBonus` rows (Type=35) set an
-  `ItemLimitCategory` whose name contains "Embellished" — today 8960→512 "Embellished"
-  and 13555→697 "Outdoor Embellished" (both verified). Markers live in their OWN file
-  `data/emb_markers.json` (sorted int list, grow-only union) — REVISED 2026-08-30 after
-  owner bug reports ("Draconic Missive of the Peerless", "Spark of Tides", "Spark of
-  Radiance" posing as embellishments; the same crafted item splitting by stat combo):
-  v1 conflated markers, reagents, and every co-occurring bonus id in one cache, and the
-  reagent chain closes for EVERY optional reagent. A journaled item is embellished iff
-  its `bonus` list intersects the MARKER set only. Identity: the smallest bonus id with
-  a VALIDATED reagent name, else one generic bucket (-1, rendered "embellished") — an
-  unnamed bonus id never splits identity. Validation (`data/names_bonus_emb2.json`,
-  grow-only, accepts MANUAL entries): resolve bonus→reagent through
-  ItemBonusTreeNode(ChildItemBonusListID)→ParentItemBonusTreeID
-  →ModifiedCraftingReagentItem(ItemBonusTreeID)→Item→ItemSparse, and the reagent item
-  must itself carry an Embellished `LimitCategory` — otherwise store `null`
-  (validated not-an-embellishment, never re-asked). Known gap: the ~6
-  inherently-embellished items (LimitCategory 512 in ItemSparse directly, e.g. 251073)
-  are not yet counted in the embellishment table.
+**Embellishments (v3, 2026-08-30 — re-derived live, supersedes v1 and v2).**
+The Embellished `ItemLimitCategory` (512 "Embellished" Quantity 2; 697 "Outdoor
+Embellished" Quantity 1) is applied **by BONUS**: `ItemBonus` Type=35,
+`Value_0 ∈ {512,697}`, `ParentItemBonusListID ∈ {8960, 13555}` =
+`data/emb_markers.json` (grow-only union, unchanged and correct — it produced
+840 detections with zero false positives, and the per-player distribution
+0/1/2 matches Quantity=2 exactly).
+
+**Detection.** An item is embellished iff its `bonus` list hits a MARKER, or it
+is one of the 6 intrinsically-embellished items in `data/emb_items.json`.
+
+**IDENTITY** = the non-marker bonus lists emitted (FULL, cycle-guarded
+recursion) by an `ItemBonusTreeNode` tree that emits a marker **and has a
+`ModifiedCraftingReagentItem` row**, minus any id also emitted by a tree
+unrelated to any marker tree (leak guard — compared against marker trees AND
+their descendants, since a marker tree's own subtree re-emits its identity id).
+Measured 2026-08-30 over the whole table (19,095 rows, 4,410 trees): 53 trees
+emit a marker directly (child-count distribution exactly `{2}`), one more
+through a subtree = 54; **49 are reagent-backed → 49 identity ids, 0 leaked, 48
+named**. Direct-children-only and backed+recursion give the IDENTICAL set, so
+both guards ship as each other's insurance. Contrast: tree 4771 → `{8960,
+11304}` = Duskthread Lining, versus missive tree 3741 → `{8791}`, no marker.
+Draconic Missive (8791), Spark of Tides (13751) and Spark of Radiance (12066)
+are all absent from the 49-set, so an item carrying an embellishment AND a
+missive AND a spark still resolves to exactly one identity.
+
+**Naming.** tree → `MCRI.ID` → `ItemSparse?filter[ModifiedCraftingReagentItemID]
+=exact:<id>` → `Display_lang`, taken only when the quality-tier rows AGREE on
+one string (refuse, never pick). `ItemSparse` carries
+`ModifiedCraftingReagentItemID` itself, so the `Item` hop v1/v2 walked is
+DELETED. 13587 (tree 5862, MCRI 676) has zero ItemSparse rows — a printed gap,
+hand-nameable through the overrides file. Cost: 2 whole-table fetches plus one
+request per newly published reagent — steady state ~4 requests a run, so the
+pass runs FIRST in `main()` and is EXEMPT from `--limit` (under v2 it ran last
+and could die on `if not spend(): break` once the item loop spent the budget).
+
+**`emb_of`** returns the identity bonus id when exactly one is present AND
+named; `-1` (the generic bucket, rendered "embellished") when an identity id is
+present but unnamed, or a marker carries no identity id at all; and `-1` **plus
+a CONFLICT counter when TWO identity ids appear — never a guess.** Two is
+impossible under `ItemLimitCategory 512 Quantity=2`, so it is evidence the model
+broke, not a tie to break; v2's `sorted(named)[0]` is a miniature of v1 and is
+deleted. `emb` participates in the vocab identity key, so one base item worn
+with two different embellishments is two vocab entries. **The pipeline never
+emits a `#<digits>` label.**
+
+**DEAD END 1 (v1).** Naming by walking `bonus → ItemBonusTreeNode → MCRI → Item
+→ ItemSparse` per bonus id. That chain closes for EVERY optional crafting
+reagent, so stat missives and sparks were named as embellishments and split one
+crafted item into several rows.
+
+**DEAD END 2 (v2).** Guarding that walk on the reagent's Embellished
+`ItemSparse.LimitCategory`. **Measured: that field is `0` on every crafting
+reagent in the game** (48/48 resolved reagents) and non-zero on exactly SIX
+non-reagent WORN items (222458, 222459, 222463, 244463, 244472, 251073, all
+`ModifiedCraftingReagentItemID = 0`). **`ItemSparse.LimitCategory` is NEVER a
+reagent test** — rejection was 100% by construction, and every rejection was
+cached as a permanent null. Its only legitimate reading is the intrinsic-item
+probe that fills `data/emb_items.json`, which closes the "known gap" this
+section used to record.
+
+**Corroboration only, never a classifier:** the identity bonus grants the
+embellishment's spell (`ItemBonus` Type=23 → ItemEffectID; 13771 → ItemEffect
+234561 → Spell 1297382 = MCRI 696's `$@spelldesc1297382`), but Type=23 spans
+1,359 parent bonus lists of which only 49 are embellishments.
+
+**Caches.** `data/emb_identity.json` — `{"ids": [...], "names": {...}, "run":
+{...}}`; `names` is grow-only and **POSITIVE ONLY, a null is never stored**
+(absence means retry at one request), `ids` is rewritten on a successful
+derivation and never on `_FAILED`, `run` carries the diagnostics
+build_site_data republishes into `site/build_health.txt`.
+**The committed file IS the floor, and it is a shipped artifact with its own
+invariants** (REVISED 2026-08-30, v3.1 — v3 shipped correct code beside an
+`"ids": []` artifact, and since `emb_of` reaches a name only through that set,
+the site named nothing however many names sat beside it; the documented outage
+floor "the previous map survives" was void because the previous map was empty):
+`ids` non-empty and sorted-unique, every `names` key inside `ids` (no fixtures,
+no stale keys), no null or empty name, `ids ∩ emb_markers = ∅`, and
+`run.markers` equal to `data/emb_markers.json` with non-zero `marker_trees` and
+`backed` (a stub run is not a derivation). `test_builds_sidecar.py` asserts all
+six against the real `data/` — the only place the suite reads it.
+**THE EMPTY-DERIVATION FLOOR:** `_FAILED` covers the network dying; it does not
+cover db2 answering 200 with a table that parses to zero rows (renamed column,
+schema change, a stub pointed at the real `data/`). `save_emb_identity` refuses
+to shrink a non-empty `ids` to empty: the cached set survives, `run.ok` goes
+FALSE and `run.empty_derivation` TRUE, and `_emb_health` puts
+`derivation returned 0 ids; cached map retained` on the verdict line. Without
+it a single such run wipes the map and every run after inherits the wipe.
+`data/emb_items.json` `{"<itemid>": "name"}`. `data/emb_overrides.json`
+`{"names": {...}, "ids": [...]}` — **HUMAN ONLY, never machine-written, highest
+precedence**, and deliberately NOT round-tripped through `data/processed` so a
+cached copy can never shadow a hand edit. `data/names_bonus_emb2.json` is
+**RETIRED**: its nulls are unfalsifiable and permanent (`unseen()` skips any
+present key, `merge_grow_only()` never overwrites), and the committed `{}` is
+not evidence — the CI copy in the Actions cache is the real one. One migration
+reads it, copies the truthy values, drops the nulls, and prints the dropped
+count.
+
+**Proof.** `site/build_health.txt` carries an `[emb]` block whose FIRST line is
+a greppable `verdict: ok|DEGRADED|DEAD`, plus the db2 map, the invariants, the
+migration counts, the journal outcome, a co-occurrence AUDIT (an identity bonus
+is the marker's sibling in one tree, so its withMarker/seen ratio over distinct
+crafted configurations is exactly 1.000; a missive spreads over a partly
+embellished recipe family — WARN both ways, and it stays a VALIDATOR, never a
+classifier), and the vocab-split cost. The workflow greps the verdict and emits
+a `::warning::` annotation; **a data problem never fails the build**. v2 would
+have read `verdict: DEAD ... 0 named (0.0%)`; v1 would have shown a non-identity
+id at ratio 1.000 with real support.
+
+**Doctrine.** Derive what you can derive and recompute it every run; cache only
+what you cannot derive; never store a null as the answer to a recomputable
+question; never let an external source decide an identity it does not encode —
+let it supply only the word.
 
 **Cache files (committed, grow-only — merge, never overwrite):**
 `data/names_items.json` `{ "<itemid>": {"n": "...", "q": 4} | {"n": null} }`,
 `data/names_enchants.json` `{ "<enchid>": "cleaned name" | null }`,
-`data/crafted_ids.json` sorted int list, `data/names_bonus_emb.json` `{ "<bonusid>": "name" | null }`.
+`data/crafted_ids.json` sorted int list, `data/emb_markers.json` sorted int list,
+`data/emb_identity.json` / `data/emb_items.json` / `data/emb_overrides.json` (see the
+embellishment clause above — the identity name map is POSITIVE ONLY and never stores a null).
 
 **Flow**: new `scripts/fetch_names.py`, run by the collector workflow BETWEEN fetch_data
 and build_site_data. Reads the journal, diffs ids against the caches, fetches ONLY unseen
@@ -452,8 +549,10 @@ tile); if neither ships, no cell at all.
 `CS_SLOT_LABEL`/`CS_SLOT_ABBR` keys 10–13 are **not** repurposed — they stay correct for the
 enchant table, which is legitimately per-socket. `csCraftedModel` skips retail 10–13 in its
 per-slot pass and appends one pooled `Rings` / `Trinkets` row, carrying a `lab` string the
-table renders instead of `CS_SLOT_LABEL[r.slot]`; the embellishment tally is unchanged
-(still per-slot carries, still caveated by its own caption).
+table renders instead of `CS_SLOT_LABEL[r.slot]`. The embellishment tally is PER PLAYER
+with set semantics (REVISED 2026-08-30, v3) — one contribution per DISTINCT embellishment
+a row wears — so the same embellishment on two rings counts once, exactly as this pooled
+model does, and no row can exceed 100%.
 
 **slotfold — the in-place per-slot fold-out** (replaces the former standalone
 per-slot section AND its 16-chip selector — neither may return). Clicking a tile
@@ -522,15 +621,48 @@ row IS "unenchanted" — a real zero; show it as the "none" line when it wins). 
 **crafted — "Crafted & embellishments"** (Gear pane, last; secondary daily reading —
 CRAFTED badges already surface on grid tiles). Its .sec renders COLLAPSED by default,
 with the collapsed state made explicit: static `+` marker AND a scope-line summary
-`3 slots · 4 embellishments` (live counts) so the header is legible without opening —
-no invisible collapse. Open ⇒ two mini-tables side by side (stack ≤900px), equalized
-heights and one shared gutter so the row reads as one band at 1366. (1) Crafted worn:
-rows = slots where a `cr` entry appears in the slice: slot · top crafted item · share
-of gear-known · n. (2) Embellishments: aggregate vocab entries by `emb` across ALL
-slots: name · players · share — denominator = gear-known rows in window; caption
-states "counted per slot; a player can carry two". Open/closed state persists while
-the screen is open; zero crafted entries in the slice ⇒ the whole .sec does not
-render (never an empty shell).
+`10 slots · 93% of players embellished` (live counts) so the header is legible without
+opening — no invisible collapse. Open ⇒ two mini-tables side by side (stack ≤900px),
+equalized heights and one shared gutter so the row reads as one band at 1366.
+(1) Crafted worn: rows = slots where a `cr` entry appears in the slice: slot · top
+crafted item · share of gear-known · n. (2) Embellishments — REVISED 2026-08-30 (v3),
+because the old model summed per-SLOT carries across 16 slots into one bucket and
+produced "141.1%", a rate wearing a share's clothes in a column of shares:
+ * counted PER PLAYER with set semantics: a row contributes once per DISTINCT
+   embellishment it wears, so **no row can exceed 100%** though the column may;
+ * a naming-INDEPENDENT prevalence line above the table — `carried by 93.5% of 214
+   gear-known — two 47.7% · one 45.8% · none 6.5%`, from embellished ITEM counts per
+   row (the game caps it at two). It stays correct on the day naming breaks, and
+   against a one-row table it reads visibly incoherent — the alarm 2026-08-30 lacked;
+ * sortable `<th data-ec>` headers EMBELLISHMENT | PLAYERS | % (pref #12), default
+   share desc. WHICH rows survive is always decided by prevalence, never by the
+   display sort, so "other named (N)" cannot outweigh the rows above it;
+ * the `n ≥ CS_ENTRY_MIN` floor every other fold surface applies, then a cap of
+   `CS_EMB_CAP = 10` named rows — both are limits on the ROWS, **never a filter on
+   the population** (REVISED 2026-08-30, v3.1). Everything either limit excludes —
+   below the floor AND beyond the cap — folds into `other named (N)`, whose count is
+   a **CARDINALITY** (players carrying at least one folded embellishment, the
+   definition `csPoolFoldHTML` uses for "other / none"), never a sum of the folded
+   counts. Its `title` NAMES the folded embellishments with their counts, so "I wear
+   Kinetic Ankle Primers, why isn't it listed?" is answerable on the page. v3 filtered
+   `named` BEFORE slicing `rest`, so sub-floor embellishments reached no row, no
+   fold-in and no caption: measured over a named relabel of the live payload, 70
+   embellishments and 95 player-carries vanished across 18 specs (8 and 11 on
+   Paladin|Retribution alone) under a table that read as a complete list;
+ * the unidentified remainder (the pipeline's generic "embellished" bucket) is pulled
+   OUT of the ranking and pinned LAST in `var(--ink3)` with an explanatory `title` —
+   it is a remainder, not a finding. Above HALF the embellished population the header
+   appends ` · naming degraded` and the remainder renders FIRST;
+ * the caption matches the arithmetic word for word, names the vocabulary floor, and
+   DECLARES both display limits and the fold: `Rows are the top 10 above an n≥3 floor;
+   every other named embellishment is pooled into "other named", counted once per
+   player.` A caption that does not describe the arithmetic performed is the defect
+   class this section exists to kill.
+`embOf` passes the label through untouched — the vestigial `/^#\d+$/` guard is DELETED
+(the pipeline cannot emit that shape, and the guard would have swallowed a future
+placeholder and rendered the section emptier rather than louder). Open/closed state
+persists while the screen is open; zero crafted entries AND zero embellishments in the
+slice ⇒ the whole .sec does not render (never an empty shell).
 
 **talents — "Talent builds"** (+ hero, per the owner's logic; the Talents pane's
 whole content — one click from anywhere via the sub-nav or the identity-band digest,
@@ -642,7 +774,7 @@ now expresses; foot gains "hero fixed — builds differ in class/spec trees only
    adjacent slots skipping a suppressed Off Hand, last-visible-row auto-reveal via
    scrollIntoView block:'nearest') + enchants (fixed-width −/+ expander column with
    hover state, ~15% tighter rows, per-slot expanded memory) + crafted (collapsed by
-   default with live `N slots · M embellishments` scope summary, equalized card pair).
+   default with live `N slots · P% of players embellished` scope summary, equalized pair).
 9. Talents pane per §3.4 talents — unchanged hero logic, copy buttons, foot lines.
 10. Screen sections as SCREEN_BLOCKS entries `{id, has, html, wire}` — same registry
    pattern as FRAME_BLOCKS (which stays rail-only and untouched except the two entry
@@ -686,7 +818,7 @@ tile unfolds its distribution right under its row — caret pointing at the tile
 grid + fold-out sit whole above the fold at 1366; ArrowRight walks the fold-out to
 Hands, Esc folds it away without leaving the screen. Below, the tightened enchant
 table shows the helm rune at 84% with a discoverable −/+ column; Crafted &
-Embellishments waits collapsed under "3 slots · 4 embellishments". The Talents tab —
+Embellishments waits collapsed under "10 slots · 93% of players embellished". The Talents tab —
 one click, "1,676 known" on its face — lists two builds at 61%/22% with median DPS and
 copy buttons and the hero line. The sidebar and lens bar never left: they drag keys to
 +14–+16 and digest, counts, grid, and the still-open wrist fold-out all re-slice; they

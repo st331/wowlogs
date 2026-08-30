@@ -680,6 +680,20 @@ table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
 #cs-crafted-pair .bt{font-size:.7rem; font-weight:700; text-transform:uppercase;
   letter-spacing:.15em; color:var(--ink3); margin-bottom:.3rem}
 #cs-crafted-pair .caption{margin-top:.4rem}
+/* the embellishment table sorts (pref #12) — the same edge-rule sort language
+   as .data th, minus the sticky header a card-sized table has no use for */
+.fold-t th{color:var(--ink3); text-transform:uppercase; font-size:.63rem;
+  letter-spacing:.11em; font-weight:600; padding:.05rem .6rem .28rem 0;
+  text-align:right; cursor:pointer; user-select:none; white-space:nowrap;
+  box-shadow:inset 0 -1px 0 var(--line1); transition:color .12s}
+.fold-t th:hover{color:var(--ink)}
+.fold-t th.txt{text-align:left}
+.fold-t th.sorted{color:var(--accent)}
+.fold-t th.sorted.desc{box-shadow:inset 0 -2px 0 var(--accent)}
+.fold-t th.sorted.asc{box-shadow:inset 0 2px 0 var(--accent)}
+/* the unidentified remainder is real information, rendered quietly */
+.fold-t tr.emb-rem td{color:var(--ink3)}
+#cs-emb-prev{font-size:.78rem; color:var(--ink3); margin:0 0 .4rem}
 @media(max-width:900px){#cs-crafted-pair{flex-direction:column}}
 /* talent builds table */
 table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
@@ -3171,6 +3185,7 @@ let screenDlOpen=false;              // diff ledger disclosure — closed at res
 let __csBldS=[];                     // chip ordinal → build hash, for the wiring layer
 let screenEnchOpen=new Set();     // expanded enchant rows (retail slot ids)
 let screenSecClosed=new Set(["crafted"]);   // §15.9 collapse; crafted starts closed
+let screenEmbSort={c:"share", d:-1};   // embellishment table sort (pref #12)
 let __screenRemapPres=null;       // merge-toggle remap request (class*100+spec to re-find)
 let __csCopy=[];                  // import strings behind the rendered copy buttons
                                   // (hash-identified builds never enter it)
@@ -3357,8 +3372,14 @@ window.csIcoFail=function(img){
   if(a){ img.removeAttribute("data-alt"); img.src=a; return }
   img.remove();
 };
-// embellishment display name — an unresolved "#<bonusid>" never renders
-const embOf=e=>{const m=e&&e.emb; return (m&&!/^#\d+$/.test(m))?m:null};
+/* embellishment display name, or null. The pipeline emits either a resolved
+   reagent name or the literal "embellished" (its one generic bucket) and
+   NEVER a "#<bonusid>" placeholder — the guard that used to filter those is
+   gone with the v1 shape that produced them. It was worse than dead: it
+   would silently swallow any future placeholder and render the section
+   EMPTIER rather than louder. */
+const CS_EMB_GENERIC="embellished";   // the pipeline's unidentified bucket
+const embOf=e=>(e&&e.emb)||null;
 // icon tile (§1 widening) — vocab "ic" ⇒ self-hosted icons/<ic>.jpg over the
 // glyph layer; no "ic", or a 404, ⇒ the glyph tile alone (onerror removes the
 // img, so a broken-image glyph never renders and the miss stays silent)
@@ -3418,6 +3439,7 @@ const CS_SLOT_ABBR={0:"Hd",1:"Nk",2:"Sh",4:"Ch",5:"Wa",6:"Lg",7:"Ft",8:"Wr",
   9:"Ha",10:"R1",11:"R2",12:"T1",13:"T2",14:"Bk",15:"MH",16:"OH"};
 const CS_THIN=10;                       // §3.5 thin-n floor
 const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into "other"
+const CS_EMB_CAP=10;                    // named embellishment rows before the tail folds
 const fmtDpsM=v=>v>=1e6?(v/1e6).toFixed(2)+"M":fmtDps(v);
 
 /* ---- URL persistence (owner, 2026-08-30): "I don't want the character
@@ -3966,19 +3988,44 @@ function csEnchHTML(ctx,d){
     esc("share of "+fmtInt(total)+" gear-known in window · click a row for alternatives"))
     +'<table class="cs-ench">'+rows+'</table></div>';
 }
-/* crafted & embellishments (§3.4) — collapsed by default with a live summary */
+/* crafted & embellishments (§3.4) — collapsed by default with a live summary.
+
+   The embellishment tally is PER PLAYER with set semantics, matching
+   csPoolModel and every doll tile: a row contributes ONCE to each DISTINCT
+   embellishment it wears, so no row can exceed 100% and the same
+   embellishment on two rings (or on a ring and a cloak) is one wearer, not
+   two. The previous model summed per-SLOT wearer counts into one bucket
+   across all 16 slots, which is how a single generic row came to read
+   "141.1%" — a rate wearing a share's clothes, next to a column of shares.
+   Separately, and naming-independently, we count embellished ITEMS per row
+   (0/1/2 — the game caps it at two) for the prevalence line, which is the
+   one number that stays true on the day naming breaks. */
 function csCraftedModel(d){
-  const slots=BUILDSC.slots, bySlot=[], emb=new Map();
+  const slots=BUILDSC.slots, bySlot=[], emb=new Map(), sets=[];
+  const VV=[];
+  for(let si=0;si<slots.length;si++) VV.push((d.vocab.items||[])[si]||[]);
+  let anyN=0, oneN=0, twoN=0;
+  for(const i of d.gearIdx){
+    const labs=new Set(); let items=0;
+    for(let si=0;si<slots.length;si++){
+      const v=bldItV(si,i); if(v<=0) continue;
+      const e=VV[si][v-1]; if(!e) continue;
+      const em=embOf(e); if(!em) continue;
+      labs.add(em); items++;
+    }
+    if(!items) continue;
+    anyN++; if(items===1) oneN++; else twoN++;
+    sets.push([...labs]);      // per-player, so "other" can be a CARDINALITY
+    for(const k of labs) emb.set(k,(emb.get(k)||0)+1);
+  }
   for(let si=0;si<slots.length;si++){
-    const V=(d.vocab.items||[])[si]||[];
+    const V=VV[si];
     const cnt=new Map();
     for(const i of d.gearIdx){ const v=bldItV(si,i); if(v>0) cnt.set(v,(cnt.get(v)||0)+1); }
     let top=null;
     for(const [v,c] of cnt){
       const e=V[v-1]; if(!e) continue;
       if(e.cr&&(!top||c>top.c)) top={c,e};
-      const em=embOf(e);
-      if(em) emb.set(em,(emb.get(em)||0)+c);   // counted per slot (a player can carry two)
     }
     // rings and trinkets are pooled below — one row per PAIR, so the table
     // never asserts "Ring 1" (a socket the doll no longer names) and never
@@ -3994,16 +4041,27 @@ function csCraftedModel(d){
     if(top) bySlot.push({slot:pr[0], lab:CS_POOL_LABEL[p]+"s",
       c:top.c, e:top.e});
   }
-  return {bySlot, emb:[...emb.entries()].sort((a,b)=>b[1]-a[1])};
+  // the unidentified bucket is pulled OUT of the ranking: it is a remainder,
+  // not a finding, and must never sort into the middle of named rows
+  const unN=emb.get(CS_EMB_GENERIC)||0;
+  emb.delete(CS_EMB_GENERIC);
+  return {bySlot, emb:[...emb.entries()].map(([name,n])=>({name,n})),
+          sets, anyN, oneN, twoN, unN, total:d.gearIdx.length};
 }
 function csCraftedHTML(ctx,d){
   if(!d.vocab||!d.gearIdx.length||d.gearIdx.length<CS_THIN) return "";
   const M=csCraftedModel(d);
-  if(!M.bySlot.length&&!M.emb.length) return "";   // never an empty shell
+  if(!M.bySlot.length&&!M.emb.length&&!M.unN) return "";  // never an empty shell
   const total=d.gearIdx.length;
+  // above half the embellished population unnamed, the section says so in its
+  // own header and leads with the remainder. This morning's bug — 840
+  // detections, one meaningless row — would have read "100% unidentified ·
+  // naming degraded" instead of one tidy, plausible line.
+  const degraded=M.anyN>0&&M.unN>M.anyN/2;
   let h=csSecOpen("crafted","Crafted & embellishments",
     esc(M.bySlot.length+" slot"+(M.bySlot.length===1?"":"s")+" · "
-      +M.emb.length+" embellishment"+(M.emb.length===1?"":"s")));
+      +(100*M.anyN/total).toFixed(0)+"% of players embellished"
+      +(degraded?" · naming degraded":"")));
   h+='<div id="cs-crafted-pair"><div><div class="bt">Crafted worn</div>'
     +'<table class="fold-t">';
   for(const r of M.bySlot)
@@ -4012,12 +4070,95 @@ function csCraftedHTML(ctx,d){
       +'<td class="txt">'+csIcoHTML(r.e,csFoldPh(r.e),true)+' '
       +itemNameHTML(r.e)+'</td>'
       +'<td>'+(100*r.c/total).toFixed(1)+'%</td><td>n='+fmtInt(r.c)+'</td></tr>';
-  h+='</table></div><div><div class="bt">Embellishments</div><table class="fold-t">';
-  for(const [name,c] of M.emb)
-    h+='<tr><td class="txt">'+esc(name)+'</td><td>'+fmtInt(c)+' carries</td>'
-      +'<td>'+(100*c/total).toFixed(1)+'%</td></tr>';
-  h+='</table><div class="caption">counted per slot; a player can carry two</div>'
-    +'</div></div></div>';
+  h+='</table></div><div><div class="bt">Embellishments</div>';
+  // the prevalence line is computed from embellished ITEM counts, so it needs
+  // no name at all and stays correct on the day naming breaks — the alarm
+  // this section lacked. Against a one-row table it reads visibly incoherent.
+  h+='<div id="cs-emb-prev">'+esc("carried by "
+    +(100*M.anyN/total).toFixed(1)+"% of "+fmtInt(total)+" gear-known — two "
+    +(100*M.twoN/total).toFixed(1)+"% · one "+(100*M.oneN/total).toFixed(1)
+    +"% · none "+(100*(total-M.anyN)/total).toFixed(1)+"%")+'</div>';
+  // named rows: the same n≥3 floor every other fold surface applies, then a
+  // cap of 10 with the tail folded — 49 embellishments exist, and a card this
+  // size must not grow a ragged tail of 1-carry rows
+  // WHICH rows survive is always decided by prevalence, never by the display
+  // sort — otherwise sorting by name folds the biggest embellishments into
+  // the tail and "other named" outweighs every row above it
+  const named=M.emb.slice()
+    .sort((a,b)=>(b.n-a.n)||(a.name<b.name?-1:a.name>b.name?1:0));
+  // the n≥3 floor and the cap of 10 are DISPLAY limits on the ROWS, never a
+  // filter on the population. Filtering `named` before the slice (as this did)
+  // made the floor a silent deletion: `rest` was sliced from the already-
+  // filtered list, so a spec's rarest embellishments reached no row, no fold-in
+  // and no caption — the table read as a complete list of what is worn while
+  // omitting half the identities, and the owner wearing one of them had no way
+  // to tell. Everything both limits exclude is pooled into "other named" below.
+  const show=named.filter(x=>x.n>=CS_ENTRY_MIN).slice(0,CS_EMB_CAP);
+  const shown=new Set(show.map(x=>x.name));
+  const rest=named.filter(x=>!shown.has(x.name));
+  const sc=screenEmbSort;
+  show.sort((a,b)=>{
+    const r=sc.c==="name"?(a.name<b.name?-1:a.name>b.name?1:0):(a.n-b.n);
+    // a TOTAL order, so equal rows never swap places between renders
+    return r*sc.d||(b.n-a.n)||(a.name<b.name?-1:a.name>b.name?1:0);
+  });
+  const cols=[["name","Embellishment","txt"],["n","Players",""],
+              ["share","%",""]];
+  h+='<table class="fold-t"><thead><tr>';
+  for(const [k,label,txt] of cols)
+    h+='<th class="'+txt+(k===sc.c?" sorted "+(sc.d<0?"desc":"asc"):"")
+      +'" data-ec="'+k+'">'+label+'</th>';
+  h+='</tr></thead><tbody>';
+  const row=(nm,c,cls,ttl)=>'<tr'+(cls?' class="'+cls+'"':'')+(ttl?' title="'
+    +escA(ttl)+'"':'')+'><td class="txt">'+esc(nm)+'</td><td>'+fmtInt(c)
+    +'</td><td>'+(100*c/total).toFixed(1)+'%</td></tr>';
+  const remainder=M.unN?row("unidentified",M.unN,"emb-rem",
+    "embellished items whose embellishment we could not name: no identity "
+    +"bonus, two candidates, or a reagent with no published name"):"";
+  if(degraded) h+=remainder;
+  for(const x of show) h+=row(x.name,x.n,"");
+  if(rest.length){
+    // a CARDINALITY, not a sum of the folded counts — the same definition
+    // csPoolFoldHTML uses for "other / none": a player carrying two folded
+    // embellishments is one player, and summing would count them twice
+    let other=0;
+    for(const st of M.sets)
+      for(const k of st)
+        if(k!==CS_EMB_GENERIC&&!shown.has(k)){ other++; break }
+    // the tooltip names what was folded, so "I wear Kinetic Ankle Primers,
+    // why isn't it listed?" is answerable on the page instead of nowhere
+    const lst=rest.slice(0,15).map(x=>x.name+" ("+fmtInt(x.n)+")").join(", ")
+      +(rest.length>15?", +"+fmtInt(rest.length-15)+" more":"");
+    h+=row("other named ("+rest.length+")",other,"emb-rem",
+      rest.length+" named embellishment"+(rest.length===1?"":"s")
+      +" below the n≥"+CS_ENTRY_MIN+" floor or outside the top "+CS_EMB_CAP
+      +", counted once per player: "+lst);
+  }
+  if(!degraded) h+=remainder;
+  // The caption states what THIS render actually did. The first version
+  // described a named world unconditionally -- top-N rows, an n-floor, an
+  // "other named" pool, a column summing over 100% -- while the shipped data
+  // had zero named embellishments, no row hit any floor, and the column summed
+  // to 93%. A caption that describes arithmetic the page did not perform is
+  // the same defect as a wrong number, so each clause now appears only when it
+  // is true of what is on screen.
+  const capSum = M.emb.reduce((a, x) => a + 100 * x.n / (total || 1), 0);
+  let cap = "share of the " + fmtInt(total) + " gear-known players in this "
+    + "window wearing this embellishment on at least one item, counted once "
+    + "per player.";
+  if (named.length)
+    cap += " A player can wear two different ones, so the column"
+      + (capSum > 100 ? " sums to " + capSum.toFixed(0) + "%" : " can exceed 100%")
+      + " — no single row can."
+      + (rest.length ? " Rows are the top " + CS_EMB_CAP + " above an n≥"
+          + CS_ENTRY_MIN + " floor; the rest are pooled into “other named”." : "");
+  else
+    cap += " No embellishment here is named yet — the pipeline knows these "
+      + "items carry one but not which, so they are pooled as a single "
+      + "unnamed row rather than guessed at.";
+  cap += " Covers items inside the shipped per-slot vocabulary.";
+  h+='</tbody></table><div class="caption">'+esc(cap)
+    +'</div></div></div></div>';
   return h;
 }
 /* ---- in-game-style talent trees (feature contract "Talent presentation
@@ -4927,6 +5068,14 @@ function wireScreen(host,ctx,d){
       // one open at a time; the same tile closes — and so does the OTHER tile
       // of a pooled pair, which shares the id because it is the same panel
       screenFold=(screenFold===fid)?null:fid;
+      renderScreen();
+    };
+  });
+  host.querySelectorAll("#cs-crafted-pair th[data-ec]").forEach(th=>{
+    th.onclick=e=>{
+      e.stopPropagation();                     // never collapse the section
+      const c=th.dataset.ec;
+      screenEmbSort={c, d:screenEmbSort.c===c?-screenEmbSort.d:-1};
       renderScreen();
     };
   });

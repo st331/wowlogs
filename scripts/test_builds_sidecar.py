@@ -13,6 +13,17 @@ ladder, and empty-journal absence. fetch_names' offline half: enchant-name
 cleaning, grow-only merges that never overwrite manual entries, null =
 asked-and-unnamed (never re-asked), and a stubbed end-to-end run whose
 network failures change nothing and still exit 0.
+
+EMBELLISHMENT IDENTITY (v3) is pinned hardest, because this suite stayed
+GREEN through two production bugs -- it asserted a fiction: the old fake db2
+gave a crafting reagent `"LimitCategory": "512"` where live db2 says `0` on
+every reagent in the game. That fixture is corrected first; the v2 code
+cannot pass the corrected suite. Pinned: the v1 failure (a missive on the
+same item must never be named or split identity), the v2 failure (a real
+embellishment MUST be named, the reagent's LimitCategory is never read and
+the Item hop is gone), full recursion, unbacked trees, the leak guard,
+CONFLICT, name-tier disagreement, that NO null is ever stored, migration off
+the sticky-null v2 cache, and the [emb] build-health verdict token.
 """
 import base64
 import gzip
@@ -78,9 +89,23 @@ CACHES = {
     "names_enchants.json": {"7008": "Rune of Tests"},   # 7100 never asked
     "crafted_ids.json": [222],
     "emb_markers.json": [8960],
-    # v2 semantics: 12001 = validated embellishment reagent; 6652 = a stat
-    # missive validated NOT-an-embellishment (null) — must never split
-    "names_bonus_emb2.json": {"12001": "Radiant Hem", "6652": None},
+    # v3: identity is SET MEMBERSHIP against a db2-derived id set. 12001 is
+    # a named embellishment; 16001 is a real identity id db2 could not name
+    # (generic bucket, never dropped); 6652 is a stat missive — not in the
+    # set at all, so it can never split identity however it co-occurs.
+    # (exactly what the fake db2 below derives, written out by hand)
+    "emb_identity.json": {"ids": [12001, 13001, 16001],
+                          "names": {"12001": "Radiant Hem",
+                                    "13001": "Nested Lining"},
+                          "run": {"ok": True, "trees": 9, "direct": 5,
+                                  "marker_trees": 5, "backed": 4,
+                                  "unbacked": [505], "leaked": [15001],
+                                  "depth": 3, "bad_children": [],
+                                  "by_marker": {"8960": 5}, "fetched": 2,
+                                  "failures": 0, "migrated": 0,
+                                  "dropped_nulls": 0, "intrinsic": 1}},
+    "emb_items.json": {"777": "Intrinsically Embellished Boots"},
+    "emb_overrides.json": {"names": {}, "ids": []},
     # 111 has an icon; 222 was asked and has none (null); 112 never asked
     "names_icons.json": {"111": "inv_helm_test", "222": None},
 }
@@ -97,7 +122,9 @@ def run_builds(rows, recs, caches=CACHES, **kw):
         bsd.NAMES_ITEMS = tp / "names_items.json"
         bsd.NAMES_ENCHANTS = tp / "names_enchants.json"
         bsd.CRAFTED_IDS = tp / "crafted_ids.json"
-        bsd.NAMES_BONUS_EMB2 = tp / "names_bonus_emb2.json"
+        bsd.EMB_IDENTITY = tp / "emb_identity.json"
+        bsd.EMB_ITEMS = tp / "emb_items.json"
+        bsd.EMB_OVERRIDES = tp / "emb_overrides.json"
         bsd.EMB_MARKERS = tp / "emb_markers.json"
         bsd.NAMES_ICONS = tp / "names_icons.json"
         bsd.TRAIT_GEOMETRY = tp / "trait_geometry.json"
@@ -185,13 +212,24 @@ def paladin_gear(i):
     g += [gear_item(300 + s) for s in (1, 2)]               # 1 neck 2 shoulder
     g += [{"id": 0}]                                        # 3 shirt (empty)
     g += [gear_item(400 + s) for s in (4, 5, 6, 7)]         # chest..feet
-    # i<=6: marker + named reagent + missive; 7-10: marker only (generic
-    # bucket); 11-13: missive alone on a NON-embellished item (must club
-    # with plain); 14+: no bonus at all (same plain entry)
-    bonus = ([8960, 12001, 6652] if i <= 6 else [8960] if i <= 10
-             else [6652] if i <= 13 else None)
+    # every embellishment branch of emb_of, on one crafted wrist:
+    #   i<=6  marker + NAMED identity + a missive -> "Radiant Hem". The
+    #         missive rides the same item and must not touch identity (v1).
+    #   7-8   marker alone                        -> generic bucket
+    #   9-10  marker + an identity id db2 could not name -> generic, kept
+    #   11-12 a missive on a NON-embellished item  -> clubs with plain
+    #   13    marker + TWO identity ids            -> CONFLICT -> generic
+    #   14+   no bonus at all                      -> the same plain entry
+    bonus = ([8960, 12001, 6652] if i <= 6 else
+             [8960] if i <= 8 else
+             [8960, 16001] if i <= 10 else
+             [6652] if i <= 12 else
+             [8960, 12001, 13001] if i == 13 else None)
     g += [gear_item(222, bonus=bonus)]                      # 8 wrist
-    g += [gear_item(400 + s) for s in (9, 10, 11, 12, 13, 14)]
+    # 777 is INTRINSICALLY embellished (emb_items.json): no marker bonus,
+    # no bonus list at all, still embellished
+    g += [gear_item(777 if i <= 4 else 409)]                # 9 hands
+    g += [gear_item(400 + s) for s in (10, 11, 12, 13, 14)]
     g += [gear_item(555, ench=7008)]                        # 15 mainhand
     g += [{"id": 0}]                                        # 16 offhand empty
     return g
@@ -233,11 +271,19 @@ assert head[0] == {"id": 111, "n": "Crown of Testing", "ilvl": 720,
                    "ic": "inv_helm_test"}, head[0]      # §1.6 icon widening
 assert head[1] == {"id": 112, "n": None, "ilvl": 720}, head[1]  # never asked
 wrist = spec["items"][doc["slots"].index(8)]
+# plain 9 (i 11-12 missive-only + 14-20) > "Radiant Hem" 6 > generic 5
 assert wrist[0] == {"id": 222, "n": None, "ilvl": 720, "cr": 1}, wrist[0]
 assert wrist[1] == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
                     "emb": "Radiant Hem"}, wrist[1]
 assert wrist[2] == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
                     "emb": "embellished"}, wrist[2]   # generic bucket, no id
+assert len(wrist) == 3, wrist          # THREE entries: the missive (6652),
+# the unnamed identity id (14001) and the conflict all fall into ONE generic
+# bucket. v1 split this column five ways by stat combo.
+hands = spec["items"][doc["slots"].index(9)]
+assert hands[0] == {"id": 409, "n": None, "ilvl": 720}, hands[0]
+assert hands[1] == {"id": 777, "n": None, "ilvl": 720,
+                    "emb": "embellished"}, hands[1]   # intrinsic, no bonus
 assert spec["ench"][0] == [{"id": 7100, "n": None}], spec["ench"]
 assert spec["ench"][1] == [{"id": 7008, "n": "Rune of Tests"}], spec["ench"]
 assert spec["builds"] == [{"s": "BUILD_X", "n": 13}, {"s": "BUILD_Y", "n": 5},
@@ -374,6 +420,83 @@ assert empty is None                                      # empty journal
 print("ladder    : full caps -> en dropped (eslots []) -> items 24->18 -> "
       "12 (builds->24) -> refused over cap; empty journal -> no file")
 
+# --------------------------------------------------------------------------
+# the [emb] proof block (§3). Both previous embellishment bugs shipped
+# because build_health.txt said NOTHING about embellishments; the verdict is
+# the first line and a single greppable token, so it is what is pinned here.
+def emb_verdict(caches, bonus, n=12):
+    v_rows, v_recs = [], []
+    for i in range(1, n + 1):
+        rw, rc = make_parse(f"V{i}", f"Vx{i}", "Priest", "Shadow",
+                            gear=[gear_item(222, bonus=bonus)])
+        v_rows.append(rw)
+        v_recs.append(rc)
+    mark = len(bsd._HEALTH)
+    run_builds(v_rows, v_recs, caches, enc="dense")
+    lines = [ln for ln in bsd._HEALTH[mark:] if "[emb] verdict:" in ln]
+    assert len(lines) == 1, lines
+    return lines[0]
+
+
+clean_c = dict(CACHES)
+clean_c["emb_identity.json"] = {
+    "ids": [12001], "names": {"12001": "Radiant Hem"},
+    "run": {"ok": True, "trees": 1, "direct": 1, "marker_trees": 1,
+            "backed": 1, "unbacked": [], "leaked": [], "depth": 1,
+            "bad_children": [], "by_marker": {"8960": 1}, "fetched": 0,
+            "failures": 0, "migrated": 0, "dropped_nulls": 0}}
+assert "verdict: ok" in emb_verdict(clean_c, [8960, 12001])
+# the EXACT shape of the v2 regression: markers detected, name map empty
+dead_c = dict(clean_c)
+dead_c["emb_identity.json"] = dict(clean_c["emb_identity.json"], names={})
+dead_line = emb_verdict(dead_c, [8960, 12001])
+assert "verdict: DEAD" in dead_line and "0 named" in dead_line, dead_line
+# db2 silent this run: the cached map still ships, but the block says so
+stale_c = dict(clean_c)
+stale_c["emb_identity.json"] = dict(
+    clean_c["emb_identity.json"],
+    run=dict(clean_c["emb_identity.json"]["run"], ok=False))
+assert "db2 did not answer" in emb_verdict(stale_c, [8960, 12001])
+print("emb health: verdict ok on a named fixture; DEAD on markers-with-no-"
+      "names (the v2 signature); DEGRADED when db2 was silent")
+
+# The AUDIT line is the tripwire for the v1 failure, so it is exercised in
+# both directions rather than left to fire for the first time in production.
+# Counted per DISTINCT crafted configuration, support>=12 over >=3 item ids.
+def emb_audit(withMissive):
+    a_rows, a_recs = [], []
+    for i in range(12):                     # 12 configs, ALL embellished
+        bonus = [8960, 12001] + ([6652] if withMissive else []) + [7000 + i]
+        rw, rc = make_parse(f"A{i}", f"Ax{i}", "Priest", "Discipline",
+                            gear=[gear_item(900 + i % 4, bonus=bonus)])
+        a_rows.append(rw)
+        a_recs.append(rc)
+    for i in range(12):                     # 12 configs, NONE embellished
+        rw, rc = make_parse(f"B{i}", f"Bx{i}", "Priest", "Discipline",
+                            gear=[gear_item(900 + i % 4,
+                                            bonus=[6653, 7100 + i])])
+        a_rows.append(rw)
+        a_recs.append(rc)
+    c = dict(clean_c)
+    c["crafted_ids.json"] = [222, 900, 901, 902, 903]
+    mark = len(bsd._HEALTH)
+    run_builds(a_rows, a_recs, c, enc="dense")
+    return [ln for ln in bsd._HEALTH[mark:] if "AUDIT" in ln][0]
+
+
+ok_line = emb_audit(False)
+assert "identity ids min withMarker/seen 1.000 (1 ids" in ok_line, ok_line
+assert "non-identity max 0.000 (1 ids) -> CLEAN" in ok_line, ok_line
+# 6652 is a missive: NOT in the identity set, yet it rides only embellished
+# items here. That is exactly the shape v1 mistook for an embellishment, and
+# the audit must say so out loud rather than let it pass.
+warn_line = emb_audit(True)
+assert "-> WARN" in warn_line and "[6652]" in warn_line, warn_line
+assert "1.000 (2 ids)" in warn_line, warn_line
+print("emb audit : co-occurrence validator fires BOTH ways -- CLEAN when the "
+      "db2 set matches the journal, WARN naming the bonus id when a "
+      "non-identity id rides only embellished items (the v1 shape)")
+
 # missing caches degrade to null names, never an error
 _, bare = run_builds(rows, recs, caches={}, enc="dense")
 b_spec = bare["specs"]["Paladin|Retribution"]
@@ -399,8 +522,51 @@ print("fn helpers: enchant cleaning; grow-only merge keeps manual entries; "
       "null never re-asked")
 
 
+"""A fake db2 with REAL semantics.
+
+The suite passed through both embellishment bugs because the old fake gave
+the reagent `"LimitCategory": "512"` — live db2 says `0` on every crafting
+reagent in the game, and non-zero on exactly six non-reagent WORN items.
+Every reagent row below therefore carries `LimitCategory: "0"`, so any code
+that validates a reagent on that field names NOTHING and fails this suite.
+
+The ItemBonusTreeNode table is now a WHOLE table (v3 fetches it once, not
+per bonus id) and models every shape that matters:
+  500  {8960 marker, 12001}                 backed by MCRI 600 -> named
+  501  {6652}                               a missive tree: NO marker
+  502  {8960, ->503}, 503 {->504}, 504 {13001}   nested identity, backed 602
+  505  {8960, 14001}                        marker tree with NO MCRI row
+  506  {8960, 15001}                        backed by 606, but...
+  507  {15001}                              ...15001 also rides a NON-marker
+                                            tree -> the leak guard drops it
+  508  {8960, 16001}                        backed by 608, whose ItemSparse
+                                            rows DISAGREE on Display_lang
+"""
+IBTN = [
+    ("500", "", "8960"), ("500", "", "12001"),
+    ("501", "", "6652"),
+    ("502", "", "8960"), ("502", "503", ""),
+    ("503", "504", ""), ("504", "", "13001"),
+    ("505", "", "8960"), ("505", "", "14001"),
+    ("506", "", "8960"), ("506", "", "15001"),
+    ("507", "", "15001"),
+    ("508", "", "8960"), ("508", "", "16001"),
+]
+QUERIED = []
+
+
 def fake_get(path, params=None):
     p = (params or {})
+    QUERIED.append((path, tuple(sorted(p.items()))))
+    if path == "ItemBonusTreeNode":
+        return [{"ParentItemBonusTreeID": t, "ChildItemBonusTreeID": st,
+                 "ChildItemBonusListID": bl} for t, st, bl in IBTN]
+    if path == "ModifiedCraftingReagentItem":
+        return [{"ID": "600", "ItemBonusTreeID": "500"},
+                {"ID": "601", "ItemBonusTreeID": "501"},
+                {"ID": "602", "ItemBonusTreeID": "502"},
+                {"ID": "606", "ItemBonusTreeID": "506"},
+                {"ID": "608", "ItemBonusTreeID": "508"}]
     if path == "CraftingData":
         return [{"CraftedItemID": "222"}, {"CraftedItemID": "0"}]
     if path == "ItemLimitCategory":
@@ -413,33 +579,34 @@ def fake_get(path, params=None):
         if p.get("filter[ID]") == "exact:111":
             return [{"Display_lang": "Crown of Testing",
                      "OverallQualityID": "4"}]
-        if p.get("filter[ID]") == "exact:31337":
-            return [{"Display_lang": "Radiant Hem", "LimitCategory": "512"}]
-        if p.get("filter[ID]") == "exact:31338":   # a missive: no emb cat
-            return [{"Display_lang": "Draconic Missive of Nope",
+        # reagents, reached by MCRI id — the Item hop is gone. Quality tiers
+        # return several rows; LimitCategory is 0 on every one, as in life.
+        mc = p.get("filter[ModifiedCraftingReagentItemID]")
+        if mc == "exact:600":
+            return [{"ID": "31337", "Display_lang": "Radiant Hem",
+                     "LimitCategory": "0"},
+                    {"ID": "31338", "Display_lang": "Radiant Hem",
                      "LimitCategory": "0"}]
+        if mc == "exact:602":
+            return [{"ID": "31340", "Display_lang": "Nested Lining",
+                     "LimitCategory": "0"}]
+        if mc == "exact:608":                      # tiers DISAGREE -> refuse
+            return [{"ID": "31341", "Display_lang": "Ambiguous A",
+                     "LimitCategory": "0"},
+                    {"ID": "31342", "Display_lang": "Ambiguous B",
+                     "LimitCategory": "0"}]
+        if mc == "exact:601":                      # the missive's reagent
+            return [{"ID": "31339",
+                     "Display_lang": "Draconic Missive of Nope",
+                     "LimitCategory": "0"}]
+        if p.get("filter[LimitCategory]") == "exact:512":
+            return [{"ID": "777",
+                     "Display_lang": "Intrinsically Embellished Boots",
+                     "LimitCategory": "512"}]
         return []
     if path == "SpellItemEnchantment":
         if p.get("filter[ID]") == "exact:7008":
             return [{"Name_lang": "Enchant Helm - Rune of Tests |A:x|a"}]
-        return []
-    if path == "ItemBonusTreeNode":
-        if p.get("filter[ChildItemBonusListID]") == "exact:12001":
-            return [{"ParentItemBonusTreeID": "500"}]
-        if p.get("filter[ChildItemBonusListID]") == "exact:13001":
-            return [{"ParentItemBonusTreeID": "501"}]
-        return []
-    if path == "ModifiedCraftingReagentItem":
-        if p.get("filter[ItemBonusTreeID]") == "exact:500":
-            return [{"ID": "600"}]
-        if p.get("filter[ItemBonusTreeID]") == "exact:501":
-            return [{"ID": "601"}]
-        return []
-    if path == "Item":
-        if p.get("filter[ModifiedCraftingReagentItemID]") == "exact:600":
-            return [{"ID": "31337"}]
-        if p.get("filter[ModifiedCraftingReagentItemID]") == "exact:601":
-            return [{"ID": "31338"}]
         return []
     return []
 
@@ -471,10 +638,21 @@ with tempfile.TemporaryDirectory() as tmp:
     fn.NAMES_ENCHANTS = tp / "names_enchants.json"
     fn.CRAFTED_IDS = tp / "crafted_ids.json"
     fn.NAMES_BONUS_EMB2 = tp / "names_bonus_emb2.json"
+    fn.EMB_IDENTITY = tp / "emb_identity.json"
+    fn.EMB_ITEMS = tp / "emb_items.json"
+    fn.EMB_OVERRIDES = tp / "emb_overrides.json"
     fn.EMB_MARKERS = tp / "emb_markers.json"
     fn.NAMES_ICONS = tp / "names_icons.json"
     fn.ICONS_DIR = tp / "icons"
-    fn.NAMES_BONUS_EMB2.write_text(json.dumps({"9999": "Manual Name"}))
+    # THE STICKY-NULL TRAP, end to end. This is the RETIRED v2 cache as CI
+    # actually holds it: one hand-typed name and a null for every candidate
+    # bonus id v2 ever asked about — including 12001, the identity id this
+    # run must name. v2's unseen() would skip all of them forever, so a
+    # corrected resolver against this file resolves NOTHING. If the fix ever
+    # regresses to reading it, 12001 comes back unnamed and this fails.
+    fn.NAMES_BONUS_EMB2.write_text(json.dumps(
+        {"9999": "Manual Name", "12001": None, "13001": None,
+         "6652": None, "16001": None}))
     # 333 already known to the item cache: the icon phase must still ask
     # wowhead for it (icons trail names) and cache the sanitized-out answer
     fn.NAMES_ITEMS.write_text(json.dumps({"333": {"n": None}}))
@@ -487,31 +665,98 @@ with tempfile.TemporaryDirectory() as tmp:
     assert json.loads(fn.NAMES_ENCHANTS.read_text()) == \
         {"7008": "Rune of Tests"}
     assert json.loads(fn.CRAFTED_IDS.read_text()) == [222]
-    emb = json.loads(fn.NAMES_BONUS_EMB2.read_text())
-    # markers live in their own file, never in the reagent cache; the
-    # missive-shaped candidate validates to null (reagent lacks an
-    # Embellished limit category), the true reagent keeps its name
-    assert emb == {"9999": "Manual Name", "12001": "Radiant Hem",
-                   "13001": None}, emb
     assert json.loads(fn.EMB_MARKERS.read_text()) == [8960]
     icons = json.loads(fn.NAMES_ICONS.read_text())
     assert icons == {"111": "inv_helm_test", "333": None}, icons
     assert (tp / "icons" / "inv_helm_test.jpg").read_bytes() == b"JPEGDATA"
+
+    # ---- the v3 identity map, every branch of the derivation
+    ident = json.loads(fn.EMB_IDENTITY.read_text())
+    # (1) v1 REGRESSION: the missive 6652 rides tree 501, which emits no
+    #     marker. It is absent from the identity set, so it can never be
+    #     named and can never split a crafted item — even when it sits on
+    #     the same item as a marker and an identity id (it does, above).
+    assert 6652 not in ident["ids"] and "6652" not in ident["names"]
+    # (2) NESTED: 13001 hides two levels down 502 -> 503 -> 504. A
+    #     one-level walk finds nothing there and fails this line.
+    # (3) UNBACKED: 14001's tree 505 emits the marker but has no MCRI row —
+    #     not a craftable reagent, so it contributes no identity and
+    #     nothing raises.
+    # (4) LEAK GUARD: 15001 is emitted by backed marker tree 506 AND by the
+    #     unrelated tree 507, so it is dropped and counted.
+    # (5) DISAGREEMENT: 16001 is a real identity id whose ItemSparse tiers
+    #     disagree; it stays in ids and is REFUSED a name, never picked.
+    assert ident["ids"] == [12001, 13001, 16001], ident["ids"]
+    assert ident["run"]["leaked"] == [15001], ident["run"]
+    assert ident["run"]["unbacked"] == [505], ident["run"]
+    assert ident["run"]["direct"] == 5 and ident["run"]["marker_trees"] == 5
+    assert ident["run"]["depth"] == 3, ident["run"]["depth"]
+    assert ident["run"]["bad_children"] == []
+    # (6) v2 REGRESSION: every fake reagent row carries LimitCategory "0",
+    #     as live db2 does. v2's guard names nothing against this fixture.
+    assert ident["names"] == {"9999": "Manual Name",       # migrated, truthy
+                              "12001": "Radiant Hem",
+                              "13001": "Nested Lining"}, ident["names"]
+    # (7) POSITIVE ONLY: not one null anywhere. 16001 is simply absent and
+    #     will be re-asked at one request — the bug class is deleted.
+    assert all(v for v in ident["names"].values()), ident["names"]
+    # (8) the migration read the retired file, kept the name, dropped the
+    #     four nulls, and left the old file alone
+    assert ident["run"]["migrated"] == 1 and ident["run"]["dropped_nulls"] == 4
+    assert len(json.loads(fn.NAMES_BONUS_EMB2.read_text())) == 5
+    # (9) the deleted Item hop is never queried, and nothing reads a
+    #     reagent's LimitCategory (the whole v2 dead end)
+    assert not [q for q in QUERIED if q[0] == "Item"], "the Item hop is gone"
+    assert json.loads(fn.EMB_ITEMS.read_text()) == \
+        {"777": "Intrinsically Embellished Boots"}
     # second run: nothing unseen -> byte-identical caches (idempotent), the
-    # stored image is never re-fetched and the null icon never re-asked
-    before = {p.name: p.read_text() for p in tp.glob("*.json")}
-    n_raw = len(RAW_CALLS)
+    # stored image is never re-fetched and the null icon never re-asked.
+    # emb_identity.json legitimately re-records its per-run counters, so it
+    # is compared on content instead of bytes.
+    def _stable():
+        return {p.name: p.read_text() for p in tp.glob("*.json")
+                if p.name != "emb_identity.json"}
+    before, n_raw = _stable(), len(RAW_CALLS)
     assert fn.main([]) == 0
-    assert {p.name: p.read_text() for p in tp.glob("*.json")} == before
+    assert _stable() == before
+    again = json.loads(fn.EMB_IDENTITY.read_text())
+    assert again["ids"] == ident["ids"] and again["names"] == ident["names"]
+    assert again["run"]["fetched"] == 0, again["run"]   # names never re-asked
     assert len(RAW_CALLS) == n_raw, RAW_CALLS[n_raw:]
-    # total network failure: caches unchanged, still exit 0
+    # total network failure: caches unchanged, still exit 0, and the identity
+    # map SURVIVES verbatim while saying out loud that db2 did not answer
     fn._get_csv = lambda path, params=None: fn._FAILED
     fn._get_raw = lambda url: fn._FAILED
     assert fn.main([]) == 0
-    assert {p.name: p.read_text() for p in tp.glob("*.json")} == before
-print("fetch_names: stubbed run seeds all five caches + the icon image "
-      "(junk icon name sanitized to null); idempotent -- second run makes "
-      "zero raw fetches; total failure changes nothing")
+    assert _stable() == before
+    dead = json.loads(fn.EMB_IDENTITY.read_text())
+    assert dead["ids"] == ident["ids"] and dead["names"] == ident["names"]
+    assert dead["run"]["ok"] is False and dead["run"]["failures"] >= 1
+    # THE EMPTY-DERIVATION FLOOR. _FAILED only covers the network dying.
+    # Here db2 answers 200 and the two structural tables parse to ZERO rows
+    # -- a renamed column, a schema change, or a stub run pointed at the
+    # real data dir. That was "success" to the first cut of v3: it rewrote
+    # ids to [] and shipped a cache that could not name anything, which is
+    # exactly the artifact that went out and reproduced the owner's bug.
+    # The map must survive and the run must say so out loud.
+    fn._get_csv = lambda path, params=None: (
+        [] if path in ("ItemBonusTreeNode", "ModifiedCraftingReagentItem")
+        else fake_get(path, params))
+    fn._get_raw = fake_raw
+    assert fn.main([]) == 0
+    assert _stable() == before
+    starved = json.loads(fn.EMB_IDENTITY.read_text())
+    assert starved["ids"] == ident["ids"], starved["ids"]
+    assert starved["names"] == ident["names"], starved["names"]
+    assert starved["run"]["empty_derivation"] is True, starved["run"]
+    assert starved["run"]["ok"] is False, starved["run"]
+print("fetch_names: stubbed run seeds every cache + the icon image (junk "
+      "icon name sanitized to null); idempotent -- second run makes zero "
+      "raw fetches; total failure keeps the identity map and says so")
+print("emb v3    : missive absent from identity (v1); reagent LimitCategory "
+      "never read and the Item hop deleted (v2); nested id found; unbacked "
+      "tree skipped; leak dropped; tier disagreement refused; NO nulls; "
+      "sticky-null v2 cache migrated (1 name, 4 nulls dropped)")
 
 # --- the site-copy step: new/changed only, never deletes
 with tempfile.TemporaryDirectory() as tmp:
@@ -758,5 +1003,33 @@ with tempfile.TemporaryDirectory() as tmp:
     assert ft.TRAIT_GEOMETRY.read_text() == before
 print("fetch_traits: stubbed run seeds geometry + spell cache + shared "
       "icon store; idempotent; failed refresh keeps the cached copy")
+
+# ---- the COMMITTED SEED itself, offline. v3's code shipped correct and its
+# ARTIFACT shipped broken: data/emb_identity.json went out with "ids": [], a
+# fixture name key, and a run block from a stub run -- so the first build named
+# nothing, the documented db2-outage floor ("the previous map survives") was
+# void because the previous map was empty, and a test string rode into a data
+# file. emb_of reaches a name only through this id set, so an empty one makes
+# naming structurally impossible however many names sit beside it. Nothing else
+# in the suite reads data/; these four lines are what would have caught it.
+SEED_DIR = pathlib.Path(__file__).resolve().parent.parent / "data"
+SEED = json.loads((SEED_DIR / "emb_identity.json").read_text())
+SEED_MARKERS = json.loads((SEED_DIR / "emb_markers.json").read_text())
+assert SEED["ids"], "the committed identity seed is EMPTY -- the first build " \
+                    "after a merge, and any build db2 cannot reach, names " \
+                    "nothing"
+assert SEED["ids"] == sorted(set(SEED["ids"])) and \
+    all(isinstance(i, int) for i in SEED["ids"]), SEED["ids"][:8]
+_stale = sorted(set(SEED["names"]) - {str(i) for i in SEED["ids"]})
+assert not _stale, f"name keys outside the identity set (fixtures?): {_stale}"
+assert all(isinstance(v, str) and v for v in SEED["names"].values()), \
+    "a null or empty name is stored -- the v2 sticky-null class is deleted"
+assert not (set(SEED["ids"]) & set(SEED_MARKERS)), "identity intersects markers"
+assert SEED["run"].get("markers") == sorted(SEED_MARKERS), \
+    f"run block is not from a real run against {SEED_MARKERS}"
+assert SEED["run"].get("marker_trees") and SEED["run"].get("backed"), SEED["run"]
+print(f"emb seed  : data/emb_identity.json carries {len(SEED['ids'])} identity "
+      f"ids, {len(SEED['names'])} names, none outside the set, none null; run "
+      f"block from a real derivation over markers {sorted(SEED_MARKERS)}")
 
 print("\nPASS")
