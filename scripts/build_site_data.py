@@ -32,6 +32,30 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # from the repo root or /docs on branch-based deploys
 SITE_DIRS = [ROOT / "site", ROOT / "docs"]
 
+# Build-health notes, published as site/build_health.txt. A pipeline finding
+# that only exists in a CI log is a finding nobody reads: the Actions log API
+# returns just the tail, so the build's own diagnostics were unreachable
+# exactly when they mattered (the Enchants pane hunt). These lines ride out
+# with the site instead - a few hundred bytes, curl-able, and they say what
+# the last build actually decided rather than what it was supposed to.
+_HEALTH: list[str] = []
+
+
+def health(line: str) -> None:
+    """Record a build-health line AND print it."""
+    _HEALTH.append(line)
+    print(line, flush=True)
+
+
+def write_health() -> None:
+    body = "\n".join(_HEALTH) + "\n"
+    for d in SITE_DIRS:
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "build_health.txt").write_text(body, encoding="utf-8")
+        except OSError:
+            pass      # a health note must never be able to fail a build
+
 SEASON = {"csv": "mythic_runs.csv.gz", "out": "data.json",
           "season": "Midnight Season 2"}
 
@@ -1498,7 +1522,7 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         floor = BUILDS_ESLOT_MIN_SHARE * max(gear_known, 1)
         top = ", ".join(f"slot {s}: {c:,}"
                         for s, c in ench_hits.most_common(5)) or "none"
-        print(f"[{name}] NO ENCHANT COLUMNS -- the Enchants pane will be empty. "
+        health(f"[{name}] NO ENCHANT COLUMNS -- the Enchants pane will be empty. "
               f"{gkey['items']:,} gear items over {gear_known:,} gear-known rows; "
               f"per-item key presence ilvl={gkey['ilvl']:,} set={gkey['set']:,} "
               f"ench={gkey['ench']:,} gems={gkey['gems']:,} bonus={gkey['bonus']:,}. "
@@ -1688,7 +1712,7 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
               f"{'dense' if gz_d <= gz_s else 'sparse'}")
         return dense if gz_d <= gz_s else sparse
 
-    print(f"[{name}] builds sidecar: {len(rows_c):,}/{n:,} rows covered "
+    health(f"[{name}] builds sidecar: {len(rows_c):,}/{n:,} rows covered "
           f"({len(rows_c) / n:.0%}), {len(tallies)} specs, "
           f"eslots {eslots}")
     # Degradation ladder (§1.4), a STAIRCASE rather than a cliff. Two ordering
@@ -1902,6 +1926,7 @@ def build(name: str, cfg: dict) -> None:
         print(f"[{name}] talents doc -> talents.json.gz "
               f"({sz / 1024:.0f} KB gz, {len(talents) / 1024:.0f} KB raw)")
     sync_icons(name)
+    write_health()
 
 
 # --------------------------------------------------------------------------
