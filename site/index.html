@@ -533,36 +533,104 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
 /* compact §15.9 .sec rhythm inside the screen (§C.1) */
 #charscreen .sec{margin:.9rem 0 .55rem; padding-bottom:.4rem}
 #charscreen .secbody{margin-bottom:.4rem}
-/* gear overview grid — panel-recipe tiles, content-hugging triggers */
-#cs-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px}
-/* §C.1: on compact viewports the narrower main column must still land 8 tiles
-   per row, or the grid takes a third row and the pane loses the 768 bar */
-@media(max-width:1440px){#cs-grid{grid-template-columns:repeat(auto-fill,minmax(114px,1fr))}}
-.gtile{background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r2);
-  padding:.4rem .55rem .45rem; cursor:pointer; box-shadow:var(--gg-shadow);
+/* gear paper-doll (§3.4 upgrade) — left/right slot columns, weapons row bottom-
+   center, the in-game-inspect fold-out in the empty CENTER column. Rows are
+   content-hugging triggers; hover/active are color-only. */
+#cs-doll{display:grid; grid-template-columns:minmax(264px,318px) minmax(0,1fr) minmax(264px,318px);
+  gap:8px 14px; align-items:start}
+#cs-doll .dcol{display:flex; flex-direction:column; gap:6px; min-width:0}
+#cs-doll .dcol.l{grid-column:1; grid-row:1}
+#cs-doll .dcenter{grid-column:2; grid-row:1; align-self:stretch; min-width:0}
+#cs-doll .dcol.r{grid-column:3; grid-row:1}
+#cs-doll .dbottom{grid-column:1/-1; grid-row:2; display:flex; justify-content:center;
+  gap:6px 8px; flex-wrap:wrap}
+#cs-doll .dbottom .gtile{flex:0 1 296px; min-width:0}
+/* narrow measures: columns pair up, the fold-out drops to a full-width panel */
+@media(max-width:1150px){
+  #cs-doll{grid-template-columns:1fr 1fr}
+  #cs-doll .dcol.l{grid-column:1; grid-row:1}
+  #cs-doll .dcol.r{grid-column:2; grid-row:1}
+  #cs-doll .dcenter{grid-column:1/-1; grid-row:2; align-self:auto}
+  #cs-doll .dbottom{grid-row:3}
+  #cs-fold{min-height:0}
+}
+@media(max-width:640px){
+  #cs-doll{grid-template-columns:1fr}
+  #cs-doll .dcol.l{grid-column:1; grid-row:1}
+  #cs-doll .dcol.r{grid-column:1; grid-row:2}
+  #cs-doll .dcenter{grid-column:1; grid-row:3}
+  #cs-doll .dbottom{grid-row:4}
+  .dcol.r .gtile{flex-direction:row; text-align:left}
+}
+.gtile{display:flex; align-items:center; gap:9px; min-width:0; position:relative;
+  background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r2);
+  padding:.2rem .6rem .26rem .34rem; cursor:pointer; box-shadow:var(--gg-shadow);
   transition:border-color .13s}
 .gtile:hover{border-color:var(--line2)}
 .gtile.on{border-color:var(--accent-line)}   /* active tile: color-only, nothing moves */
-.gtile .gs{font-size:.62rem; text-transform:uppercase; letter-spacing:.12em; color:var(--ink3)}
-.gtile .gn{font-size:.78rem; color:var(--ink); line-height:1.3; margin:.12rem 0;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
-/* the Main Hand winner name is NEVER ellipsized — it wraps and the tile
-   (and its grid row) grows; grid rows stretch, so the row grows evenly */
-.gtile.mh .gn{display:block; -webkit-line-clamp:none; overflow:visible}
+/* mirrored right column — icons outboard, text toward the center (in-game pane) */
+.dcol.r .gtile{flex-direction:row-reverse; text-align:right;
+  padding:.2rem .34rem .26rem .6rem}
+.dcol.r .gtile .gmeta{justify-content:flex-end}
+/* icon tile — §GG metal lip: 1px line + inset top highlight, 4px radius.
+   The .gph slot glyph is the ALWAYS-PRESENT fallback layer; when the vocab
+   entry carries "ic" an <img> covers it, and onerror removes the img so a
+   broken image can never render. */
+.gico{position:relative; flex:none; width:40px; height:40px; border-radius:var(--r1);
+  border:1px solid var(--line2); background:var(--surface2); overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 1px 2px rgba(0,0,0,.3)}
+.gico .gph{position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:center; font-size:.66rem; font-weight:600; letter-spacing:.08em;
+  color:var(--ink3); text-transform:uppercase}
+.gico img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  display:block; border-radius:3px}
+.gico.s{width:22px; height:22px; box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.gico.s .gph{font-size:.52rem; letter-spacing:.02em}
+.gtile .gtxt{flex:1; min-width:0}
+.gtile .gs{font-size:.58rem; text-transform:uppercase; letter-spacing:.12em;
+  color:var(--ink3); line-height:1.15}
+.gtile .gn{font-size:.76rem; color:var(--ink); line-height:1.2;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* the Main Hand winner name is NEVER ellipsized — it wraps and the tile grows */
+.gtile.mh .gn{white-space:normal; overflow:visible}
 .gtile .gn a{color:var(--accent)}
-.gtile .gv{font-size:.8rem; font-weight:650; color:var(--ink); font-variant-numeric:tabular-nums}
-.gtile .gv i{font-style:normal; font-size:.68rem; font-weight:400; color:var(--ink3)}
-.gtile .gi{font-size:.68rem; color:var(--ink3); font-variant-numeric:tabular-nums}
-.gtile .gfoot{font-size:.62rem; color:var(--ink3); margin-top:.15rem}  /* inert text */
+.gtile .gmeta{display:flex; align-items:baseline; gap:.45rem; line-height:1.25;
+  font-variant-numeric:tabular-nums; min-width:0}
+.gtile .gmeta b{font-size:.72rem; font-weight:650; color:var(--ink)}
+.gtile .gmeta i{font-style:normal; font-size:.64rem; color:var(--ink3);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.gtile .gfoot{font-size:.6rem; color:var(--ink3); line-height:1.3}  /* inert text */
+/* winner share — thin bar under the row; neutral fill, champagne stays ACTIVE-only */
+.gtile .gbar{position:absolute; left:1px; bottom:1px; height:3px; max-width:calc(100% - 2px);
+  background:rgba(234,227,208,.20); border-radius:0 0 0 3px; pointer-events:none}
+.dcol.r .gtile .gbar{left:auto; right:1px; border-radius:0 0 3px 0}
 .gtag{font-size:.6rem; font-weight:600; text-transform:uppercase; letter-spacing:.1em;
   border:1px solid var(--line2); border-radius:var(--r1); padding:0 .3rem; color:var(--ink3)}
 .gemb{color:var(--ink3)}
-/* the in-place per-slot fold-out — one full-grid-width panel + aligned caret */
-#cs-fold{grid-column:1/-1; position:relative; background:var(--surface1);
+/* the per-slot fold-out — the center inspect panel; caret points at the owner */
+#cs-fold{position:relative; min-height:100%; background:var(--surface1);
   border:1px solid var(--accent-line); border-radius:var(--r2);
-  padding:.55rem .8rem .6rem; box-shadow:var(--gg-shadow)}
-#cs-fold .caret{position:absolute; top:-13px; width:0; height:0;
-  border:6.5px solid transparent; border-bottom-color:var(--accent-line)}
+  padding:.5rem .65rem .55rem; box-shadow:var(--gg-shadow)}
+#cs-fold .caret{position:absolute; width:0; height:0; border:6.5px solid transparent}
+#cs-fold .caret.cl{left:-14px; border-right-color:var(--accent-line)}
+#cs-fold .caret.cr{right:-14px; border-left-color:var(--accent-line)}
+#cs-fold .caret.cb{bottom:-14px; border-top-color:var(--accent-line)}
+#cs-fold .caret.ct{top:-14px; border-bottom-color:var(--accent-line)}
+#cs-fold .fh{font-size:.62rem; text-transform:uppercase; letter-spacing:.12em;
+  color:var(--ink3); margin-bottom:.35rem}
+.frow{display:flex; align-items:center; gap:7px; min-width:0; position:relative;
+  padding:.16rem 0 .22rem}
+.frow+.frow{border-top:1px solid var(--line0)}
+.frow .fx{flex:1; min-width:0}
+.frow .ftop{display:flex; align-items:baseline; gap:.5rem; min-width:0}
+.frow .fn{flex:1; min-width:0; font-size:.74rem; color:var(--ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.frow .fs{flex:none; font-size:.64rem; color:var(--ink3); font-variant-numeric:tabular-nums}
+.frow .fs b{color:var(--ink); font-weight:650; font-size:.68rem}
+.frow .fsub{font-size:.62rem; color:var(--ink3); margin-top:.06rem;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.frow .fbar{position:absolute; left:29px; bottom:0; height:2px; max-width:calc(100% - 29px);
+  background:rgba(234,227,208,.20); pointer-events:none}
 table.fold-t{border-collapse:collapse; font-size:.76rem; width:100%}
 .fold-t td{padding:.16rem .6rem .16rem 0; color:var(--ink); text-align:right;
   font-variant-numeric:tabular-nums; white-space:nowrap}
@@ -2915,9 +2983,29 @@ function enchNameHTML(e){
   if(e.n!=null) return esc(e.n);
   return 'enchant #'+(+e.id);
 }
+// icon tile (§1 widening) — vocab "ic" ⇒ self-hosted icons/<ic>.jpg over the
+// glyph layer; no "ic", or a 404, ⇒ the glyph tile alone (onerror removes the
+// img, so a broken-image glyph never renders and the miss stays silent)
+function csIcoHTML(e,ph,small){
+  let h='<span class="gico'+(small?' s':'')+'"><span class="gph">'+esc(ph)+'</span>';
+  if(e&&e.ic!=null&&e.ic!=="")
+    h+='<img alt="" loading="lazy" src="icons/'
+      +encodeURIComponent(String(e.ic))+'.jpg" onerror="this.remove()">';
+  return h+'</span>';
+}
+// fold-row glyph: the item name's initial ("#" for id-only, "–" for other/none)
+const csFoldPh=e=>!e?"–":(e.n?e.n.trim().charAt(0):"#");
+// attribute-context escape (title="…"): esc + double quotes
+const escA=s=>esc(s).replace(/"/g,"&quot;");
 const CS_SLOT_LABEL={0:"Head",1:"Neck",2:"Shoulder",4:"Chest",5:"Waist",6:"Legs",
-  7:"Feet",8:"Wrist",9:"Hands",10:"Finger 1",11:"Finger 2",12:"Trinket 1",
+  7:"Feet",8:"Wrist",9:"Hands",10:"Ring 1",11:"Ring 2",12:"Trinket 1",
   13:"Trinket 2",14:"Back",15:"Main hand",16:"Off hand"};
+// paper-doll arrangement (in-game character pane): left / right columns top-to-
+// bottom, trinkets + weapons bottom-center. Keys are retail slot ids.
+const CS_DOLL={L:[0,1,2,14,4,8], R:[9,5,6,7,10,11], B:[12,13,15,16]};
+// slot-glyph fallback initials for iconless 40px tiles (never a broken image)
+const CS_SLOT_ABBR={0:"Hd",1:"Nk",2:"Sh",4:"Ch",5:"Wa",6:"Lg",7:"Ft",8:"Wr",
+  9:"Ha",10:"R1",11:"R2",12:"T1",13:"T2",14:"Bk",15:"MH",16:"OH"};
 const CS_THIN=10;                       // §3.5 thin-n floor
 const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into "other"
 const fmtDpsM=v=>v>=1e6?(v/1e6).toFixed(2)+"M":fmtDps(v);
@@ -2958,9 +3046,11 @@ function setScreenSpec(k){
 }
 function closeSlotFold(){ screenFold=null; renderScreen(); }
 function moveSlotFold(dir){
-  const tiles=[...document.querySelectorAll("#cs-grid .gtile")];
+  const tiles=[...document.querySelectorAll("#cs-doll .gtile")];
   if(!tiles.length) return;
-  const order=tiles.map(t=>+t.dataset.si);   // rendered tile order skips a suppressed Off Hand
+  // rendered doll order — left column, right column, bottom row — skipping a
+  // suppressed Off Hand; ←/→ walk the open fold-out along this arrangement
+  const order=tiles.map(t=>+t.dataset.si);
   let p=order.indexOf(screenFold);
   if(p<0) p=0;
   const q=Math.min(order.length-1, Math.max(0, p+dir));
@@ -3149,25 +3239,27 @@ function csFoldHTML(d,si){
   }
   entries.sort((a,b)=>b.c-a.c);
   for(const e of entries.slice(10)) other+=e.c;         // ≤10 + "other/none"
-  const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
+  // compact inspect rows: 22px icon tile + name + share/n/ilvl; thin share bar
+  const row=(e,nameHTML,s,c,ph)=>'<div class="frow"'
+    +((e&&e.n!=null)?' title="'+escA(e.n)+'"':'')+'>'
+    +csIcoHTML(e,ph,true)
+    +'<div class="fx"><div class="ftop"><span class="fn">'+nameHTML+'</span>'
+    +'<span class="fs"><b>'+s.toFixed(1)+'%</b> · n='+fmtInt(c)+' · '
+    +((e&&e.ilvl)?"ilvl "+e.ilvl:"–")+'</span></div>'
+    +((e&&(e.cr||e.emb))?'<div class="fsub">'
+      +(e.cr?'<span class="gtag">crafted</span>':'')
+      +(e.emb?' <span class="gemb">'+esc(e.emb)+'</span>':'')+'</div>':'')
+    +'</div><i class="fbar" style="width:'+Math.min(100,s).toFixed(1)+'%"></i></div>';
   let rows="";
   for(const {v,c} of entries.slice(0,10)){
-    const e=V[v-1], s=100*c/total;
-    rows+='<tr><td class="txt">'+itemNameHTML(e)+'</td><td>'+bar(s)+'</td>'
-      +'<td>'+s.toFixed(1)+'%</td><td>n='+fmtInt(c)+'</td>'
-      +'<td>'+((e&&e.ilvl)?"ilvl "+e.ilvl:"–")+'</td>'
-      +'<td class="txt">'+((e&&e.cr)?'<span class="gtag">crafted</span>':'')
-        +((e&&e.emb)?' <span class="gemb">'+esc(e.emb)+'</span>':'')+'</td></tr>';
+    const e=V[v-1];
+    rows+=row(e,itemNameHTML(e),100*c/total,c,csFoldPh(e));
   }
   if(other>0)
-    rows+='<tr><td class="txt na">other / none</td><td>'+bar(100*other/total)+'</td>'
-      +'<td>'+(100*other/total).toFixed(1)+'%</td><td>n='+fmtInt(other)+'</td>'
-      +'<td>–</td><td></td></tr>';
+    rows+=row(null,'<span class="na">other / none</span>',100*other/total,other,"–");
   return '<div id="cs-fold"><span class="caret"></span>'
-    +'<div class="gs" style="text-transform:uppercase; font-size:.62rem; '
-    +'letter-spacing:.12em; color:var(--ink3); margin-bottom:.3rem">'
-    +CS_SLOT_LABEL[slot]+' — distribution in window</div>'
-    +'<table class="fold-t">'+rows+'</table></div>';
+    +'<div class="fh">'+CS_SLOT_LABEL[slot]+' — distribution in window</div>'
+    +rows+'</div>';
 }
 function csGearPaneHTML(ctx,d){
   let h=csSecOpen("geargrid","Gear overview",
@@ -3181,27 +3273,40 @@ function csGearPaneHTML(ctx,d){
   const ohSi=slots.indexOf(16);
   const ohNone=ohSi>=0&&per[ohSi].winner===0;   // 2H specs: no near-empty 17th tile
   const total=d.gearIdx.length;
-  h+='<div id="cs-grid">';
-  slots.forEach((slot,si)=>{
-    if(slot===16&&ohNone) return;               // suppressed — footnote on Main Hand
+  // one paper-doll slot row: 40px icon tile + label/name/meta + thin share bar
+  const tile=si=>{
+    const slot=slots[si];
+    if(slot===16&&ohNone) return "";            // suppressed — footnote on Main Hand
     const p=per[si];
     const e=p.winner>0?((d.vocab.items[si]||[])[p.winner-1]||null):null;
     const share=100*p.winN/total;
-    h+='<div class="gtile'+(slot===15?" mh":"")+(screenFold===si?" on":"")
-      +'" data-si="'+si+'">'
-      +'<div class="gs">'+CS_SLOT_LABEL[slot]+'</div>'
+    return '<div class="gtile'+(slot===15?" mh":"")+(screenFold===si?" on":"")
+      +'" data-si="'+si+'"'
+      +((e&&e.n!=null)?' title="'+escA(e.n)+(e.emb?" — "+escA(e.emb):"")+'"':'')+'>'
+      +csIcoHTML(e,CS_SLOT_ABBR[slot]||"?",false)
+      +'<div class="gtxt"><div class="gs">'+CS_SLOT_LABEL[slot]+'</div>'
       +'<div class="gn">'+(p.winner>0?itemNameHTML(e):'<span class="na">other / none</span>')+'</div>'
-      +'<div class="gv">'+share.toFixed(0)+'%<i> · n='+fmtInt(p.winN)+'</i></div>'
-      +((e&&e.ilvl)?'<div class="gi">ilvl '+e.ilvl+' · all records</div>':'')
-      +((e&&e.cr)?'<div class="gi"><span class="gtag">crafted</span>'
-        +(e.emb?' <span class="gemb">· '+esc(e.emb)+'</span>':'')+'</div>':'')
+      +'<div class="gmeta"><b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(p.winN)+'</i>'
+      +((e&&e.ilvl)?'<i>ilvl '+e.ilvl+'</i>':'')
+      +((e&&e.cr)?'<span class="gtag">crafted</span>':'')+'</div>'
       +((slot===15&&ohNone)?'<div class="gfoot">off hand: none — two-handed '
         +(100*per[ohSi].winN/total).toFixed(0)+'%</div>':'')
-      +'</div>';
-  });
-  if(screenFold!=null&&slots[screenFold]!=null&&!(ohNone&&slots[screenFold]===16))
-    h+=csFoldHTML(d,screenFold);                // repositioned to its row in wireScreen
-  return h+'</div></div>';
+      +'</div><i class="gbar" style="width:'+Math.min(100,share).toFixed(1)+'%"></i></div>';
+  };
+  const seen=new Set();
+  const col=ids=>ids.map(id=>{const si=slots.indexOf(id);
+    if(si<0) return ""; seen.add(si); return tile(si);}).join("");
+  const L=col(CS_DOLL.L), Rr=col(CS_DOLL.R);
+  let B=col(CS_DOLL.B);
+  slots.forEach((id,si)=>{ if(!seen.has(si)) B+=tile(si); });  // layout tolerance
+  const fold=(screenFold!=null&&slots[screenFold]!=null
+    &&!(ohNone&&slots[screenFold]===16))?csFoldHTML(d,screenFold):"";
+  return h+'<div id="cs-doll">'
+    +'<div class="dcol l">'+L+'</div>'
+    +'<div class="dcenter">'+fold+'</div>'       // caret aimed at owner in wireScreen
+    +'<div class="dcol r">'+Rr+'</div>'
+    +'<div class="dbottom">'+B+'</div>'
+    +'</div></div>';
 }
 /* enchants (§3.4) — denominator = slice rows with fl&1; an empty nibble on a
    gear-known row IS "unenchanted", a real zero */
@@ -3391,7 +3496,7 @@ function wireScreen(host,ctx,d){
       renderScreen();
     };
   });
-  host.querySelectorAll("#cs-grid .gtile").forEach(t=>{
+  host.querySelectorAll("#cs-doll .gtile").forEach(t=>{
     t.onclick=e=>{
       if(e.target.closest("a")) return;          // wowhead links stay links
       const si=+t.dataset.si;
@@ -3417,25 +3522,32 @@ function wireScreen(host,ctx,d){
       setTimeout(()=>{ b.textContent="copy" },1200);
     };
   });
-  // slotfold row placement: the panel sits after the owning tile's grid ROW
-  // (grid-column 1/-1), caret aligned under the tile; last-row auto-reveal
-  const grid=host.querySelector("#cs-grid"), fold=host.querySelector("#cs-fold");
-  if(grid&&fold){
-    const tiles=[...grid.querySelectorAll(".gtile")];
-    const owner=tiles.find(t=>+t.dataset.si===screenFold);
-    if(owner){
-      const cols=getComputedStyle(grid).gridTemplateColumns.split(" ").length||1;
-      const idx=tiles.indexOf(owner);
-      const rowEnd=Math.min(tiles.length-1, Math.floor(idx/cols)*cols+cols-1);
-      tiles[rowEnd].after(fold);
-      const c=fold.querySelector(".caret");
-      if(c){
-        const or=owner.getBoundingClientRect(), fr=fold.getBoundingClientRect();
-        c.style.left=Math.max(6,(or.left+or.width/2-fr.left-6.5))+"px";
+  // slotfold caret: the panel lives in the doll's CENTER column (or full-width
+  // below the columns on narrow measures) — aim the caret at the owning tile's
+  // edge, whichever side the owner sits on; last-row auto-reveal kept
+  const doll=host.querySelector("#cs-doll"), fold=host.querySelector("#cs-fold");
+  if(doll&&fold){
+    const owner=[...doll.querySelectorAll(".gtile")].find(t=>+t.dataset.si===screenFold);
+    const c=fold.querySelector(".caret");
+    if(owner&&c){
+      const or=owner.getBoundingClientRect(), fr=fold.getBoundingClientRect();
+      const clamp=(lo,v,hi)=>Math.min(hi,Math.max(lo,v));
+      if(or.right<=fr.left+1){          // owner in the LEFT column
+        c.className="caret cl";
+        c.style.top=clamp(6, or.top+or.height/2-fr.top-6.5, fr.height-19)+"px";
+      }else if(or.left>=fr.right-1){    // owner in the RIGHT column
+        c.className="caret cr";
+        c.style.top=clamp(6, or.top+or.height/2-fr.top-6.5, fr.height-19)+"px";
+      }else if(or.top>=fr.bottom-1){    // owner in the bottom weapons row
+        c.className="caret cb";
+        c.style.left=clamp(6, or.left+or.width/2-fr.left-6.5, fr.width-19)+"px";
+      }else{                            // narrow measure: panel below the columns
+        c.className="caret ct";
+        c.style.left=clamp(6, or.left+or.width/2-fr.left-6.5, fr.width-19)+"px";
       }
-      const r=fold.getBoundingClientRect();
-      if(r.bottom>innerHeight) fold.scrollIntoView({block:"nearest"});
     }
+    const r=fold.getBoundingClientRect();
+    if(r.bottom>innerHeight) fold.scrollIntoView({block:"nearest"});
   }
 }
 
