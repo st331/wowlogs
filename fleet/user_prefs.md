@@ -45,15 +45,21 @@
 9. **Delivery decision (2026-08-25):** build THREE distinct versions, deploy side by side,
    owner chooses; Claude provides ranked #1/#2/#3 recommendation with reasons.
 
-10. **Short screen — minimize scrolling.** "My screen is not that tall - I don't
-    want to have to scroll a lot... scrolling down not required often, scrolling
-    right almost never." Viewport-fit-first layouts; vertical growth only from
-    explicit user expansion; no horizontal scroll at desktop widths.
+10. **Screen size (revised 2026-08-30): minimum 1920×1080.** Earlier: "my screen
+    is not that tall - I don't want to have to scroll a lot... scrolling down not
+    required often, scrolling right almost never." Then: "the entire text/icons
+    everything is way too small. it is hard to read. you can expect the
+    screensize to be a minimum of 1080p." So: viewport-fit-first layouts sized
+    for a 1080p browser viewport (~940-1000px usable height) — READABLE first,
+    compact second; vertical growth only from explicit user expansion; no
+    horizontal scroll at 1920w. Never shrink type/icons to buy fit again.
 
-11. **Wowhead item links + hover tooltips (2026-08-30).** "item ids are completely
-    useless to me, remove them. instead insert wowhead links to the items. when I
-    hover over an item, the wowhead tooltip shows (pulled directly from wowhead)."
-    This is a SCOPED exception to pref #7's no-cursor-tooltips rule and to the
+11. **Wowhead tooltips/links — ICON-ONLY surface (2026-08-30).** "item ids are
+    completely useless to me, remove them"; "show the wowhead tooltip on
+    hovering on the icon, and that's it"; "take me to the wowhead page only on
+    clicking the icon directly, nowhere else." The item icon is the single
+    wowhead surface (hover = tooltip, click = wowhead page); names are plain
+    text. SCOPED exception to pref #7's no-cursor-tooltips rule and to the
     no-third-party-scripts stance: wowhead's official tooltips.js is sanctioned,
-    for item (and later talent-spell) links only. Raw numeric ids must never
-    render anywhere in the UI.
+    attached to icon anchors (items; later talent-spell nodes) only. Raw numeric
+    ids must never render anywhere in the UI.

@@ -152,14 +152,19 @@ Two additions:
 - Sidecar build vocab entries MAY carry `"sel":[[nodeId,rank],...]` (sorted by node
   id) — the build's selection set converted to TraitNode ids, from the modal
   selection blob of that identity's records (identical by construction for hash
-  builds). Absent when the trait-geometry cache is unavailable. Choice-node entry
-  identity is NOT carried (node+rank only).
+  builds). Absent when the trait-geometry cache is unavailable. A CHOICE node
+  (>1 entries) is a triplet `[nodeId,rank,entryIdx]` — entryIdx indexes the doc
+  node's `"es"` list (both defined over _node_entries order: entry ids sorted
+  numerically; single definition in the emitter).
 - A second lazy document `talents.json.gz` beside the sidecar (rebuilt-or-unlinked
   every build, gitignored): `{"v":1, "trees":{"Class|Spec":{"class":TREE|absent,
   "spec":TREE, "hero":{"<HeroName>":TREE}}}, "classes":{...}?}` with
-  `TREE = {"nodes":[{"id","x","y","r","n","ic","t"}], "edges":[[a,b],...]}` — raw
-  db2 grid positions, r = max ranks, t = TraitNode.Type, n/ic from the spell cache
-  (null when unresolved; `ic` lives in the shared self-hosted icons/ store). When a
+  `TREE = {"nodes":[{"id","x","y","r","n","ic","t","s"?,"es"?}],
+  "edges":[[a,b],...]}` — raw db2 grid positions, r = max ranks, t =
+  TraitNode.Type, n/ic from the spell cache (null when unresolved; `ic` lives in
+  the shared self-hosted icons/ store), `s` = the first entry's spell id (the
+  wowhead /spell= link target; absent on entry-less nodes), `es` only on choice
+  nodes: `[{"s","n","ic"},...]` for every option in _node_entries order. When a
   top-level `"classes"` map is present, spec entries carry `"classRef":"<Class>"`
   instead of `"class"` (emitter ships whichever variant gzips smaller). Node
   membership = union of nodes the spec's players ever allocated (journal-wide);

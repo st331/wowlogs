@@ -591,10 +591,11 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 /* the Main Hand winner name is NEVER ellipsized — it wraps and the tile grows */
 .gtile.mh .gn{white-space:normal; overflow:visible}
-/* wowhead item links: read as calm text, accent on hover; the wowhead script
-   supplies the hover tooltip so no underline is needed at rest */
-a.whi{color:inherit; text-decoration:none}
-a.whi:hover{color:var(--accent)}
+/* the wowhead surface is the ICON only: an inert-looking anchor around the
+   icon tile — no underline, no growth; the wowhead script supplies the
+   hover tooltip */
+a.whico{display:inline-flex; color:inherit; text-decoration:none;
+  vertical-align:middle; line-height:0}
 .gtile .gmeta{display:flex; align-items:baseline; gap:.45rem; line-height:1.25;
   font-variant-numeric:tabular-nums; min-width:0}
 .gtile .gmeta b{font-size:.72rem; font-weight:650; color:var(--ink)}
@@ -2971,16 +2972,15 @@ const bldEnV=(j,i)=>{const r=BUILDSC.map[i]; if(r<0) return 0;
   const b=BUILDSC.en[j>>1][r]; return j%2?b>>4:b&15};
 const bldV=i=>{const r=BUILDSC.map[i]; return r<0?0:BUILDSC.bld[r]};
 
-// name rendering: every item is a wowhead link (owner request 2026-08-30 —
-// hover shows the live wowhead tooltip via their official tooltips.js, and
-// renameLinks fills in any name the pipeline hasn't resolved; raw ids never
-// render). Enchants have no stable wowhead entity id in the log data, so they
-// stay plain text.
+// name rendering (owner, 2026-08-30): names are PLAIN TEXT — the wowhead
+// tooltip and the wowhead link live on the item's ICON only ("show the
+// wowhead tooltip on hovering on the icon, and that's it"; "take me to the
+// wowhead page only on clicking the icon directly, nowhere else"). Raw ids
+// never render. Enchants have no stable wowhead entity id in the log data,
+// so they stay plain text with no link at all.
 function itemNameHTML(e){
   if(!e) return '<span class="na">other / none</span>';
-  return '<a class="whi" href="https://www.wowhead.com/item='+(+e.id)
-    +'" target="_blank" rel="noopener">'
-    +(e.n!=null?esc(e.n):'<span class="na">item…</span>')+'</a>';
+  return e.n!=null?esc(e.n):'<span class="na">unnamed item</span>';
 }
 function enchNameHTML(e){
   if(!e) return '<span class="na">none</span>';
@@ -3001,7 +3001,11 @@ function csIcoHTML(e,ph,small){
   const src=e&&e.ic?encodeURIComponent(String(e.ic)):(e&&e.id?"i"+e.id:null);
   if(src!=null)
     h+='<img alt="" loading="lazy" src="icons/'+src+'.jpg" onerror="this.remove()">';
-  return h+'</span>';
+  h+='</span>';
+  // the icon is the ONE wowhead surface: hover = wowhead tooltip, click =
+  // the wowhead page (glyph fallback included, so id-only items still work)
+  return (e&&e.id)?'<a class="whico" href="https://www.wowhead.com/item='
+    +(+e.id)+'" target="_blank" rel="noopener">'+h+'</a>':h;
 }
 // fold-row glyph: the item name's initial ("•" for unnamed, "–" for other/none)
 const csFoldPh=e=>!e?"–":(e.n?e.n.trim().charAt(0):"•");
@@ -4916,11 +4920,12 @@ function renderTable(rows,tab){
 })();
 </script>
 <script>
-// wowhead hover tooltips (owner request 2026-08-30): official embed. Icons on
-// links stay off (we self-host icons); renameLinks lets wowhead resolve any
-// item name the pipeline hasn't cached yet; link colors stay ours (quality
-// coloring would flood the pane with purple — the tooltip itself shows it).
-var whTooltips={colorLinks:false,iconizeLinks:false,renameLinks:true};
+// wowhead hover tooltips (owner request 2026-08-30): official embed, attached
+// to the icon anchors only. iconize/rename stay OFF — we self-host icons and
+// an anchor's contents must never be rewritten (renameLinks would replace the
+// icon <img>); colors stay ours (quality coloring would flood the pane with
+// purple — the tooltip itself shows quality).
+var whTooltips={colorLinks:false,iconizeLinks:false,renameLinks:false};
 </script>
 <script src="https://wow.zamimg.com/js/tooltips.js" defer
   onload="window.whRefresh&&window.whRefresh()" onerror="void 0"></script>

@@ -568,12 +568,17 @@ assert list(pr["hero"]) == ["Templar"]
 assert [n["id"] for n in pr["hero"]["Templar"]["nodes"]] == [3001]
 n1002 = cp["nodes"][1]
 assert n1002 == {"id": 1002, "x": 3600, "y": 1200, "r": 2,
-                 "n": "Spell Two", "ic": None, "t": 0}, n1002
+                 "n": "Spell Two", "ic": None, "t": 0, "s": 222222}, n1002
 n2001 = pr["spec"]["nodes"][0]
 assert n2001["n"] == "Override Name", n2001       # def override beats spell
 assert n2001["ic"] == "spell_three_icon", n2001   # shared icon-store name
+assert n2001["s"] == 333333 and "es" not in n2001, n2001
 n2002 = pr["spec"]["nodes"][1]
 assert n2002["t"] == 2 and n2002["n"] == "Choice A", n2002
+# choice node: every option in _node_entries order (sel's index space)
+assert n2002["s"] == 444444, n2002
+assert n2002["es"] == [{"s": 444444, "n": "Choice A", "ic": "choice_a_icon"},
+                       {"s": 555555, "n": None, "ic": None}], n2002
 assert cp["edges"] == [[1001, 1002]]              # cross-pane edges dropped
 assert pr["spec"]["edges"] == [[2001, 2002]]
 assert pr["hero"]["Templar"]["edges"] == []
@@ -592,7 +597,8 @@ assert pb["bkind"] == "hash"
 assert pb["builds"][0] == {"s": HP1, "n": 8, "sel": [[1001, 1], [1002, 2],
                                                      [2001, 1], [3001, 1]]}
 assert pb["builds"][1] == {"s": HP2, "n": 4, "sel": [[1001, 1], [1002, 1],
-                                                     [2002, 1], [3001, 1]]}
+                                                     [2002, 1, 0],
+                                                     [3001, 1]]}
 # string-identified build with two tree variants: modal selection wins
 vrows, vrecs = [], []
 for i, t in enumerate((TREE_P1, TREE_P1, TREE_P2), 1):

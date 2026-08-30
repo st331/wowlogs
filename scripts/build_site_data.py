@@ -1189,18 +1189,35 @@ def _trait_journal_pass(wanted: dict[str, set]) -> dict[str, dict]:
     return out
 
 
-def _sel_pairs(blob: str, entries: dict) -> list:
+def _node_entries(entries: dict) -> dict[str, list]:
+    """node id -> its entry ids sorted numerically. THE one ordering both
+    the talents doc's per-node "es" lists and _sel_pairs' entry indexes are
+    defined over -- they must never disagree."""
+    out: dict[str, list] = {}
+    for eid in sorted(entries, key=int):
+        out.setdefault(str(entries[eid][0]), []).append(eid)
+    return out
+
+
+def _sel_pairs(blob: str, entries: dict, node_entries: dict) -> list:
     """Canonical selection blob -> [[nodeId, rank], ...] via the geometry
-    entry->node mapping; unmapped entry ids are dropped (the client dims
+    entry->node mapping. A CHOICE node (>1 entries) carries a third element:
+    the picked entry's index within _node_entries order, matching the
+    talents doc's "es" list. Unmapped entry ids are dropped (the client dims
     what it cannot light) and duplicate nodes keep the higher rank."""
-    nodes: dict[int, int] = {}
+    nodes: dict[int, tuple] = {}
     for part in blob.split("|"):
         eid, rank = part.split(":", 1)
         ent = entries.get(eid)
         if ent:
             nid = int(ent[0])
-            nodes[nid] = max(nodes.get(nid, 0), int(rank))
-    return [[n, r] for n, r in sorted(nodes.items())]
+            eids = node_entries.get(str(nid), [])
+            idx = eids.index(eid) if len(eids) > 1 else None
+            old = nodes.get(nid)
+            if old is None or int(rank) > old[0]:
+                nodes[nid] = (int(rank), idx)
+    return [[n, r] if i is None else [n, r, i]
+            for n, (r, i) in sorted(nodes.items())]
 
 
 def talents_doc(name: str, usage: dict | None = None) -> str | None:
@@ -1231,9 +1248,7 @@ def talents_doc(name: str, usage: dict | None = None) -> str | None:
         return None
     entries = geo.get("entries", {})
     subtrees = geo.get("subtrees", {})
-    node_entries: dict[str, list] = {}     # node -> its entry ids, stable
-    for eid in sorted(entries, key=int):
-        node_entries.setdefault(str(entries[eid][0]), []).append(eid)
+    node_entries = _node_entries(entries)  # node -> its entry ids, stable
 
     def tree_obj(tid: str, nids: list[int]) -> dict:
         tgeo = geo["trees"][tid]
@@ -1250,6 +1265,20 @@ def talents_doc(name: str, usage: dict | None = None) -> str | None:
                 ic = sp.get("ic")
             node = {"id": nid, "x": g[0], "y": g[1], "r": r, "n": n,
                     "ic": ic, "t": g[2]}
+            if eids:
+                # wowhead /spell= link target; choice nodes list every
+                # option in _node_entries order (sel's third element indexes
+                # into this list)
+                node["s"] = int(e0[2])
+                if len(eids) > 1:
+                    node["es"] = [
+                        {"s": int(entries[e][2]),
+                         "n": entries[e][3]
+                              or (spells.get(str(entries[e][2])) or {})
+                              .get("n"),
+                         "ic": (spells.get(str(entries[e][2])) or {})
+                               .get("ic")}
+                        for e in eids]
             nodes_out.append(node)
         keep = set(nids)
         edges = [e for e in tgeo["edges"] if e[0] in keep and e[1] in keep]
@@ -1437,11 +1466,13 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     geo_entries = geo.get("entries", {}) if geo else {}
     if geo_entries:
         n_var = 0
+        geo_node_entries = _node_entries(geo_entries)
         for sk, o in usage.items():
             for build, blobs in o["sel"].items():
                 if len(blobs) > 1:
                     n_var += 1
-                pairs = _sel_pairs(blobs.most_common(1)[0][0], geo_entries)
+                pairs = _sel_pairs(blobs.most_common(1)[0][0], geo_entries,
+                                   geo_node_entries)
                 if pairs:
                     sel_by[(sk, build)] = pairs
         if n_var:

@@ -26,17 +26,19 @@ and see the data change. Filterable just like the stats are currently. I care ab
 - Item/enchant/embellishment NAMES: journal has ids only. Resolve names at build
   time into a committed, slowly-growing vocabulary (a public static item DB fetched
   by the collector and cached).
-- SUPERSEDED (owner, 2026-08-30): "item ids are completely useless to me, remove
-  them. instead insert wowhead links to the items. when I hover over an item, the
-  wowhead tooltip shows (pulled directly from wowhead)." So: EVERY item name is a
-  wowhead <a href="…/item=ID"> link; the official wowhead tooltips.js loads at
-  runtime (the one sanctioned third-party script) with renameLinks:true (wowhead
-  fills names the pipeline hasn't resolved — raw ids NEVER render anywhere),
-  iconizeLinks:false (icons stay self-hosted), colorLinks:false (quality-purple
-  floods would fight the design language; the tooltip itself shows quality).
-  whRefresh() after every charscreen render re-attaches tooltips. Unresolved
-  "#<bonusid>" embellishment strings are suppressed client-side (embOf).
-  Future talent-tree nodes should get the same treatment via /spell=ID links.
+- SUPERSEDED (owner, 2026-08-30, refined same day): "item ids are completely
+  useless to me, remove them"; "show the wowhead tooltip on hovering on the icon,
+  and that's it — not on the [name]"; "take me to the wowhead page only on
+  clicking the icon directly, nowhere else." So: the item ICON is the ONE wowhead
+  surface — an <a class="whico" href="…/item=ID"> wraps the icon tile (glyph
+  fallback included); names are plain text ("unnamed item" muted fallback, never
+  an id). The official wowhead tooltips.js loads at runtime (the one sanctioned
+  third-party script) with colorLinks/iconizeLinks/renameLinks ALL false (rename
+  would rewrite the anchor's contents and destroy the icon <img>; quality-purple
+  floods would fight the design language). whRefresh() after every charscreen
+  render re-attaches tooltips. Unresolved "#<bonusid>" embellishment strings are
+  suppressed client-side (embOf). Talent-tree nodes get the same icon-only
+  treatment via /spell=ID (doc nodes carry "s"; choice nodes "es"+sel entryIdx).
 - Talent builds: identified by talentImportString; top builds per spec with share,
   median DPS, and a copy-import-string affordance. Hero display per the owner's
   logic above (merged -> hero distribution visible; unmerged/hero-zoomed -> the two
