@@ -343,21 +343,35 @@ g1 = len(gzip.compress(json.dumps(full, separators=(",", ":")).encode(), 6))
 assert len(full["specs"]["Hunter|Marksmanship"]["items"][0]) == 24  # cap
 assert len(full["specs"]["Hunter|Marksmanship"]["builds"]) == 30
 
-_, halved = run_builds(big_rows, big_recs, big_caches, enc="dense",
-                       target=g1 - 1)
-assert halved is not None and "en" in halved["cols"]      # rung 2 sufficed
+# rung 2 drops the enchant block but KEEPS the full item vocabulary: a
+# truncated item vocab pools its tail into one "other / none" bucket that can
+# outrank every real item on a slot, while a missing enchant block merely
+# feature-detects off. Enchants are therefore the first thing traded away.
+_, no_en = run_builds(big_rows, big_recs, big_caches, enc="dense",
+                      target=g1 - 1)
+assert no_en is not None and "en" not in no_en["cols"]    # rung 2
+assert no_en["eslots"] == [] and "ench" not in no_en["specs"]["Paladin|Retribution"]
+assert len(no_en["specs"]["Hunter|Marksmanship"]["items"][0]) == 24  # cap intact
+assert len(no_en["specs"]["Hunter|Marksmanship"]["builds"]) == 30
+ref_decode(no_en, len(big_rows))                          # still §1.3-valid
+
+# rung 3 is the intermediate item step (24->18, not straight to 12), so a small
+# overshoot costs a little of the tail rather than all of it
+g2 = len(gzip.compress(json.dumps(no_en, separators=(",", ":")).encode(), 6))
+_, mid = run_builds(big_rows, big_recs, big_caches, enc="dense", target=g2 - 1)
+assert mid is not None and "en" not in mid["cols"]        # rung 3
+assert len(mid["specs"]["Hunter|Marksmanship"]["items"][0]) == 18
+
+_, halved = run_builds(big_rows, big_recs, big_caches, enc="dense", target=1)
+assert halved is not None and "en" not in halved["cols"]  # rung 4, the floor
 assert len(halved["specs"]["Hunter|Marksmanship"]["items"][0]) == 12
 assert len(halved["specs"]["Hunter|Marksmanship"]["builds"]) == 24
-_, no_en = run_builds(big_rows, big_recs, big_caches, enc="dense", target=1)
-assert no_en is not None and "en" not in no_en["cols"]    # rung 3
-assert no_en["eslots"] == [] and "ench" not in no_en["specs"]["Paladin|Retribution"]
-ref_decode(no_en, len(big_rows))                          # still §1.3-valid
 _, refused = run_builds(big_rows, big_recs, big_caches, target=1, cap=1)
 assert refused is None                                    # over the hard cap
 _, empty = run_builds(rows, [])
 assert empty is None                                      # empty journal
-print("ladder    : full caps -> halved (24->12, builds->24) -> en dropped "
-      "(eslots []) -> refused over cap; empty journal -> no file")
+print("ladder    : full caps -> en dropped (eslots []) -> items 24->18 -> "
+      "12 (builds->24) -> refused over cap; empty journal -> no file")
 
 # missing caches degrade to null names, never an error
 _, bare = run_builds(rows, recs, caches={}, enc="dense")

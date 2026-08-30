@@ -112,9 +112,28 @@ loadouts (60% archetype copies, modal shares 0.6–0.95, zipf tails — calibrat
 55% journal coverage ≈ 2.5 MB; at 35% ≈ 1.6 MB**. Vocab block adds ~0.2–0.4 MB gz
 (≈19k item entries, names dedupe well). Expected ship today: sparse, ~2–2.5 MB gz.
 Ladder, exactly stats_sidecar's shape, loud at every step: build both encodings, ship the
-smaller; if > 3.0 MB target → halve vocab caps (24→12, 40→20, builds 40→24) and rebuild;
-if still > 3.0 → drop `cols.en` + `ench` vocab entirely (client feature-detects: no `en`
-⇒ no enchant block); if > 5.0 MB cap → do not ship the file. Pinned by test.
+smaller; if > target → drop `cols.en` + `ench` vocab entirely (client feature-detects: no
+`en` ⇒ no enchant block); if still over → step item caps 24/40 → 18/30 (builds 40→32); if
+still over → 12/20 (builds →24); if > 5.0 MB cap → do not ship the file. Pinned by test.
+
+**REVISION 2026-08-30 (target + rung order).** Production ran the old ladder to its floor
+on every build: the lowest non-refusing rung measured 3.29 MB gz L6, i.e. the 3.0 MB target
+was unreachable at *any* cap setting, so the shipped file always carried halved item caps
+**and** no enchants. Every (spec, slot) vocabulary then saturated at 12/20 — 108 of 112
+measured pairs exactly at the cap — and the truncated remainder (14–31% of wearers, larger
+than the top named item on the diverse slots) became value 0, which the client elected as
+the tile winner. Two changes: **target 3.0 → 4.3 MB**, and the enchant block is now traded
+away *before* the item vocabulary degrades. Measured against the live document,
+re-serialised byte-exactly (3,286,838 B L6 / 3,244,112 B L9 vs the shipped 3,244,130 B) with
+the whole zero bucket spread over the restored tail (an upper bound): 24/40 = 3.90 MB L6,
+18/30 = 3.76 MB, 12/20 = 3.29 MB, 40/64 = 4.09 MB. 4.3 MB clears full caps with 0.40 MB of
+slack and leaves 1.10 MB (22%) under the hard cap, so every lower rung stays reachable.
+`BUILDS_GZ_CAP` does **not** move — it is what keeps the screen from vanishing entirely.
+Rung order rationale: a truncated item vocabulary does not merely hide entries, it pools
+them into an "other / none" bucket that can outrank every real item on a slot; a missing
+enchant block merely feature-detects off. Note the ladder measures at gzip level 6 while
+the file ships at level 9, a consistent ~1.3% pessimism — the wire size is always smaller
+than the target you set.
 
 ### 1.5 Addendum — build identity without import strings (2026-08-29, WIDENING)
 
@@ -381,10 +400,60 @@ Hand tile does NOT render — the Main Hand tile carries a footnote line (.62rem
 When a real off-hand item wins, the Off Hand tile renders as an ordinary tile. The
 grid is therefore 15 or 16 tiles, never a near-empty 17th piece of furniture.
 The whole tile is a content-hugging trigger; the geargrid .sec's scope line carries
-the microcopy `click a slot to unfold its distribution in place` (never "below" —
+the microcopy `click a tile to unfold its distribution in place` (never "below" —
 copy must point AT the click target). Active tile: border-color --accent-line —
 color-only, nothing moves. Tile row order is fixed regardless of fold-out insertion —
 muscle memory holds.
+
+**ADDENDUM 2026-08-30 — winner election, and pooled ring/trinket cells.**
+
+*(a) Value 0 never wins a tile.* The winner is the top vocab entry with `v>0` that
+resolves in the slot's vocabulary; `otherN` (the value-0 count) rides along on the model
+and every tile prints it as a fourth `.gmeta` chip, `other <p>%`. Value 0 is the catch-all
+for everything outside the shipped per-slot vocabulary, so a truncated tail made it beat
+every real item on the diverse slots — the tile then presented "other / none" as the
+consensus pick. It is reported, not elected. A slot with no named entry at all reads
+`no listed item`, not `other / none`. **Off-Hand suppression is re-expressed against
+`otherN`**: `ohNone` is now "a MAJORITY of gear-known rows carry no listed off hand"
+(`otherN*2 > total`), which is what "two-handed" means; the old `winner===0` test also
+fired whenever a merely-truncated other bucket edged past the top named entry, wrongly
+suppressing real off-hand users (Shaman|Restoration: other 20.0% vs top named 19.3%).
+
+*(b) The per-slot fold-out no longer folds ranks 11+ into "other / none".* Those are real,
+named items; lumping them in overstated the genuinely-unlisted share by up to 16 points on
+the 20-entry weapon/trinket columns. They get their own summary row, `<k> more listed
+items`, above the "other / none" row.
+
+*(c) Rings and trinkets are POOLED across both sockets* (owner: "it doesn't matter which
+slot a ring or trinket really is in for these purposes. I mostly just need to know the most
+used rings and trinkets" … "use the top #1 and #2 trinket/rings in those slots 1 and slots
+2"). Tile count, order and geometry are unchanged — the two ring positions and the two
+trinket positions keep their ordinary tiles; only what they show changes. `CS_DOLL.R`
+carries `"ring:1","ring:2","trk:1","trk:2"` tokens alongside retail ids. **Counting model:
+PLAYER PREVALENCE over the same gear-known denominator every other doll tile divides by** —
+a row contributes ONCE per *distinct* item it wears, so the same ring in both sockets counts
+once and the column legitimately sums above 100%. Not slot-share: "38.6% of players run
+Algeth'ar Puzzle Box" is the owner's question; 19.3% answers "share of trinket sockets",
+which nobody asks — and one denominator across the whole doll is the point.
+**Identity key: `(id, RAW emb)`** — `embOf()` is a display helper that hides unresolved
+`#<bonusid>`, and keying on it would club distinct crafted variants the per-slot fold shows
+separately. Entries with no id never merge. **Representative vocab entry** for a merged key
+(name/icon/ilvl/cr/emb): the column that contributed the larger wearer count, ties to the
+lower `BUILDS_SLOTS` column index — a deterministic pick, never an average (132 cross-column
+keys carry a different `ilvl` annotation in the two columns). Ranking is `c` desc, then
+representative `ilvl` desc, then key asc — a total order, so the #1/#2 tiles never flicker
+on a tie. Each pooled tile adds a `.gslab` rank line above the name (`Ring · most used`,
+`Ring · 2nd`), because position alone can no longer say which is which; nothing in the doll
+names a socket. Empty state for the #2 tile when only one entry clears the n≥3 floor:
+`no second ring above the n≥3 floor`, `<b>—</b>`, glyph icon with no anchor, bar at 0 —
+never a duplicate of #1. **Degenerate vocabularies:** if only one of the pair's columns
+ships, the cell degrades to that single ordinary physical tile (no pooling claim, no second
+tile); if neither ships, no cell at all.
+`CS_SLOT_LABEL`/`CS_SLOT_ABBR` keys 10–13 are **not** repurposed — they stay correct for the
+enchant table, which is legitimately per-socket. `csCraftedModel` skips retail 10–13 in its
+per-slot pass and appends one pooled `Rings` / `Trinkets` row, carrying a `lab` string the
+table renders instead of `CS_SLOT_LABEL[r.slot]`; the embellishment tally is unchanged
+(still per-slot carries, still caveated by its own caption).
 
 **slotfold — the in-place per-slot fold-out** (replaces the former standalone
 per-slot section AND its 16-chip selector — neither may return). Clicking a tile
@@ -411,6 +480,31 @@ distribution works without re-aiming. Reset on spec switch. **1366:** when the
 fold-out opens in (or moves to) the last fully-visible grid row, auto-scroll the page
 just enough to reveal the panel's full height (scrollIntoView block:'nearest',
 instant) — a fold-out never renders partly off-screen.
+
+**ADDENDUM 2026-08-30 — fold identity is a STRING.** `screenFold` and the DOM attribute
+change from `data-si` (an index into `BUILDSC.slots`) to `data-fold`, a *cell fold id*:
+`"s<si>"` for a physical column, `"ring"` / `"trk"` for a pooled pair. Renaming off
+`data-si` is also hygiene — that attribute is used by the unrelated Trends SVG. Both ring
+tiles carry `data-fold="ring"` and open ONE pooled panel; both light `.on` together (they
+are two faces of one distribution, and it is colour-only). Clicking either while it is
+open closes it — same id, same toggle, nothing to swap to. The arrow walk dedupes
+(`[...new Set(tiles.map(t=>t.dataset.fold))]`), so the pooled distribution is ONE stop, not
+a dead keypress; the clamp at both ends and the skip-a-suppressed-Off-Hand property survive
+because `order` is still built from the RENDERED tiles. The caret's `.find` takes the first
+match, i.e. the rank-1 tile. The render guard becomes "did this render actually emit that
+fold id" (`foldIds`), which subsumes the suppressed-Off-Hand special case and tolerates a
+spec whose vocab lacks a column. Every pooled cell must mark BOTH its physical columns
+`seen`, or the layout-tolerance sweep re-emits four contradictory socket tiles.
+**The pooled panel** carries the header `Rings — combined distribution in window`, a
+`.caption` immediately under it (verbatim: *"share of the &lt;n&gt; gear-known players in
+this window who wore this ring in either ring slot. A player wearing two different rings
+appears in two rows, so this column sums above 100%; a ring worn in both slots counts
+once."*, trinket wording identical), then ≤10 rows + "other / none" in the byte-identical
+row markup. **"other / none" here is a ROW-SET CARDINALITY, never a sum of folded counts** —
+under prevalence, summing would count a player whose *both* rings are unlisted twice. One
+definition absorbs all four fold-in paths (vocab value 0, an unresolvable entry, below
+`CS_ENTRY_MIN`, beyond the top 10): the count of rows carrying an unlisted socket or any
+key outside the rendered set.
 
 **enchants** (Gear pane, under the grid). Table: one row per eslot with any data:
 slot label · top enchant name · share of enchant-known · n · a trailing FIXED-WIDTH

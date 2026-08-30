@@ -596,6 +596,11 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
 .gico.s{width:28px; height:28px; box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .gico.s .gph{font-size:.62rem; letter-spacing:.02em}
 .gtile .gtxt{flex:1; min-width:0}
+/* pooled ring/trinket tiles name their RANK, never a socket — position alone
+   cannot say which of the two is #1 once the physical slot stops meaning
+   anything (owner, 2026-08-30: "use the top #1 and #2 trinket/rings") */
+.gtile .gslab{font-size:.7rem; text-transform:uppercase; letter-spacing:.1em;
+  color:var(--ink3); line-height:1.3}
 .gtile .gn{font-size:.88rem; color:var(--ink); line-height:1.25;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 /* the Main Hand winner name is NEVER ellipsized — it wraps and the tile grows */
@@ -629,6 +634,8 @@ a.whico{display:inline-flex; color:inherit; text-decoration:none;
 #cs-fold .caret.ct{top:-14px; border-bottom-color:var(--accent-line)}
 #cs-fold .fh{font-size:.7rem; text-transform:uppercase; letter-spacing:.12em;
   color:var(--ink3); margin-bottom:.35rem}
+/* the pooled fold-out's denominator caveat sits directly under its header */
+#cs-fold .caption{margin:-.1rem 0 .45rem}
 .frow{display:flex; align-items:center; gap:7px; min-width:0; position:relative;
   padding:.16rem 0 .22rem}
 .frow+.frow{border-top:1px solid var(--line0)}
@@ -2965,7 +2972,8 @@ document.addEventListener("keydown",e=>{
    (peek vs place, both behaviors side by side). Never serialized to the URL. */
 let screenReturnY=0;
 let screenTab="gear";             // active pane — persists across exit/re-enter (session)
-let screenFold=null;              // open fold-out: index into BUILDSC.slots, or null
+let screenFold=null;              // open fold-out: a cell fold id
+                                  // ("s<si>" | "ring" | "trk"), or null
 let screenBuild=0;                // lit build on the talent trees (csTalentRows index)
 let screenEnchOpen=new Set();     // expanded enchant rows (retail slot ids)
 let screenSecClosed=new Set(["crafted"]);   // §15.9 collapse; crafted starts closed
@@ -3140,8 +3148,23 @@ const CS_SLOT_LABEL={0:"Head",1:"Neck",2:"Shoulder",4:"Chest",5:"Waist",6:"Legs"
   7:"Feet",8:"Wrist",9:"Hands",10:"Ring 1",11:"Ring 2",12:"Trinket 1",
   13:"Trinket 2",14:"Back",15:"Main hand",16:"Off hand"};
 // paper-doll arrangement (in-game character pane): left / right columns top-to-
-// bottom, trinkets + weapons bottom-center. Keys are retail slot ids.
-const CS_DOLL={L:[0,1,2,14,4,8], R:[9,5,6,7,10,11,12,13], B:[15,16]};
+// bottom, trinkets + weapons bottom-center. Numeric keys are retail slot ids;
+// "<pool>:<rank>" keys are POOLED cells (owner, 2026-08-30: "just have one slot
+// for ring and trinkets each … use the top #1 and #2 trinket/rings in those
+// slots 1 and slots 2"). Tile count, order and geometry are unchanged — the two
+// ring positions now show the #1 and #2 ring of ONE distribution pooled across
+// both sockets, and likewise for trinkets. Which socket an item sits in is
+// irrelevant here, so nothing in the doll names one.
+const CS_DOLL={L:[0,1,2,14,4,8], R:[9,5,6,7,"ring:1","ring:2","trk:1","trk:2"],
+  B:[15,16]};
+// the pooled cells' physical source columns, by retail slot id
+const CS_POOL_SLOTS={ring:[10,11], trk:[12,13]};
+const CS_POOL_LABEL={ring:"Ring", trk:"Trinket"};
+const CS_POOL_ABBR ={ring:"RNG",  trk:"TRK"};        // glyph fallback only
+const CS_POOL_RANK ={1:"most used", 2:"2nd most used"};
+const CS_POOL_RANKS={1:"most used", 2:"2nd"};        // the compact tile label
+// retail slot ids the doll no longer presents per socket
+const CS_POOLED_SLOT=new Set([10,11,12,13]);
 // slot-glyph fallback initials for iconless 40px tiles (never a broken image)
 const CS_SLOT_ABBR={0:"Hd",1:"Nk",2:"Sh",4:"Ch",5:"Wa",6:"Lg",7:"Ft",8:"Wr",
   9:"Ha",10:"R1",11:"R2",12:"T1",13:"T2",14:"Bk",15:"MH",16:"OH"};
@@ -3224,8 +3247,10 @@ function moveSlotFold(dir){
   const tiles=[...document.querySelectorAll("#cs-doll .gtile")];
   if(!tiles.length) return;
   // rendered doll order — left column, right column, bottom row — skipping a
-  // suppressed Off Hand; ←/→ walk the open fold-out along this arrangement
-  const order=tiles.map(t=>+t.dataset.si);
+  // suppressed Off Hand; ←/→ walk the open fold-out along this arrangement.
+  // DEDUPED: the two ring tiles (and the two trinket tiles) share ONE fold id,
+  // so the pooled distribution is ONE stop in the walk, not a dead keypress.
+  const order=[...new Set(tiles.map(t=>t.dataset.fold))];
   let p=order.indexOf(screenFold);
   if(p<0) p=0;
   const q=Math.min(order.length-1, Math.max(0, p+dir));
@@ -3393,18 +3418,121 @@ function csSubnavHTML(d){
     +t("tal","Talents",d.bldIdx.length)+'</div>';
 }
 /* geargrid + slotfold (§3.4) */
+/* The winner is the top NAMED item — vocab value 0 ("other / none") NEVER
+   competes for a tile (owner, 2026-08-30: "20% are showing as other/none. fix
+   this" … "seems like every gear slot has that problem"). Value 0 is the
+   catch-all for everything outside the shipped per-slot vocabulary, so on a
+   diverse slot it can outrank every real item and win the tile while being no
+   item at all. It is not hidden: `otherN` rides along, every tile prints it,
+   and the Off-Hand suppression probe now asks it directly. */
 function csGearModel(d){
   const slots=BUILDSC.slots, per=[];
   for(let si=0;si<slots.length;si++){
+    const V=(d.vocab.items||[])[si]||[];
     const cnt=new Map();
     for(const i of d.gearIdx){ const v=bldItV(si,i); cnt.set(v,(cnt.get(v)||0)+1); }
     let wv=0,wn=-1;
-    for(const [v,c] of cnt) if(c>wn){wn=c; wv=v}
-    per.push({cnt, winner:wv, winN:Math.max(0,wn)});
+    for(const [v,c] of cnt)
+      if(v>0&&V[v-1]&&c>wn){ wn=c; wv=v }          // top NAMED entry
+    per.push({cnt, winner:wv, winN:Math.max(0,wn), otherN:cnt.get(0)||0});
   }
   return per;
 }
-function csFoldHTML(d,si){
+/* Rings pooled across BOTH ring sockets, trinkets across both trinket sockets
+   (owner, 2026-08-30: "it doesn't matter which slot a ring or trinket really is
+   in for these purposes. I mostly just need to know the most used rings and
+   trinkets"). Counting model is PLAYER PREVALENCE over the same gear-known
+   denominator every other doll tile divides by: a row contributes ONCE per
+   DISTINCT item it wears, so the same ring in both sockets counts once and the
+   column legitimately sums above 100%. Identity is (id, RAW emb) — embOf() is a
+   display helper that hides unresolved "#<bonusid>", and keying on it would
+   club distinct crafted variants that the per-slot fold-out shows separately.
+   Entries with no id never merge; they fall to "other / none". */
+function csPoolModel(d,idA,idB){
+  const slots=BUILDSC.slots, sa=slots.indexOf(idA), sb=slots.indexOf(idB);
+  const Va=(sa<0?null:(d.vocab.items||[])[sa])||[];
+  const Vb=(sb<0?null:(d.vocab.items||[])[sb])||[];
+  const kf=e=>(e&&e.id!=null)?e.id+"|"+(e.emb==null?"":e.emb):null;
+  const cnt=new Map(), rep=new Map(), rowKeys=[], rowRaw=[];
+  const slot=k=>rep.get(k)||(rep.set(k,{eA:null,eB:null,cA:0,cB:0}),rep.get(k));
+  for(const i of d.gearIdx){
+    const va=sa<0?0:bldItV(sa,i), vb=sb<0?0:bldItV(sb,i);
+    const ea=va>0?(Va[va-1]||null):null, eb=vb>0?(Vb[vb-1]||null):null;
+    const ka=kf(ea), kb=kf(eb);
+    // set semantics: the SAME item in both sockets is one wearer, not two
+    const ks=ka?(kb&&kb!==ka?[ka,kb]:[ka]):(kb?[kb]:[]);
+    for(const k of ks) cnt.set(k,(cnt.get(k)||0)+1);
+    if(ka){ const o=slot(ka); if(!o.eA) o.eA=ea; o.cA++ }
+    if(kb){ const o=slot(kb); if(!o.eB) o.eB=eb; o.cB++ }
+    rowKeys.push(ks); rowRaw.push(ka===null||kb===null);
+  }
+  // representative vocab entry (name/icon/ilvl/cr/emb): the column that
+  // contributed the LARGER wearer count; ties go to the lower column index.
+  // 132 cross-column keys carry a different ilvl annotation in the two columns,
+  // so this must be a deterministic pick — never an average.
+  const entOf=k=>{const o=rep.get(k);
+    return (o.cB>o.cA&&o.eB)?o.eB:(o.eA||o.eB)};
+  const ent=[];
+  for(const [k,c] of cnt){
+    if(c<CS_ENTRY_MIN) continue;                   // same floor as the per-slot fold
+    ent.push({k,c,e:entOf(k)});
+  }
+  // a TOTAL order, so the #1 / #2 tiles never flicker between renders on a tie
+  ent.sort((a,b)=>b.c-a.c
+    ||(((b.e&&b.e.ilvl)||0)-((a.e&&a.e.ilvl)||0))
+    ||(a.k<b.k?-1:a.k>b.k?1:0));
+  return {ent, rowKeys, rowRaw, n:d.gearIdx.length, ok:sa>=0&&sb>=0};
+}
+// one fold-out row, shared byte-for-byte by the per-slot and pooled panels:
+// 22px icon tile + name + share/n/ilvl, crafted/emb sub-line, thin share bar
+function csFoldRow(e,nameHTML,s,c,ph){
+  return '<div class="frow">'
+    +csIcoHTML(e,ph,true)
+    +'<div class="fx"><div class="ftop"><span class="fn">'+nameHTML+'</span>'
+    +'<span class="fs"><b>'+s.toFixed(1)+'%</b> · n='+fmtInt(c)+' · '
+    +((e&&e.ilvl)?"ilvl "+e.ilvl:"–")+'</span></div>'
+    +((e&&(e.cr||embOf(e)))?'<div class="fsub">'
+      +(e.cr?'<span class="gtag">crafted</span>':'')
+      +(embOf(e)?' <span class="gemb">'+esc(embOf(e))+'</span>':'')+'</div>':'')
+    +'</div><i class="fbar" style="width:'+Math.min(100,s).toFixed(1)+'%"></i></div>';
+}
+// fold-out dispatcher on the cell's fold id: "s<si>" = one physical column,
+// "ring"/"trk" = the pooled distribution behind a pair of tiles
+function csFoldHTML(d,fid,M){
+  if(fid.charAt(0)==="s") return csSlotFoldHTML(d,+fid.slice(1));
+  const pr=CS_POOL_SLOTS[fid];
+  return csPoolFoldHTML(d,fid,M||csPoolModel(d,pr[0],pr[1]));
+}
+function csPoolFoldHTML(d,p,M){
+  const total=M.n||1, lab=CS_POOL_LABEL[p], lc=lab.toLowerCase();
+  const shown=M.ent.slice(0,10);
+  const L=new Set(shown.map(x=>x.k));
+  // "other / none" is a ROW-SET CARDINALITY, never a sum of folded counts:
+  // under prevalence, summing would count a player whose BOTH rings are
+  // unlisted twice. One definition absorbs all four fold-in paths (vocab value
+  // 0, an unresolvable vocab entry, below CS_ENTRY_MIN, beyond the top 10).
+  let other=0;
+  for(let r=0;r<M.rowKeys.length;r++){
+    if(M.rowRaw[r]){ other++; continue }
+    const ks=M.rowKeys[r];
+    for(const k of ks) if(!L.has(k)){ other++; break }
+  }
+  let rows="";
+  for(const x of shown)
+    rows+=csFoldRow(x.e,itemNameHTML(x.e),100*x.c/total,x.c,csFoldPh(x.e));
+  if(other>0)
+    rows+=csFoldRow(null,'<span class="na">other / none</span>',
+      100*other/total,other,"–");
+  return '<div id="cs-fold"><span class="caret"></span>'
+    +'<div class="fh">'+lab+'s — combined distribution in window</div>'
+    +'<div class="caption">'+esc("share of the "+fmtInt(M.n)
+      +" gear-known players in this window who wore this "+lc+" in either "+lc
+      +" slot. A player wearing two different "+lc+"s appears in two rows, so "
+      +"this column sums above 100%; a "+lc+" worn in both slots counts once.")
+    +'</div>'
+    +rows+'</div>';
+}
+function csSlotFoldHTML(d,si){
   const slot=BUILDSC.slots[si];
   const cnt=new Map();
   for(const i of d.gearIdx){ const v=bldItV(si,i); cnt.set(v,(cnt.get(v)||0)+1); }
@@ -3418,24 +3546,21 @@ function csFoldHTML(d,si){
     entries.push({v,c});
   }
   entries.sort((a,b)=>b.c-a.c);
-  for(const e of entries.slice(10)) other+=e.c;         // ≤10 + "other/none"
-  // compact inspect rows: 22px icon tile + name + share/n/ilvl; thin share bar
-  const row=(e,nameHTML,s,c,ph)=>'<div class="frow">'
-    +csIcoHTML(e,ph,true)
-    +'<div class="fx"><div class="ftop"><span class="fn">'+nameHTML+'</span>'
-    +'<span class="fs"><b>'+s.toFixed(1)+'%</b> · n='+fmtInt(c)+' · '
-    +((e&&e.ilvl)?"ilvl "+e.ilvl:"–")+'</span></div>'
-    +((e&&(e.cr||embOf(e)))?'<div class="fsub">'
-      +(e.cr?'<span class="gtag">crafted</span>':'')
-      +(embOf(e)?' <span class="gemb">'+esc(embOf(e))+'</span>':'')+'</div>':'')
-    +'</div><i class="fbar" style="width:'+Math.min(100,s).toFixed(1)+'%"></i></div>';
+  // ranks 11+ are REAL, NAMED items. Folding them into "other / none" (as this
+  // panel used to) overstated the genuinely-unlisted share by up to 16 points
+  // on the 20-entry weapon/trinket columns — they get their own summary row.
+  const tail=entries.slice(10);
+  let tailN=0; for(const e of tail) tailN+=e.c;
   let rows="";
   for(const {v,c} of entries.slice(0,10)){
     const e=V[v-1];
-    rows+=row(e,itemNameHTML(e),100*c/total,c,csFoldPh(e));
+    rows+=csFoldRow(e,itemNameHTML(e),100*c/total,c,csFoldPh(e));
   }
+  if(tail.length)
+    rows+=csFoldRow(null,'<span class="na">'+fmtInt(tail.length)+' more listed item'
+      +(tail.length===1?"":"s")+'</span>',100*tailN/total,tailN,"+");
   if(other>0)
-    rows+=row(null,'<span class="na">other / none</span>',100*other/total,other,"–");
+    rows+=csFoldRow(null,'<span class="na">other / none</span>',100*other/total,other,"–");
   return '<div id="cs-fold"><span class="caret"></span>'
     +'<div class="fh">'+CS_SLOT_LABEL[slot]+' — distribution in window</div>'
     +rows+'</div>';
@@ -3443,42 +3568,99 @@ function csFoldHTML(d,si){
 function csGearPaneHTML(ctx,d){
   let h=csSecOpen("geargrid","Gear overview",
     esc("share of "+fmtInt(d.gearIdx.length)
-    +" gear-known in window · click a slot to unfold its distribution in place"));
+    +" gear-known in window · rings and trinkets are pooled across both slots"
+    +" · click a tile to unfold its distribution in place"));
   if(!d.vocab||!Array.isArray(d.vocab.items)||!d.gearIdx.length)
     return h+csThinHTML(d.gearIdx.length,"gear")+'</div>';
   if(d.gearIdx.length<CS_THIN)
     return h+csThinHTML(d.gearIdx.length,"gear")+'</div>';
   const slots=BUILDSC.slots, per=csGearModel(d);
-  const ohSi=slots.indexOf(16);
-  const ohNone=ohSi>=0&&per[ohSi].winner===0;   // 2H specs: no near-empty 17th tile
   const total=d.gearIdx.length;
-  // one paper-doll slot row: 40px icon tile + label/name/meta + thin share bar
+  const ohSi=slots.indexOf(16);
+  // 2H specs: no near-empty 17th tile. Re-expressed against the OTHER bucket
+  // now that the winner election skips value 0 — a MAJORITY of gear-known rows
+  // carrying no listed off hand is what "two-handed" actually means. (The old
+  // `winner===0` test also fired whenever a merely-truncated other bucket edged
+  // out the top named entry, which wrongly suppressed real off-hand users.)
+  const ohNone=ohSi>=0&&per[ohSi].otherN*2>total;
+  const POOLS={};
+  const poolOf=p=>POOLS[p]||(POOLS[p]=csPoolModel(d,CS_POOL_SLOTS[p][0],
+    CS_POOL_SLOTS[p][1]));
+  const foldIds=new Set();          // every fold id this render actually emitted
+  // one paper-doll row: 40px icon tile + label/name/meta + thin share bar
+  const cell=o=>{
+    foldIds.add(o.fid);
+    return '<div class="gtile'+(o.cls||"")+(screenFold===o.fid?" on":"")
+      +'" data-fold="'+o.fid+'" title="'+o.title+'">'
+      +csIcoHTML(o.e,o.ph,false)
+      +'<div class="gtxt">'
+      +(o.slab?'<div class="gslab">'+o.slab+'</div>':'')
+      +'<div class="gn">'+o.name+'</div>'
+      +'<div class="gmeta">'+o.meta+'</div>'+(o.foot||'')
+      +'</div><i class="gbar" style="width:'
+      +Math.min(100,o.share).toFixed(1)+'%"></i></div>';
+  };
   const tile=si=>{
     const slot=slots[si];
     if(slot===16&&ohNone) return "";            // suppressed — footnote on Main Hand
     const p=per[si];
     const e=p.winner>0?((d.vocab.items[si]||[])[p.winner-1]||null):null;
     const share=100*p.winN/total;
-    return '<div class="gtile'+(slot===15?" mh":"")+(screenFold===si?" on":"")
-      +'" data-si="'+si+'"'
-      +' title="'+CS_SLOT_LABEL[slot]+(embOf(e)?" — "+escA(embOf(e)):"")+'">'
-      +csIcoHTML(e,CS_SLOT_ABBR[slot]||"?",false)
-      +'<div class="gtxt"><div class="gn">'+(p.winner>0?itemNameHTML(e):'<span class="na">other / none</span>')+'</div>'
-      +'<div class="gmeta"><b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(p.winN)+'</i>'
-      +((e&&e.ilvl)?'<i>ilvl '+e.ilvl+'</i>':'')
-      +((e&&e.cr)?'<span class="gtag">crafted</span>':'')+'</div>'
-      +((slot===15&&ohNone)?'<div class="gfoot">off hand: none — two-handed '
-        +(100*per[ohSi].winN/total).toFixed(0)+'%</div>':'')
-      +'</div><i class="gbar" style="width:'+Math.min(100,share).toFixed(1)+'%"></i></div>';
+    return cell({fid:"s"+si, cls:(slot===15?" mh":""),
+      title:CS_SLOT_LABEL[slot]+(embOf(e)?" — "+escA(embOf(e)):""),
+      ph:CS_SLOT_ABBR[slot]||"?", e, share,
+      name:(e?itemNameHTML(e):'<span class="na">no listed item</span>'),
+      // the unlisted share stays VISIBLE — it is real information, it just
+      // never gets to masquerade as the consensus pick
+      meta:'<b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(p.winN)+'</i>'
+        +((e&&e.ilvl)?'<i>ilvl '+e.ilvl+'</i>':'')
+        +((e&&e.cr)?'<span class="gtag">crafted</span>':'')
+        +(p.otherN>0?'<i>other '+(100*p.otherN/total).toFixed(0)+'%</i>':''),
+      foot:(slot===15&&ohNone)?'<div class="gfoot">off hand: none — two-handed '
+        +(100*per[ohSi].otherN/total).toFixed(0)+'%</div>':''});
+  };
+  const poolTile=(p,rank)=>{
+    const M=poolOf(p), x=M.ent[rank-1]||null, lab=CS_POOL_LABEL[p];
+    const e=x?x.e:null, c=x?x.c:0, share=100*c/(M.n||1);
+    return cell({fid:p,
+      title:lab+"s — "+CS_POOL_RANK[rank]+" across both "+lab.toLowerCase()
+        +" slots"+(embOf(e)?" — "+escA(embOf(e)):""),
+      ph:CS_POOL_ABBR[p], e, share,
+      slab:esc(lab+" · "+CS_POOL_RANKS[rank]),
+      name:(e?itemNameHTML(e):'<span class="na">'+esc("no "
+        +(rank===2?"second ":"")+lab.toLowerCase()+" above the n≥"
+        +CS_ENTRY_MIN+" floor")+'</span>'),
+      meta:(e?('<b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(c)+'</i>'
+        +(e.ilvl?'<i>ilvl '+e.ilvl+'</i>':'')
+        +(e.cr?'<span class="gtag">crafted</span>':'')):'<b>—</b>')});
   };
   const seen=new Set();
-  const col=ids=>ids.map(id=>{const si=slots.indexOf(id);
-    if(si<0) return ""; seen.add(si); return tile(si);}).join("");
+  const col=ids=>ids.map(id=>{
+    if(typeof id!=="string"){                   // an ordinary physical column
+      const si=slots.indexOf(id);
+      if(si<0) return ""; seen.add(si); return tile(si);
+    }
+    const p=id.slice(0,id.indexOf(":")), rank=+id.slice(id.indexOf(":")+1);
+    const pr=CS_POOL_SLOTS[p];
+    const sa=slots.indexOf(pr[0]), sb=slots.indexOf(pr[1]);
+    if(sa<0&&sb<0) return "";                   // neither column ships: no cell
+    if(sa<0||sb<0){                             // one column only: no pooling
+      const si=sa<0?sb:sa;                      // claim, and no second tile
+      if(rank!==1) return "";
+      seen.add(si); return tile(si);
+    }
+    // BOTH physical columns are consumed by the pooled pair — miss this and the
+    // layout-tolerance sweep below re-emits four contradictory socket tiles
+    seen.add(sa); seen.add(sb);
+    return poolTile(p,rank);
+  }).join("");
   const L=col(CS_DOLL.L), Rr=col(CS_DOLL.R);
   let B=col(CS_DOLL.B);
   slots.forEach((id,si)=>{ if(!seen.has(si)) B+=tile(si); });  // layout tolerance
-  const fold=(screenFold!=null&&slots[screenFold]!=null
-    &&!(ohNone&&slots[screenFold]===16))?csFoldHTML(d,screenFold):"";
+  // only a fold id this render actually emitted can open — subsumes the
+  // suppressed-Off-Hand case and any spec whose vocab lacks a column
+  const fold=(screenFold!=null&&foldIds.has(screenFold))
+    ?csFoldHTML(d,screenFold,POOLS[screenFold]):"";
   return h+'<div id="cs-doll">'
     +'<div class="dcol l">'+L+'</div>'
     +'<div class="dcenter">'+fold+'</div>'       // caret aimed at owner in wireScreen
@@ -3538,7 +3720,19 @@ function csCraftedModel(d){
       const em=embOf(e);
       if(em) emb.set(em,(emb.get(em)||0)+c);   // counted per slot (a player can carry two)
     }
-    if(top) bySlot.push({slot:slots[si], c:top.c, e:top.e});
+    // rings and trinkets are pooled below — one row per PAIR, so the table
+    // never asserts "Ring 1" (a socket the doll no longer names) and never
+    // lists the same crafted ring twice
+    if(top&&!CS_POOLED_SLOT.has(slots[si]))
+      bySlot.push({slot:slots[si], lab:CS_SLOT_LABEL[slots[si]],
+        c:top.c, e:top.e});
+  }
+  for(const p of ["ring","trk"]){
+    const pr=CS_POOL_SLOTS[p];
+    if(slots.indexOf(pr[0])<0||slots.indexOf(pr[1])<0) continue;
+    const top=csPoolModel(d,pr[0],pr[1]).ent.find(x=>x.e&&x.e.cr);
+    if(top) bySlot.push({slot:pr[0], lab:CS_POOL_LABEL[p]+"s",
+      c:top.c, e:top.e});
   }
   return {bySlot, emb:[...emb.entries()].sort((a,b)=>b[1]-a[1])};
 }
@@ -3554,7 +3748,7 @@ function csCraftedHTML(ctx,d){
     +'<table class="fold-t">';
   for(const r of M.bySlot)
     h+='<tr><td class="txt gsl" style="font-size:.62rem; text-transform:uppercase; '
-      +'letter-spacing:.12em; color:var(--ink3)">'+CS_SLOT_LABEL[r.slot]+'</td>'
+      +'letter-spacing:.12em; color:var(--ink3)">'+r.lab+'</td>'
       +'<td class="txt">'+csIcoHTML(r.e,csFoldPh(r.e),true)+' '
       +itemNameHTML(r.e)+'</td>'
       +'<td>'+(100*r.c/total).toFixed(1)+'%</td><td>n='+fmtInt(r.c)+'</td></tr>';
@@ -3858,8 +4052,10 @@ function wireScreen(host,ctx,d){
   host.querySelectorAll("#cs-doll .gtile").forEach(t=>{
     t.onclick=e=>{
       if(e.target.closest("a")) return;          // wowhead links stay links
-      const si=+t.dataset.si;
-      screenFold=(screenFold===si)?null:si;      // one open at a time; same tile closes
+      const fid=t.dataset.fold;
+      // one open at a time; the same tile closes — and so does the OTHER tile
+      // of a pooled pair, which shares the id because it is the same panel
+      screenFold=(screenFold===fid)?null:fid;
       renderScreen();
     };
   });
@@ -3894,7 +4090,10 @@ function wireScreen(host,ctx,d){
   // edge, whichever side the owner sits on; last-row auto-reveal kept
   const doll=host.querySelector("#cs-doll"), fold=host.querySelector("#cs-fold");
   if(doll&&fold){
-    const owner=[...doll.querySelectorAll(".gtile")].find(t=>+t.dataset.si===screenFold);
+    // .find takes the FIRST match, so a pooled pair aims the caret at its
+    // rank-1 tile — deterministic, and the top of the pair
+    const owner=[...doll.querySelectorAll(".gtile")]
+      .find(t=>t.dataset.fold===screenFold);
     const c=fold.querySelector(".caret");
     if(owner&&c){
       const or=owner.getBoundingClientRect(), fr=fold.getBoundingClientRect();

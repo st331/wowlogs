@@ -1062,7 +1062,19 @@ BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG = 24, 40
 BUILDS_ENCH_CAP, BUILDS_BUILD_CAP = 15, 40       # 15 = nibble-bound
 BUILDS_ESLOT_MIN_SHARE = 0.01   # a slot ships an enchant column when >=1%
                                 # of gear-known records carry an ench there
-BUILDS_GZ_TARGET = 3_000_000
+# Sizing (§1.4). The 3.0 MB target was UNREACHABLE: the lowest non-refusing
+# rung measured 3.29 MB gz at level 6, so the ladder bottomed out on every run
+# and shipped the most degraded document it can build — halved item caps AND no
+# enchants — while still overshooting. Every slot's vocabulary then saturated at
+# 12/20 and the truncated remainder (14-31% of wearers, larger than the top
+# named item on the diverse slots) became the tile's "winner". Measured against
+# the live document, re-serialised byte-exactly and with the whole zero bucket
+# spread over the restored tail (an upper bound): full caps 24/40 = 3.90 MB gz
+# L6, 18/30 = 3.76 MB, 12/20 = 3.29 MB. 4.3 MB clears full caps with 0.40 MB of
+# slack and still leaves 1.10 MB (22%) under the hard cap, so the ladder stays a
+# live safety net rather than dead code. The hard cap does NOT move: it is what
+# keeps the character screen from vanishing entirely.
+BUILDS_GZ_TARGET = 4_300_000
 BUILDS_GZ_CAP = 5_000_000
 
 NAMES_ITEMS = ROOT / "data" / "names_items.json"
@@ -1399,11 +1411,14 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     embellishment identity — an item id worn plain and embellished is two
     entries — and annotated cr/emb/ilvl/n from the fetch_names caches.
 
-    Ladder, loud at every rung: ship the smaller of dense/sparse; over the
-    target, halve the vocab caps and rebuild; still over, drop the enchant
-    columns and vocab (eslots ships [] so the client's array check passes
-    and the enchant section simply feature-detects off); over the hard cap,
-    ship nothing.
+    Ladder, loud at every rung: ship the smaller of dense/sparse at full
+    caps; over the target, drop the enchant columns and vocab (eslots ships
+    [] so the client's array check passes and the enchant section simply
+    feature-detects off); still over, step the item caps down 24/40 -> 18/30
+    -> 12/20; over the hard cap, ship nothing. Enchants go BEFORE the item
+    vocabulary because a truncated item vocabulary does not merely hide
+    entries — it pools them into an "other / none" bucket that can outrank
+    every real item on a slot.
     """
     builds_sidecar.usage = None      # trait-pass result, reused by build()
     if not journal:
@@ -1652,18 +1667,28 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     print(f"[{name}] builds sidecar: {len(rows_c):,}/{n:,} rows covered "
           f"({len(rows_c) / n:.0%}), {len(tallies)} specs, "
           f"eslots {eslots}")
-    doc = make_doc(BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG,
-                   BUILDS_BUILD_CAP, True)
-    if len(gzip.compress(doc.encode(), 6)) > target:
-        print(f"[{name}] builds sidecar over the {target / 1e6:.1f} MB "
-              f"target; halving vocab caps (24->12, 40->20, builds 40->24)")
-        doc = make_doc(BUILDS_ITEM_CAP // 2, BUILDS_ITEM_CAP_BIG // 2,
-                       24, True)
-    if len(gzip.compress(doc.encode(), 6)) > target:
-        print(f"[{name}] builds sidecar still over the target; dropping the "
-              f"enchant columns and vocab (client feature-detects)")
-        doc = make_doc(BUILDS_ITEM_CAP // 2, BUILDS_ITEM_CAP_BIG // 2,
-                       24, False)
+    # Degradation ladder (§1.4), a STAIRCASE rather than a cliff. Two ordering
+    # rules, both learned from production:
+    #  * the enchant block is traded away BEFORE the item vocabulary degrades.
+    #    The item vocabulary is what the gear pane is made of; when it is
+    #    truncated, the leftovers collapse into one "other / none" bucket that
+    #    can outrank every real item on a slot. The enchant section merely
+    #    feature-detects off, losing a section but never lying about one.
+    #  * the item rungs step 24 -> 18 -> 12 instead of halving straight to 12,
+    #    so a small overshoot costs a little tail rather than all of it.
+    ladder = [(BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG, BUILDS_BUILD_CAP, True),
+              (BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG, BUILDS_BUILD_CAP, False),
+              (18, 30, 32, False),
+              (BUILDS_ITEM_CAP // 2, BUILDS_ITEM_CAP_BIG // 2, 24, False)]
+    doc = make_doc(*ladder[0])
+    for ic, icb, bc, wen in ladder[1:]:
+        if len(gzip.compress(doc.encode(), 6)) <= target:
+            break
+        print(f"[{name}] builds sidecar over the {target / 1e6:.1f} MB target; "
+              f"stepping down to caps {ic}/{icb}, builds {bc}, "
+              f"en={'y' if wen else 'n'}"
+              + ("" if wen else " (client feature-detects the enchant block)"))
+        doc = make_doc(ic, icb, bc, wen)
     if len(gzip.compress(doc.encode(), 6)) > cap:
         print(f"[{name}] builds sidecar over the {cap / 1e6:.1f} MB hard "
               f"cap even without enchants; NOT shipped")
