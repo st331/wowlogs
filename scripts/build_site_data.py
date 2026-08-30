@@ -1287,12 +1287,37 @@ def talents_doc(name: str, usage: dict | None = None) -> str | None:
         edges = [e for e in tgeo["edges"] if e[0] in keep and e[1] in keep]
         return {"nodes": nodes_out, "edges": edges}
 
+    # Which tree does a spec belong to? The journal's talents payload carries
+    # ONLY "tree" in practice -- 430,507/430,507 records have exactly that key,
+    # no specID and no import string -- so the WCL spec id the geometry's
+    # "specs" map is keyed by is simply never there, and keying off it omitted
+    # the whole document. Identify the tree by ENTRY MEMBERSHIP instead: the
+    # tree holding the most of the entries this spec's players actually
+    # allocated. specID stays a fast path for journals that do carry it.
+    node_of = {eid: str(ent[0]) for eid, ent in entries.items()}
+
+    def tree_for(u) -> str | None:
+        sid = u.get("specid")
+        if sid:
+            tid = str(geo.get("specs", {}).get(str(sid), ""))
+            if tid in geo["trees"]:
+                return tid
+        best, best_n = None, 0
+        for tid, tg in geo["trees"].items():
+            n = sum(1 for e in u["entries"] if node_of.get(str(e)) in tg["nodes"])
+            if n > best_n:
+                best, best_n = tid, n
+        return best
+
     per_spec: dict[str, dict] = {}
     class_panes: dict[str, tuple] = {}     # cls -> (tid, set of node ids)
+    n_by_overlap = 0
     for sk in sorted(usage):
         u = usage[sk]
-        tid = str(geo.get("specs", {}).get(str(u["specid"]), ""))
-        tgeo = geo["trees"].get(tid)
+        tid = tree_for(u)
+        if tid and not u.get("specid"):
+            n_by_overlap += 1
+        tgeo = geo["trees"].get(tid) if tid else None
         if not tgeo or not u["entries"]:
             continue
         used_nodes = {int(entries[str(e)][0]) for e in u["entries"]
@@ -1328,9 +1353,14 @@ def talents_doc(name: str, usage: dict | None = None) -> str | None:
                                  tree_obj(tid, nids)
                                  for st, nids in sorted(hero.items())}}
     if not per_spec:
-        print(f"[{name}] no spec matched the trait geometry; "
-              f"talents doc omitted")
+        print(f"[{name}] no spec matched the trait geometry "
+              f"({len(usage)} specs in the journal pass, "
+              f"{len(geo.get('trees', {}))} trees, "
+              f"{len(entries)} entries in the geometry); talents doc omitted")
         return None
+    if n_by_overlap:
+        print(f"[{name}] talent trees: {n_by_overlap}/{len(per_spec)} specs "
+              f"identified by entry overlap (no specID in the journal)")
 
     # variant A: each spec carries its own class pane
     doc_a = {"v": 1, "trees": {

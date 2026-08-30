@@ -610,6 +610,39 @@ assert mg["spec"]["nodes"] == [] and mg["hero"] == {}, mg
 print("talents doc : panes split hero/class/spec (subtree + X-gap), ranks, "
       "override names, shared-store icons, per-pane edges")
 
+# THE PRODUCTION SHAPE: WCL summaries carry talents.tree and nothing else --
+# no specID, no import string (430,507/430,507 records checked). Keying the
+# tree lookup off specID silently omitted the whole document in production
+# while this suite passed, because every fixture above passes spec_id. The
+# tree must be identified by ENTRY MEMBERSHIP when specID is absent.
+norows, norecs = [], []
+for i in range(1, 13):
+    t = TREE_P1 if i <= 8 else TREE_P2
+    rw, rc = make_parse(f"N{i}", f"NoSid{i}", "Paladin", "Retribution",
+                        spec_id=None, tree=[t[(j + i) % 4] for j in range(4)])
+    assert "specID" not in rc["talents"], rc["talents"]   # fixture is honest
+    norows.append(rw)
+    norecs.append(rc)
+ndoc = run_talents(norows, norecs, TCACHES)
+assert ndoc is not None, "talents doc omitted without specID (the prod bug)"
+assert set(ndoc["trees"]) == {"Paladin|Retribution"}, ndoc["trees"].keys()
+npr = ndoc["trees"]["Paladin|Retribution"]
+assert [n["id"] for n in class_pane(ndoc, "Paladin|Retribution")["nodes"]] \
+    == [1001, 1002]
+assert [n["id"] for n in npr["spec"]["nodes"]] == [2001, 2002]
+assert list(npr["hero"]) == ["Templar"]
+# a spec whose entries match NO tree still drops out rather than mismatching
+offrows, offrecs = [], []
+for i in range(1, 13):
+    rw, rc = make_parse(f"O{i}", f"Off{i}", "Warrior", "Arms",
+                        spec_id=None, tree=[{"id": 999001, "rank": 1}])
+    offrows.append(rw)
+    offrecs.append(rc)
+odoc = run_talents(norows + offrows, norecs + offrecs, TCACHES)
+assert set(odoc["trees"]) == {"Paladin|Retribution"}, odoc["trees"].keys()
+print("no-specID   : trees identified by entry overlap (the production "
+      "journal shape); unmatched specs drop out cleanly")
+
 # sel on the sidecar's build vocab: entry ids -> node ids, modal blob
 HP1 = "t:" + hashlib.md5(b"50001:1|50002:2|60001:1|70001:1").hexdigest()[:12]
 HP2 = "t:" + hashlib.md5(b"50001:1|50002:1|60002:1|70001:1").hexdigest()[:12]
