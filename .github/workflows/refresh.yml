@@ -212,6 +212,24 @@ jobs:
         run: python -u scripts/build_site_data.py
 
 
+      # This workflow publishes ITS OWN checkout's site/, so a run that started
+      # before a UI push republishes the OLD interface and silently reverts it --
+      # which is exactly how the talent-diff UI vanished minutes after deploying.
+      # Take the branch's newest committed UI immediately before publishing.
+      # ONLY the UI files: site/data.json.gz is TRACKED and its committed copy is
+      # stale (the 33-hour-old-data trap), while builds/stats/talents.json.gz are
+      # gitignored and so are never touched by a checkout. The index is reset
+      # afterwards so the daily-commit step below cannot sweep the UI into a
+      # data commit built on an older base.
+      - name: Publish the newest committed UI, not this checkout's
+        continue-on-error: true
+        run: |
+          git fetch --depth=1 origin "${{ github.ref_name }}" || exit 0
+          git checkout FETCH_HEAD -- site/index.html || true
+          git checkout FETCH_HEAD -- site/icons || true
+          git reset -q
+          echo "UI synced to $(git rev-parse --short FETCH_HEAD) (run sha $(git rev-parse --short HEAD))"
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
