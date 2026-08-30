@@ -2861,13 +2861,11 @@ document.addEventListener("pointerdown",e=>{
 document.addEventListener("keydown",e=>{
   if(state.frameKey==null&&!state.screen) return;
   if(e.key==="Escape"){
-    // In the Character screen (revised 2026-08-30 — "there seems to be no
-    // intuitive way to get out"): Esc first closes an open gear fold-out;
-    // with none open it EXITS the screen back to the rankings.
-    if(state.screen){
-      if(screenFold!=null&&screenTab==="gear") closeSlotFold();
-      else exitScreen();
-      return }
+    // In the Character screen, Esc is SWALLOWED: its only permitted action
+    // is closing an open gear fold-out. Owner re-confirmed 2026-08-30
+    // ("esc should not exit the character screen! I just wanted the exit
+    // to be visible, not accidental") — exits are the VISIBLE buttons only.
+    if(state.screen){ if(screenFold!=null&&screenTab==="gear") closeSlotFold(); return }
     closeFrame(); return }
   // arrows guarded: never hijack keys inside form controls
   if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)||e.target.isContentEditable) return;
@@ -3088,8 +3086,10 @@ function exitScreen(){
   csSyncHash();
   document.body.classList.remove("charscreen");
   const cs=$("charscreen"); if(cs){ cs.hidden=true; cs.innerHTML=""; }
-  // rail re-renders exactly as left: frameKey intact, pinned state intact
-  renderFrame(); paintFramed(); frmPad();
+  // the popup's job is done once the Character screen has been visited:
+  // returning lands on the clean rankings, no frame left behind (owner
+  // 2026-08-30 — "the popup is no longer relevant or needed")
+  closeFrame();
   requestAnimationFrame(()=>window.scrollTo(0,screenReturnY));
 }
 function resetScreenPerSpec(){          // active tab alone persists (§3.2.3)
@@ -3214,7 +3214,7 @@ function csLadderHTML(){
   }
   // a second, always-visible way out at the row's far end (owner 2026-08-30:
   // "no intuitive way to get out"; Esc with no fold open exits too)
-  return h+'<button class="btn csexit x" id="cs-close" title="Back to the rankings (Esc)">✕ Close</button></div>';
+  return h+'<button class="btn csexit x" id="cs-close" title="Back to the rankings">✕ Close</button></div>';
 }
 function csDigestHTML(d){
   const T=csTalentRows(d);

@@ -248,7 +248,9 @@ list and the rail (`body.charscreen #sections, body.charscreen #frame-pos{displa
 header, hero rule, and the sticky lens bar stay outside it and remain live). The rail's
 state (frameKey, pin, comps sort) is preserved untouched behind the screen.
 **Exit is deliberate work (owner addendum): the screen is a destination, not a popup.**
-Exactly two exits, both explicit: the `← Rankings` .btn and the wordmark
+Exactly three exits, all explicit and VISIBLE (owner 2026-08-30: "I just wanted the
+exit to be visible, not accidental"): the `← Rankings` .btn, the `✕ Close` .btn at the
+ladder row's far end, and the wordmark
 (cursor:pointer only while `body.charscreen`). NO Esc-to-exit, NO click-outside-to-exit:
 while `state.screen`, the Esc branch of the keydown handler NEVER exits or falls
 through to close the underlying rail state — its only permitted action is closing an
@@ -257,11 +259,14 @@ and the pointerdown click-away
 listener returns early; clicking anywhere on the screen or working the sidebar/lens
 never leaves the mode. This contrasts DELIBERATELY with the Performance rail, which
 keeps its light Esc + click-away dismissal — the rail is a peek, the screen is a place;
-the client implements both behaviors side by side. Exit restores: sections un-hide, rail
-re-renders exactly as left (frameKey intact, pinned state intact),
-`window.scrollTo(0,screenReturnY)` on the next frame — the exact prior scroll position
-and page state; nothing trapped, just nothing accidental. Screen state is NOT serialized
-to the URL; reload lands on rankings. Re-entering goes straight to data (sidecar cached).
+the client implements both behaviors side by side. Exit restores: sections un-hide and
+`window.scrollTo(0,screenReturnY)` on the next frame — the exact prior scroll position.
+REVISED 2026-08-30 (owner): exit CLOSES the spec-frame popup ("the user has been to
+the character page already, the popup is no longer relevant or needed") — exitScreen
+calls closeFrame(); the rankings come back clean. Screen identity IS serialized to the
+URL (#cs=<presKey>[.<heroId>].<tab>, replaceState) — reload and the reload-based Reset
+filters restore the screen's spec + tab; exiting clears the hash; filters themselves
+are never persisted. Re-entering goes straight to data (sidecar cached).
 
 ### 3.2 Screen layout (top to bottom, all in page flow) — REVIEWED 2026-08-29
 
