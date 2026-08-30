@@ -64,6 +64,14 @@
     .claude/settings.json and commit it so future sessions on this repo default
     to Opus 5. The live session's own model is switched by the owner via
     /model. Revert both when the weekly window resets and the owner says so.
+    EFFECTIVE NOW (owner, 2026-08-30): "run simpler tasks on opus, use fable
+    only for more complex pieces." Subagents/workflow stages that are
+    mechanical or well-specified — searches, data harvesting, file sweeps,
+    doc edits, screenshot/QA walks, straightforward fixes with a clear spec —
+    run with model:'opus'. Fable (inherit, no override) is reserved for the
+    genuinely hard pieces: architecture/design, complex builds, subtle
+    debugging, adversarial verification of non-obvious logic, judge panels.
+    When unsure which bucket a task is in, it is a simple task -> opus.
 
 11. **Wowhead tooltips/links — ICON-ONLY surface (2026-08-30).** "item ids are
     completely useless to me, remove them"; "show the wowhead tooltip on
