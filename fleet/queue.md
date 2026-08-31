@@ -60,3 +60,17 @@ Never run two implementers against site/index.html at once unless their regions 
 provably disjoint; merge the first before starting the second. And after any data run
 deploys, check the live UI markers — a refresh run publishes ITS checkout's site/, so a
 run that started before a UI push will revert the interface when it lands.
+
+## Standing process rule (owner, 2026-08-31)
+
+> "as soon as the upgrade surface lands, don't wait around, start the implementation on
+> the visual pass. I would like all of these tasks finished up and implemented as early as
+> possible, without any unnecessary delays."
+
+CHAIN WORK BACK TO BACK. Do not idle between a merge and the next task, and do not wait to
+be asked to start the thing that was already queued. When one piece of work is blocked only
+by another's exclusive hold on a file, run its DESIGN phase in parallel and have the
+implementation staged so it fires the moment the file frees. Pre-write the next workflow
+script while waiting rather than after.
+The one exception stays: never two implementers on site/index.html at once — that has cost
+merge damage twice. Sequencing is the fix, not more parallelism.
