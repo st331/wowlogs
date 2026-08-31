@@ -23,7 +23,22 @@ crux of any future attempt.
 
 ## In flight
 
-Nothing. Both the gear-slot work and the talent pass are merged and live.
+- **Talent diff — visual pass** (fleet/blueprints/talent_visual.md). Design is finished and
+  committed; implementation is running as one implementer in an isolated worktree plus three
+  adversarial verify lenses (greyscale/colour-independence, geometry + crowding census,
+  regression across the rest of the character screen). Started 12:59 IST.
+
+## Landed 2026-08-31
+
+- **Upgrade surface, all three parts** — per-slot item level gone from the doll, the Upgrade
+  lean surface built and shipped DARK (no toggle in the DOM until the sidecar's `iup` field
+  arrives in a data run), §1.8 `iup` in the builds sidecar, and universal sorting: `sortHead`
+  is now the only path to a `<thead>`, so a table physically cannot ship an unsortable header.
+  One shipping blocker was caught by the verify panel and fixed before merge — the div->table
+  conversion had moved the fold-out share bar's gradient onto the 92px Share cell, silently
+  changing its denominator from the row and compressing the encoding 4.7x (six of twelve rows
+  under 4px). It is painted on the `<tr>` again; measured widths now match the old build
+  exactly. All four suites pass; live since 12:58 IST.
 
 ## Landed 2026-08-30
 
