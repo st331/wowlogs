@@ -9,7 +9,11 @@ reference decoder implementing §1.3, per-spec vocab construction (order,
 caps, embellishment splits, cr/emb/ilvl/name annotations incl. the
 missing-name null fallback), fl bits for gear-only and talents-only records,
 _gear_key normalization (a null server still joins), the full degradation
-ladder, and empty-journal absence. fetch_names' offline half: enchant-name
+ladder, §1.8's per-entry "iup" (the 20-distinct-wearer floor, the wearer
+dedupe, the high tie rule, the fail-closed uniqueness gate that must ignore
+a legitimate embellishment split and fire on a display-name collision, and
+the absence-degradation that leaves every column byte-identical), and
+empty-journal absence. fetch_names' offline half: enchant-name
 cleaning, grow-only merges that never overwrite manual entries, null =
 asked-and-unnamed (never re-asked), and a stubbed end-to-end run whose
 network failures change nothing and still exit 0.
@@ -419,6 +423,173 @@ _, empty = run_builds(rows, [])
 assert empty is None                                      # empty journal
 print("ladder    : full caps -> en dropped (eslots []) -> items 24->18 -> "
       "12 (builds->24) -> refused over cap; empty journal -> no file")
+
+# --------------------------------------------------------------------------
+# §1.8 per-entry upgrade lean ("iup"). The metric is a share of a piece's
+# DISTINCT wearers carrying it strictly above that piece's own modal item
+# level, emitted at >=20 wearers, suppressed wholesale when the vocabulary's
+# (spec, slot, id, emb) partition is ambiguous. Each assertion below is
+# written so that the obvious wrong implementation fails it, not merely so
+# that the right one passes: parse-weighted instead of wearer-deduped, the
+# lower tie instead of the higher, a floor off by one, a gate keyed on the
+# bare item id.
+def iup_gear(head_ilvl, wrist_bonus="none", wrist_ilvl=720):
+    """head (slot 0) at a chosen ilvl; wrist (slot 8) optional + crafted."""
+    g = [gear_item(111, ilvl=head_ilvl)] + [{"id": 0}] * 7
+    g += [{"id": 0} if wrist_bonus == "none"
+          else gear_item(222, ilvl=wrist_ilvl,
+                         bonus=(None if wrist_bonus == "plain"
+                                else wrist_bonus))]
+    return g
+
+
+def iup_rows(chars, caches=CACHES, **kw):
+    """chars = [(character, head ilvl, wrist bonus), ...]; one parse each
+    unless the same character name repeats, which is the whole point."""
+    r, c = [], []
+    for j, (ch, ilvl, wb) in enumerate(chars):
+        rw, rc = make_parse(f"IUP{j}", ch, "Priest", "Shadow",
+                            gear=iup_gear(ilvl, wb))
+        r.append(rw)
+        if rc is not None:
+            c.append(rc)
+    return run_builds(r, c, caches, enc="dense", **kw)
+
+
+def head_entry(d):
+    return d["specs"]["Priest|Shadow"]["items"][0][0]
+
+
+# (a) arithmetic. 20 distinct wearers: 12 at 720, 5 at 723, 3 at 717.
+#     mode = 720; strictly above = 5; iup = round(100*5/20) = 25.
+_ilvls = [720] * 12 + [723] * 5 + [717] * 3
+_plain = [(f"W{i}", v, "none") for i, v in enumerate(_ilvls)]
+_df, _d = iup_rows(_plain)
+_e = head_entry(_d)
+assert _e["iup"] == 25, _e
+assert _e["ilvl"] == 720 and _e["id"] == 111, _e     # ilvl untouched in shape
+assert isinstance(_e["iup"], int) and 0 <= _e["iup"] <= 100
+
+# (b) the floor is a floor, not a suggestion: 19 wearers carry nothing,
+#     20 carry the field. Absent means unknown, never a zero.
+_, _d19 = iup_rows([(f"W{i}", 720 if i else 730, "none") for i in range(19)])
+assert "iup" not in head_entry(_d19), head_entry(_d19)
+_, _d20 = iup_rows([(f"W{i}", 720 if i else 730, "none") for i in range(20)])
+assert head_entry(_d20)["iup"] == 5, head_entry(_d20)   # round(100*1/20)
+
+# (c) mode ties resolve to the HIGHER item level. 10 at 720, 10 at 723:
+#     the higher tie gives mode 723 and iup 0; the lower tie would give
+#     mode 720 and iup 50, so this single number separates the two rules.
+_, _dt = iup_rows([(f"W{i}", 720 if i < 10 else 723, "none")
+                   for i in range(20)])
+assert head_entry(_dt)["iup"] == 0, head_entry(_dt)
+
+# (d) DEDUPE to distinct (character, server). One grinder logs 40 parses at
+#     730 while 20 other characters each log one at 720.
+#       deduped : 21 wearers, mode 720, one above -> round(100/21) = 5
+#       parses  : 60 observations, mode 730 (40 of them), none above -> 0
+#     and the entry's median ilvl is 720 deduped, 730 parse-weighted. Both
+#     numbers are asserted, so a parse-weighted implementation fails twice.
+_grind = [("Grinder", 730, "none")] * 40 + \
+         [(f"W{i}", 720, "none") for i in range(20)]
+_, _dg = iup_rows(_grind)
+_eg = head_entry(_dg)
+assert _eg["iup"] == 5, _eg
+assert _eg["ilvl"] == 720, _eg      # per-character median, §1.8's stated cost
+
+# (e) the fail-closed uniqueness gate does NOT fire on a legitimate
+#     embellishment split. One crafted wrist held plain, named and generic is
+#     three vocab entries sharing id 222 -- 392 such groups exist in the live
+#     document and every one is correct. A gate keyed on (spec, slot, id)
+#     would suppress iup here, silently and forever.
+_split = ([(f"A{i}", 720, [8960, 12001]) for i in range(8)] +
+          [(f"B{i}", 720, [8960]) for i in range(7)] +
+          [(f"C{i}", 723, "plain") for i in range(9)])
+_, _ds = iup_rows(_split)
+_wrist = _ds["specs"]["Priest|Shadow"]["items"][_ds["slots"].index(8)]
+assert len(_wrist) == 3 and {w["id"] for w in _wrist} == {222}, _wrist
+assert sorted(str(w.get("emb")) for w in _wrist) == \
+    ["None", "Radiant Hem", "embellished"], _wrist
+assert "iup" in head_entry(_ds), head_entry(_ds)   # 24 wearers -> field ships
+
+# (f) ...and it DOES fire when two identity ids collapse onto one emitted
+#     display name in one slot, which is the ambiguity the gate exists for:
+#     the two entries are indistinguishable to the client, so each share
+#     would be taken over an arbitrary part of one piece's wearers. Then NO
+#     entry anywhere in the document carries iup -- and the document still
+#     ships, because a suppressed statistic must never cost a pane.
+_dupc = json.loads(json.dumps(CACHES))
+_dupc["emb_identity.json"]["names"]["13001"] = "Radiant Hem"   # same name
+_collide = ([(f"A{i}", 720, [8960, 12001]) for i in range(8)] +
+            [(f"B{i}", 720, [8960, 13001]) for i in range(8)] +
+            [(f"C{i}", 723, "plain") for i in range(8)])
+_, _dc = iup_rows(_collide, caches=_dupc)
+assert _dc is not None
+_wc = _dc["specs"]["Priest|Shadow"]["items"][_dc["slots"].index(8)]
+assert [w.get("emb") for w in _wc].count("Radiant Hem") == 2, _wc
+assert not [e for col in _dc["specs"]["Priest|Shadow"]["items"] for e in col
+            if "iup" in e], "the gate must suppress iup on EVERY entry"
+assert head_entry(_dc)["ilvl"] == 720          # the rest of the entry stands
+
+# (g) absence-degradation and the §1.2 alignment guarantee. iup is pure
+#     per-entry vocab text: raising the floor above the fixture's wearer
+#     count removes every key and must change NOTHING else -- same n, same
+#     slots/eslots, byte-identical columns, same "v", every other entry key
+#     untouched. That is what lets an older client ignore it and lets a
+#     ladder rung carry it without a length check.
+_floor = bsd.BUILDS_IUP_MIN_WEARERS
+try:
+    bsd.BUILDS_IUP_MIN_WEARERS = 10_000
+    _, _doff = iup_rows(_plain)
+finally:
+    bsd.BUILDS_IUP_MIN_WEARERS = _floor
+assert not [e for col in _doff["specs"]["Priest|Shadow"]["items"] for e in col
+            if "iup" in e]
+assert _doff["v"] == 1 == _d["v"]                     # no version bump
+assert _doff["n"] == _d["n"] == len(_df)
+assert _doff["slots"] == _d["slots"] and _doff["eslots"] == _d["eslots"]
+assert _doff["cols"] == _d["cols"], "iup must not touch a single column byte"
+for _ca, _cb in zip((e for col in _d["specs"]["Priest|Shadow"]["items"]
+                     for e in col),
+                    (e for col in _doff["specs"]["Priest|Shadow"]["items"]
+                     for e in col)):
+    assert {k: v for k, v in _ca.items() if k != "iup"} == _cb, (_ca, _cb)
+ref_decode(_d, len(_df))          # the iup-carrying doc still decodes §1.3
+ref_decode(_doff, len(_df))
+
+# (h) the proof block. Both earlier widenings in this pipeline failed
+#     silently, so build_health.txt must answer "did it ship" without
+#     reading between lines, and must look obviously wrong when the field is
+#     present but degenerate.
+bsd._HEALTH.clear()
+# the split fixture: head clears the floor (24 wearers, 9 of them above the
+# 720 mode -> 38), the three wrist entries do not -- so the coverage line
+# has a real numerator AND a real denominator, and a build that emitted
+# nothing would read "0/4" rather than merely omitting a line.
+_, _dh = iup_rows(_split)
+assert head_entry(_dh)["iup"] == 38, head_entry(_dh)
+_H = "\n".join(bsd._HEALTH)
+assert "[iup] gate: 0 (spec,slot,id,emb) collisions" in _H and "WRITTEN" in _H
+assert "eslots [], iup on" in _H              # the one-line sidecar summary
+_lines = [ln for ln in bsd._HEALTH if "[iup] emitted on" in ln]
+assert _lines, "build_health.txt must always say whether iup shipped"
+_line = _lines[-1]
+assert "emitted on 1/4 shipped vocab entries (25.0%)" in _line, _line
+assert "3 entries below the floor" in _line, _line
+assert "floor >=20 distinct (character,server) wearers" in _line, _line
+assert [ln for ln in bsd._HEALTH
+        if "[iup] distribution: p10/p50/p90 = 38/38/38" in ln], bsd._HEALTH
+assert [ln for ln in bsd._HEALTH if "[iup] dedupe:" in ln]
+assert [ln for ln in bsd._HEALTH if "[iup] size: shipped rung" in ln]
+bsd._HEALTH.clear()
+iup_rows(_collide, caches=_dupc)
+_H2 = "\n".join(bsd._HEALTH)
+assert "-> iup SUPPRESSED, no entry carries it" in _H2, _H2
+assert "iup OFF" in _H2 and "[iup] emitted on 0 entries" in _H2, _H2
+bsd._HEALTH.clear()
+print("iup       : 20-wearer floor; wearer dedupe (not parses); mode ties "
+      "resolve HIGH; gate ignores legitimate emb splits and fires on a name "
+      "collision; absence leaves columns byte-identical; health proves it")
 
 # --------------------------------------------------------------------------
 # the [emb] proof block (§3). Both previous embellishment bugs shipped
