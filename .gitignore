@@ -32,3 +32,8 @@ docs/builds.json.gz
 # talent-tree document: same — rebuilt every run from the trait caches
 site/talents.json.gz
 docs/talents.json.gz
+
+# agent scratch: verification agents serve site/ on ad-hoc ports and redirect
+# server output beside the repo root. Transient, never part of a build.
+srv*.log
+*.serve.log
