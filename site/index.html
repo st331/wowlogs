@@ -34,6 +34,9 @@
   /* §GG materials — metal + glass (owner-directed; calm rules unchanged) */
   --metal:linear-gradient(180deg,#f2cf76,#d9a83f);
   --metal-line:rgba(242,207,118,.55);
+  --plate:#2E2A21;          /* raised node plate under a CHANGED talent — one
+                               warm-graphite step above --surface1 (3.16:1), so
+                               it reads AS A SHAPE. No new hue (pref #6). */
   --gg-shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 30px -24px rgba(0,0,0,.7),
     inset 0 1px 0 rgba(255,255,255,.06);
 }
@@ -818,9 +821,18 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 .bldchip.oth{cursor:default; color:var(--ink3)}
 .bldchip.oth:hover{border-color:var(--line1); color:var(--ink3)}
 /* in-game-style tree panes — §GG panels; the selected build lights champagne.
-   Node size rides the computed --tn (34-44px band, pref #10 readability). */
+   Node size rides the computed --tn (34-40px band, pref #10 readability). */
 #cs-trees{display:flex; flex-wrap:nowrap; gap:12px; align-items:stretch;
-  overflow-x:auto; padding:2px 1px 6px}
+  overflow-x:auto; padding:5px 0 8px}
+  /* the vertical padding is the plate's room: a row-0 mark's plate sits 3px
+     above the canvas and overflow-x:auto makes overflow-y:auto, so a bare
+     top edge would clip it. The HORIZONTAL padding is ZERO, and that is the
+     whole of it: availW is measured from clientWidth and does NOT subtract
+     this box's own padding, so every horizontal pixel spent here is width the
+     solver never sees. At 1px it bought a scrollWidth of 1117 against a
+     clientWidth of 1116 — a 1px sideways scroll on the pane at rest, in the
+     unpinned path, in five specs. A column-0 plate does not need it: the
+     plate lives inside .ttpane's own 11px padding. */
   /* overflow-x is the standing bounded-container rule — the PAGE never
      scrolls sideways even if one tree's geometry is impossibly wide.
      NOWRAP + a computed fit/ovf class (Item 3): a wrapped row dropped the
@@ -832,7 +844,7 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 #cs-trees.ovf{justify-content:flex-start}
 .ttpane{flex:0 0 auto}
 .ttpane{background:var(--surface1); border:1px solid var(--line1);
-  border-radius:var(--r2); padding:7px 10px 10px; box-shadow:var(--gg-shadow)}
+  border-radius:var(--r2); padding:9px 11px 10px; box-shadow:var(--gg-shadow)}
 .tthead{display:flex; align-items:baseline; gap:.5rem; margin-bottom:7px}
 .tthead .tl{font-size:.6rem; font-weight:700; text-transform:uppercase;
   letter-spacing:.14em; color:var(--ink3)}
@@ -873,87 +885,192 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 .ttn a.whico:hover .tico{border-color:var(--accent-line)}   /* color-only hover */
 .ttn.pk a.whico:hover .tico.ch,.ttn.dm a.whico:hover .tico.ch{background:var(--accent-line)}
 /* rank pip — "2/2" on picked multi-rank nodes, legible at 1080p */
-.ttr{position:absolute; right:-5px; bottom:-5px; z-index:2;
+/* the pip moves 5px -> 3px, inside the plate's footprint: at -5 its right
+   edge sat exactly on the next node's left edge in every nine-column spec
+   (measured clearance 0.00px), and it needs to be a passenger on the plate,
+   not a third object hanging off the corner. pointer-events:none was missing
+   and is a pref #11 hole — elementFromPoint at the pip's centre returned the
+   pip, so the tile's own wowhead anchor was not the surface there. */
+.ttr{position:absolute; right:-3px; bottom:-3px; z-index:2; pointer-events:none;
   font:650 .68rem/1.15 var(--font); color:var(--accent);
   background:var(--surface2); border:1px solid var(--accent-line);
   border-radius:var(--r1); padding:0 .2rem; font-variant-numeric:tabular-nums}
-/* ===== base/candidate DIFF layer (owner: "highlight the additions and
-   subtractions ... clear what is an addition and what is a subtraction").
-   SOURCE ORDER IS LOAD-BEARING: .ttn.dd .tico and .ttn.dm .tico have the
-   same specificity (0,2,1) — this block MUST stay AFTER the .ttn.dm rules
-   above or every dropped node silently loses its rim.
-   Direction is stated by a STATIC glyph in a fixed slot (pref #3, the
-   .sec .mk mechanism); --up/--down are ink only, never fills (design
-   language §"semantic — text-only deltas"). Nothing rotates, grows or
-   glows: the only hover is still color-only (pref #7). */
-.ttb{position:absolute; left:-5px; top:-5px; z-index:3; pointer-events:none;
-  font:700 .74rem/1.15 var(--font); background:var(--surface2);
-  border:1px solid var(--line2); border-radius:var(--r1); padding:0 .18rem;
-  font-variant-numeric:tabular-nums}          /* opposite corner to .ttr */
-.ttn.da .ttb{color:var(--up); border-color:rgba(61,220,132,.5)}
-.ttn.dd .ttb{color:var(--down); border-color:rgba(255,107,107,.5)}
-.ttn.ds .ttb{color:var(--accent); border-color:var(--accent-line)}
-/* ADDED: still .pk (it is taken here) + an --up rim */
-.ttn.da .tico{border-color:var(--up)}
-.ttn.da .tico.ch{background:var(--up)}
-/* DROPPED: the THIRD state. Untaken = .42 solid --line1; dropped = .68
-   DASHED --down + a −n badge + the BASE's icon/rank; picked = 1.0 champagne.
-   Four channels, only one of them colour. Octagons carry no border at all
-   (.tico.ch{border:none}) so they cannot dash — tier + badge + --down
-   background rim carry them; the dash is never faked. */
-/* A drop was .68 opacity over grayscale(1) brightness(.62) — against an
-   untaken node's .42/grayscale(1)/.55 that is a hair's difference, and the
-   owner reported dropped talents as "too dark" to pick out. The drop is a
-   FINDING, not background: it keeps full opacity and most of its colour, and
-   the --down rim is doubled into a ring so the mark carries at 40px. It still
-   cannot be mistaken for picked: dashed rim, red ring, −n badge, base's rank. */
-.ttn.dd{opacity:1}
-.ttn.dd .tico{border-color:var(--down); border-style:dashed;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 2px rgba(255,107,107,.30)}
-.ttn.dd .tico.ch{background:var(--down)}
-.ttn.dd .tico img{filter:grayscale(.3) brightness(.9)}
-/* a RANK-DOWN node carries .dd for its --down ink but is still PICKED here —
-   it must not dim or dash, or it reads as a drop it isn't */
-.ttn.pk.dd{opacity:1}
-.ttn.pk.dd .tico{border-style:solid}
-.ttn.pk.dd .tico img{filter:none}
-/* SWAPPED: the rim was deliberately left champagne, so a swap was carried by
-   a 0.66rem badge and a 15px ghost alone — and the owner reported that a
-   changed option "does not seem to show up at all". A swap is exactly one
-   option out and one in, so it now says both with the two colours already in
-   the language: an --up inner rim for what arrived, a --down outer ring for
-   what left. No new hue, no purple, nothing rotates. */
-.ttn.ds .tico{border-color:var(--up);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 2px rgba(255,107,107,.45)}
-.ttn.ds .tico.ch{background:var(--up)}
-.ttg{position:absolute; left:-4px; bottom:-4px; z-index:2; width:19px; height:19px;
-  object-fit:cover; border:1px dashed var(--down); border-radius:var(--r1);
-  filter:grayscale(.55) brightness(.75); pointer-events:none}
-/* hover hole: a dropped node is NOT .pk/.dm, so :752-753 would repaint its
-   --down rim champagne exactly when the reader looks hardest. Still color-only. */
-/* THE POP. A pane holds ~120 nodes and a typical diff marks 5-7 of them, so
-   the marks were competing with 70 fully-lit unchanged talents and the owner
-   read the result as "so small it is very hard to tell". While a base is
-   pinned the pane sorts into three plain tiers — MARKED at full strength with
-   a doubled rim, still-taken at .62, never-taken at .28 — so the changes are
-   what the eye lands on while the build's shape stays legible underneath.
-   Static state, not a hover effect: nothing grows or moves on cursor pass. */
-#cs-trees.diff .ttn.pk:not(.da):not(.dd):not(.ds){opacity:.62}
-#cs-trees.diff .ttn.dm{opacity:.28}
-#cs-trees.diff .ttn.da .tico,#cs-trees.diff .ttn.dd .tico,
-#cs-trees.diff .ttn.ds .tico{border-width:2px}
-#cs-trees.diff .ttn.da .tico{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
-  0 0 0 3px rgba(61,220,132,.34)}
-#cs-trees.diff .ttn.dd .tico{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
-  0 0 0 3px rgba(255,107,107,.38)}
-#cs-trees.diff .ttn.ds .tico{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
-  0 0 0 3px rgba(255,107,107,.52)}
-#cs-trees.diff .ttb{font-size:.82rem; padding:.02rem .28rem; left:-7px; top:-7px}
-#cs-trees.diff .ttg{width:22px; height:22px; left:-6px; bottom:-6px}
-.ttn.da a.whico:hover .tico,.ttn.dd a.whico:hover .tico{border-color:var(--accent-line)}
-.ttn.da a.whico:hover .tico.ch,.ttn.dd a.whico:hover .tico.ch{background:var(--accent-line)}
-/* rank pip states — the pip keeps its job (the value HERE); a rank move
-   prints both values, the badge prints the signed point delta */
+/* ===== base/candidate DIFF layer — VISUAL PASS 3 ==========================
+   The owner, twice: the changed-talent indicator "is still not very clear",
+   the +/- "are also still not as clear". Two earlier passes answered by making
+   the marks BIGGER, in a place with no room, in a red/green pair. This one
+   does not. PROMINENCE IS A RATIO: the field goes quiet, the mark moves off
+   the contested seam onto a PLATE of its own BEHIND the tile, total canvas ink
+   goes DOWN while ink on the marks goes UP.
+   The three measured causes are DELETED, not repaired:
+    (1) .tico.ch{border:none; clip-path:...} makes border-width and every ring
+        inert AND clips them away — 21/21 swaps and 10/109 adds+drops shipped
+        ~2% of their intended perimeter ink. THEREFORE, STANDING RULE:
+        NO DIFF RULE MAY EVER COLOUR .tico's OWN BORDER OR BACKGROUND.
+        Everything below is drawn on .ttn, which no clip-path touches.
+    (2) direction lived in hue — --up vs --down is 1.56:1 (1.29:1 deuteranopic),
+        --up vs --accent is 1.00:1 — with a 6px^2 glyph as the only fallback.
+    (3) the opacity tiers were 1.18:1 against art spanning ~7x in luminance,
+        and the badge's top edge sat exactly ON the bottom edge of the node
+        above: median badge-to-neighbour clearance over 130 real marks 0.00px.
+   FOUR HUE-FREE CHANNELS carry the encoding, so it survives greyscale:
+    POSITION  tick on the plate's TOP edge = gained, BOTTOM edge = lost, 46px
+              apart, preattentive under every dichromacy.
+    POLARITY  chip SOLID (light field, dark glyph) = present in this build,
+              HOLLOW (dark field, light ring) = gone. 2.3x ink and an inverted
+              figure/ground, both pure luminance relationships.
+    TEXTURE   gain ticks solid, loss ticks segmented (6 on / 4 off).
+    LENGTH    34% tick = same talent, different weight; two ticks = the option
+              changed (the only mark that carries both).
+   Colour is redundant confirmation only.
+   A DROPPED TALENT KEEPS FULL COLOUR AND FULL OPACITY. The owner rejected a
+   dimmed drop ("hard to tell, too dark"): a drop is a finding, not background.
+   Scope: every rule is #cs-trees.diff (specificity 1,x,x), so the documented
+   source-order hazard between .ttn.dd .tico and .ttn.dm .tico cannot bite it —
+   and unpinning the base restores the tree EXACTLY. Every mark is
+   pointer-events:none: <a class="whico"> still wraps the whole tile and stays
+   the sole wowhead hover/click surface (pref #11). Nothing rotates, grows or
+   glows; the only hover is colour-only (prefs #3, #7).
+   KEEP THIS BLOCK AFTER THE .ttn.dm RULES ABOVE regardless. */
+
+/* THE CHIP — the owner's own + and -, MONOCHROME BY DESIGN. It is the channel
+   that must survive greyscale, so it is drawn in greyscale and hue is left to
+   the tick as a redundant accelerator. The magnitude digit is gone: 78% of 130
+   measured badges were +-1, and the digit is what forced a wide pill into a
+   7px gutter. Magnitude now lives in the pip, the pane .tp delta, the node
+   title and the change strip. */
+.ttb{position:absolute; left:-3px; top:-3px; z-index:4; pointer-events:none;
+  width:16px; height:16px; box-sizing:border-box; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  border:0; border-radius:var(--r1);
+  font:800 .82rem/1 var(--font); font-variant-numeric:tabular-nums}
+/* a mark is never buried by an unmarked stacked sibling.
+   LOAD-BEARING: ::before{z-index:-1} only stays in front of the SVG edge
+   lattice because .ttn establishes its own stacking context (z-index 1
+   unmarked, 3 marked). If .ttn{z-index:1} is ever removed the plate falls
+   behind the lattice. */
+.ttn.dv{z-index:3}
+/* THE PLATE — "a change happened here", and nothing else. CORRECTION to the
+   spec, computed from the shipped tokens: --plate on --surface1 is 1.16:1, not
+   3.16:1 — two near-blacks cannot reach 3:1 by fill, and the old badge pill's
+   1.09:1 is the same near-miss. The fill is therefore NOT what makes this a
+   shape; the 1px near-black ring plus the drop shadow and the §GG top lip are,
+   which is why all three are load-bearing and none may be dropped as
+   decoration. It sits BEHIND the tile: zero occlusion of the art (the old swap
+   treatment, badge + ghost + pip, covered up to 32.8% of it).
+   THE INSET IS 3px VERTICAL, 2px HORIZONTAL, and the asymmetry is measured,
+   not stylistic: rows are pitched 52px apart and columns as little as 46px, so
+   a uniform 3px plate left the nine-column specs with 0px of pane ground
+   between two horizontally adjacent plates — their 1px rings coincided and the
+   pair read as ONE slab holding two tiles. At 2px the plate is 44px wide, the
+   solver's COLGUT floor of node+6 keeps 2px of ground between neighbours, and
+   the vertical 3px is untouched because 52px of row pitch has room for it.
+   The chip and the pip still hang 3px off the tile, so each overhangs the
+   plate's own edge by 1px at its corner — they are passengers ON the plate,
+   and 16px of chip is a greyscale channel (§3) that is not narrowed to buy
+   1px of tidiness. */
+#cs-trees.diff .ttn.dv::before{content:""; position:absolute; inset:-3px -2px;
+  z-index:-1; pointer-events:none; border-radius:var(--r1);
+  background:var(--plate);
+  box-shadow:0 0 0 1px rgba(0,0,0,.55), 0 2px 6px -1px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.07)}                        /* §GG lip */
+/* THE TICK — "which way, and how big a move". Drawn 1px inside the plate's
+   dark ring and on the SAME box as the plate, so it stays centred on it. Two
+   vertically adjacent ticks are separated by rowPitch - node - 4 = 8px of
+   ring and pane at the shipped 52px pitch, which is why ROWGUT is 12 and not
+   the plate's own 6: they cannot read as one ladder rung. */
+#cs-trees.diff .ttn.dv::after{content:""; position:absolute; inset:-3px -2px;
+  z-index:2; pointer-events:none; border-radius:var(--r1);
+  background-repeat:no-repeat}
+#cs-trees.diff .ttn.da::after{
+  background-image:linear-gradient(var(--up),var(--up));
+  background-size:62% 4px; background-position:top 1px center}
+#cs-trees.diff .ttn.dd::after{
+  background-image:repeating-linear-gradient(90deg,var(--down) 0 6px,
+    transparent 6px 10px);
+  background-size:62% 4px; background-position:bottom 1px center}
+#cs-trees.diff .ttn.drk::after{background-size:34% 4px}   /* rank move = short */
+#cs-trees.diff .ttn.ds::after{
+  background-image:linear-gradient(var(--up),var(--up)),
+    repeating-linear-gradient(90deg,var(--down) 0 6px,transparent 6px 10px);
+  background-size:62% 4px, 62% 4px;
+  background-position:top 1px center, bottom 1px center}
+/* SOLID = present in this build.  HOLLOW = gone from it. */
+#cs-trees.diff .ttn.dv .ttb{background:var(--ink); color:var(--bg0);
+  box-shadow:0 0 0 1px rgba(24,21,17,.85)}
+#cs-trees.diff .ttn.dd:not(.pk) .ttb{background:var(--bg0); color:var(--ink);
+  box-shadow:inset 0 0 0 2px var(--ink), 0 0 0 1px rgba(24,21,17,.85)}
+/* THE RIM, REASSIGNED rather than added. Champagne on ~95 unmarked nodes per
+   pane was the loudest object on the canvas and carried no diff information;
+   in diff mode only a marked AND taken node wears it. Zero new ink, 4.27:1 of
+   signal. This is the shipped mechanism, which works on BOTH shapes — and it
+   is the only place .tico is touched at all: never for a diff STATE. */
+#cs-trees.diff .ttn.pk .tico{border-color:var(--metal-line)}
+#cs-trees.diff .ttn.pk .tico.ch{background:var(--metal-line)}
+#cs-trees.diff .ttn.pk:not(.dv) .tico{border-color:var(--line1)}
+#cs-trees.diff .ttn.pk:not(.dv) .tico.ch{background:var(--line1)}
+#cs-trees.diff .ttn.dd:not(.pk) .tico{border-color:var(--line2)}
+#cs-trees.diff .ttn.dd:not(.pk) .tico.ch{background:var(--line2)}
+#cs-trees.diff .ttn.dm .tico{border-color:var(--line0)}
+#cs-trees.diff .ttn.dm .tico.ch{background:var(--line0)}
+/* THE TIERS. Opacity is deleted as the tier channel: marked-vs-still-taken was
+   1.18:1 and 48% of still-taken nodes were BRIGHTER than the median marked
+   one, because opacity multiplies art that already spans ~7x in luminance.
+   The primary channel is now CHROMA — marked nodes are the only chromatic
+   objects in a lit pane — plus the binary presence of a plate. Luminance is a
+   secondary trim. The filter goes on .tico img and NEVER on .ttn: the plate,
+   tick, chip, pip and rim must keep their own ink. The build's SHAPE stays
+   fully legible in grey; it only surrenders its chroma. */
+#cs-trees.diff .ttn.pk:not(.dv){opacity:1}
+#cs-trees.diff .ttn.pk:not(.dv) .tico img{filter:saturate(.28) brightness(.78)}
+#cs-trees.diff .ttn.dm{opacity:.55}
+#cs-trees.diff .ttn.dm .tico img{filter:grayscale(1) brightness(.40)}
+#cs-trees.diff .ttn.dv .tico img{filter:none}   /* incl. every DROP: full colour */
+/* the cross-hero Hero pane carries no node-level diff (the trees are disjoint,
+   so a node diff there is "different hero tree" written 28 times). It opts OUT
+   of the quiet field, or it reads as a dead grey pane rather than an
+   undiffed one. The substitution is stated by its .tthead line and by the
+   change strip's first card. */
+#cs-trees.diff .ttpane.nodx .ttn.pk .tico img{filter:none}
+#cs-trees.diff .ttpane.nodx .ttn.pk .tico{border-color:var(--metal-line)}
+#cs-trees.diff .ttpane.nodx .ttn.pk .tico.ch{background:var(--metal-line)}
+/* HOVER. A marked rim is a statement, not a control, so hover no longer
+   repaints it; the cue moves to the plate. Colour only, identical geometry —
+   nothing grows, glows, moves or rotates. Unmarked nodes keep today's
+   champagne rim hover (the generic .ttn a.whico:hover rule above is
+   out-specified inside #cs-trees.diff, so it is restored explicitly). */
+#cs-trees.diff .ttn.dv:hover::before{box-shadow:0 0 0 1px var(--accent-line),
+  0 2px 6px -1px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07)}
+#cs-trees.diff .ttn:not(.dv) a.whico:hover .tico{border-color:var(--accent-line)}
+#cs-trees.diff .ttn:not(.dv) a.whico:hover .tico.ch{background:var(--accent-line)}
+/* the change strip's click-PIN: the reader must be able to move the cursor to
+   the node without losing it. Beats :hover on specificity so a pin survives a
+   pass over another node. */
+#cs-trees.diff .ttn.dv.hi::before{box-shadow:0 0 0 1px var(--accent),
+  0 2px 6px -1px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07)}
+/* THE PIP — "how much, HERE", and only where it states arithmetic. It is
+   suppressed on plain adds, drops and swaps (it said nothing the chip does
+   not) and survives on rank moves and on unchanged taken nodes, neutral-inked
+   so no third and fourth red/green token lands on one node. It now sits inside
+   the plate footprint; on a rank-DOWN it moves to the free top-right corner,
+   because the bottom edge of that plate is where its own tick is drawn. */
+#cs-trees.diff .ttr{color:var(--ink2); border-color:var(--line2);
+  background:var(--surface2)}
+#cs-trees.diff .ttn.dv .ttr{color:var(--ink)}
+#cs-trees.diff .ttn.dd.drk .ttr{top:-3px; bottom:auto}
+/* THE LATTICE, quieted. 83 champagne strokes at 3.34:1 and 19 green newl
+   strokes wore the addition's own hue as long strokes the eye follows, and
+   competed with the marks; wasl at 1.54:1 was a channel that did not exist for
+   a reader. In diff mode the edges are monochrome and separated by WEIGHT and
+   TEXTURE, so marked nodes are the only chromatic objects on the canvas.
+   Outside diff mode the lattice is untouched. */
+#cs-trees.diff .ttcv line{stroke:rgba(234,227,208,.06)}
+#cs-trees.diff .ttcv line.lit{stroke:rgba(234,227,208,.16); stroke-width:1.2}
+#cs-trees.diff .ttcv line.newl{stroke:rgba(234,227,208,.28); stroke-width:1.4}
+#cs-trees.diff .ttcv line.wasl{stroke:rgba(234,227,208,.28); stroke-width:1.4;
+  stroke-dasharray:4 3}
+/* rank pip states — kept as the revert lever; neutralised above inside
+   #cs-trees.diff, live outside it */
 .ttr.rup{color:var(--up); border-color:rgba(61,220,132,.55)}
 .ttr.rdn,.ttr.dpip{color:var(--down); border-color:rgba(255,107,107,.55)}
 /* edges: three-way. lit = in both; newl = lit here only; wasl = lit in base only */
@@ -1008,6 +1125,73 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 #cs-diffbar .dbn{color:var(--ink2)}
 #cs-diffbar .dbb{margin-left:auto; display:flex; gap:.4rem; align-items:baseline}
 #cs-diffbar .btn{padding:.16rem .5rem; font-size:.68rem; font-weight:500}
+/* ---- the CHANGE STRIP: the one thing no mark on the map can say — WHICH
+   talent. Each card repeats the map's grammar at card scale (solid top edge =
+   gained, segmented bottom edge = lost, both = the option changed, 34% wide =
+   the rank moved), so the strip TEACHES the map and no separate legend is
+   needed. The rail is bounded internally: the PAGE never scrolls sideways. ---- */
+#cs-changes{display:flex; align-items:center; gap:.5rem; margin:0 0 .45rem}
+#cs-changes .tl{flex:0 0 auto; font-size:.6rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:.14em; color:var(--ink3)}
+#cs-changes .ccnt{flex:0 0 auto; font-size:.72rem; color:var(--ink2);
+  font-variant-numeric:tabular-nums}
+/* the rail holds only what FITS — the fit cap in wireScreen's change-strip
+   block measures it and folds the rest into .cmore. With the
+   count cap it shipped with, four to five of eight cards sat past the right
+   edge of a container that paints no scrollbar and gives no fade or arrow, so
+   40-60% of the strip was neither readable nor discoverable. overflow-x stays
+   auto as a floor for the pathological single card wider than the whole rail;
+   in every real case nothing overflows it now. */
+.crail{display:flex; gap:.4rem; overflow-x:auto; flex:1 1 auto; min-width:0;
+  padding:2px 0 4px}
+.crail .ccard.hid{display:none}
+.ccard{position:relative; overflow:hidden; flex:0 0 auto; display:flex;
+  align-items:center; gap:.4rem; padding:.26rem .5rem;
+  background:var(--surface1); border:1px solid var(--line1);
+  border-radius:var(--r1); box-shadow:var(--gg-shadow); cursor:pointer;
+  text-align:left; font:inherit; color:var(--ink2);
+  transition:border-color .13s, color .13s}   /* colour-only hover (pref #7) */
+.ccard:hover,.ccard.on{border-color:var(--metal-line); color:var(--ink)}
+.ccard:focus-visible{outline:1px solid var(--accent-line); outline-offset:1px}
+#cs-changes .ttb{position:relative; left:0; top:0; flex:0 0 auto}
+#cs-changes .ccard .ttb{background:var(--ink); color:var(--bg0);
+  box-shadow:0 0 0 1px rgba(24,21,17,.85)}
+#cs-changes .ccard.dd:not(.drk) .ttb{background:var(--bg0); color:var(--ink);
+  box-shadow:inset 0 0 0 2px var(--ink), 0 0 0 1px rgba(24,21,17,.85)}
+.cico{flex:0 0 auto; width:24px; height:24px; border-radius:var(--r1);
+  border:1px solid var(--line2); object-fit:cover}
+.cico.was{filter:grayscale(1) brightness(.7)}
+.ccard .csw{flex:0 0 auto; font-size:.7rem; color:var(--ink3)}
+/* name over detail rather than name beside it: a card's width becomes
+   max(name,detail) instead of their sum — ~200px instead of ~300px — which is
+   what puts the spec's own common case (five changes) inside the rail. The
+   pane word leaves the card FACE: it is still in the card's title, and the
+   strip is ordered Class -> Spec -> Hero, so it was the one token on the card
+   that the reader could already infer. No type shrinks (pref #10). */
+.ctx{display:flex; flex-direction:column; gap:1px; min-width:0}
+.cnm{font-size:.74rem; font-weight:650; color:var(--ink); white-space:nowrap}
+.cdt{font-size:.68rem; color:var(--ink2); white-space:nowrap}
+.ccard::after{content:""; position:absolute; inset:0; pointer-events:none;
+  border-radius:var(--r1); background-repeat:no-repeat}
+.ccard.da::after{background-image:linear-gradient(var(--up),var(--up));
+  background-size:62% 3px; background-position:top 0 center}
+.ccard.dd::after{background-image:repeating-linear-gradient(90deg,
+    var(--down) 0 6px,transparent 6px 10px);
+  background-size:62% 3px; background-position:bottom 0 center}
+.ccard.drk::after{background-size:34% 3px}
+.ccard.ds::after{background-image:linear-gradient(var(--up),var(--up)),
+    repeating-linear-gradient(90deg,var(--down) 0 6px,transparent 6px 10px);
+  background-size:62% 3px, 62% 3px;
+  background-position:top 0 center, bottom 0 center}
+/* .cmore is a SIBLING of .crail, never a passenger in it: inside the rail it
+   was the one control guaranteed to be off screen, because it sits after
+   every card that overflowed. */
+.cmore[hidden]{display:none}
+.cmore{flex:0 0 auto; background:var(--surface1);
+  border:1px solid var(--accent-line); color:var(--accent);
+  border-radius:var(--r1); padding:.26rem .5rem; cursor:pointer;
+  font:650 .68rem/1 var(--font); transition:border-color .13s, color .13s}
+.cmore:hover{border-color:var(--accent); color:var(--ink)}
 /* diff ledger — a disclosure CLOSED at rest, below the trees, so pinning a
    base never shrinks the trees. It exists for the one thing a tree cannot
    do: print a difference that has no pixel. Static −/+ marker (pref #3). */
@@ -4924,9 +5108,9 @@ function csTreePanesHTML(ctx,trees,row,base){
     p.rowLad=(p.lab==="Hero")?ladder(p.tree.nodes.map(n=>snap(n.y))):rowLad;
   }
   // fit the panes to the measure (pref #10: readable first — icons in the
-  // 34-44px band, never smaller; an impossible tree scrolls INSIDE #cs-trees,
+  // 34-40px band, never smaller; an impossible tree scrolls INSIDE #cs-trees,
   // the page never scrolls sideways)
-  const CHROME=22;                      // per-pane padding+border
+  const CHROME=24;                      // per-pane padding+border
   const host=$("charscreen");
   const availW=Math.max(700,(host&&host.clientWidth?host.clientWidth:1116))
     -(panes.length-1)*12-panes.length*CHROME;
@@ -4978,9 +5162,42 @@ function csTreePanesHTML(ctx,trees,row,base){
   // and .tp ~6.4px/char at .68rem; 8px per flex gap; 12px trailing slack
   const headW=p=>34+7.2*p.htext.length+6.4*(p.ttext.length+p.ptText.length)+24+12;
   const boxW=(p,nd,cp)=>Math.max((p.colLad.slots-1)*cp+nd, headW(p));
-  let node=34, colPitch=38;
-  for(let nd=44; nd>=34; nd-=2){        // pref #10: 34px icon floor, never below
-    const cp=nd+4;
+  /* THE GUTTERS ARE THE PLATE'S OWN FOOTPRINT, not independent taste numbers.
+     A marked node wears a ::before plate inset 3px top and bottom and 2px left
+     and right, so it occupies node+4 across and node+6 down, and its 1px
+     near-black ring is what makes it a shape. The pitch has to clear that ring
+     on BOTH neighbours or two plates share one ring and the pair reads as a
+     single slab holding two tiles.
+       COLGUT = 2px plate + 2px of pane ground + 2px plate = 6.
+       ROWGUT = 12, which is the tick's number rather than the plate's: the
+     ticks sit 1px inside the plate and are 4px tall, so two vertically
+     adjacent ticks are separated by rowPitch - node - 4, and the blueprint's
+     floor for "these do not read as one ladder rung" is 8px.
+     The old code used a flat cp = nd+4 and a rowPitch floor of nd+6, both
+     chosen before the plate existed. The nine-column specs (Druid Feral,
+     DemonHunter Devourer) then spent their slack to colPitch 45, one pixel
+     INSIDE the plate's own width: measured, the two plates overlapped by 1px
+     over their full 46px height and the marked pair rendered as one slab.
+     Deriving the gutters from the mark set is the fix; at node 40 every one of
+     the 18 charted specs still fits its measure at the floor (worst case
+     DemonHunter Devourer, sum 1016 of availW 1020), so no icon shrinks.
+     COLGUT 6 IS THE CEILING, not a preference: at 8 the same two specs need
+     1040 and 1044 and the loop would drop them to a 38px icon, which pref #10
+     does not allow us to spend. Swept over 84 base/candidate combinations on
+     the seven densest specs, the worst sum at the floor never moved off 1016 —
+     headW reserves its tally slot unconditionally, so the comparison chosen
+     cannot change the fit. */
+  const COLGUT=6, ROWGUT=12;
+  let node=34, colPitch=34+COLGUT;
+  /* the start rung moves 44 -> 40. Pref #10 forbids shrinking icons TO BUY
+     FIT, and nothing is bought here: the row already fit at 44 with spare in
+     every spec, so 4px of icon edge becomes 5px of white space — the opposite
+     trade. It is what pays for the plate: the mark now has a place to stand
+     that is not the seam between two tiles (measured clearance there: 0.00px).
+     No type shrinks anywhere, and 40 is three rungs above the readable floor
+     the code itself names below. */
+  for(let nd=40; nd>=34; nd-=2){        // pref #10: 34px icon floor, never below
+    const cp=nd+COLGUT;
     node=nd; colPitch=cp;
     let sum=0; for(const p of panes) sum+=boxW(p,nd,cp);
     if(sum<=availW) break;
@@ -4989,15 +5206,18 @@ function csTreePanesHTML(ctx,trees,row,base){
   if(sumW<availW){                      // spend the slack on column pitch...
     const gaps=panes.reduce((a,p)=>a+Math.max(0,p.colLad.slots-1),0);
     if(gaps>0){
-      colPitch=Math.min(node+26, colPitch+Math.floor((availW-sumW)/gaps));
+      // ...and never BELOW the floor: the slack spend may only widen the
+      // gutter, never eat into the plate's footprint
+      colPitch=Math.max(node+COLGUT,
+        Math.min(node+26, colPitch+Math.floor((availW-sumW)/gaps)));
       sumW=0; for(const p of panes) sumW+=boxW(p,node,colPitch);
     }
   }                                     // ...but never over-stretch a sparse tree
   const capH=Math.max(380,Math.min(560,(window.innerHeight||1080)-440));
   const rowsMax=Math.max(...panes.map(p=>p.rowLad.slots));
   const rowPitch=(rowsMax>1)
-    ?Math.max(node+6,Math.min(node+22,Math.floor((capH-node)/(rowsMax-1))))
-    :node+6;
+    ?Math.max(node+ROWGUT,Math.min(node+22,Math.floor((capH-node)/(rowsMax-1))))
+    :node+ROWGUT;
   // ONE height for EVERY pane's canvas. Sizing each to its own content is what
   // produced the ragged bottoms: the class/spec span difference is non-zero in
   // 40 of 40 specs, so "identical metrics but content-sized" still leaves one
@@ -5016,7 +5236,7 @@ function csTreePanesHTML(ctx,trees,row,base){
     // the hero pane of a cross-hero comparison carries no node-level diff
     const dmap=(p.lab==="Hero"&&heroSub)?null:dmapAll;
     const pts=p.pts;                    // computed in the header pre-pass above
-    let svg="", nds="";
+    let svg="", nds="", ndsMark="";
     const at=new Map();
     for(const n of p.tree.nodes) at.set(n.id,n);
     for(const e of p.tree.edges){
@@ -5040,7 +5260,11 @@ function csTreePanesHTML(ctx,trees,row,base){
       // resolution entirely — the one node class the reader most needs named
       const eIdx=picked?s[1]:(drop?df.bi:null);
       const rk=picked?s[0]:(drop?df.br:0);
-      const multi=(picked||drop)&&+n.r>1;
+      // the pip states arithmetic or it is not drawn: on a plain add, drop or
+      // swap the chip already says everything it said. Revert lever: drop the
+      // second clause and every mark carries a pip again.
+      const multi=(picked||drop)&&+n.r>1
+        &&!(df&&(df.k==="a"||df.k==="d"||df.k==="s"));
       let nm=n.n, ic=n.ic, sp=n.s;
       // any multi-entry node (§1.7: "es" = every option, sel's entryIdx
       // indexes it): the PICKED option fronts the node — icon, name, link.
@@ -5060,39 +5284,44 @@ function csTreePanesHTML(ctx,trees,row,base){
       if(sp)                            // the ONE wowhead surface (icon only)
         tile='<a class="whico" href="https://www.wowhead.com/spell='+(+sp)
           +'" target="_blank" rel="noopener">'+tile+'</a>';
-      /* the diff encoding. The BADGE is the signed POINT delta at this node
-         (≠ when the points are unchanged and the spell is not); the rank pip
-         keeps its own job, the value in THIS build. Two corners, two
-         questions — .ttb top-left, .ttr bottom-right, so they cannot collide
-         even at the 34px floor, and both overhang into the pane's padding
-         rather than covering the icon face (which also sidesteps the octagon
-         clip: no special-casing for t===2).
-         INVARIANT: a pane's badges sum exactly to that pane's .tp point delta. */
-      let dcl="", badge="", ghost="", tnote="";
+      /* the diff encoding. `dv` = "something changed here" and is what earns
+         the PLATE; da/dd carry the direction, drk narrows the tick to "same
+         talent, different weight", ds draws both ticks. The CHIP is the
+         owner's own symbol and nothing else — the magnitude digit is gone
+         (78% of 130 measured badges were ±1, and the digit is what forced a
+         wide pill into the gutter); magnitude lives in the pip, the pane .tp
+         delta, this title and the change strip.
+         CORRECTION, and the reason this surface was misread twice: the old
+         comment here claimed the marks "overhang into the pane's padding
+         rather than covering the icon face". Measured, that was false — the
+         badge alone covered 10.5% of the tile and a swap's badge + ghost +
+         pip covered 32.8%, while its TOP edge sat on the bottom edge of
+         the node above (median clearance 0.00px, 54% touching). The mark now
+         stands on a plate BEHIND the tile: zero occlusion, and the only thing
+         over the art is a 16px chip in one corner (10.6%). */
+      let dcl="", badge="", tnote="";
       if(df){
         const bp=Math.max(1,df.br||0), np=Math.max(1,df.r||0);
-        if(df.k==="a"){ dcl=" da"; badge="+"+np; tnote=" · added"; }
-        else if(df.k==="d"){ dcl=" dd"; badge="−"+bp;
+        if(df.k==="a"){ dcl=" dv da"; badge="+"; tnote=" · added"; }
+        else if(df.k==="d"){ dcl=" dv dd"; badge="−";
           tnote=" · dropped (base had "+bp+"/"+n.r+")"; }
-        else if(df.k==="u"||df.k==="w"){ dcl=df.k==="u"?" da":" dd";
-          badge=csSgn(np-bp); tnote=" · rank "+bp+"→"+np; }
-        else if(df.k==="s"){ dcl=" ds";
-          badge="≠"+(np!==bp?csSgn(np-bp):"");
+        else if(df.k==="u"||df.k==="w"){
+          dcl=df.k==="u"?" dv da drk":" dv dd drk";
+          badge=df.k==="u"?"+":"−"; tnote=" · rank "+bp+"→"+np; }
+        else if(df.k==="s"){ dcl=" dv ds"; badge="≠";
           let bn="another option";
           if(Array.isArray(n.es)&&n.es[df.bi]&&n.es[df.bi].n!=null) bn=n.es[df.bi].n;
           tnote=" · choice swapped — base had "+bn;
-          // the base's option as a greyscale ghost: "was that, now this",
-          // stated on the map with no hover. pointer-events:none keeps the
-          // icon the sole wowhead surface (pref #11) — which is exactly why
-          // its detail rides the .ttn title above and never a title of its own.
-          if(Array.isArray(n.es)&&n.es[df.bi]&&n.es[df.bi].ic)
-            ghost='<img class="ttg" alt="" loading="lazy" src="icons/'
-              +encodeURIComponent(String(n.es[df.bi].ic))+'.jpg" onerror="this.remove()">';
+          // the ghost thumbnail is GONE: 484px² each, 256px² of it on the
+          // node's own art, below icon-recognition threshold — it read as a
+          // grey smudge. The base's option is named in this title, in the
+          // change strip's card (two 24px icons, base → now) and in the
+          // ledger, in forms that can actually be read.
         }
       }
       // rank-DOWN stays .pk (it is still lit here, only worth less) — the CSS
       // carries .ttn.pk.dd overrides so only a TRUE drop dims and dashes
-      const cls=picked?("pk"+dcl):(drop?"dd":"dm");
+      const cls=picked?("pk"+dcl):(drop?"dv dd":"dm");
       const pipCls=(df&&df.k==="u")?" rup":(df&&df.k==="w")?" rdn":(drop?" dpip":"");
       const pip=(df&&(df.k==="u"||df.k==="w"))
         ?(Math.max(1,df.br)+"→"+rk)
@@ -5106,24 +5335,32 @@ function csTreePanesHTML(ctx,trees,row,base){
          path anything currently walks — 0 of 22,080 pairs reach it.) */
       const ttl=(nm||df)
         ?(nm||"unnamed node")+(multi?" · "+rk+"/"+n.r:"")+tnote:"";
-      nds+='<div class="ttn '+cls+'" style="left:'+px(n).toFixed(1)
+      // MARKED NODES ARE EMITTED LAST. Absolute siblings paint in DOM order,
+      // and 3 of 130 measured marks painted UNDER a stacked unmarked sibling —
+      // counted in the tally, invisible on screen. .ttn.dv{z-index:3} handles
+      // the unmarked case; DOM order is the only fix when the sibling on top
+      // is ANOTHER mark. data-nd is the change strip's handle on this node.
+      const ndHTML='<div class="ttn '+cls+'" data-nd="'+(+n.id)
+        +'" style="left:'+px(n).toFixed(1)
         +'px;top:'+py(n).toFixed(1)+'px"'
         +(ttl?' title="'+escA(ttl)+'"':'')+'>'
-        +tile+ghost
+        +tile
         +(badge?'<span class="ttb">'+badge+'</span>':'')
         +(multi?'<span class="ttr'+pipCls+'">'+pip+'</span>':'')+'</div>';
+      if(df) ndsMark+=ndHTML; else nds+=ndHTML;
     }
     // the header was BUILT in the pre-pass so the width solver could measure
     // the text it would actually draw — WHICH tree changed is a different
     // respec cost from HOW MUCH changed, and the cross-hero substitution line
     // is longer than any pane name. Zero added height: .tthead is an existing
     // single baseline row.
-    h+='<div class="ttpane"><div class="tthead"><span class="tl">'+p.lab
+    h+='<div class="ttpane'+((heroSub&&p.lab==="Hero")?" nodx":"")
+      +'"><div class="tthead"><span class="tl">'+p.lab
       +'</span>'+p.midHTML
       +(pts?'<span class="tp">'+pts+(pts===1?' pt':' pts')+p.ptHTML+'</span>':'')+'</div>'
       +'<div class="ttcv" style="width:'+W+'px;height:'+H+'px">'
       +'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'+svg+'</svg>'
-      +nds+'</div></div>';
+      +nds+ndsMark+'</div></div>';
   }
   return h+'</div>';
 }
@@ -5137,6 +5374,90 @@ function csNodeIndex(trees){
   put(trees.cls,"Class"); put(trees.spec,"Spec");
   if(trees.hero) for(const k in trees.hero) put(trees.hero[k],"Hero");
   return m;
+}
+/* ---- the CHANGE STRIP — one bounded line between the diff bar and the trees.
+   A mark on the map can say THAT something changed and WHICH WAY; it can never
+   say WHICH TALENT. That answer is what the reader scrolls past the trees to
+   the ledger for today, so it is hoisted above them.
+   It rebuilds from csDiffMaps(csSelMap(base.sel), csSelMap(row.sel)) plus
+   csNodeIndex(trees) — the two functions the ledger already uses — so it holds
+   no state of its own and cannot drift from the trees, the chips, the pane
+   tallies or the ledger. Same cross-hero skip, same one-row substitution, same
+   default order (pane, then node y), so left-to-right here is top-to-bottom
+   there. Each card wears the map's own grammar, so the strip TEACHES the map.
+   CAPPED BY FIT, not by count: 63% of real diff pairs mark five or fewer
+   nodes, so the common case is answered above the trees with the ledger still
+   closed, and the heavy case hands the reader a .cmore that is ON SCREEN and
+   states how many it is holding back. ---- */
+function csChangeStripHTML(base,row,paneOf,trees){
+  if(base.s===row.s) return "";
+  const idx=csNodeIndex(trees);
+  const dm=csDiffMaps(csSelMap(base.sel),csSelMap(row.sel));
+  const rowHero=row.hero||csHeroOfSel(row.sel,trees.hero);
+  const crossHero=!!(base.hero&&rowHero&&base.hero!==rowHero);
+  // the card carries the NODE's diff classes, so a card and its tile are the
+  // same object drawn twice at two scales
+  const KI={a:{o:5,g:"+",c:"da"}, u:{o:4,g:"+",c:"da drk"},
+            s:{o:3,g:"≠",c:"ds"}, w:{o:2,g:"−",c:"dd drk"},
+            d:{o:1,g:"−",c:"dd"}};
+  const nmHTML=s=>s==null?'<span class="na">unnamed node</span>':esc(s);
+  const optOf=(n,i)=>(i!=null&&Array.isArray(n.es)&&n.es[i])?n.es[i]:null;
+  const cico=(c,k)=>c?'<img class="cico'+(k||"")+'" alt="" loading="lazy" '
+    +'src="icons/'+encodeURIComponent(String(c))+'.jpg" '
+    +'onerror="this.remove()">':'';
+  const cards=[];
+  for(const [id,r] of dm){
+    const e=idx.get(id); if(!e) continue;
+    if(crossHero&&e.pane==="Hero") continue;   // one substitution, not 28 rows
+    const n=e.n, ki=KI[r.k]; if(!ki) continue;
+    const bo=optOf(n,r.bi), no=optOf(n,r.i);
+    const bnm=(bo&&bo.n!=null)?bo.n:n.n, nnm=(no&&no.n!=null)?no.n:n.n;
+    const bic=(bo&&bo.ic!=null)?bo.ic:n.ic, nic=(no&&no.ic!=null)?no.ic:n.ic;
+    const bp=Math.max(1,r.br||0), np=Math.max(1,r.r||0);
+    let art, nm, dt;
+    if(r.k==="s"){
+      // on a swap the spell identity IS the change: base's option in grey,
+      // then the arrow, then what replaced it
+      art=cico(bic," was")+'<span class="csw">→</span>'+cico(nic);
+      nm=nnm; dt="was "+(bnm==null?"another option":bnm);
+    }else if(r.k==="d"){ art=cico(bic); nm=bnm;
+      dt="dropped · base had "+bp+"/"+n.r; }
+    else if(r.k==="a"){ art=cico(nic); nm=nnm; dt="added "+np+"/"+n.r; }
+    else { art=cico(nic); nm=nnm; dt="rank "+bp+"→"+np; }
+    cards.push({po:(e.pane==="Class"?1:e.pane==="Spec"?2:3), y:+n.y||0, o:ki.o,
+      html:'<button class="ccard '+ki.c+'" data-nd="'+(+n.id)+'" title="'
+        +escA((nm==null?"unnamed node":nm)+" — "+dt+" · "+e.pane+" tree")+'">'
+        +'<span class="ttb">'+ki.g+'</span>'+art
+        +'<span class="ctx"><b class="cnm">'+nmHTML(nm)+'</b>'
+        +'<span class="cdt">'+esc(dt)+'</span></span></button>'});
+  }
+  cards.sort((a,b)=>a.po-b.po||a.y-b.y||a.o-b.o);
+  // the hero substitution has no node to pin and is the single largest
+  // difference on the screen, so it leads — both ticks, no data-nd
+  const lead=crossHero
+    ?'<button class="ccard ds" title="'+escA("hero tree — was "+base.hero
+      +", now "+rowHero)+'"><span class="ttb">≠</span>'
+      +'<span class="ctx"><b class="cnm">Hero tree</b>'
+      +'<span class="cdt">was '+esc(base.hero)+' · now '+esc(rowHero)
+      +'</span></span></button>'
+    :"";
+  const total=cards.length+(crossHero?1:0);
+  if(!total) return "";
+  /* NO COUNT CAP — a FIT cap, spent at layout time in wireScreen below.
+     The cap that shipped was eight cards, but the rail is ~1030px inside the
+     1116px measure and a card ran 170-360px, so eight cards put four or five
+     of them past the right edge of a container that paints no scrollbar, no
+     fade and no arrow; the .cmore that was meant to rescue them sat INSIDE
+     the rail, up to 1359px out of sight, reachable only by Tab. Every card is
+     emitted here; the wiring block measures the rail and folds what does not
+     FIT into .cmore, which is a SIBLING of the rail and therefore always on
+     screen — and, because it counts what was actually folded, always states a
+     TRUE hidden count (the old cap said "+9 more" while hiding fourteen). */
+  return '<div id="cs-changes"><span class="tl">Changed</span>'
+    +'<span class="ccnt">'+total+'</span>'
+    +'<div class="crail">'+lead+cards.map(c=>c.html).join("")+'</div>'
+    +'<button class="cmore" data-cmore hidden>'
+    +'+0 more · open the diff ledger</button></div>';
 }
 /* ---- the diff bar: ONE line between the chips and the trees, so the reader
    crosses it on the way down. It carries the identity of the comparison, the
@@ -5375,6 +5696,7 @@ function csTalentsHTML(ctx,d){
     }
     h+=csBuildChipsHTML(T,dx);
     if(base) h+=csDiffBarHTML(T,d,base,brow,row,paneOf,trees,dx.baseRuns);
+    if(base) h+=csChangeStripHTML(base,row,paneOf,trees);
     h+=csTreePanesHTML(ctx,trees,row,base);
     if(base) h+=csDiffLedgerHTML(base,row,paneOf,trees);
     const lab=screenBuild===-1?"the base build":"Build "+(screenBuild+1);
@@ -5382,11 +5704,11 @@ function csTalentsHTML(ctx,d){
       +(base
         ? 'Base: '+(brow?'Build '+(T.rows.indexOf(brow)+1):'the pinned build')
           +(base.hero?' · '+esc(base.hero):'')+' — '+lab+' shown. '
-          +'<b class="dp">+</b> added · <b class="dn">−</b> dropped (dimmed one '
-          +'tier, dashed rim, the base’s icon and rank shown) · '
-          +'<b class="dz">≠</b> choice swapped (the base’s option ghosted '
-          +'bottom-left) · a signed rank pip (1→2) = the rank moved · unmarked = '
-          +'the same in both'
+          +'<b class="dp">+</b> added (solid chip, tick on the tile’s top edge) '
+          +'· <b class="dn">−</b> dropped (hollow chip, segmented tick on the '
+          +'bottom edge) · <b class="dz">≠</b> choice swapped (both ticks) · a '
+          +'short tick and a 1→2 pip = the rank moved · unchanged talents keep '
+          +'their shape in grey'
         : lab+' lit — picked talents in full color, the rest dimmed · click a '
           +'build chip to relight · pin a build as base to diff the others '
           +'against it')
@@ -5615,6 +5937,68 @@ function wireScreen(host,ctx,d){
   };
   const dt2=host.querySelector("[data-dltrig]");
   if(dt2) dt2.onclick=()=>{ screenDlOpen=!screenDlOpen; renderScreen() };
+  /* ---- change strip ⇄ map. Hover or focus a card and its node lights;
+     CLICK PINS it, because the reader has to be able to take the cursor off
+     the card and onto the node without losing which one it was. A second
+     click, or a click on another card, moves the pin. Colour-only and fixed
+     geometry — nothing grows, glows, moves or rotates (prefs #3, #7). ---- */
+  const rail=host.querySelector("#cs-changes");
+  if(rail){
+    const trees=host.querySelector("#cs-trees");
+    let pin=null;
+    const lightUp=(nd,on)=>{
+      const t=trees&&trees.querySelector('.ttn[data-nd="'+nd+'"]');
+      if(t) t.classList.toggle("hi",on);
+    };
+    const card=nd=>rail.querySelector('.ccard[data-nd="'+nd+'"]');
+    rail.querySelectorAll(".ccard[data-nd]").forEach(c=>{
+      const nd=c.dataset.nd;
+      c.onmouseenter=c.onfocus=()=>{ if(pin!==nd) lightUp(nd,true) };
+      c.onmouseleave=c.onblur=()=>{ if(pin!==nd) lightUp(nd,false) };
+      c.onclick=()=>{
+        // unpinning hands the node back to hover, rather than blanking a
+        // node the cursor is still sitting on
+        if(pin===nd){ pin=null; c.classList.remove("on");
+          lightUp(nd,c.matches(":hover,:focus")); return }
+        if(pin!=null){ lightUp(pin,false);
+          const q=card(pin); if(q) q.classList.remove("on") }
+        pin=nd; c.classList.add("on"); lightUp(nd,true);
+      };
+    });
+    const more=rail.querySelector("[data-cmore]");
+    if(more) more.onclick=()=>{ screenDlOpen=true; renderScreen() };
+    /* ---- THE FIT CAP. csChangeStripHTML emits every changed talent; here is
+       where the ones that do not fit the measure are folded away. The rail is
+       ~1030px inside the 1116px measure (pref #2) and a card is ~200px, so
+       roughly five fit — which is the spec's own common case. What is folded
+       goes into .cmore, which lives OUTSIDE the rail, is therefore always on
+       screen, and prints the count that was actually folded. Two passes,
+       because .cmore is a flex sibling and showing it narrows the rail: fit
+       with it hidden, and only if something is left over show it and fit
+       again. Nothing here moves on hover or animates (prefs #3, #7). ---- */
+    const rl=rail.querySelector(".crail");
+    if(rl&&more){
+      const cs=[...rl.querySelectorAll(".ccard")];
+      more.hidden=true;
+      cs.forEach(c=>c.classList.remove("hid"));
+      const gp=parseFloat(getComputedStyle(rl).columnGap)||0;
+      const cw=cs.map(c=>c.getBoundingClientRect().width);
+      // at least one card is always shown: a single card wider than the whole
+      // rail is a clipped card, not an empty strip
+      const nfit=w=>{ let used=0,n=0;
+        for(let i=0;i<cs.length;i++){ const t=used+(n?gp:0)+cw[i];
+          if(t>w+0.5) break; used=t; n++ }
+        return Math.max(1,Math.min(n,cs.length)) };
+      // a rail measured at zero is a rail that is not laid out yet; fold
+      // nothing rather than folding everything
+      let n=(cs.length&&rl.clientWidth>50)?nfit(rl.clientWidth):cs.length;
+      if(n<cs.length){ more.hidden=false; n=nfit(rl.clientWidth) }
+      cs.forEach((c,i)=>c.classList.toggle("hid",i>=n));
+      const held=cs.length-n;
+      more.hidden=!(held>0);
+      if(held>0) more.textContent="+"+held+" more · open the diff ledger";
+    }
+  }
   host.querySelectorAll("[data-copy]").forEach(b=>{
     b.onclick=e=>{
       e.stopPropagation();
