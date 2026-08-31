@@ -99,8 +99,26 @@
     instead of interleaving as text. Caps are applied AFTER the sort. Sort state
     lives outside render, survives every filter change and lens tick, and
     reverts to the table's default only when its column disappears. Header
-    affordance is the static §GG one — accent ink plus a 2px inset underline
-    (desc) or overline (asc). No arrows, no carets, nothing rotates (see #3).
+    affordance is the static §GG one — accent ink plus a 2px accent rule on the
+    header's own baseline, ALWAYS underneath the label. Direction is texture:
+    SOLID = descending, SEGMENTED = ascending. No arrows, no carets, nothing
+    rotates (see #3).
+    REVISED 2026-08-31, from live use. The first build used an OVERLINE for
+    ascending. The owner rejected it on sight: "the line that is supposed to be
+    underneath the text to show the sorted column, is instead above", and
+    earlier, "I still see that weird two lines." A rule above a header reads as
+    that header's underline gone astray, and on a table whose first row sits
+    under a section title's own accent rule it produced two short champagne bars
+    stacked ~20px apart that looked like a rendering fault. Enchants was the
+    only table defaulting to ascending, which is why it was the one that looked
+    broken. Do not reintroduce an overline anywhere: a horizontal accent rule
+    above a text label is not available as an affordance on this site.
+    Mechanism note, load-bearing: `box-shadow` REPLACES rather than adds, so the
+    direction mark cannot live in that property without erasing the 1px baseline
+    rule under exactly the sorted column. Descending overrides it deliberately
+    (same edge, 2px accent instead of 1px line); ascending paints a
+    `repeating-linear-gradient` background at `bottom left`, `100% 2px`, and
+    leaves the box-shadow alone.
     Exempt only: transposed key/value blocks with no column axis (the hover tip,
     the frame identity block).
 

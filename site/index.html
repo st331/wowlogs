@@ -392,12 +392,21 @@ table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700
 .data th.txt{text-align:left}
 #settbl th{white-space:normal}
 .data th.sorted{color:var(--accent)}
-/* static edge rule = sort direction — no arrows/carets/triangles (§15.15) */
+/* static edge rule = sort direction — no arrows/carets/triangles (§15.15).
+   BOTH directions underline. An overline for ascending was tried and is wrong:
+   a rule ABOVE a header reads as that header's underline gone astray, and
+   directly beneath a section title's own accent rule it produced two short
+   champagne bars stacked 20px apart that looked like a rendering fault. The
+   owner read it exactly that way — "the line that is supposed to be underneath
+   the text to show the sorted column, is instead above". Direction is carried
+   by TEXTURE on the one edge a header rule belongs on: solid = descending,
+   segmented = ascending. Same mechanism as the talent diff's gain/loss ticks,
+   colour-independent, and nothing rotates (pref #3). */
 .data th.sorted.desc{box-shadow:inset 0 -2px 0 var(--accent)}
-/* ascending keeps the header's baseline rule: box-shadow replaces rather than
-   adds, so an overline alone would cut the underline out beneath this column */
-.data th.sorted.asc{box-shadow:inset 0 2px 0 var(--accent),
-  inset 0 -1px 0 var(--line2)}
+.data th.sorted.asc{background-image:repeating-linear-gradient(90deg,
+    var(--accent) 0 6px,transparent 6px 10px);
+  background-repeat:no-repeat; background-size:100% 2px;
+  background-position:bottom left}
 .data td{padding:.44rem .75rem; border-top:1px solid var(--line0);
   text-align:right; font-variant-numeric:tabular-nums}
 .data tbody tr{transition:background-color .1s}
@@ -711,13 +720,9 @@ table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
 #cs-crafted-pair .caption{margin-top:.4rem}
 /* the embellishment table sorts (pref #12) — the same edge-rule sort language
    as .data th, minus the sticky header a card-sized table has no use for */
-/* the top padding is the ASCENDING overline's clearance, not decoration: the
-   indicator is an inset 2px rule on the cell's top edge, so at the old
-   .05rem (0.8px) it landed on the cap height of the label and read as a
-   highlight struck through the word. It needs to clear the glyphs. */
 .fold-t th,.cs-ench th,.cs-tal th,.cs-fold th,.cs-lean th{color:var(--ink3);
   text-transform:uppercase; font-size:.63rem;
-  letter-spacing:.11em; font-weight:600; padding:.34rem .6rem .28rem 0;
+  letter-spacing:.11em; font-weight:600; padding:.05rem .6rem .28rem 0;
   text-align:right; cursor:pointer; user-select:none; white-space:nowrap;
   box-shadow:inset 0 -1px 0 var(--line1); transition:color .12s}
 .fold-t th:hover,.cs-ench th:hover,.cs-tal th:hover,.cs-fold th:hover,
@@ -728,13 +733,16 @@ table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
 .cs-lean th.sorted{color:var(--accent)}
 .fold-t th.sorted.desc,.cs-ench th.sorted.desc,.cs-tal th.sorted.desc,
 .cs-fold th.sorted.desc,.cs-lean th.sorted.desc{box-shadow:inset 0 -2px 0 var(--accent)}
-/* ASCENDING must re-state the header's own baseline rule. box-shadow REPLACES,
-   it does not add, so an overline-only value erased the 1px underline beneath
-   exactly the sorted column and broke the rule that runs under the whole
-   header row — which is what made a sorted-ascending table look damaged. */
+/* ascending: segmented underline on the SAME edge as descending's solid one —
+   see the .data th.sorted note. The 1px baseline rule stays in the box-shadow
+   it was always in, because the direction mark is a background here and no
+   longer competes for that property. */
 .fold-t th.sorted.asc,.cs-ench th.sorted.asc,.cs-tal th.sorted.asc,
 .cs-fold th.sorted.asc,.cs-lean th.sorted.asc{
-  box-shadow:inset 0 2px 0 var(--accent), inset 0 -1px 0 var(--line1)}
+  background-image:repeating-linear-gradient(90deg,
+    var(--accent) 0 6px,transparent 6px 10px);
+  background-repeat:no-repeat; background-size:100% 2px;
+  background-position:bottom left}
 /* a null-key column (expander, copy button, icon) is a bare <th>: no pointer,
    no hover step, nothing that promises a sort it cannot perform */
 .data th:not([data-c]),.fold-t th:not([data-c]),.cs-ench th:not([data-c]),
