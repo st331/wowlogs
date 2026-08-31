@@ -642,10 +642,24 @@ a.whico{display:inline-flex; color:inherit; text-decoration:none;
 #cs-fold .caption{margin:-.1rem 0 .45rem}
 /* the fold-out is a REAL TABLE (pref #12, 3.4) — it was .frow divs, which
    cannot satisfy a standing "every table sorts" rule. The old .fbar share bar
-   survives as a cell-background gradient on the Share cell: same information,
-   same colour, no layout shift, nothing to sort around. */
+   survives UNCHANGED IN GEOMETRY: it is painted on the <tr>, so its
+   denominator is still the ROW, exactly as `.frow .fbar{width:S%}` measured
+   against the .frow. Scoping it to the 92px Share cell instead compressed the
+   quantitative encoding ~4.7x and put six of twelve rows under 4px, where
+   4.1% and 3.5% read as the same hairline — a length that is not readable is
+   not an encoding (pref #10, readability outranks compactness).
+     background-size 100% => the gradient's 100% IS the row width.
+     background-position 35px 100% => the old `left:35px; bottom:0`; the image
+       overflows right by 35px and the row's own box clips it, which is
+       precisely the old `max-width:calc(100% - 35px)`.
+   Same 2px height, same rgba(234,227,208,.20), no layout shift, and the bar
+   is a background so it never interferes with a cell or a sort. */
 .fold-w{overflow-x:auto}
 table.cs-fold{border-collapse:collapse; width:100%; font-size:.84rem}
+.cs-fold tbody tr{background-repeat:no-repeat; background-position:35px 100%;
+  background-size:100% 2px;
+  background-image:linear-gradient(90deg,rgba(234,227,208,.20) 0 var(--fw,0%),
+    transparent var(--fw,0%))}
 .cs-fold td{padding:.16rem .55rem .2rem 0; border-top:1px solid var(--line0);
   color:var(--ink); text-align:right; font-variant-numeric:tabular-nums;
   white-space:nowrap}
@@ -655,7 +669,8 @@ table.cs-fold{border-collapse:collapse; width:100%; font-size:.84rem}
 .cs-fold .fnm,.cs-fold .fsub{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .cs-fold .fnm{font-size:.84rem; color:var(--ink)}
 .cs-fold .fsub{font-size:.72rem; color:var(--ink3); margin-top:.06rem}
-.cs-fold td.fsh{min-width:92px}
+/* the Share cell no longer hosts the bar, so it only has to hold "100.0%" */
+.cs-fold td.fsh{min-width:44px}
 .cs-fold td.fsh b{color:var(--ink); font-weight:650; font-size:.78rem}
 table.fold-t{border-collapse:collapse; font-size:.85rem; width:100%}
 .fold-t td{padding:.16rem .6rem .16rem 0; color:var(--ink); text-align:right;
@@ -714,8 +729,10 @@ table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
 .cs-ench th:not([data-c]):hover,.cs-tal th:not([data-c]):hover,
 .cs-fold th:not([data-c]):hover,.cs-lean th:not([data-c]):hover{color:var(--ink3)}
 /* row hover: neutral warm colour only — nothing grows, nothing glows (pref #7) */
+/* background-COLOR, not the shorthand: the fold-out's share bar is a
+   background-image on the same <tr>, and `background:` would blank it on hover */
 .cs-tal tbody tr:hover,.cs-fold tbody tr:hover,.cs-lean tbody tr:hover,
-.fold-t tbody tr:hover{background:rgba(234,227,208,.03)}
+.fold-t tbody tr:hover{background-color:rgba(234,227,208,.03)}
 /* ---- upgrade lean (Part 2) — the ranking lives in .dcenter, a grid cell
    that is EMPTY at rest, so the pane's bounding box does not grow. It is NOT
    class="data": table.data carries min-width:700px and a sticky header, and
@@ -3966,24 +3983,24 @@ function csPoolModel(d,idA,idB){
 // one fold-out row, shared byte-for-byte by the per-slot and pooled panels:
 // 28px icon tile + name + share/n, crafted/emb sub-line. The panel USED to be
 // a stack of .frow divs, which cannot satisfy a standing "every table sorts"
-// rule; it is a real table now, and the .fbar share bar survives as the Share
-// cell's own background gradient — same information, same colour language, no
-// layout shift.
+// rule; it is a real table now. The .fbar share bar survives with its
+// GEOMETRY INTACT: --fw is a share of the ROW, painted on the <tr> (CSS
+// above), never of the Share cell — a cell-scoped bar divides the same
+// percentages by a 92px denominator and collapses the bottom half of every
+// distribution into indistinguishable hairlines.
 // No item level: an ilvl printed beside a slot restates the loot table
 // sixteen times and answers no question the owner has (pref #13). It returns
 // only as the BASELINE a percentage is measured against, inside the surface
 // that states the percentage — the LEAN % title below.
 function csFoldTR(e,nameHTML,s,c,ph,extra){
   const w=Math.min(100,Math.max(0,s)).toFixed(1);
-  return '<tr><td class="fi">'+csIcoHTML(e,ph,true)+'</td>'
+  return '<tr style="--fw:'+w+'%"><td class="fi">'+csIcoHTML(e,ph,true)+'</td>'
     +'<td class="txt fn"><div class="fnm">'+nameHTML+'</div>'
     +((e&&(e.cr||embOf(e)))?'<div class="fsub">'
       +(e.cr?'<span class="gtag">crafted</span>':'')
       +(embOf(e)?' <span class="gemb">'+esc(embOf(e))+'</span>':'')+'</div>':'')
     +'</td>'
-    +'<td class="fsh" style="background:linear-gradient(90deg,'
-      +'rgba(234,227,208,.20) 0 '+w+'%,transparent '+w+'%)"><b>'
-      +s.toFixed(1)+'%</b></td>'
+    +'<td class="fsh"><b>'+s.toFixed(1)+'%</b></td>'
     +'<td>n='+fmtInt(c)+'</td>'+(extra||"")+'</tr>';
 }
 /* the fold-out's columns. LEAN % and FIELD exist only in lean mode — a column
