@@ -23,12 +23,27 @@ crux of any future attempt.
 
 ## In flight
 
-- **Talent diff — visual pass** (fleet/blueprints/talent_visual.md). Design is finished and
-  committed; implementation is running as one implementer in an isolated worktree plus three
-  adversarial verify lenses (greyscale/colour-independence, geometry + crowding census,
-  regression across the rest of the character screen). Started 12:59 IST.
+Nothing.
 
 ## Landed 2026-08-31
+
+- **Talent diff — visual pass** (fleet/blueprints/talent_visual.md). Prominence treated as a
+  RATIO rather than a size: the field goes quiet, the mark moves onto a raised plate BEHIND the
+  tile, and direction is carried by position (tick on the plate's top edge for a gain, bottom
+  for a loss), mass and polarity (solid chip = present, hollow = gone) and texture (solid vs
+  segmented tick), with hue as redundant confirmation only. Icons 44 -> 40px, which roughly
+  doubles both gutters. The ghost thumbnail, all three sub-3:1 diff rings, the dashed rim, the
+  border-colour mechanism and both opacity tiers are DELETED — the whole "colour the tile's own
+  perimeter" family was the measured cause of 24% of marks never rendering (clip-path eats it on
+  every choice node). A new #cs-changes strip above the trees names WHICH talent changed.
+  Verified by three independent lenses, second round clean. The greyscale gate — name every mark
+  with the hue stripped out, no legend — passed on the first round; it is the check both earlier
+  attempts at this surface lacked, and it is why they failed.
+  One round of blockers was found and fixed: the column and row pitches were still derived from
+  the ICON (nd+4 / nd+6), numbers predating the plate, so nine-column specs spent slack down to a
+  45px pitch — one pixel inside the 46px plate. Gutters are now derived from the mark set;
+  minimum clearance 2.00 -> 3.00px and marks under the 3px floor went 14/100 -> 0, with the icon
+  still at 40px (the fix did not buy clearance by shrinking anything).
 
 - **Upgrade surface, all three parts** — per-slot item level gone from the doll, the Upgrade
   lean surface built and shipped DARK (no toggle in the DOM until the sidecar's `iup` field
@@ -58,6 +73,28 @@ crux of any future attempt.
 
 ## Known open
 
+- **Rank-down chip and pip overlap by 1.4px** (3 nodes across 18 specs). Not fixable by nudging:
+  the plate is 44px wide and the chip (16px) plus the pip ("2->1", 31px) is 47px, so they cannot
+  share one edge. The honest fix is a narrower pip glyph, not a new position. Every alternative
+  costed either shrinks the chip (which fights the entire point of the pass) or moves the tick's
+  edge assignment (which breaks the greyscale gate).
+- **Field quiet misses its stated targets on the HEAVIEST diffs.** Section 6's "under ~6% high-
+  chroma pixels" and "marked nodes are the only nodes with chroma > 25" are both measurably not
+  met once a pane carries 20+ marks; and the cross-hero `nodx` Hero pane, which opts out of the
+  quiet field by design, is now the loudest region on the canvas. All three verifiers judged the
+  encoding readable anyway and passed it. Revisit only if the owner says the pane still reads busy.
+- **The change strip fits 4 cards on heavy diffs, not the 8 the spec budgeted** (Priest Shadow
+  22 changes -> 4 + "+18 more"). The cap became a fit cap rather than a count cap; the count shown
+  is true and `.cmore` opens the ledger, so nothing is hidden silently. The spec's stated common
+  case (five or fewer changes) is fully answered above the trees.
+- **Fit headroom is near zero in 4 of 18 specs.** With the gutter floor raised, the densest specs
+  sum to within a few px of availW; a future tree with more columns would drop the icon to 38px,
+  which pref #10 forbids. If Blizzard adds columns, raise availW (widen #charscreen) rather than
+  letting the loop take another rung.
+- **Six specs were never measured** — Evoker Augmentation/Devastation, Druid Restoration, Paladin
+  Holy, DK Frost, Shaman Restoration are not reachable through the chart view the drivers used.
+- **The Upgrade lean table has never been exercised live.** `leanOK` is false until a data run
+  emits the sidecar's `iup` field, so the surface is dark by design and its sorting is untested.
 - **Enchants ship empty** (`eslots: []`). Raising the size target restored the item
   vocabularies but the enchant columns are still being dropped by the ladder, so the
   Enchants half of that tab has been silently blank. Diagnose before designing anything
