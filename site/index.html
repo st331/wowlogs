@@ -394,7 +394,10 @@ table.data{border-collapse:collapse; width:100%; font-size:.83rem; min-width:700
 .data th.sorted{color:var(--accent)}
 /* static edge rule = sort direction — no arrows/carets/triangles (§15.15) */
 .data th.sorted.desc{box-shadow:inset 0 -2px 0 var(--accent)}
-.data th.sorted.asc{box-shadow:inset 0 2px 0 var(--accent)}
+/* ascending keeps the header's baseline rule: box-shadow replaces rather than
+   adds, so an overline alone would cut the underline out beneath this column */
+.data th.sorted.asc{box-shadow:inset 0 2px 0 var(--accent),
+  inset 0 -1px 0 var(--line2)}
 .data td{padding:.44rem .75rem; border-top:1px solid var(--line0);
   text-align:right; font-variant-numeric:tabular-nums}
 .data tbody tr{transition:background-color .1s}
@@ -708,9 +711,13 @@ table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
 #cs-crafted-pair .caption{margin-top:.4rem}
 /* the embellishment table sorts (pref #12) — the same edge-rule sort language
    as .data th, minus the sticky header a card-sized table has no use for */
+/* the top padding is the ASCENDING overline's clearance, not decoration: the
+   indicator is an inset 2px rule on the cell's top edge, so at the old
+   .05rem (0.8px) it landed on the cap height of the label and read as a
+   highlight struck through the word. It needs to clear the glyphs. */
 .fold-t th,.cs-ench th,.cs-tal th,.cs-fold th,.cs-lean th{color:var(--ink3);
   text-transform:uppercase; font-size:.63rem;
-  letter-spacing:.11em; font-weight:600; padding:.05rem .6rem .28rem 0;
+  letter-spacing:.11em; font-weight:600; padding:.34rem .6rem .28rem 0;
   text-align:right; cursor:pointer; user-select:none; white-space:nowrap;
   box-shadow:inset 0 -1px 0 var(--line1); transition:color .12s}
 .fold-t th:hover,.cs-ench th:hover,.cs-tal th:hover,.cs-fold th:hover,
@@ -721,8 +728,13 @@ table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
 .cs-lean th.sorted{color:var(--accent)}
 .fold-t th.sorted.desc,.cs-ench th.sorted.desc,.cs-tal th.sorted.desc,
 .cs-fold th.sorted.desc,.cs-lean th.sorted.desc{box-shadow:inset 0 -2px 0 var(--accent)}
+/* ASCENDING must re-state the header's own baseline rule. box-shadow REPLACES,
+   it does not add, so an overline-only value erased the 1px underline beneath
+   exactly the sorted column and broke the rule that runs under the whole
+   header row — which is what made a sorted-ascending table look damaged. */
 .fold-t th.sorted.asc,.cs-ench th.sorted.asc,.cs-tal th.sorted.asc,
-.cs-fold th.sorted.asc,.cs-lean th.sorted.asc{box-shadow:inset 0 2px 0 var(--accent)}
+.cs-fold th.sorted.asc,.cs-lean th.sorted.asc{
+  box-shadow:inset 0 2px 0 var(--accent), inset 0 -1px 0 var(--line1)}
 /* a null-key column (expander, copy button, icon) is a bare <th>: no pointer,
    no hover step, nothing that promises a sort it cannot perform */
 .data th:not([data-c]),.fold-t th:not([data-c]),.cs-ench th:not([data-c]),
@@ -3714,6 +3726,8 @@ const CS_POOLED_SLOT=new Set([10,11,12,13]);
 const CS_SLOT_ABBR={0:"Hd",1:"Nk",2:"Sh",4:"Ch",5:"Wa",6:"Lg",7:"Ft",8:"Wr",
   9:"Ha",10:"R1",11:"R2",12:"T1",13:"T2",14:"Bk",15:"MH",16:"OH"};
 const CS_THIN=10;                       // §3.5 thin-n floor
+const ENCH_DEAD_SLOT=0.05;              // below this enchanted share, the slot
+                                        // is not enchantable this expansion
 const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into "other"
 const CS_EMB_CAP=10;                    // named embellishment rows before the tail folds
 /* upgrade lean (Part 2) floors. The cell floor is 40, not CS_THIN's 10,
@@ -4576,6 +4590,17 @@ function csEnchHTML(ctx,d){
     for(const i of d.gearIdx){ const v=bldEnV(j,i); cnt.set(v,(cnt.get(v)||0)+1); }
     let nz=0; for(const [v,c] of cnt) if(v>0) nz+=c;
     if(!V.length&&!nz) return;                  // no data for this slot
+    // ...and no row for a slot the expansion does not let anyone enchant.
+    // Hands shipped a row reading "none 98.2%" (100.0%, n=821, on a second
+    // spec: every single player) because three stragglers carried something
+    // there, which cleared the "no data at all" test above. The test is a
+    // SHARE, deliberately, not a hardcoded slot list: enchantable slots move
+    // between expansions, and a list would go stale silently the week they do.
+    // The observed band is empty either side of it — a live slot runs 60-99%
+    // enchanted, a dead one 0-1.8% — so 5% sits in a 12x-wide gap rather than
+    // on a knife edge, and a genuinely new enchant appears the moment it is
+    // worn by enough of the field to be a signal at all.
+    if(nz/total<ENCH_DEAD_SLOT) return;
     let wv=0,wn=-1;
     for(const [v,c] of cnt) if(c>wn){wn=c; wv=v}
     const win=wv>0?(V[wv-1]||null):null;

@@ -115,6 +115,17 @@ ICON_NAME_RE = re.compile(r"[a-z0-9_\-]+", re.IGNORECASE)
 # strip the atlas markup and the "Enchant <slot> - " prefix
 ATLAS_RE = re.compile(r"\|A:[^|]*\|a")
 ENCH_PREFIX_RE = re.compile(r"^Enchant .*? - ")
+# Blizzard's client-side substitution tokens. Name_lang on a stat enchantment
+# is frequently the stat LINE rather than a name -- "+$k1 Intellect & +$k2
+# Stamina" -- because the human name lives on the armour kit item, not on the
+# enchantment row. $k1/$k2 are filled in by the game client from the wearer's
+# item level, so nothing we can fetch will ever resolve them. Shipping the raw
+# string put "+$k1 Intellect & +$k2 Stamina" on screen as the most-used leg
+# enchant on every spec. Strip the token and the "+" it belongs to, and keep
+# the stats: "Intellect & Stamina" is what the enchant actually is, and it is
+# worth far more than blanking a row 98.8% of the field is wearing.
+SUBST_RE = re.compile(r"\+?\s*\$[a-zA-Z]+\d*")
+TIDY_RE = re.compile(r"\s{2,}")
 
 _FAILED = object()   # network failure sentinel: retry next run, store nothing
 
@@ -123,7 +134,9 @@ def clean_enchant_name(raw: str | None) -> str | None:
     """Human name from SpellItemEnchantment.Name_lang, or None when empty."""
     if not isinstance(raw, str) or not raw:
         return None
-    s = ENCH_PREFIX_RE.sub("", ATLAS_RE.sub("", raw)).strip()
+    s = ENCH_PREFIX_RE.sub("", ATLAS_RE.sub("", raw))
+    s = TIDY_RE.sub(" ", SUBST_RE.sub("", s))
+    s = s.strip(" &+,-").strip()
     return s or None
 
 
@@ -590,6 +603,20 @@ def main(argv=None) -> int:
 
     items_c = load_json(NAMES_ITEMS, {})
     enchs_c = load_json(NAMES_ENCHANTS, {})
+    # RE-CLEAN, not re-fetch. The cache is grow-only by design, so a name that
+    # was stored before clean_enchant_name learned a rule stays wrong forever
+    # and no amount of re-running fixes it. Re-cleaning is free (no request),
+    # idempotent (a clean name cleans to itself) and it cannot resurrect a
+    # cached null, which still means "asked, no name".
+    recleaned = 0
+    for k, v in list(enchs_c.items()):
+        if isinstance(v, str):
+            nv = clean_enchant_name(v)
+            if nv != v:
+                enchs_c[k] = nv
+                recleaned += 1
+    if recleaned:
+        print(f"[names] re-cleaned {recleaned} cached enchant names")
     crafted_c = set(load_json(CRAFTED_IDS, []))
     icons_c = load_json(NAMES_ICONS, {})
 
