@@ -823,13 +823,16 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
 /* in-game-style tree panes — §GG panels; the selected build lights champagne.
    Node size rides the computed --tn (34-40px band, pref #10 readability). */
 #cs-trees{display:flex; flex-wrap:nowrap; gap:12px; align-items:stretch;
-  overflow-x:auto; padding:5px 1px 8px}
+  overflow-x:auto; padding:5px 0 8px}
   /* the vertical padding is the plate's room: a row-0 mark's plate sits 3px
      above the canvas and overflow-x:auto makes overflow-y:auto, so a bare
-     top edge would clip it. The HORIZONTAL padding stays 1px on purpose —
-     availW is measured from clientWidth and does NOT subtract this box's own
-     padding, so widening it here is width the solver never sees and the row
-     grows a 2px sideways scroll it does not need. */
+     top edge would clip it. The HORIZONTAL padding is ZERO, and that is the
+     whole of it: availW is measured from clientWidth and does NOT subtract
+     this box's own padding, so every horizontal pixel spent here is width the
+     solver never sees. At 1px it bought a scrollWidth of 1117 against a
+     clientWidth of 1116 — a 1px sideways scroll on the pane at rest, in the
+     unpinned path, in five specs. A column-0 plate does not need it: the
+     plate lives inside .ttpane's own 11px padding. */
   /* overflow-x is the standing bounded-container rule — the PAGE never
      scrolls sideways even if one tree's geometry is impossibly wide.
      NOWRAP + a computed fit/ovf class (Item 3): a wrapped row dropped the
@@ -954,16 +957,29 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
    shape; the 1px near-black ring plus the drop shadow and the §GG top lip are,
    which is why all three are load-bearing and none may be dropped as
    decoration. It sits BEHIND the tile: zero occlusion of the art (the old swap
-   treatment, badge + ghost + pip, covered up to 32.8% of it). */
-#cs-trees.diff .ttn.dv::before{content:""; position:absolute; inset:-3px;
+   treatment, badge + ghost + pip, covered up to 32.8% of it).
+   THE INSET IS 3px VERTICAL, 2px HORIZONTAL, and the asymmetry is measured,
+   not stylistic: rows are pitched 52px apart and columns as little as 46px, so
+   a uniform 3px plate left the nine-column specs with 0px of pane ground
+   between two horizontally adjacent plates — their 1px rings coincided and the
+   pair read as ONE slab holding two tiles. At 2px the plate is 44px wide, the
+   solver's COLGUT floor of node+6 keeps 2px of ground between neighbours, and
+   the vertical 3px is untouched because 52px of row pitch has room for it.
+   The chip and the pip still hang 3px off the tile, so each overhangs the
+   plate's own edge by 1px at its corner — they are passengers ON the plate,
+   and 16px of chip is a greyscale channel (§3) that is not narrowed to buy
+   1px of tidiness. */
+#cs-trees.diff .ttn.dv::before{content:""; position:absolute; inset:-3px -2px;
   z-index:-1; pointer-events:none; border-radius:var(--r1);
   background:var(--plate);
   box-shadow:0 0 0 1px rgba(0,0,0,.55), 0 2px 6px -1px rgba(0,0,0,.55),
     inset 0 1px 0 rgba(255,255,255,.07)}                        /* §GG lip */
 /* THE TICK — "which way, and how big a move". Drawn 1px inside the plate's
-   dark ring, so two vertically adjacent ticks are separated by ring + 12px of
-   pane + ring and cannot read as one ladder rung. */
-#cs-trees.diff .ttn.dv::after{content:""; position:absolute; inset:-3px;
+   dark ring and on the SAME box as the plate, so it stays centred on it. Two
+   vertically adjacent ticks are separated by rowPitch - node - 4 = 8px of
+   ring and pane at the shipped 52px pitch, which is why ROWGUT is 12 and not
+   the plate's own 6: they cannot read as one ladder rung. */
+#cs-trees.diff .ttn.dv::after{content:""; position:absolute; inset:-3px -2px;
   z-index:2; pointer-events:none; border-radius:var(--r1);
   background-repeat:no-repeat}
 #cs-trees.diff .ttn.da::after{
@@ -1119,8 +1135,16 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
   text-transform:uppercase; letter-spacing:.14em; color:var(--ink3)}
 #cs-changes .ccnt{flex:0 0 auto; font-size:.72rem; color:var(--ink2);
   font-variant-numeric:tabular-nums}
+/* the rail holds only what FITS — the fit cap in wireScreen's change-strip
+   block measures it and folds the rest into .cmore. With the
+   count cap it shipped with, four to five of eight cards sat past the right
+   edge of a container that paints no scrollbar and gives no fade or arrow, so
+   40-60% of the strip was neither readable nor discoverable. overflow-x stays
+   auto as a floor for the pathological single card wider than the whole rail;
+   in every real case nothing overflows it now. */
 .crail{display:flex; gap:.4rem; overflow-x:auto; flex:1 1 auto; min-width:0;
   padding:2px 0 4px}
+.crail .ccard.hid{display:none}
 .ccard{position:relative; overflow:hidden; flex:0 0 auto; display:flex;
   align-items:center; gap:.4rem; padding:.26rem .5rem;
   background:var(--surface1); border:1px solid var(--line1);
@@ -1138,10 +1162,15 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
   border:1px solid var(--line2); object-fit:cover}
 .cico.was{filter:grayscale(1) brightness(.7)}
 .ccard .csw{flex:0 0 auto; font-size:.7rem; color:var(--ink3)}
+/* name over detail rather than name beside it: a card's width becomes
+   max(name,detail) instead of their sum — ~200px instead of ~300px — which is
+   what puts the spec's own common case (five changes) inside the rail. The
+   pane word leaves the card FACE: it is still in the card's title, and the
+   strip is ordered Class -> Spec -> Hero, so it was the one token on the card
+   that the reader could already infer. No type shrinks (pref #10). */
+.ctx{display:flex; flex-direction:column; gap:1px; min-width:0}
 .cnm{font-size:.74rem; font-weight:650; color:var(--ink); white-space:nowrap}
 .cdt{font-size:.68rem; color:var(--ink2); white-space:nowrap}
-.cpn{font-size:.6rem; text-transform:uppercase; letter-spacing:.14em;
-  color:var(--ink3); white-space:nowrap}
 .ccard::after{content:""; position:absolute; inset:0; pointer-events:none;
   border-radius:var(--r1); background-repeat:no-repeat}
 .ccard.da::after{background-image:linear-gradient(var(--up),var(--up));
@@ -1154,6 +1183,10 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
     repeating-linear-gradient(90deg,var(--down) 0 6px,transparent 6px 10px);
   background-size:62% 3px, 62% 3px;
   background-position:top 0 center, bottom 0 center}
+/* .cmore is a SIBLING of .crail, never a passenger in it: inside the rail it
+   was the one control guaranteed to be off screen, because it sits after
+   every card that overflowed. */
+.cmore[hidden]{display:none}
 .cmore{flex:0 0 auto; background:var(--surface1);
   border:1px solid var(--accent-line); color:var(--accent);
   border-radius:var(--r1); padding:.26rem .5rem; cursor:pointer;
@@ -5129,7 +5162,33 @@ function csTreePanesHTML(ctx,trees,row,base){
   // and .tp ~6.4px/char at .68rem; 8px per flex gap; 12px trailing slack
   const headW=p=>34+7.2*p.htext.length+6.4*(p.ttext.length+p.ptText.length)+24+12;
   const boxW=(p,nd,cp)=>Math.max((p.colLad.slots-1)*cp+nd, headW(p));
-  let node=34, colPitch=38;
+  /* THE GUTTERS ARE THE PLATE'S OWN FOOTPRINT, not independent taste numbers.
+     A marked node wears a ::before plate inset 3px top and bottom and 2px left
+     and right, so it occupies node+4 across and node+6 down, and its 1px
+     near-black ring is what makes it a shape. The pitch has to clear that ring
+     on BOTH neighbours or two plates share one ring and the pair reads as a
+     single slab holding two tiles.
+       COLGUT = 2px plate + 2px of pane ground + 2px plate = 6.
+       ROWGUT = 12, which is the tick's number rather than the plate's: the
+     ticks sit 1px inside the plate and are 4px tall, so two vertically
+     adjacent ticks are separated by rowPitch - node - 4, and the blueprint's
+     floor for "these do not read as one ladder rung" is 8px.
+     The old code used a flat cp = nd+4 and a rowPitch floor of nd+6, both
+     chosen before the plate existed. The nine-column specs (Druid Feral,
+     DemonHunter Devourer) then spent their slack to colPitch 45, one pixel
+     INSIDE the plate's own width: measured, the two plates overlapped by 1px
+     over their full 46px height and the marked pair rendered as one slab.
+     Deriving the gutters from the mark set is the fix; at node 40 every one of
+     the 18 charted specs still fits its measure at the floor (worst case
+     DemonHunter Devourer, sum 1016 of availW 1020), so no icon shrinks.
+     COLGUT 6 IS THE CEILING, not a preference: at 8 the same two specs need
+     1040 and 1044 and the loop would drop them to a 38px icon, which pref #10
+     does not allow us to spend. Swept over 84 base/candidate combinations on
+     the seven densest specs, the worst sum at the floor never moved off 1016 —
+     headW reserves its tally slot unconditionally, so the comparison chosen
+     cannot change the fit. */
+  const COLGUT=6, ROWGUT=12;
+  let node=34, colPitch=34+COLGUT;
   /* the start rung moves 44 -> 40. Pref #10 forbids shrinking icons TO BUY
      FIT, and nothing is bought here: the row already fit at 44 with spare in
      every spec, so 4px of icon edge becomes 5px of white space — the opposite
@@ -5138,7 +5197,7 @@ function csTreePanesHTML(ctx,trees,row,base){
      No type shrinks anywhere, and 40 is three rungs above the readable floor
      the code itself names below. */
   for(let nd=40; nd>=34; nd-=2){        // pref #10: 34px icon floor, never below
-    const cp=nd+4;
+    const cp=nd+COLGUT;
     node=nd; colPitch=cp;
     let sum=0; for(const p of panes) sum+=boxW(p,nd,cp);
     if(sum<=availW) break;
@@ -5147,15 +5206,18 @@ function csTreePanesHTML(ctx,trees,row,base){
   if(sumW<availW){                      // spend the slack on column pitch...
     const gaps=panes.reduce((a,p)=>a+Math.max(0,p.colLad.slots-1),0);
     if(gaps>0){
-      colPitch=Math.min(node+26, colPitch+Math.floor((availW-sumW)/gaps));
+      // ...and never BELOW the floor: the slack spend may only widen the
+      // gutter, never eat into the plate's footprint
+      colPitch=Math.max(node+COLGUT,
+        Math.min(node+26, colPitch+Math.floor((availW-sumW)/gaps)));
       sumW=0; for(const p of panes) sumW+=boxW(p,node,colPitch);
     }
   }                                     // ...but never over-stretch a sparse tree
   const capH=Math.max(380,Math.min(560,(window.innerHeight||1080)-440));
   const rowsMax=Math.max(...panes.map(p=>p.rowLad.slots));
   const rowPitch=(rowsMax>1)
-    ?Math.max(node+6,Math.min(node+22,Math.floor((capH-node)/(rowsMax-1))))
-    :node+6;
+    ?Math.max(node+ROWGUT,Math.min(node+22,Math.floor((capH-node)/(rowsMax-1))))
+    :node+ROWGUT;
   // ONE height for EVERY pane's canvas. Sizing each to its own content is what
   // produced the ragged bottoms: the class/spec span difference is non-zero in
   // 40 of 40 specs, so "identical metrics but content-sized" still leaves one
@@ -5323,9 +5385,10 @@ function csNodeIndex(trees){
    tallies or the ledger. Same cross-hero skip, same one-row substitution, same
    default order (pane, then node y), so left-to-right here is top-to-bottom
    there. Each card wears the map's own grammar, so the strip TEACHES the map.
-   CAPPED AT 8: 63% of real diff pairs mark five or fewer nodes, so the common
-   case is answered above the trees with the ledger still closed, and the heavy
-   case hands the reader the ledger rather than growing the page. ---- */
+   CAPPED BY FIT, not by count: 63% of real diff pairs mark five or fewer
+   nodes, so the common case is answered above the trees with the ledger still
+   closed, and the heavy case hands the reader a .cmore that is ON SCREEN and
+   states how many it is holding back. ---- */
 function csChangeStripHTML(base,row,paneOf,trees){
   if(base.s===row.s) return "";
   const idx=csNodeIndex(trees);
@@ -5365,9 +5428,8 @@ function csChangeStripHTML(base,row,paneOf,trees){
       html:'<button class="ccard '+ki.c+'" data-nd="'+(+n.id)+'" title="'
         +escA((nm==null?"unnamed node":nm)+" — "+dt+" · "+e.pane+" tree")+'">'
         +'<span class="ttb">'+ki.g+'</span>'+art
-        +'<b class="cnm">'+nmHTML(nm)+'</b>'
-        +'<span class="cdt">'+esc(dt)+'</span>'
-        +'<span class="cpn">'+esc(e.pane)+'</span></button>'});
+        +'<span class="ctx"><b class="cnm">'+nmHTML(nm)+'</b>'
+        +'<span class="cdt">'+esc(dt)+'</span></span></button>'});
   }
   cards.sort((a,b)=>a.po-b.po||a.y-b.y||a.o-b.o);
   // the hero substitution has no node to pin and is the single largest
@@ -5375,21 +5437,27 @@ function csChangeStripHTML(base,row,paneOf,trees){
   const lead=crossHero
     ?'<button class="ccard ds" title="'+escA("hero tree — was "+base.hero
       +", now "+rowHero)+'"><span class="ttb">≠</span>'
-      +'<b class="cnm">Hero tree</b><span class="cdt">was '+esc(base.hero)
-      +' · now '+esc(rowHero)+'</span><span class="cpn">Hero</span></button>'
+      +'<span class="ctx"><b class="cnm">Hero tree</b>'
+      +'<span class="cdt">was '+esc(base.hero)+' · now '+esc(rowHero)
+      +'</span></span></button>'
     :"";
   const total=cards.length+(crossHero?1:0);
   if(!total) return "";
-  const room=8-(crossHero?1:0);
-  const shown=cards.slice(0,Math.max(0,room));
-  const hidden=cards.length-shown.length;
-  let h='<div id="cs-changes"><span class="tl">Changed</span>'
-    +'<span class="ccnt">'+total+'</span><div class="crail">'+lead
-    +shown.map(c=>c.html).join("");
-  if(hidden>0)
-    h+='<button class="cmore" data-cmore>+'+hidden
-      +' more · open the diff ledger</button>';
-  return h+'</div></div>';
+  /* NO COUNT CAP — a FIT cap, spent at layout time in wireScreen below.
+     The cap that shipped was eight cards, but the rail is ~1030px inside the
+     1116px measure and a card ran 170-360px, so eight cards put four or five
+     of them past the right edge of a container that paints no scrollbar, no
+     fade and no arrow; the .cmore that was meant to rescue them sat INSIDE
+     the rail, up to 1359px out of sight, reachable only by Tab. Every card is
+     emitted here; the wiring block measures the rail and folds what does not
+     FIT into .cmore, which is a SIBLING of the rail and therefore always on
+     screen — and, because it counts what was actually folded, always states a
+     TRUE hidden count (the old cap said "+9 more" while hiding fourteen). */
+  return '<div id="cs-changes"><span class="tl">Changed</span>'
+    +'<span class="ccnt">'+total+'</span>'
+    +'<div class="crail">'+lead+cards.map(c=>c.html).join("")+'</div>'
+    +'<button class="cmore" data-cmore hidden>'
+    +'+0 more · open the diff ledger</button></div>';
 }
 /* ---- the diff bar: ONE line between the chips and the trees, so the reader
    crosses it on the way down. It carries the identity of the comparison, the
@@ -5899,6 +5967,37 @@ function wireScreen(host,ctx,d){
     });
     const more=rail.querySelector("[data-cmore]");
     if(more) more.onclick=()=>{ screenDlOpen=true; renderScreen() };
+    /* ---- THE FIT CAP. csChangeStripHTML emits every changed talent; here is
+       where the ones that do not fit the measure are folded away. The rail is
+       ~1030px inside the 1116px measure (pref #2) and a card is ~200px, so
+       roughly five fit — which is the spec's own common case. What is folded
+       goes into .cmore, which lives OUTSIDE the rail, is therefore always on
+       screen, and prints the count that was actually folded. Two passes,
+       because .cmore is a flex sibling and showing it narrows the rail: fit
+       with it hidden, and only if something is left over show it and fit
+       again. Nothing here moves on hover or animates (prefs #3, #7). ---- */
+    const rl=rail.querySelector(".crail");
+    if(rl&&more){
+      const cs=[...rl.querySelectorAll(".ccard")];
+      more.hidden=true;
+      cs.forEach(c=>c.classList.remove("hid"));
+      const gp=parseFloat(getComputedStyle(rl).columnGap)||0;
+      const cw=cs.map(c=>c.getBoundingClientRect().width);
+      // at least one card is always shown: a single card wider than the whole
+      // rail is a clipped card, not an empty strip
+      const nfit=w=>{ let used=0,n=0;
+        for(let i=0;i<cs.length;i++){ const t=used+(n?gp:0)+cw[i];
+          if(t>w+0.5) break; used=t; n++ }
+        return Math.max(1,Math.min(n,cs.length)) };
+      // a rail measured at zero is a rail that is not laid out yet; fold
+      // nothing rather than folding everything
+      let n=(cs.length&&rl.clientWidth>50)?nfit(rl.clientWidth):cs.length;
+      if(n<cs.length){ more.hidden=false; n=nfit(rl.clientWidth) }
+      cs.forEach((c,i)=>c.classList.toggle("hid",i>=n));
+      const held=cs.length-n;
+      more.hidden=!(held>0);
+      if(held>0) more.textContent="+"+held+" more · open the diff ledger";
+    }
   }
   host.querySelectorAll("[data-copy]").forEach(b=>{
     b.onclick=e=>{
