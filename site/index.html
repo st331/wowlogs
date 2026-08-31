@@ -3766,13 +3766,16 @@ function csPoolModel(d,idA,idB){
   return {ent, rowKeys, rowRaw, n:d.gearIdx.length, ok:sa>=0&&sb>=0};
 }
 // one fold-out row, shared byte-for-byte by the per-slot and pooled panels:
-// 22px icon tile + name + share/n/ilvl, crafted/emb sub-line, thin share bar
+// 22px icon tile + name + share/n, crafted/emb sub-line, thin share bar.
+// No item level: an ilvl printed beside a slot restates the loot table
+// sixteen times and answers no question the owner has (pref #13). It returns
+// only as the BASELINE a percentage is measured against, inside the surface
+// that states the percentage.
 function csFoldRow(e,nameHTML,s,c,ph){
   return '<div class="frow">'
     +csIcoHTML(e,ph,true)
     +'<div class="fx"><div class="ftop"><span class="fn">'+nameHTML+'</span>'
-    +'<span class="fs"><b>'+s.toFixed(1)+'%</b> · n='+fmtInt(c)+' · '
-    +((e&&e.ilvl)?"ilvl "+e.ilvl:"–")+'</span></div>'
+    +'<span class="fs"><b>'+s.toFixed(1)+'%</b> · n='+fmtInt(c)+'</span></div>'
     +((e&&(e.cr||embOf(e)))?'<div class="fsub">'
       +(e.cr?'<span class="gtag">crafted</span>':'')
       +(embOf(e)?' <span class="gemb">'+esc(embOf(e))+'</span>':'')+'</div>':'')
@@ -3895,7 +3898,6 @@ function csGearPaneHTML(ctx,d){
       // the unlisted share stays VISIBLE — it is real information, it just
       // never gets to masquerade as the consensus pick
       meta:'<b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(p.winN)+'</i>'
-        +((e&&e.ilvl)?'<i>ilvl '+e.ilvl+'</i>':'')
         +((e&&e.cr)?'<span class="gtag">crafted</span>':'')
         +(p.otherN>0?'<i>other '+(100*p.otherN/total).toFixed(0)+'%</i>':''),
       foot:(slot===15&&ohNone)?'<div class="gfoot">off hand: none — two-handed '
@@ -3913,7 +3915,6 @@ function csGearPaneHTML(ctx,d){
         +(rank===2?"second ":"")+lab.toLowerCase()+" above the n≥"
         +CS_ENTRY_MIN+" floor")+'</span>'),
       meta:(e?('<b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(c)+'</i>'
-        +(e.ilvl?'<i>ilvl '+e.ilvl+'</i>':'')
         +(e.cr?'<span class="gtag">crafted</span>':'')):'<b>—</b>')});
   };
   const seen=new Set();

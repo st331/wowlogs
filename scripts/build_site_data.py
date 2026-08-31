@@ -1098,7 +1098,13 @@ BUILDS_ESLOT_MIN_SHARE = 0.01   # a slot ships an enchant column when >=1%
 # slack and still leaves 1.10 MB (22%) under the hard cap, so the ladder stays a
 # live safety net rather than dead code. The hard cap does NOT move: it is what
 # keeps the character screen from vanishing entirely.
-BUILDS_GZ_TARGET = 4_300_000
+# 4.3 MB left the shipped document at 4.27 -- 30 KB of headroom, i.e. the next
+# thing that grows the sidecar silently costs the enchant block again (the
+# ladder trades it away first). Part 2 of the upgrade surface adds a per-entry
+# field, so the headroom is taken BEFORE that lands rather than discovered by
+# its absence. 4.7 keeps 300 KB under the 5.0 MB hard cap, which is the rung
+# that refuses to ship at all.
+BUILDS_GZ_TARGET = 4_700_000
 BUILDS_GZ_CAP = 5_000_000
 
 NAMES_ITEMS = ROOT / "data" / "names_items.json"
