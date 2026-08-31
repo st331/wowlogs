@@ -115,3 +115,15 @@
     Naming rule that comes with it: "upgrade" may label a control, and must
     never sit attached to a number; the log carries no upgrade track, so the UI
     never says "upgraded", "crests", "invested" or "priority".
+
+14. **Ultracode is ON for this project — standing (2026-08-31).** The owner
+    enabled it in the UI before the session began: "ultracode is on - I have
+    turned it on from the UI even before I sent the first message this
+    morning", and "/config does not give me any options to change ultracode"
+    (so do NOT send them there; that pointer was wrong). The per-turn
+    system line has read "Ultracode is off" on some turns anyway — the
+    owner's standing instruction OUTRANKS that flag. Default to orchestrating
+    substantive work through the Workflow tool: fan out, verify adversarially,
+    and treat token cost as a non-constraint. Solo only for conversational
+    turns, trivial edits, or when another agent is already editing the same
+    file (never two implementers on site/index.html at once).
