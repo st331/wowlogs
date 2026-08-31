@@ -1086,6 +1086,10 @@ BUILDS_ITEM_CAP, BUILDS_ITEM_CAP_BIG = 24, 40
 BUILDS_ENCH_CAP, BUILDS_BUILD_CAP = 15, 40       # 15 = nibble-bound
 BUILDS_ESLOT_MIN_SHARE = 0.01   # a slot ships an enchant column when >=1%
                                 # of gear-known records carry an ench there
+# §1.8: an item vocab entry ships "iup" only at this many DISTINCT
+# (character, server) wearers. A share of a dozen people is noise wearing
+# a percent sign; absent means unknown and the client renders nothing.
+BUILDS_IUP_MIN_WEARERS = 20
 # Sizing (§1.4). The 3.0 MB target was UNREACHABLE: the lowest non-refusing
 # rung measured 3.29 MB gz at level 6, so the ladder bottomed out on every run
 # and shipped the most degraded document it can build — halved item caps AND no
@@ -1533,7 +1537,11 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
 
     # ---- the one df-order walk: parse each covered row once
     n = len(df)
-    rows_c = []          # (payload i, "Class|Spec", slotkeys, enchs, build, fl)
+    # (payload i, "Class|Spec", slotkeys, enchs, build, fl, (ch, sv)).
+    # The wearer identity rides along for §1.8: iup is a share of DISTINCT
+    # wearers, and a 40-key grinder must not vote forty times. Transient
+    # only -- two references per covered row, nothing on the wire.
+    rows_c = []
     gear_known = 0
     ench_hits: Counter = Counter()
     gkey: Counter = Counter()      # gear-item key presence, for the eslots diagnostic
@@ -1566,7 +1574,8 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                 if it.get("ench"):
                     ench_hits[s] += 1
                     enchs[s] = it["ench"]
-        rows_c.append((i, f"{cls}|{spec}", slotkeys, enchs, build, fl))
+        rows_c.append((i, f"{cls}|{spec}", slotkeys, enchs, build, fl,
+                       (ch, sv)))
     if not rows_c:
         print(f"[{name}] no journal-covered payload rows; "
               f"builds sidecar omitted")
@@ -1594,10 +1603,14 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     # ---- per-spec tallies over ALL journal-known rows of the spec (per the
     # contract: vocab counts are df-wide, not lens- or cohort-sliced)
     tallies: dict[str, dict] = {}
-    for _, sk, slotkeys, enchs, build, fl in rows_c:
+    for _, sk, slotkeys, enchs, build, fl, who in rows_c:
         t = tallies.setdefault(sk, {
             "it": [Counter() for _ in BUILDS_SLOTS],
             "flat": [Counter() for _ in BUILDS_SLOTS],
+            # §1.8: ident -> {(character, server): ilvl}, FIRST observation
+            # wins. Was a flat list of parses; deduping to wearers is what
+            # makes iup a share of players rather than a share of logs, and
+            # it makes the existing "ilvl" median per-character (see health).
             "ilvl": [{} for _ in BUILDS_SLOTS],
             "en": {s: Counter() for s in eslots},
             "bld": Counter()})
@@ -1611,12 +1624,49 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
             # discover, which doll tiles the identity split moves
             t["flat"][k][(key[0], None if key[1] is None else -1)] += 1
             if key[2]:
-                t["ilvl"][k].setdefault(ident, []).append(key[2])
+                t["ilvl"][k].setdefault(ident, {}).setdefault(who, key[2])
         for s in eslots:
             if s in enchs:
                 t["en"][s][enchs[s]] += 1
         if build:
             t["bld"][build] += 1
+
+    # ---- §1.8 fail-closed uniqueness gate, decided ONCE over the FULL
+    # uncapped tallies so a ladder rung can never flip the verdict.
+    #
+    # iup is a percentage over ONE piece's wearers. If two vocab entries in
+    # the same (spec, slot) are the same item split by something the client
+    # cannot see, each percentage is computed over an arbitrary half of that
+    # piece's population and is confidently wrong rather than absent. So the
+    # emitter refuses to write iup AT ALL -- it does not warn only, and it
+    # does not fail the build.
+    #
+    # The partition key is (item id, EMITTED emb display value), not the raw
+    # identity id. Two reasons, both load-bearing:
+    #  * (spec, slot, id) alone is NOT the invariant. Embellishment identity
+    #    v3 splits one crafted piece into plain / named / generic entries on
+    #    purpose -- 392 such groups exist in the live document and every one
+    #    is legitimate. A gate on the bare id would suppress iup forever, on
+    #    correct data, silently. That is the failure this project keeps
+    #    having, so it is spelled out here rather than left to be rediscovered.
+    #  * the DISPLAY value is what the client partitions by, and
+    #    emb_names.get(emb) or "embellished" can in principle collapse two
+    #    distinct identity ids onto one reagent name. That collapse is exactly
+    #    the ambiguity worth catching, and only the emitted value catches it.
+    iup_ok = True
+    iup_bad: list[tuple] = []
+    iup_cols = 0
+    for sk in sorted(tallies):
+        for k, s_ in enumerate(BUILDS_SLOTS):
+            iup_cols += 1
+            seen: set = set()
+            for (iid, emb) in tallies[sk]["it"][k]:
+                dk = (iid, None if emb is None
+                      else (emb_names.get(emb) or "embellished"))
+                if dk in seen:
+                    iup_ok = False
+                    iup_bad.append((sk, s_, iid, dk[1]))
+                seen.add(dk)
 
     # §1.7: selection sets for the emitted top builds -- one extra journal
     # pass keyed by the full-cap ranking (a superset of every ladder rung);
@@ -1647,10 +1697,15 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                   f"than one selection variant (modal set shipped) - "
                   f"expected only for string-identified builds")
 
+    iup_stats: dict = {}
+
     def make_doc(item_cap: int, item_cap_big: int, build_cap: int,
                  with_en: bool) -> str:
         """Both encodings at these caps; the smaller gz wins, loudly."""
         # vocabularies + the (id, emb) -> 1-based index lookups
+        iup_stats.clear()
+        iup_stats.update(emitted=0, entries=0, below=0, vals=[],
+                         dedup_parses=0, dedup_wearers=0, dedup_moved=0)
         specs_out: dict[str, dict] = {}
         lookups: dict[str, dict] = {}
         for sk in sorted(tallies):
@@ -1665,11 +1720,36 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                               for j, (ident, _) in enumerate(ranked)})
                 col = []
                 for (iid, emb), _cnt in ranked:
-                    ilvls = t["ilvl"][k].get((iid, emb))
+                    # §1.8: one dict per entry, {(character, server): ilvl}.
+                    # The median below is therefore per-CHARACTER now, which
+                    # can move it by up to a track step; health() reports how
+                    # many moved so a shifted pooled tile is attributable.
+                    obs = t["ilvl"][k].get((iid, emb)) or {}
+                    ilvls = list(obs.values())
                     e: dict = {"id": iid,
                                "n": (item_names.get(iid) or {}).get("n"),
                                "ilvl": (int(round(float(np.median(ilvls))))
                                         if ilvls else None)}
+                    iup_stats["entries"] += 1
+                    iup_stats["dedup_parses"] += _cnt
+                    iup_stats["dedup_wearers"] += len(ilvls)
+                    if _cnt > len(ilvls):
+                        iup_stats["dedup_moved"] += 1
+                    if len(ilvls) < BUILDS_IUP_MIN_WEARERS:
+                        iup_stats["below"] += 1
+                    elif iup_ok:
+                        # mode over DISTINCT wearers; ties resolve to the
+                        # HIGHER item level, because the lower of two tied
+                        # modes leaves more mass strictly above it and would
+                        # bias every lean upward.
+                        cnts = Counter(ilvls)
+                        top = max(cnts.values())
+                        mode = max(v for v, c in cnts.items() if c == top)
+                        iup = int(round(100.0 * sum(1 for v in ilvls
+                                                    if v > mode) / len(ilvls)))
+                        e["iup"] = iup
+                        iup_stats["emitted"] += 1
+                        iup_stats["vals"].append(iup)
                     ic = icon_names.get(iid)
                     if ic:                      # §1.6: optional, self-hosted
                         e["ic"] = ic
@@ -1725,7 +1805,8 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         en_a = np.zeros((n_en, m), dtype="u1")
         bld_a = np.zeros(m, dtype="u1")
         idx_a = np.zeros(m, dtype="<u4")
-        for j, (i, sk, slotkeys, enchs, build, fl) in enumerate(rows_c):
+        for j, (i, sk, slotkeys, enchs, build, fl, _who) in \
+                enumerate(rows_c):
             lk = lookups[sk]
             idx_a[j] = i
             fl_a[j] = fl
@@ -1784,7 +1865,18 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
 
     health(f"[{name}] builds sidecar: {len(rows_c):,}/{n:,} rows covered "
           f"({len(rows_c) / n:.0%}), {len(tallies)} specs, "
-          f"eslots {eslots}")
+          f"eslots {eslots}, iup {'on' if iup_ok else 'OFF'}")
+    if iup_ok:
+        health(f"[{name}] [iup] gate: 0 (spec,slot,id,emb) collisions over "
+               f"{iup_cols:,} vocab columns -> WRITTEN")
+    else:
+        _sk, _s, _id, _e = iup_bad[0]
+        health(f"[{name}] [iup] gate: {len(iup_bad):,} (spec,slot,id,emb) "
+               f"collisions over {iup_cols:,} vocab columns, first {_sk} "
+               f"slot {_s} id {_id} emb {_e!r} -> iup SUPPRESSED, no entry "
+               f"carries it (the embellishment split is ambiguous, so every "
+               f"share would be taken over an arbitrary part of a piece's "
+               f"wearers)")
     # Degradation ladder (§1.4), a STAIRCASE rather than a cliff. Two ordering
     # rules, both learned from production:
     #  * the enchant block is traded away BEFORE the item vocabulary degrades.
@@ -1829,6 +1921,8 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
            + f" || SHIPPED caps {rung[0]}/{rung[1]} builds {rung[2]} "
              f"en={'y' if rung[3] else 'n'} at {sizes[-1][1] / 1e6:.2f} MB "
              f"(target {target / 1e6:.1f}, hard cap {cap / 1e6:.1f})")
+    _iup_health(name, iup_ok, dict(iup_stats), gz, sizes[-1][1], doc,
+                target, cap)
     _emb_health(name, embc, emb_markers, crafted, EMB, emb_labels, emb_cfgs,
                 tallies, rung)
     if sizes[-1][1] > cap:
@@ -1836,6 +1930,84 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                f"cap even without enchants; NOT shipped")
         return None
     return doc
+
+
+def _iup_health(name, ok, st, gz, shipped, doc, target, cap) -> None:
+    """§1.8's proof block, published in site/build_health.txt.
+
+    Both of this project's previous pipeline widenings failed SILENTLY:
+    talents.json.gz was never emitted for weeks and the embellishment names
+    were empty for a day, and in both cases the build said nothing at all.
+    So these lines are written to be obviously wrong when the field is
+    empty or degenerate rather than merely absent from the log:
+      * "emitted on 0/N" or a missing block answers "did it ship" with no
+        reading between lines;
+      * a distribution whose p10/p50/p90 are all 0, or whose at-0 count is
+        the whole population, is a degenerate statistic even though the key
+        is present on every entry -- the exact shape a broken mode or a
+        broken dedupe produces;
+      * the counterfactual size is the only way a future run can prove
+        whether iup was what pushed the ladder down a rung and took the
+        enchant block with it.
+    """
+    if not ok:
+        health(f"[{name}] [iup] emitted on 0 entries: the uniqueness gate "
+               f"refused (see the gate line above). The Upgrade lean toggle "
+               f"will not appear; the Gear pane is unchanged.")
+        return
+    vals = sorted(st.get("vals") or [])
+    ent, em = st.get("entries", 0), st.get("emitted", 0)
+    if not vals:
+        health(f"[{name}] [iup] emitted on 0/{ent:,} shipped vocab entries "
+               f"-- NOTHING carries the field. Either every entry is under "
+               f"the {BUILDS_IUP_MIN_WEARERS}-wearer floor or no ilvl was "
+               f"journaled; the Upgrade lean toggle will not appear.")
+        return
+
+    def q(f):
+        return vals[min(len(vals) - 1, int(f * len(vals)))]
+    parses, wearers = st.get("dedup_parses", 0), st.get("dedup_wearers", 0)
+    health(f"[{name}] [iup] emitted on {em:,}/{ent:,} shipped vocab entries "
+           f"({em / max(ent, 1):.1%}), floor >={BUILDS_IUP_MIN_WEARERS} "
+           f"distinct (character,server) wearers | {st.get('below', 0):,} "
+           f"entries below the floor")
+    health(f"[{name}] [iup] distribution: p10/p50/p90 = {q(.10)}/{q(.50)}/"
+           f"{q(.90)} | at 0: {sum(1 for v in vals if v == 0):,} entries "
+           f"| at 100: {sum(1 for v in vals if v == 100):,} "
+           f"| mean {sum(vals) / len(vals):.1f} | distinct values "
+           f"{len(set(vals))}")
+    # The dedupe is what makes iup a share of players; it also silently
+    # reshaped the existing "ilvl" median from per-parse to per-character.
+    # Report the blast radius so a moved pooled-tile tiebreak is
+    # attributable to this commit rather than mysterious.
+    health(f"[{name}] [iup] dedupe: {parses:,} entry-parses collapsed to "
+           f"{wearers:,} distinct wearers ({st.get('dedup_moved', 0):,} of "
+           f"{ent:,} entries carry more parses than wearers); those "
+           f"entries' \"ilvl\" medians are now per-character and may have "
+           f"moved by up to a track step")
+    # The counterfactual: the SHIPPED document with every iup key deleted,
+    # gzipped at the level the file is written at. Not a rebuild -- the same
+    # bytes minus the field, so the two numbers cannot diverge for any
+    # reason other than the field itself. iup is always preceded by a comma
+    # (it is emitted after "ilvl", never first) and a JSON string can never
+    # contain a bare unescaped quote, so the pattern cannot match inside a
+    # value. This exists because the ladder's FIRST degradation step trades
+    # away the enchant block: without these two numbers side by side, a
+    # future run that lost enchants could not say whether iup was why.
+    try:
+        without = gz(re.sub(r',"iup":\d+', "", doc))
+    except Exception as exc:                 # a health note never fails a build
+        health(f"[{name}] [iup] size: counterfactual unavailable ({exc})")
+        return
+    health(f"[{name}] [iup] size: shipped rung {shipped:,} B gz "
+           f"({shipped / 1e6:.3f} MB) vs {without:,} B with iup suppressed "
+           f"(+{(shipped - without) / 1000:.1f} KB, "
+           f"+{100 * (shipped - without) / max(without, 1):.2f}%, "
+           f"{(shipped - without) / max(em, 1):.2f} B/emitted entry); target "
+           f"{target / 1e6:.1f} MB, hard cap {cap / 1e6:.1f} MB"
+           + ("" if without <= target else
+              " -- this rung was over the target WITHOUT iup too, so iup is "
+              "not what cost it"))
 
 
 def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,

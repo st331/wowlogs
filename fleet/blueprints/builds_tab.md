@@ -189,6 +189,126 @@ Two additions:
   membership = union of nodes the spec's players ever allocated (journal-wide);
   class-vs-spec pane split at the largest PosX gap; hero panes by TraitSubTreeID.
 
+### 1.8 Addendum — per-entry upgrade lean (2026-08-31, WIDENING)
+
+The sidecar's `"ilvl"` on an item vocab entry answers "what item level is this piece
+usually at", never "how many of its wearers carry it higher". That is a *within-entry*
+question, so the answer is a within-entry aggregate rather than a new column. Item vocab
+entries MAY additionally carry **`"iup"`** — an integer 0–100, the percentage of the
+entry's journal-observed wearers, **deduplicated to distinct `(character, server)`**, whose
+copy sits **strictly above the entry's own modal item level**:
+
+```
+mode = most common ilvl among the entry's distinct wearers   (ties -> the HIGHER value)
+iup  = round(100 * |{w : ilvl(w) > mode}| / |wearers|)       int 0..100
+```
+
+The piece is its own baseline, so loot-source generosity cancels — which is the whole
+reason this is emitted instead of a per-slot mean item level, a number that ranks the loot
+table and calls it priority.
+
+Derived from `t["ilvl"][k][ident]`, which the emitter already accumulates — **no extra
+journal pass, no new column, no collector change, no new name cache**. The accumulator
+changes shape from `list[int]` to `dict[(ch,sv) -> int]`, first observation wins; `ch`/`sv`
+now ride in the `rows_c` tuple (7 elements, transient only, nothing on the wire).
+
+- **Why deduplicate.** The raw journal is parses. A 40-key grinder — the exact population
+  that spends upgrade currency — would otherwise vote forty times, inflating `iup` unevenly
+  between weekly-lockout raid pieces and farmable dungeon pieces. **Why the tie resolves
+  high.** The lower of two tied modes leaves more mass strictly above it and would bias
+  every lean upward.
+- **Consequence, stated honestly.** The existing `"ilvl"` median becomes a per-character
+  median and may shift by up to one track step. Its key, type and meaning are unchanged and
+  no client reads it differently, but the client's pooled ring/trinket tiebreak reads it, so
+  the emitter reports the blast radius in `build_health.txt` (below) rather than letting a
+  moved tile look mysterious.
+- **Defaults / when omitted.** Emitted only at **≥20 distinct wearers**
+  (`BUILDS_IUP_MIN_WEARERS`); omitted when no `ilvl` was journaled. **Absent means
+  *unknown*, never `0`** — a client MUST render nothing rather than a zero, and MUST NOT
+  count an absent entry as zero-lean in any aggregate, which would drag a sparse slot toward
+  calm when it is merely unknown.
+- **Feature detection.** Presence of `iup` on any entry of a spec's item vocab. No new
+  top-level key, no `slots`-aligned array, nothing to length-check; §1.2's unknown-key
+  tolerance already admits it, as it carried `ic` in §1.6 and `sel` in §1.7. `"v"` stays
+  `1`.
+- **Degradation.** Pure per-entry vocab text — no column, no `eslots`, no ladder-rung
+  interaction. Under any rung the key simply travels with the surviving entries. Pinned by
+  test: with the field suppressed, `cols` is **byte-identical**, `n`/`slots`/`eslots`/`v`
+  are unchanged, and every other entry key is untouched.
+- **What an older client does with it.** Nothing. `decodeBuildsSidecar` ignores unknown
+  entry keys, so a client built before this addendum renders exactly what it renders today;
+  a client built after it feature-detects and, finding no `iup`, emits no toggle at all —
+  no greyed control, no dormant markup.
+- **BLOCKING PREREQUISITE, fail-closed at the emitter.** `iup` is a percentage over ONE
+  piece's wearers. If two vocab entries in one `(spec, slot)` are the same item split by
+  something the client cannot see, each percentage is taken over an arbitrary part of that
+  piece's population and is *confidently wrong* rather than absent. The emitter therefore
+  computes, once, over the full uncapped tallies (so no ladder rung can flip the verdict),
+  whether any `(spec, slot, item id, EMITTED emb display value)` key repeats. If any does it
+  **writes no `iup` at all** — it does not warn only, and it does not fail the build.
+  - The key is **not** `(spec, slot, id)`. Embellishment identity v3 splits one crafted
+    piece into plain / named / generic entries on purpose: **392 such groups exist in the
+    live document and every one is legitimate — zero repeat an `emb` value.** A gate on the
+    bare id would suppress `iup` forever, on correct data, silently.
+  - The key uses the **emitted display value** (`emb_names.get(emb) or "embellished"`), not
+    the raw identity id, because that is what the client can partition by, and two distinct
+    identity ids sharing one reagent name would collapse to one client-visible entry — which
+    is precisely the ambiguity worth catching.
+  - The client re-checks the same invariant independently before enabling its mode, so the
+    guarantee is not owned solely by the pipeline.
+- **Size, MEASURED** against the live production `builds.json.gz` (4,239,462 B on disk;
+  17,126 vocab entries), re-serialised byte-faithfully with the emitter's own
+  `separators=(',',':')` and gzipped at **level 9** — the level the writer emits and the
+  level the ladder now weighs (not the level 6 earlier revisions quoted, a ~1.3% difference
+  and enough to trade away a section on a near-miss):
+
+  | variant | entries carrying `iup` | gz9 | Δ |
+  |---|---|---|---|
+  | baseline, re-serialised | 0 | 4,239,444 | — |
+  | uniform 0–100, 25% coverage | 4,323 | 4,253,996 | +14.6 KB (+0.34%) |
+  | uniform 0–100, 50% coverage | 8,642 | 4,264,065 | +24.6 KB (+0.58%) |
+  | uniform 0–100, 75% coverage | 12,923 | 4,271,737 | +32.3 KB (+0.76%) |
+  | **uniform 0–100, 100% — UPPER BOUND** | **17,126** | **4,276,644** | **+37.2 KB (+0.88%)** |
+  | emitter-shaped values, 100% | 17,126 | 4,270,357 | +30.9 KB (+0.73%) |
+
+  Uniform random values are the worst case for gzip; real `iup` values cluster, which is why
+  the emitter-shaped row is cheaper. **Worst-case shipped size 4.277 MB against a 4.7 MB
+  target (91%) and a 5.0 MB hard cap (86%) — 423 KB of headroom.** The ladder's first
+  degradation step trades away the enchant block, which only just came back after being
+  silently missing all season; `iup` does not put it at risk, and the build proves that per
+  run with the counterfactual line below.
+- **REJECTED, do not re-litigate.** `"iq":[d25,d75]` (+16.6 KB): dispersion rises with
+  loot-source variety as much as with contention, so it misleads in the same shape as the
+  per-slot item level that was just removed, for more bytes than the headline. `"islot"`
+  (+4.3 KB): a df-wide per-spec scalar that **cannot re-slice under the lens** — the one
+  frozen number on a screen where everything beside it moves. Per-row per-slot ilvl columns
+  (+3.33 MB) and a per-row character ilvl (+421 KB) are unaffordable at any encoding. If
+  bytes must come back, cut `iup` before `ic` or `sel`.
+- **PROOF, `site/build_health.txt`.** Both earlier widenings in this pipeline failed
+  silently — `talents.json.gz` was never emitted for weeks, embellishments named nothing for
+  a day — so the build states, every run, whether the field shipped and whether it is
+  degenerate:
+
+  ```
+  [<season>] builds sidecar: … eslots […], iup on|OFF
+  [<season>] [iup] gate: 0 (spec,slot,id,emb) collisions over 640 vocab columns -> WRITTEN
+  [<season>] [iup] emitted on 9,412/17,126 shipped vocab entries (55.0%), floor >=20
+            distinct (character,server) wearers | 7,714 entries below the floor
+  [<season>] [iup] distribution: p10/p50/p90 = 3/16/47 | at 0: 3,240 entries | at 100: 12
+            | mean 19.8 | distinct values 84
+  [<season>] [iup] dedupe: 314,631 entry-parses collapsed to 208,904 distinct wearers
+            (…) ; those entries' "ilvl" medians are now per-character …
+  [<season>] [iup] size: shipped rung 4,276,644 B gz (4.277 MB) vs 4,239,444 B with iup
+            suppressed (+37.2 KB, +0.88%, 2.17 B/emitted entry); target 4.7 MB, hard cap 5.0 MB
+  ```
+
+  The distribution line is the degeneracy detector: a p10/p50/p90 of `0/0/0`, or an "at 0"
+  count equal to the population, is a broken mode or a broken dedupe even though the key is
+  present on every entry. The size line is the counterfactual — the **shipped** document
+  with every `iup` key deleted, gzipped at level 9, so a future run that lost the enchant
+  block can prove in one line whether `iup` was why. When the gate refuses, the block
+  collapses to one line naming the first colliding `(spec, slot, id, emb)`.
+
 ## 2. Name vocabulary pipeline (PIPELINE agent)
 
 **Source: wago.tools db2 CSV exports — verified working 2026-08-29** against Archon-current
