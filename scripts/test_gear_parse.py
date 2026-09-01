@@ -155,6 +155,36 @@ assert gear3[0]["flask"] is None, gear3[0]
 print("parse_summary: no summary auras (production shape) -> flask None; "
       "field kept for a later re-enable")
 
+# --- THE CALLER'S PATH. Everything above calls parse_summary directly and
+# passed for five days while production produced nothing: the flask removal
+# changed parse_summary's arity and the call inside fetch_summaries kept
+# passing the old fourth argument, so every report raised TypeError and was
+# journaled as a permanent failure. parse_node is the seam the summary stage
+# now goes through; feed it a node of the exact shape the batch query returns.
+from fetch_data import parse_node, release_failed, POISON_RE
+rows4, gear4 = parse_node(fight, {"table": table}, _Hero())
+assert len(rows4) == 1 and len(gear4) == 1, (rows4, gear4)
+assert rows4[0]["character"] == "Tester"
+print("parse_node   : caller-shaped node -> 1 row + 1 gear row (arity under test)")
+
+# the poisoned markers that bug wrote are released, nothing else is touched,
+# and a second pass is a no-op
+import pathlib, tempfile
+with tempfile.TemporaryDirectory() as td:
+    p = pathlib.Path(td) / "summaries_done.txt"
+    p.write_text(
+        "aaa:1\tOK\n"
+        "bbb:2\tFAILED\tparse_summary() takes 3 positional arguments but 4 were given\n"
+        "ccc:3\tFAILED\tThis report does not exist.\n"
+        "ddd:4\tFAILED\tTypeError: parse_summary() takes 3 positional arguments but 4 were given\n"
+        "eee:5\tOK\n")
+    assert release_failed(p, POISON_RE) == 2
+    left = p.read_text().splitlines()
+    assert [l.split("\t")[0] for l in left] == ["aaa:1", "ccc:3", "eee:5"], left
+    assert release_failed(p, POISON_RE) == 0
+    assert release_failed(pathlib.Path(td) / "missing.txt", POISON_RE) == 0
+print("release_failed: 2 poisoned markers dropped, OK and genuine failures kept, idempotent")
+
 # --- the batch request is the Summary table alone: the flask feature's
 # CombatantInfo events sub-query is removed and must NOT be requested
 q = batch_query([{"code": "aBc", "fid": 7}, {"code": "dEf", "fid": 9}])

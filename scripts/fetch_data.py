@@ -31,7 +31,6 @@ import gzip
 import json
 import os
 import pathlib
-import random
 import re
 import shutil
 import signal
@@ -673,6 +672,64 @@ def parse_summary(fight: dict, table: dict,
 _tls = threading.local()
 
 
+def parse_node(fight: dict, node: dict, hero: HeroResolver
+               ) -> tuple[list[dict], list[dict]]:
+    """The summary stage's ONLY way into parse_summary.
+
+    This seam exists because of a five-day outage. The flask removal (8c89701,
+    2026-08-27) took the CombatantInfo-events argument off parse_summary but
+    left the call inside fetch_summaries passing it, so every summary fetched
+    after 07:27 UTC that day raised TypeError -- which the caller catches
+    alongside genuine bad-report errors and records as a PERMANENT failure.
+    ~57,000 runs were paid for, discarded and marked done; the site froze on
+    Aug 27 while every run reported success. The test suite passed throughout
+    because it called parse_summary directly, never through the caller. The
+    suite now goes through this function with a node of the exact shape the
+    batch query returns, so the caller's arity is under test.
+    """
+    return parse_summary(fight, node["table"], hero)
+
+
+# A parse exception that fires on EVERY report is a code bug, not a bad
+# report, and marking each one FAILED forever is how a bug becomes silent data
+# loss. Above this share of exceptions among parsed reports (once at least
+# SYSTEMIC_MIN have been attempted) the run finishes its export, prints a
+# workflow error and exits non-zero, so the chain stops and the failure is red
+# on the Actions page instead of green for a week.
+SYSTEMIC_SHARE = 0.5
+SYSTEMIC_MIN = 20
+# The bug above wrote this text after every key. release_failed() strips these
+# markers on the next start so the runs are fetched again; anything no longer
+# on a leaderboard is gone, which is the real cost of the outage.
+POISON_RE = re.compile(r"parse_summary\(\) takes \d+ positional arguments?")
+
+
+def release_failed(path: pathlib.Path, pattern: re.Pattern) -> int:
+    """Drop FAILED markers whose message matches, so those keys refetch.
+
+    Rewrites the done journal in place. OK markers and non-matching failures
+    are untouched, so a genuinely unreadable report stays skipped. Idempotent:
+    a second pass finds nothing. Returns the number released.
+    """
+    if not path.exists():
+        return 0
+    kept, released = [], 0
+    with path.open() as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if (len(parts) >= 3 and parts[1] == "FAILED"
+                    and pattern.search(parts[2])):
+                released += 1
+                continue
+            kept.append(line if line.endswith("\n") else line + "\n")
+    if released:
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with tmp.open("w") as out:
+            out.writelines(kept)
+        tmp.replace(path)
+    return released
+
+
 def _worker_client() -> WCLClient:
     if not hasattr(_tls, "client"):
         _tls.client = WCLClient(verbose=True)
@@ -740,8 +797,15 @@ def regear_candidates(fights: dict, done: set[str], min_key: int,
 
 
 def fetch_summaries(regions: set[str] | None, limit: int | None = None,
-                    regear: tuple[int, float] | None = None) -> None:
+                    regear: tuple[int, float] | None = None,
+                    release: re.Pattern | None = POISON_RE) -> None:
     fights = load_fights(regions)
+    if release is not None:
+        n_rel = release_failed(SUMMARIES_DONE, release)
+        if n_rel:
+            print(f"[summaries] released {n_rel:,} FAILED markers matching "
+                  f"/{release.pattern}/ -- those runs will be fetched again "
+                  f"where a leaderboard still lists them", flush=True)
     done = load_done()
     if regear:
         min_key, days = regear
@@ -759,13 +823,19 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
               f"{100 * dedupe_fights.dropped / raw_n:.0f}% of the spend saved)",
               flush=True)
     pending = [f for k, f in fights.items() if k not in done]
-    # US/EU-tagged runs first, unknown-region after; shuffled within each
-    # group so partial datasets stay balanced across dungeons/brackets.
-    rnd = random.Random(42)
-    known = [f for f in pending if f["region"]]
-    unknown = [f for f in pending if not f["region"]]
-    rnd.shuffle(known)
-    rnd.shuffle(unknown)
+    # US/EU-tagged runs first, unknown-region after; NEWEST FIRST within each
+    # group. This used to be a shuffle, so a partial fetch stayed balanced
+    # across dungeons and brackets -- fine when the backlog is one half-hour
+    # of play. It is the wrong order for a backlog of days: a random 30% of
+    # every day leaves "this reset" thin on the site, whereas newest-first
+    # completes the current reset before touching older days, which is the
+    # one period the dashboard opens on and the owner reads first. The
+    # region ordering is kept so the two big regions fill before untagged
+    # runs, whose region is only learned from the report.
+    def _newest(f):
+        return -(f.get("start_time") or 0)
+    known = sorted((f for f in pending if f["region"]), key=_newest)
+    unknown = sorted((f for f in pending if not f["region"]), key=_newest)
     pending = known + unknown
     if limit:
         pending = pending[:limit]
@@ -782,6 +852,7 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     rows_fh = PLAYERS_FILE.open("a")
     gear_fh = GEAR_FILE.open("a")
     n_done, t0 = 0, time.time()
+    n_ok = n_perm = n_parse = 0
     retry_round = 0
     while pending and not STOP and retry_round <= 2:
         if retry_round:
@@ -812,18 +883,20 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
                             msg = errmap.get(f"a{i}", "")
                             if msg and PERMANENT_ERROR.search(msg):
                                 done_fh.write(f"{key}\tFAILED\t{msg[:100]}\n")
+                                n_perm += 1
                             else:
                                 transient.append(f)
                             continue
                         try:
-                            # events may be None when only that sub-query
-                            # errored: the run still journals, flask unknown
-                            rows, gear_rows = parse_summary(
-                                f, node["table"], fetch_summaries.hero,
-                                (node.get("events") or {}).get("data"))
+                            rows, gear_rows = parse_node(
+                                f, node, fetch_summaries.hero)
                         except (ValueError, KeyError, TypeError,
                                 AttributeError) as e:
-                            done_fh.write(f"{key}\tFAILED\t{e}\n")
+                            # the exception CLASS is recorded so a systemic
+                            # bug is greppable and releasable by pattern
+                            done_fh.write(
+                                f"{key}\tFAILED\t{type(e).__name__}: {e}\n")
+                            n_parse += 1
                             continue
                         for row in rows:
                             rows_fh.write(
@@ -832,6 +905,7 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
                             gear_fh.write(
                                 json.dumps(row, ensure_ascii=False) + "\n")
                         done_fh.write(f"{key}\tOK\n")
+                        n_ok += 1
                     # rows must hit disk before their OK markers: a kill
                     # between the flushes then costs a refetch (deduped at
                     # export), never silent row loss. Gear flushes with them
@@ -861,9 +935,20 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     done_fh.close()
     rows_fh.close()
     gear_fh.close()
+    # Always printed, even when nothing was attempted, so a healthy run and a
+    # silent one can be told apart from the log alone.
+    parsed = n_ok + n_parse
+    print(f"[summaries] outcome: {n_ok:,} journaled, {n_parse:,} failed to "
+          f"parse, {n_perm:,} permanently unavailable", flush=True)
+    if parsed >= SYSTEMIC_MIN and n_parse / parsed >= SYSTEMIC_SHARE:
+        fetch_summaries.systemic = (
+            f"{n_parse:,} of {parsed:,} reports failed to parse this run -- "
+            f"that is a code or schema fault, not bad reports")
+        print(f"::error::{fetch_summaries.systemic}", flush=True)
 
 
 fetch_summaries.hero = None
+fetch_summaries.systemic = None
 
 
 # --------------------------------------------------------------------------
@@ -1034,6 +1119,11 @@ def main() -> None:
                     help="discard the rankings journal (and its checkpoint "
                          "snapshot) to re-scan the leaderboards; already-"
                          "fetched summaries are kept and deduped")
+    ap.add_argument("--release-failed", metavar="REGEX", default=None,
+                    help="before fetching, drop FAILED markers whose message "
+                         "matches REGEX so those runs are fetched again "
+                         "(default: the 2026-08-27 parse_summary arity bug; "
+                         "pass '' to release nothing)")
     args = ap.parse_args()
 
     regions = None if args.regions.upper() == "ALL" else \
@@ -1065,7 +1155,13 @@ def main() -> None:
         if args.stage in ("all", "summaries") and not STOP:
             regear = ((args.regear_min_key, args.regear_days)
                       if args.regear_min_key is not None else None)
-            fetch_summaries(regions, args.limit_fights, regear)
+            if args.release_failed is None:
+                release = POISON_RE
+            elif args.release_failed == "":
+                release = None
+            else:
+                release = re.compile(args.release_failed)
+            fetch_summaries(regions, args.limit_fights, regear, release)
     except QuotaDeadline as e:
         # Not a failure: the budget is spent and waiting would cost more than
         # the next run does. Keep everything fetched so far and exit 0 so the
@@ -1076,6 +1172,11 @@ def main() -> None:
           f"{client.spent:.0f} points spent this window "
           f"({client.spent / max(client.limit, 1):.1%} of the account budget; "
           f"ceiling {client.ceiling:.0f})", flush=True)
+    # After the export and the journal are on disk, not before: the cache
+    # save step runs regardless, so nothing fetched is lost -- only the chain
+    # stops and the run goes red, which is the point.
+    if fetch_summaries.systemic:
+        sys.exit(f"[summaries] systemic parse failure: {fetch_summaries.systemic}")
 
 
 if __name__ == "__main__":

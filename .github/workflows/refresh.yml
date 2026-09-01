@@ -290,8 +290,12 @@ jobs:
 
 
       # Keeps the recovery seed fresh at one commit a day instead of forty-eight.
+      # Chained runs are workflow_dispatch events, so an event-name gate alone
+      # skipped this step on every run from the day self-chaining landed
+      # (Aug 27) until it was noticed: the recovery seed sat at Aug 26 for a
+      # week. The 02:00-02:29 window below still limits it to once a day.
       - name: Commit the export (daily)
-        if: github.event_name == 'schedule' || inputs.commit_export == true
+        if: github.event_name == 'schedule' || inputs.chain == 'true' || inputs.commit_export == true
         run: |
           # A manual dispatch that asks for it commits immediately and takes
           # the gear journal with it, whatever day it is. Without this the

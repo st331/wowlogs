@@ -71,7 +71,42 @@ Nothing.
 - **Two deploy races fixed**: deploy-site can no longer publish data older than what is
   live, and refresh now publishes the newest committed UI instead of its own checkout's.
 
+## INCIDENT — data collection silently dead 2026-08-27 07:27 UTC -> 2026-09-01 (fix pushed 2026-09-02 00:40 IST)
+
+Every refresh run for five days reported success and published the same 638,474
+rows (last run dated Aug 27). Root cause: the flask removal (8c89701) took the
+CombatantInfo-events argument off `parse_summary` but left the call inside
+`fetch_summaries` passing it. Every report fetched since raised `TypeError`,
+which the caller catches next to genuine bad-report errors and journals as a
+PERMANENT failure. ~57,000 runs were paid for, discarded and marked done.
+Nothing was red: the job exits 0, the export still writes, the site rebuilds.
+The test suite passed throughout because it called `parse_summary` directly
+and never through the caller. Diagnosed from the full run-log ZIPs (the Actions
+API returns only a job's tail): the done-set grew 152,853 -> 209,564 between
+Aug 28 and Sep 1 while the export grew by one run.
+Fix: the summary stage now enters `parse_summary` only through `parse_node`,
+which the suite exercises with a caller-shaped node; poisoned FAILED markers are
+released on the next start (`--release-failed`, default = this bug's message)
+so any run a leaderboard still lists is refetched, newest first; a parse
+failure rate >= 50% over >= 20 reports now prints `::error::` and exits non-zero
+AFTER the export and journal are on disk, so the chain stops and the run goes
+red instead of green for a week. Also fixed in passing: the daily CSV commit
+was gated on `event_name == 'schedule'` and chained runs are dispatches, so the
+recovery seed sat at Aug 26 all week.
+Cost that cannot be undone: runs that have since dropped off their (dungeon,
+key) leaderboard (top ~2,000 by score, 20 pages) are unreachable through the
+sweep. Recovering them by report code is a separate piece of work (queued).
+Backlog drain: ~2,000-2,800 runs per half-hour cycle at the 70% cap -> the
+still-listed backlog clears over roughly half a day; "this reset" fills first.
+
 ## Known open
+
+- **Runs lost off-leaderboard during the outage** (Aug 27 - Sep 1). Their
+  `code:fid` keys are in the done journal's released lines but their fight
+  metadata (dungeon, key, start time, region) came from the ranking entry and is
+  gone with it. A resurrect stage could re-derive that from
+  `reportData.report(code){fights(...)}` at ~1 pt per report. Design before
+  spending: size the gap first from the next run's "released" vs "to go" counts.
 
 - **Rank-down chip and pip overlap by 1.4px** (3 nodes across 18 specs). Not fixable by nudging:
   the plate is 44px wide and the chip (16px) plus the pip ("2->1", 31px) is 47px, so they cannot
