@@ -52,6 +52,23 @@ on:
         description: "Internal: predecessor run's start epoch, for 30-minute pacing"
         type: string
         default: ""
+      # DRAIN MODE -- the owner's sanctioned relaxation of the 70% cap, for one
+      # operation: "remove the cap and get the site updated asap" (2026-09-02,
+      # after the five-day collection outage left ~57k runs to refetch). A
+      # drain run spends the WHOLE hourly account budget, stops cleanly at the
+      # ceiling, exports, builds and deploys, then chains a successor timed to
+      # the quota window's reset. Each successor re-reads the backlog and
+      # keeps draining only while it is real; the moment it is gone the chain
+      # continues as an ordinary 70%, 30-minute-paced run. The scheduled path
+      # never sets this, so the standing cap stands.
+      drain:
+        description: "One-off: spend the full hourly budget per run and chain at the window reset until the backlog is gone, then revert to the 70% cadence"
+        type: string
+        default: ""
+      prev_reset_at:
+        description: "Internal: epoch when the predecessor's quota window resets; a drain successor waits for it"
+        type: string
+        default: ""
   push:
     branches: [claude/wow-mythic-dashboard-jv235l]
     paths:
@@ -101,7 +118,18 @@ jobs:
         run: |
           echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
           PREV="${{ inputs.prev_start }}"
-          if [ "${{ inputs.chain }}" = "true" ] && [ -n "$PREV" ]; then
+          if [ "${{ inputs.drain }}" = "true" ]; then
+            # A drain successor is paced by the QUOTA WINDOW, not the slot:
+            # its predecessor spent the hour, so starting before the reset
+            # would only discover an empty budget. Wait for the reset (plus a
+            # cushion), capped so the job can never time out asleep.
+            RESET="${{ inputs.prev_reset_at }}"
+            if [ -n "$RESET" ]; then
+              NOW=$(date +%s); WAIT=$(( RESET - NOW + 20 ))
+              [ "$WAIT" -gt 2400 ] && WAIT=2400
+              if [ "$WAIT" -gt 0 ]; then echo "drain: waiting ${WAIT}s for the quota window"; sleep "$WAIT"; fi
+            fi
+          elif [ "${{ inputs.chain }}" = "true" ] && [ -n "$PREV" ]; then
             NOW=$(date +%s); WAIT=$(( 1800 - (NOW - PREV) ))
             [ "$WAIT" -gt 1500 ] && WAIT=1500
             if [ "$WAIT" -gt 0 ]; then echo "pacing: sleeping ${WAIT}s"; sleep "$WAIT"; fi
@@ -139,6 +167,7 @@ jobs:
 
 
       - name: Fetch
+        id: fetch
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
@@ -150,7 +179,10 @@ jobs:
           # Standing cap is 0.70. A manual dispatch may raise it for a single
           # run -- a gear refetch, say -- but the scheduled path never does:
           # `inputs` is empty on a schedule, so this falls back to 0.70.
-          WCL_QUOTA_FRACTION: ${{ inputs.quota_fraction || '0.70' }}
+          # Drain mode (see the input) is the one path that spends the whole
+          # budget; it is only ever set by an explicit dispatch or by a drain
+          # run's own successor while a backlog remains.
+          WCL_QUOTA_FRACTION: ${{ inputs.drain == 'true' && '1.0' || inputs.quota_fraction || '0.70' }}
           # the job has 50 minutes; never spend more than 8 of them asleep
           # waiting for a quota window that the next run will get for free
           # Scheduled runs never wait more than 8 minutes for a quota window
@@ -159,7 +191,7 @@ jobs:
           WCL_MAX_SLEEP_S: ${{ inputs.regear_min_key != '' && '3000' || '480' }}
           # Headroom the client keeps below the ceiling. Nothing else is
           # competing during a deliberate refetch, so it can run to the line.
-          WCL_BUDGET_MARGIN: ${{ inputs.regear_min_key != '' && '20' || '400' }}
+          WCL_BUDGET_MARGIN: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true') && '20' || '400' }}
         run: |
           test -n "$WCL_CLIENT_ID" || {
             echo "::error::WCL_CLIENT_ID / WCL_CLIENT_SECRET repository secrets are not set"
@@ -349,11 +381,24 @@ jobs:
       # cadence within a tick instead of a tight failure loop. Manual and
       # push runs do not chain either, so a one-off dispatch stays one-off.
       - name: Chain the next run
-        if: success() && (github.event_name == 'schedule' || inputs.chain == 'true')
+        if: success() && (github.event_name == 'schedule' || inputs.chain == 'true' || inputs.drain == 'true')
+        env:
+          BACKLOG: ${{ steps.fetch.outputs.backlog }}
+          RESET_AT: ${{ steps.fetch.outputs.quota_reset_at }}
         run: |
+          # Keep draining only while there is a backlog worth a full-budget
+          # run; below the floor the successor is an ordinary chained run and
+          # the standing 70% cap is back in force without anyone touching it.
+          NEXT_DRAIN=""
+          if [ "${{ inputs.drain }}" = "true" ] && [ "${BACKLOG:-0}" -gt 300 ] 2>/dev/null; then
+            NEXT_DRAIN="true"
+            echo "drain: ${BACKLOG} runs still pending -> successor drains at the window reset"
+          elif [ "${{ inputs.drain }}" = "true" ]; then
+            echo "drain: backlog ${BACKLOG:-0} -> done; successor returns to the 70% cadence"
+          fi
           curl -sf -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/refresh.yml/dispatches" \
-            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\"}}" \
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"prev_reset_at\":\"${RESET_AT:-}\"}}" \
             && echo "chained the next run" || echo "chain dispatch failed; the cron dead-man will revive the cadence"

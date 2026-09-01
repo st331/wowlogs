@@ -730,6 +730,31 @@ def release_failed(path: pathlib.Path, pattern: re.Pattern) -> int:
     return released
 
 
+def backlog_size(regions: set[str] | None) -> int:
+    """Discovered, deduped runs still waiting for a summary."""
+    fights = load_fights(regions)
+    done = load_done()
+    load_done.cache = done
+    return sum(1 for k in dedupe_fights(fights) if k not in done)
+
+
+def write_outputs(**kv) -> None:
+    """Hand facts to the workflow (GITHUB_OUTPUT), and print them regardless.
+
+    The chain decides from these whether the next run keeps draining at full
+    budget or drops back to the standing cadence, and when the quota window
+    it should wait for opens.
+    """
+    for k, v in kv.items():
+        print(f"[output] {k}={v}", flush=True)
+    path = os.environ.get("GITHUB_OUTPUT")
+    if not path:
+        return
+    with open(path, "a") as fh:
+        for k, v in kv.items():
+            fh.write(f"{k}={v}\n")
+
+
 def _worker_client() -> WCLClient:
     if not hasattr(_tls, "client"):
         _tls.client = WCLClient(verbose=True)
@@ -1168,6 +1193,13 @@ def main() -> None:
         # caller's later steps (cache save, build, deploy) still run.
         print(f"[quota] stopping early -- {e}", flush=True)
     export()
+    # What is left, and when the account's hourly window opens again. The
+    # window instant is the client's last rateLimitData reading projected
+    # forward; a successor timed to it starts with the full budget instead of
+    # discovering an empty one and stopping five minutes later.
+    if args.stage in ("all", "summaries"):
+        write_outputs(backlog=backlog_size(regions),
+                      quota_reset_at=int(time.time() + client.reset_in))
     print(f"[done] {client.requests_made} HTTP requests, "
           f"{client.spent:.0f} points spent this window "
           f"({client.spent / max(client.limit, 1):.1%} of the account budget; "
