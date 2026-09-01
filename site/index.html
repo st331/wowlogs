@@ -1878,22 +1878,37 @@ function fmtDur(sec){
 }
 function computeResetBuckets(){
   const epoch=new Date(D.epoch+"T00:00:00Z"), now=new Date();
-  const bounds={};
+  // A run belongs to a reset by its start INSTANT against its region's
+  // reset instant. The payload carries the start hour (R.hr, UTC) beside the
+  // day, so the comparison is made in hours; a payload without it falls
+  // back to whole days, which smears up to fifteen hours of pre-reset US
+  // Tuesday play into "this reset" -- the owner saw a quarter of a reset's
+  // runs appear "within a few hours" of the rollover. That is the day
+  // fallback, not the game.
+  const HR=(R.hr&&R.hr.length===N)?R.hr:null;
+  const boundsH={}, boundsD={};
   D.regions.forEach((reg,ri)=>{
     const [wd,hh]=RESET_RULES[reg]||RESET_DEFAULT;
     const b=new Date(now); b.setUTCHours(hh,0,0,0);
     const shift=(((b.getUTCDay()+6)%7)-wd+7)%7;
     b.setUTCDate(b.getUTCDate()-shift);
     if(b>now) b.setUTCDate(b.getUTCDate()-7);
-    bounds[ri]=Math.floor((b-epoch)/864e5);
+    boundsH[ri]=Math.floor((b-epoch)/36e5);        // hour index from epoch
+    boundsD[ri]=Math.floor((b-epoch)/864e5);       // its calendar day
   });
   R.rbucket=new Int16Array(N);
   for(let i=0;i<N;i++){
     const d0=R.day[i];
     if(d0<0){R.rbucket[i]=999; continue}
-    const b0=bounds[R.reg[i]];
-    R.rbucket[i]=d0>=b0?0:Math.ceil((b0-d0)/7);
+    if(HR&&HR[i]>=0){
+      const h0=d0*24+HR[i], b0=boundsH[R.reg[i]];
+      R.rbucket[i]=h0>=b0?0:Math.ceil((b0-h0)/168);
+    }else{
+      const b0=boundsD[R.reg[i]];
+      R.rbucket[i]=d0>=b0?0:Math.ceil((b0-d0)/7);
+    }
   }
+  const bounds=boundsD;
   usB0=bounds[D.regions.indexOf("US")] ?? Object.values(bounds)[0];
   weekCounts=new Map();
   for(let i=0;i<N;i++) if(R.rbucket[i]<999)

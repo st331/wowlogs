@@ -2208,6 +2208,14 @@ def build(name: str, cfg: dict) -> None:
     started = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
                              unit="ms", errors="coerce")
     day = ((started - EPOCH).dt.days).fillna(-1).astype(int)
+    # UTC hour of the start, beside the day. The dashboard buckets a run into
+    # a weekly reset by comparing its start against the region's reset
+    # INSTANT (US Tuesday 15:00 UTC, EU Wednesday 04:00 UTC); with the day
+    # alone it could only compare calendar days, which put up to fifteen
+    # hours of pre-reset US Tuesday play into "this reset" -- a quarter of a
+    # normal reset's runs appearing "within a few hours", as the owner
+    # noticed. -1 where the start is unknown, like day.
+    hr = started.dt.hour.fillna(-1).astype(int)
 
     def enc(col):
         cats = sorted(df[col].unique())
@@ -2288,6 +2296,7 @@ def build(name: str, cfg: dict) -> None:
             "timed": timed.tolist(),
             "post": post.tolist(),
             "day": day.tolist(),
+            "hr": hr.tolist(),
             "run": run_arr,
             "char": char_arr,
             # season tier pieces: -1 = report carried no gear, else 0-5
@@ -2395,8 +2404,8 @@ RESET_RULES = {"US": (1, 15), "EU": (2, 4)}   # (weekday, hour UTC), Mon = 0
 RESET_DEFAULT = (2, 22)
 
 
-def reset_bounds(now, regions):
-    """Day index (from EPOCH) of each region's most recent weekly reset."""
+def reset_instants(now, regions):
+    """Each region's most recent weekly reset, as a UTC instant."""
     out = {}
     for reg in regions:
         wd, hh = RESET_RULES.get(reg, RESET_DEFAULT)
@@ -2404,8 +2413,20 @@ def reset_bounds(now, regions):
         b -= pd.Timedelta(days=(b.weekday() - wd + 7) % 7)
         if b > now:
             b -= pd.Timedelta(days=7)
-        out[reg] = (b.normalize() - EPOCH.tz_localize("UTC")).days
+        out[reg] = b
     return out
+
+
+def reset_bounds(now, regions):
+    """Day index (from EPOCH) of each region's most recent weekly reset.
+
+    Calendar-day labels only. Bucketing a run must use reset_instants(): a
+    day index cannot tell a US run at Tuesday 14:00 UTC (old reset) from one
+    at 16:00 (new reset), and that fifteen-hour smear was visible on the
+    dashboard as a reset that "began" with thousands of runs already in it.
+    """
+    return {reg: (b.normalize() - EPOCH.tz_localize("UTC")).days
+            for reg, b in reset_instants(now, regions).items()}
 
 
 def build_llms() -> None:
@@ -2453,12 +2474,18 @@ def build_llms() -> None:
     # Each row is measured against ITS OWN region's reset, exactly as the
     # dashboard does, because US/EU/other regions roll over on different days.
     now = pd.Timestamp.now("UTC")
-    bounds = reset_bounds(now, sorted(df["region"].unique()))
-    day = (started.dt.normalize() - EPOCH).dt.days
-    b0 = df["region"].map(bounds).astype("float")
+    regions_seen = sorted(df["region"].unique())
+    bounds = reset_bounds(now, regions_seen)              # day labels only
+    instants = reset_instants(now, regions_seen)
+    # exact: the run's start instant against ITS region's reset instant, in
+    # whole weeks -- the same rule the dashboard applies with day+hr
+    started_utc = started.dt.tz_localize("UTC")
+    b0_ts = df["region"].map(instants)
     bucket = pd.Series(0, index=df.index, dtype="float")
-    behind = day < b0
-    bucket[behind] = np.ceil((b0[behind] - day[behind]) / 7)
+    behind = started_utc < b0_ts
+    ahead_by = (b0_ts[behind] - started_utc[behind]) / pd.Timedelta(days=7)
+    bucket[behind] = np.ceil(ahead_by)
+    bucket[started_utc.isna()] = -1
     df["reset_bucket"] = bucket.fillna(-1).astype(int)
     # calendar label for a bucket, anchored on the US reset (other regions roll
     # over within ~1.5 days of it) — handy for reasoning about dates

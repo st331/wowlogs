@@ -71,7 +71,7 @@ Nothing.
 - **Two deploy races fixed**: deploy-site can no longer publish data older than what is
   live, and refresh now publishes the newest committed UI instead of its own checkout's.
 
-## INCIDENT — data collection silently dead 2026-08-27 07:27 UTC -> 2026-09-01 (fix pushed 2026-09-02 00:40 IST)
+## INCIDENT — data collection silently dead 2026-08-27 07:27 UTC -> 2026-09-01 (fix pushed 2026-09-01 23:58 IST)
 
 Every refresh run for five days reported success and published the same 638,474
 rows (last run dated Aug 27). Root cause: the flask removal (8c89701) took the
@@ -96,8 +96,26 @@ recovery seed sat at Aug 26 all week.
 Cost that cannot be undone: runs that have since dropped off their (dungeon,
 key) leaderboard (top ~2,000 by score, 20 pages) are unreachable through the
 sweep. Recovering them by report code is a separate piece of work (queued).
-Backlog drain: ~2,000-2,800 runs per half-hour cycle at the 70% cap -> the
-still-listed backlog clears over roughly half a day; "this reset" fills first.
+Backlog drain: the owner then said "remove the cap and get the site updated
+asap" -- the sanctioned per-operation relaxation. refresh.yml gained a `drain`
+dispatch input: full hourly budget per run, successor chained at the quota
+window's reset, self-terminating below a 300-run backlog, after which the chain
+is an ordinary 70% run again. The scheduled path never sets it.
+
+## Landed 2026-09-02 — reset bucketing by the INSTANT, not the calendar day
+
+Surfaced by the owner minutes after the US rollover: "25% of the runs of the last
+reset happen within a few hours of the reset taking effect". Rows carried only a
+UTC day, so the client (and the llms export) could only compare calendar days
+against the reset DAY; up to fifteen hours of pre-reset US Tuesday play counted
+as "this reset". The payload now carries the UTC start hour (`hr`) beside `day`;
+the client buckets in hours when it is present and falls back to days when it is
+not (older payloads), and build_llms uses the same instant rule. Verified with a
+synthetic `hr`: exactly the rows placed before EU's 04:00 boundary moved buckets,
+nothing else changed, no errors. NOTE for reading the site over the next hours:
+"this reset" means different date ranges per region (US rolled Tue 15:00 UTC, EU
+rolls Wed 04:00 UTC), and the drain fills newest-first, so counts climb unevenly
+until the backlog is gone.
 
 ## Known open
 
