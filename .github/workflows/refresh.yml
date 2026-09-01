@@ -100,7 +100,7 @@ jobs:
     # gear refetch needs more than one hourly quota window by arithmetic, so it
     # is allowed to sit through the reset rather than stop and wait to be
     # dispatched again.
-    timeout-minutes: ${{ inputs.regear_min_key != '' && 110 || 50 }}
+    timeout-minutes: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true') && 110 || 50 }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -188,7 +188,12 @@ jobs:
           # Scheduled runs never wait more than 8 minutes for a quota window
           # the next run gets for free. A refetch has nothing to hand off to,
           # so it waits the window out.
-          WCL_MAX_SLEEP_S: ${{ inputs.regear_min_key != '' && '3000' || '480' }}
+          # A drain run never sleeps for the window: sleeping inside the job
+          # buys nothing over stopping at the first ceiling, exporting,
+          # deploying and chaining a successor timed to the reset -- and it
+          # is how a full-budget run walks into the job timeout with the
+          # chain step never reached.
+          WCL_MAX_SLEEP_S: ${{ inputs.regear_min_key != '' && '3000' || inputs.drain == 'true' && '60' || '480' }}
           # Headroom the client keeps below the ceiling. Nothing else is
           # competing during a deliberate refetch, so it can run to the line.
           WCL_BUDGET_MARGIN: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true') && '20' || '400' }}
@@ -307,6 +312,9 @@ jobs:
         run: |
           BUDGET=900
           [ "${{ github.event_name }}" = "push" ] && BUDGET=120
+          # a drain run's minutes belong to the summaries backlog; ratings
+          # catch up once the cadence is back to normal
+          [ "${{ inputs.drain }}" = "true" ] && BUDGET=60
           echo "Raider.IO budget: ${BUDGET}s (${{ github.event_name }})"
           python -u scripts/fetch_rio.py --budget-s "$BUDGET"
 
