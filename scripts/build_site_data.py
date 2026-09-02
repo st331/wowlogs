@@ -67,6 +67,36 @@ EPOCH = pd.Timestamp("2026-01-01")
 MEDAL_TIMED = {"gold": 1, "silver": 1, "bronze": 1, "timed": 1, "none": 0}
 TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 
+# partitioned_payload.md §5: WOWLOGS_PINS=<path> injects the pinned tier
+# sets, learned hero markers, learned tuning items and pars into this
+# builder, so the equivalence tests compare `hero`, `tier`, `tmul` and the
+# comps' `pct` value for value against the partition builder, which reads
+# the same tables from season_pins.json / learned/. Production never sets it:
+# the legacy path keeps learning from the whole season on every build until
+# PR-4 retires it. WOWLOGS_NOW=<ISO> freezes the build clock the same way.
+_PINS_CACHE: dict = {}
+
+
+def load_pins() -> dict | None:
+    """The injected pins document, or None (the ordinary path)."""
+    path = os.environ.get("WOWLOGS_PINS")
+    if not path:
+        return None
+    if _PINS_CACHE.get("path") != path:
+        _PINS_CACHE.clear()
+        _PINS_CACHE["path"] = path
+        _PINS_CACHE["pins"] = json.loads(pathlib.Path(path).read_text())
+    return _PINS_CACHE["pins"]
+
+
+def now_utc() -> "pd.Timestamp":
+    """pd.Timestamp.now("UTC"), or WOWLOGS_NOW when the clock is frozen."""
+    frozen = os.environ.get("WOWLOGS_NOW")
+    if frozen:
+        return pd.Timestamp(frozen).tz_convert("UTC") if pd.Timestamp(frozen).tzinfo \
+            else pd.Timestamp(frozen).tz_localize("UTC")
+    return pd.Timestamp.now("UTC")
+
 
 def latest_tuning():
     """The newest class-tuning pass, or None if none is recorded."""
@@ -102,6 +132,11 @@ def derive_pars(df, dungeons):
     misclassifies fewest runs and snap it to the nearest 30s, since Blizzard's
     timers are round values — on live this separates every dungeon perfectly.
     """
+    pins = load_pins()
+    if pins and isinstance(pins.get("pars"), dict):
+        # §5: the partitioned path pins pars; the equivalence tests inject
+        # the same table here so per-run pct compares value for value
+        return [int(pins["pars"].get(d, 0) or 0) for d in dungeons]
     if "keystone_s" not in df.columns:
         return [0] * len(dungeons)
     ks = pd.to_numeric(df["keystone_s"], errors="coerce")
@@ -161,9 +196,15 @@ def resolve_hero_talents(df):
             for r in rows if r["abilities"]}
     spec = df["spec"] + " " + df["class"]
     keys = list(zip(df["report_code"], df["fight_id"], df["character"]))
-    hr = HeroResolver.learn(
-        (sp, h, abil[k]) for sp, h, k in zip(spec, df["hero_talent"], keys)
-        if k in abil)
+    pins = load_pins()
+    if pins and isinstance(pins.get("hero_markers"), dict):
+        # §5: the pinned learned table, exactly HeroResolver.learn's output
+        hr = HeroResolver(markers={sp: dict(m) for sp, m in pins["hero_markers"].items()},
+                          sole=dict(pins.get("hero_sole") or {}))
+    else:
+        hr = HeroResolver.learn(
+            (sp, h, abil[k]) for sp, h, k in zip(spec, df["hero_talent"], keys)
+            if k in abil)
     filled, out = 0, list(df["hero_talent"])
     for i, (sp, h, k) in enumerate(zip(spec, df["hero_talent"], keys)):
         if h != "Unknown":
@@ -195,6 +236,10 @@ def tuning_multipliers(df, post):
         return None, None
     if not pt.ABIL.exists():
         return None, None
+    if not pt.RULES:
+        # no rules configured: nothing to project. project() returns an
+        # empty frame without a "mult" column then, so decide it here
+        return None, None
     rows = ability_records()
     # A rule that names an ability no parse ever reports is inert. That is not
     # always a bug (Disc's Entropic Rift genuinely has no line here) but it
@@ -210,7 +255,15 @@ def tuning_multipliers(df, post):
                   f"no parse - that part of the rule does nothing", flush=True)
     work = df.copy()
     work["specname"] = work["spec"] + " " + work["class"]
-    mult = pt.project(work[post == 1], rows, pt.B_CENTRAL)["mult"]
+    pins = load_pins()
+    inj = {}
+    if pins:
+        if isinstance(pins.get("tuning_items"), list):
+            inj["items"] = set(pins["tuning_items"])
+        if isinstance(pins.get("tier_sets"), dict):
+            inj["tier"] = {cls: str(v["id"]) for cls, v in pins["tier_sets"].items()
+                           if isinstance(v, dict) and v.get("id") is not None}
+    mult = pt.project(work[post == 1], rows, pt.B_CENTRAL, **inj)["mult"]
     mult = mult.reindex(df.index)
     # A tuned-spec parse with no ability record cannot be projected: a few WCL
     # reports have been deleted since collection, so the breakdown is gone for
@@ -488,6 +541,11 @@ def tier_pieces(df: "pd.DataFrame", name: str, journal=None) -> "pd.Series":
         return max(qual, key=int)
 
     seasonal = {cls: newest(v) for cls, v in tally.items() if v}
+    pins = load_pins()
+    if pins and isinstance(pins.get("tier_sets"), dict):
+        # §5: one tier-set definition for the whole pipeline (season_pins)
+        seasonal = {cls: str(v["id"]) for cls, v in pins["tier_sets"].items()
+                    if isinstance(v, dict) and v.get("id") is not None}
 
     # Pieces of THIS season's set specifically. A player wearing last season's
     # four-piece and nothing current is a true zero, which is the point: the
@@ -2722,11 +2780,11 @@ def build(name: str, cfg: dict) -> None:
     # FUTURE. A max() over those would let one wrong clock make the data look
     # fresh forever, which is precisely the outage the watchdog exists to
     # catch. Rows dated after the build instant are ignored for this signal.
-    now_utc = pd.Timestamp.now("UTC")
-    plausible = started[started <= now_utc.tz_localize(None)]
+    now_ts = now_utc()
+    plausible = started[started <= now_ts.tz_localize(None)]
     newest = plausible.max() if len(plausible) else pd.NaT
-    future_n = int((started > now_utc.tz_localize(None)).sum())
-    health(f"built={now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    future_n = int((started > now_ts.tz_localize(None)).sum())
+    health(f"built={now_ts.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     health(f"rows={len(df)}")
     health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")
     if future_n:
@@ -2813,7 +2871,7 @@ def build(name: str, cfg: dict) -> None:
                                journal=meta_journal)
 
     payload = {
-        "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
+        "built": now_utc().strftime("%Y-%m-%d %H:%M UTC"),
         "season": cfg["season"],
         "epoch": str(EPOCH.date()),
         "tuning": ({"label": patch.get("label"), "date": patch.get("date"),

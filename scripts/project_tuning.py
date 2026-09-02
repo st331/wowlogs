@@ -46,6 +46,10 @@ CSV = ROOT / "data" / "mythic_runs.csv.gz"
 ABIL = ROOT / "data" / "raw" / "abilities.jsonl"
 TUNING = ROOT / "data" / "tuning_patches.json"
 
+# partitioned_payload.md §5: the rule tables are an input like any other.
+# Bump RULES_VERSION by convention when RULES change; rules_digest() catches
+# an unbumped edit anyway and every day file / the manifest carry it.
+RULES_VERSION = "2026-09-02"
 PROJECTION_LABEL = "Aug 14 hotfix + Aug 18 class tuning"
 PROJECTION_DATE = "2026-08-18"
 PROJECTION_URL = ("https://us.forums.blizzard.com/en/wow/t/"
@@ -391,10 +395,26 @@ B_BAND["4pc RSK reset share"] = (0.165, 0.40)             # haste confound
 B_BAND["4pc Recklessness crit bonus"] = (0.9928, 0.9960)
 
 
-def project(df, rows, B):
-    """Per-parse projected/current damage ratio, indexed like df."""
-    items = classify_abilities(rows)
-    tier = tier_sets(rows)
+def rules_digest() -> str:
+    """sha256(RULES_VERSION || canonical JSON of RULES, B_CENTRAL,
+    HOTFIX_BAND, B_BAND, PROJECTION_DATE, PROJECTION_LABEL) (§5/§6.3)."""
+    import hashlib
+    body = json.dumps({"RULES": RULES, "B_CENTRAL": B_CENTRAL,
+                       "HOTFIX_BAND": HOTFIX_BAND, "B_BAND": B_BAND,
+                       "PROJECTION_DATE": PROJECTION_DATE,
+                       "PROJECTION_LABEL": PROJECTION_LABEL},
+                      sort_keys=True, separators=(",", ":"), default=list)
+    return hashlib.sha256((RULES_VERSION + "\x00" + body).encode("utf-8")).hexdigest()
+
+
+def project(df, rows, B, items=None, tier=None):
+    """Per-parse projected/current damage ratio, indexed like df.
+
+    items / tier: the learned item set and the class -> set id table. None
+    learns both from `rows` (the legacy path); the partition builder and the
+    equivalence tests inject the pinned tables (§5)."""
+    items = classify_abilities(rows) if items is None else set(items)
+    tier = tier_sets(rows) if tier is None else dict(tier)
     abil = {(r["report_code"], r["fight_id"], r["name"]): r for r in rows}
     idx, out = [], []
     for i, t in zip(df.index, df.itertuples()):
