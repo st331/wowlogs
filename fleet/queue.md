@@ -23,6 +23,13 @@ crux of any future attempt.
 
 ## In flight
 
+- **INCIDENT 2026-09-02 17:18-~20:00 UTC (22:48-01:30 IST): every refresh failed on
+  `NameError: STAMP_FILE`** -- the LLM-export removal cut a line range that also held the
+  build-stamp constant main() reads; no suite runs main(), so tests stayed green. The
+  watchdog saw two three-minute failures with a recent last success and did not revive
+  (75-minute rule), and its cron is throttled to ~4 h. Fixed: constant restored,
+  test_build_entry.py runs the entrypoint, the watchdog retries a failure streak <= 3.
+
 - **LLM export REMOVED (owner, 2026-09-02 22:41 IST: "remove the llm export feature.")**
   build_llms(), llms.yml, llms_asset.sh, the refresh unpack step, robots.txt/sitemap.xml
   (the AI-crawler welcome mat) and the footer links are gone. The `llms` GitHub Release

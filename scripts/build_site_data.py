@@ -2969,6 +2969,13 @@ def reset_bounds(now, regions):
             for reg, b in reset_instants(now, regions).items()}
 
 
+# The build stamp main() compares against inputs_fingerprint(). It sat at the
+# tail of the LLM-export region and was cut with it on 2026-09-02; every run
+# for the next 2.5 hours failed on NameError because no suite runs main().
+# test_build_entry.py now does.
+STAMP_FILE = ROOT / "data" / ".build_stamp"
+
+
 def inputs_fingerprint() -> str:
     """Hash of everything a build's output depends on.
 

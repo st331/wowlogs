@@ -101,12 +101,18 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Revive the cadence if it has stopped
-        if: steps.probe.outputs.active == '0' && fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN)
+        # Two triggers: the cadence has gone quiet, OR the last runs failed and
+        # nothing is queued -- a short streak (<= 3) is retried right away,
+        # because a failed run does not chain and the 75-minute rule alone let
+        # two three-minute failures leave the site stale for hours. Past three
+        # failures the fault is deterministic: the issue is open, and only the
+        # 75-minute rule keeps probing (once per tick, never a tight loop).
+        if: steps.probe.outputs.active == '0' && (fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN) || (fromJSON(steps.probe.outputs.streak) >= 1 && fromJSON(steps.probe.outputs.streak) <= 3))
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          echo "no successful refresh for ${{ steps.probe.outputs.ok_age }} min and nothing running -> dispatching"
+          echo "reviving: last success ${{ steps.probe.outputs.ok_age }} min ago, failure streak ${{ steps.probe.outputs.streak }}, nothing running -> dispatching"
           curl -sf -X POST \
             -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/dispatches" \
