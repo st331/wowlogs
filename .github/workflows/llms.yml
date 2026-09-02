@@ -1,0 +1,100 @@
+name: LLM export (daily)
+
+# The /llms.txt + /llms/*.csv dataset, off the refresh path.
+#
+# build_llms() cost ~90 s on EVERY 20-minute refresh and nobody reads it more
+# than daily (partitioned_payload.md §5, §10 PR-1 stage A). It now runs here
+# once a day, on its own runner, and publishes the tree as ONE Release asset
+# (tag `llms`, file `llms.tar.gz`). The refresh downloads that asset
+# best-effort with a 30 s cap and unpacks it into site/ before the Pages
+# artifact is built, so https://st331.github.io/wowlogs/llms/ keeps serving;
+# a missing or slow asset leaves the previous unpack in place and never
+# delays or fails a refresh.
+#
+# READ-ONLY on everything shared with the refresh, deliberately:
+#   * the Actions cache is RESTORED (actions/cache/restore) and never saved,
+#     so this run can never publish a stale journal over the refresh's;
+#   * nothing is pushed to the branch -- the only write is the Release asset,
+#     which is its own object and touches no ref the refresh reads.
+# It therefore needs no place in the wowlogs-refresh concurrency group and
+# can run alongside a refresh without contention.
+on:
+  schedule:
+    # off-minute on purpose: GitHub throttles on-the-hour/half-hour crons
+    # worst, and the refresh's own dead-man cron sits at */30
+    - cron: "47 3 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: wowlogs-llms
+  cancel-in-progress: false
+
+permissions:
+  contents: write     # gh release upload (an asset, never a branch push)
+  actions: read
+
+jobs:
+  llms:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install requests pandas
+
+      # The SAME path list as refresh.yml's cache steps, verbatim: the cache
+      # version is derived from it and a different list matches nothing.
+      # The key can never exist (nothing saves under it), so the lookup
+      # always falls through to the newest refresh journal via restore-keys.
+      - name: Restore collection journals (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            data/raw
+            data/processed
+          key: wowlogs-llms-readonly-${{ github.run_id }}
+          restore-keys: wowlogs-journals-
+
+      # Export the CSV from the restored players journal so the dataset is
+      # current to the last refresh rather than to the daily commit (up to a
+      # day older). No API call is made (--stage export reads journals only).
+      # Best-effort: without a journal the committed CSV is used as is.
+      - name: Refresh the CSV from the journal
+        run: |
+          if [ -f data/processed/players.jsonl ]; then
+            python -u scripts/fetch_data.py --stage export \
+              || echo "::warning::export from the cached journal failed; building from the committed CSV"
+          else
+            echo "no cached journal on this runner; building from the committed CSV"
+          fi
+
+      - name: Build the LLM export
+        run: python -u scripts/build_site_data.py --llms-only
+
+      - name: Pack
+        run: |
+          set -e
+          test -f site/llms.txt && test -d site/llms
+          tar -C site -czf llms.tar.gz llms.txt llms robots.txt sitemap.xml
+          ls -la llms.tar.gz
+          echo "llms_files=$(ls site/llms | wc -l)" >> "$GITHUB_STEP_SUMMARY"
+
+      # A rolling prerelease: one tag, one asset, overwritten daily. It is
+      # never "latest", so the repo's release page does not present a
+      # dataset tarball as a software release.
+      - name: Publish as the `llms` Release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          if ! gh release view llms >/dev/null 2>&1; then
+            gh release create llms --title "LLM export (rolling)" --prerelease --latest=false \
+              --notes "Rolling daily build of /llms.txt and /llms/*.csv, published by llms.yml. The refresh workflow unpacks llms.tar.gz into the site; it is overwritten every day."
+          fi
+          gh release upload llms llms.tar.gz --clobber
+          echo "uploaded llms.tar.gz ($(du -h llms.tar.gz | cut -f1)) to release llms"

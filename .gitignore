@@ -37,3 +37,11 @@ docs/talents.json.gz
 # server output beside the repo root. Transient, never part of a build.
 srv*.log
 *.serve.log
+
+# LLM export: built daily by .github/workflows/llms.yml, published as the
+# `llms` Release asset and unpacked into site/ by the refresh. Untracked
+# since 2026-09-02 -- it was ~20 MB of regenerated files per day of history.
+site/llms/
+site/llms.txt
+docs/llms/
+docs/llms.txt

@@ -279,9 +279,12 @@ jobs:
 
       - name: Build site
         env:
-          # fresh/backfill runs are about latency; the LLM export waits for
-          # the next ordinary run
-          BUILD_LLMS: ${{ (inputs.mode == 'fresh' || inputs.mode == 'backfill') && '0' || '1' }}
+          # The LLM export is OFF the refresh path, on every run
+          # (partitioned_payload.md §5, §10 PR-1 stage A): it cost ~90 s of
+          # each 20-minute cycle and nobody needs it more than daily.
+          # llms.yml builds it once a day and publishes it as a Release
+          # asset; the step below unpacks that. Never set this to 1 here.
+          BUILD_LLMS: "0"
         run: |
           python -u scripts/build_site_data.py
           # Embellishment identity has now failed twice in
@@ -291,6 +294,45 @@ jobs:
           # publishing.
           grep -q "\[emb\] verdict: ok" site/build_health.txt \
             || echo "::warning::embellishment identity degraded -- see site/build_health.txt"
+          # §7.4 tripwires, surfaced as annotations. The lines are in
+          # build_health.txt for the watchdog and for humans; dual-emit's
+          # hard stop is either of them on two consecutive days.
+          grep -q "^build.wall_tripped=1" site/build_health.txt \
+            && echo "::warning::legacy build over the 10-minute tripwire (build.wall_s in build_health.txt)"
+          grep -q "^fetch.export.rss_tripped=1\|^fetch.export.wall_tripped=1" site/build_health.txt \
+            && echo "::warning::export() over a §7.4 tripwire (fetch.export.* in build_health.txt)"
+          true
+
+      # /llms.txt and /llms/ come from the daily llms.yml Release asset, not
+      # from this build. Download it with a HARD 30 s cap into the cached
+      # data/processed (so a fresh runner still holds the previous tarball),
+      # then unpack into site/ and docs/ before the Pages artifact is built.
+      # Best-effort at every step, by design: a slow or missing asset keeps
+      # the cached tarball (llms.unpack=stale); no tarball at all ships this
+      # deploy without llms/ (llms.unpack=none). Never a delay, never red.
+      - name: Unpack the LLM export
+        continue-on-error: true
+        run: |
+          TAR=data/processed/llms.tar.gz
+          URL="https://github.com/${{ github.repository }}/releases/download/llms/llms.tar.gz"
+          STATE=stale
+          if curl -sfL -m 30 -o "$TAR.tmp" "$URL" && tar -tzf "$TAR.tmp" >/dev/null 2>&1; then
+            mv -f "$TAR.tmp" "$TAR"; STATE=fresh
+          else
+            rm -f "$TAR.tmp"
+            echo "llms asset not fetched within 30 s; using the cached tarball if there is one"
+          fi
+          if [ -f "$TAR" ]; then
+            for d in site docs; do
+              rm -rf "$d/llms" "$d/llms.txt"
+              tar -xzf "$TAR" -C "$d" || STATE=none
+            done
+            echo "llms: $STATE -- $(ls site/llms 2>/dev/null | wc -l) files, tarball dated $(date -u -r "$TAR" +%Y-%m-%dT%H:%MZ)"
+          else
+            STATE=none
+            echo "::warning::no LLM export available (no Release asset, no cached tarball); llms/ is not in this deploy"
+          fi
+          for d in site docs; do echo "llms.unpack=$STATE" >> "$d/build_health.txt"; done
 
 
       # This workflow publishes ITS OWN checkout's site/, so a run that started
