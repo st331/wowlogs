@@ -69,6 +69,20 @@ on:
         description: "Internal: epoch when the predecessor's quota window resets; a drain successor waits for it"
         type: string
         default: ""
+      # While a backlog is being drained, runs ALTERNATE so the present never
+      # waits behind the past (owner: "prioritize getting new runs first";
+      # "minimize the time to seeing fresh runs -- now and over the day"):
+      #   fresh    -- full budget, but only runs from the last 12 hours; small,
+      #               so it fetches in a minute or two and deploys straight
+      #               away. Never waits for a quota window.
+      #   backfill -- the rest, newest first, capped at 80% of the hourly
+      #               budget so the fresh run that follows in the same window
+      #               always has points left to spend.
+      # Empty = the ordinary run: everything pending, newest first, 70%.
+      mode:
+        description: "Internal: 'fresh' or 'backfill' while draining a backlog; empty for an ordinary run"
+        type: string
+        default: ""
   # NO push trigger, deliberately. Every chained run checks out the branch
   # head, so a pipeline change is live within one cadence tick anyway -- and
   # a push-triggered run competes for the single concurrency slot, where the
@@ -115,7 +129,12 @@ jobs:
         run: |
           echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
           PREV="${{ inputs.prev_start }}"
-          if [ "${{ inputs.drain }}" = "true" ]; then
+          if [ "${{ inputs.mode }}" = "fresh" ] || [ "${{ inputs.mode }}" = "backfill" ]; then
+            # Alternating drain: never wait. The backfill run left a reserve
+            # for the fresh run, and a fresh run's few hundred points are
+            # always worth spending the moment they exist.
+            echo "drain (${{ inputs.mode }}): starting immediately"
+          elif [ "${{ inputs.drain }}" = "true" ]; then
             # A drain successor is paced by the QUOTA WINDOW, not the slot:
             # its predecessor spent the hour, so starting before the reset
             # would only discover an empty budget. Wait for the reset (plus a
@@ -179,7 +198,11 @@ jobs:
           # Drain mode (see the input) is the one path that spends the whole
           # budget; it is only ever set by an explicit dispatch or by a drain
           # run's own successor while a backlog remains.
-          WCL_QUOTA_FRACTION: ${{ inputs.drain == 'true' && '1.0' || inputs.quota_fraction || '0.70' }}
+          WCL_QUOTA_FRACTION: ${{ inputs.mode == 'backfill' && '0.80' || (inputs.drain == 'true' || inputs.mode == 'fresh') && '1.0' || inputs.quota_fraction || '0.70' }}
+          # the fresh slice: only runs from the last 12 hours, so the run is
+          # small and the deploy is minutes away; everything older waits for
+          # the backfill run that follows
+          FRESH_ARGS: ${{ inputs.mode == 'fresh' && '--fresh-hours 12' || '' }}
           # the job has 50 minutes; never spend more than 8 of them asleep
           # waiting for a quota window that the next run will get for free
           # Scheduled runs never wait more than 8 minutes for a quota window
@@ -210,7 +233,7 @@ jobs:
           fi
           SWEEP="--resweep"
           [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
-          python -u scripts/fetch_data.py $SWEEP $REGEAR
+          python -u scripts/fetch_data.py $SWEEP $REGEAR $FRESH_ARGS
 
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.
@@ -250,6 +273,10 @@ jobs:
           cp "data/names_spells.json" "data/processed/names_spells.json" 2>/dev/null || true
 
       - name: Build site
+        env:
+          # fresh/backfill runs are about latency; the LLM export waits for
+          # the next ordinary run
+          BUILD_LLMS: ${{ (inputs.mode == 'fresh' || inputs.mode == 'backfill') && '0' || '1' }}
         run: |
           python -u scripts/build_site_data.py
           # Embellishment identity has now failed twice in
@@ -394,18 +421,24 @@ jobs:
           # Keep draining only while there is a backlog worth a full-budget
           # run; below the floor the successor is an ordinary chained run and
           # the standing 70% cap is back in force without anyone touching it.
-          NEXT_DRAIN=""
-          if [ "${{ inputs.drain }}" = "true" ] && [ "${BACKLOG:-0}" -gt 300 ] 2>/dev/null; then
+          NEXT_DRAIN=""; NEXT_MODE=""
+          DRAINING=""
+          { [ "${{ inputs.drain }}" = "true" ] || [ -n "${{ inputs.mode }}" ]; } && DRAINING=1
+          if [ -n "$DRAINING" ] && [ "${BACKLOG:-0}" -gt 300 ] 2>/dev/null; then
             NEXT_DRAIN="true"
-            echo "drain: ${BACKLOG} runs still pending -> successor drains at the window reset"
-          elif [ "${{ inputs.drain }}" = "true" ]; then
+            # alternate: a fresh run is always followed by a backfill run and
+            # vice versa; the first successor of a plain drain run is fresh,
+            # so the present gets the next slot
+            if [ "${{ inputs.mode }}" = "fresh" ]; then NEXT_MODE="backfill"; else NEXT_MODE="fresh"; fi
+            echo "drain: ${BACKLOG} runs still pending -> successor is a ${NEXT_MODE} run, starting immediately"
+          elif [ -n "$DRAINING" ]; then
             echo "drain: backlog ${BACKLOG:-0} -> done; successor returns to the 70% cadence"
           fi
           curl -sf -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/refresh.yml/dispatches" \
-            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"prev_reset_at\":\"${RESET_AT:-}\"}}" \
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"mode\":\"$NEXT_MODE\",\"prev_reset_at\":\"${RESET_AT:-}\"}}" \
             && echo "chained the next run" || echo "chain dispatch failed; the cron dead-man will revive the cadence"
 
       # A failed run does not chain (a deterministic fault would loop), but it

@@ -16,6 +16,7 @@ import gzip
 from collections import Counter
 import hashlib
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -3402,7 +3403,14 @@ def main() -> None:
     # docs/ mirrors site/ for repo browsing; the payload is already written to
     # both, but the page itself was not, so the mirror served stale UI
     shutil.copyfile(ROOT / "site" / "index.html", ROOT / "docs" / "index.html")
-    build_llms()
+    # The LLM dataset is ~90 s of every build and nobody reads it twice an
+    # hour. Runs that exist to get fresh play on the site quickly (the
+    # alternating drain) skip it; the ordinary cadence still refreshes it.
+    if os.environ.get("BUILD_LLMS", "1") != "0":
+        build_llms()
+    else:
+        print("[llms] skipped this run (BUILD_LLMS=0); the next ordinary run "
+              "refreshes it")
     index = ROOT / "site" / "index.html"
     docs_index = ROOT / "docs" / "index.html"
     docs_index.write_text(index.read_text())

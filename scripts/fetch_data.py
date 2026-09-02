@@ -855,7 +855,18 @@ def regear_candidates(fights: dict, done: set[str], min_key: int,
 
 def fetch_summaries(regions: set[str] | None, limit: int | None = None,
                     regear: tuple[int, float] | None = None,
-                    release: re.Pattern | None = POISON_RE) -> None:
+                    release: re.Pattern | None = POISON_RE,
+                    fresh_hours: float | None = None) -> None:
+    """Fetch summaries for discovered runs not yet journaled, newest first.
+
+    fresh_hours restricts the run to the FRESH slice -- pending runs that
+    started within the last N hours -- and leaves everything older for a
+    backfill run. This is how a backlog is drained without starving the
+    present: the workflow alternates fresh (full budget, small, deploys in
+    minutes) with backfill (capped budget, the rest), so the newest play is
+    on the site every cycle no matter how deep the backlog is. Owner's
+    priority: "minimize the time to seeing fresh runs -- now and over the day."
+    """
     fights = load_fights(regions)
     if release is not None:
         n_rel = release_failed(SUMMARIES_DONE, release)
@@ -880,6 +891,13 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
               f"{100 * dedupe_fights.dropped / raw_n:.0f}% of the spend saved)",
               flush=True)
     pending = order_pending([f for k, f in fights.items() if k not in done])
+    if fresh_hours is not None:
+        cutoff_ms = (time.time() - fresh_hours * 3600) * 1000
+        older = sum(1 for f in pending if (f.get("start_time") or 0) < cutoff_ms)
+        pending = [f for f in pending if (f.get("start_time") or 0) >= cutoff_ms]
+        print(f"[summaries] fresh slice: runs started in the last {fresh_hours:g}h "
+              f"only -- {len(pending)} to fetch, {older} older left for a "
+              f"backfill run", flush=True)
     known = [f for f in pending if f["region"]]
     unknown = [f for f in pending if not f["region"]]
     if limit:
@@ -1200,6 +1218,11 @@ def main() -> None:
                     help="discard the rankings journal (and its checkpoint "
                          "snapshot) to re-scan the leaderboards; already-"
                          "fetched summaries are kept and deduped")
+    ap.add_argument("--fresh-hours", type=float, default=None,
+                    help="fetch only pending runs that started within the last "
+                         "N hours (the fresh slice); older ones wait for a "
+                         "backfill run. Off by default: fetch everything, "
+                         "newest first, until the budget ceiling")
     ap.add_argument("--release-failed", metavar="REGEX", default=None,
                     help="before fetching, drop FAILED markers whose message "
                          "matches REGEX so those runs are fetched again "
@@ -1242,7 +1265,8 @@ def main() -> None:
                 release = None
             else:
                 release = re.compile(args.release_failed)
-            fetch_summaries(regions, args.limit_fights, regear, release)
+            fetch_summaries(regions, args.limit_fights, regear, release,
+                            args.fresh_hours)
     except QuotaDeadline as e:
         # Not a failure: the budget is spent and waiting would cost more than
         # the next run does. Keep everything fetched so far and exit 0 so the
