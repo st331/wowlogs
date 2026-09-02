@@ -145,3 +145,12 @@
     and treat token cost as a non-constraint. Solo only for conversational
     turns, trivial edits, or when another agent is already editing the same
     file (never two implementers on site/index.html at once).
+
+15. **Newest runs first — standing (2026-09-02).** "prioritize getting new runs
+    first." The summary stage fetches strictly newest-first (`order_pending`),
+    and nothing else -- not region tag, not dungeon balance -- decides the
+    order. A run that stops at the budget ceiling must have spent it on the
+    most recent play, because "this reset" is the period the site opens on and
+    the daily question is whether the meta is moving NOW. Any future
+    prioritisation (a regear pass, a backfill) is added BEHIND this rule, never
+    in front of it.

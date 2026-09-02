@@ -730,6 +730,27 @@ def release_failed(path: pathlib.Path, pattern: re.Pattern) -> int:
     return released
 
 
+def order_pending(pending: list[dict]) -> list[dict]:
+    """NEWEST RUN FIRST, and nothing else decides the order.
+
+    The owner's priority, stated plainly: "prioritize getting new runs first."
+    A run that ends at the budget ceiling must have spent it on the most
+    recent play, because "this reset" is the period the dashboard opens on
+    and the one question asked every day is whether the meta is moving now.
+
+    History of this line, so it is not re-litigated: it was a shuffle (a
+    partial fetch stayed balanced across dungeons and brackets, fine for a
+    half-hour backlog, wrong for a backlog of days), then newest-first but
+    with region-tagged entries ahead of untagged ones -- and untagged is ~90%
+    of the pool, so a week-old tagged run still beat this morning's untagged
+    one. The tag says nothing about the data: the region is learned from the
+    report either way. Ties break on the key so the order is deterministic.
+    """
+    return sorted(pending,
+                  key=lambda f: (-(f.get("start_time") or 0),
+                                 f"{f.get('code')}:{f.get('fid')}"))
+
+
 def backlog_size(regions: set[str] | None) -> int:
     """Discovered, deduped runs still waiting for a summary."""
     fights = load_fights(regions)
@@ -858,21 +879,9 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
               f"({dedupe_fights.dropped} re-uploads skipped before fetching, "
               f"{100 * dedupe_fights.dropped / raw_n:.0f}% of the spend saved)",
               flush=True)
-    pending = [f for k, f in fights.items() if k not in done]
-    # US/EU-tagged runs first, unknown-region after; NEWEST FIRST within each
-    # group. This used to be a shuffle, so a partial fetch stayed balanced
-    # across dungeons and brackets -- fine when the backlog is one half-hour
-    # of play. It is the wrong order for a backlog of days: a random 30% of
-    # every day leaves "this reset" thin on the site, whereas newest-first
-    # completes the current reset before touching older days, which is the
-    # one period the dashboard opens on and the owner reads first. The
-    # region ordering is kept so the two big regions fill before untagged
-    # runs, whose region is only learned from the report.
-    def _newest(f):
-        return -(f.get("start_time") or 0)
-    known = sorted((f for f in pending if f["region"]), key=_newest)
-    unknown = sorted((f for f in pending if not f["region"]), key=_newest)
-    pending = known + unknown
+    pending = order_pending([f for k, f in fights.items() if k not in done])
+    known = [f for f in pending if f["region"]]
+    unknown = [f for f in pending if not f["region"]]
     if limit:
         pending = pending[:limit]
     print(f"[summaries] {len(fights)} public runs discovered "

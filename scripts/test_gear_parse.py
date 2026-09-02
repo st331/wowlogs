@@ -185,6 +185,22 @@ with tempfile.TemporaryDirectory() as td:
     assert release_failed(pathlib.Path(td) / "missing.txt", POISON_RE) == 0
 print("release_failed: 2 poisoned markers dropped, OK and genuine failures kept, idempotent")
 
+# --- fetch order: newest run first, regardless of region tag. The owner's
+# stated priority; a week-old region-tagged run must never be fetched ahead of
+# this morning's untagged one.
+from fetch_data import order_pending
+pend = [
+    {"code": "old-tagged", "fid": 1, "region": "US", "start_time": 1_000},
+    {"code": "new-untagged", "fid": 2, "region": None, "start_time": 9_000},
+    {"code": "mid-untagged", "fid": 3, "region": "", "start_time": 5_000},
+    {"code": "new-tagged", "fid": 4, "region": "EU", "start_time": 9_000},
+    {"code": "no-time", "fid": 5, "region": "US", "start_time": None},
+]
+got = [f["code"] for f in order_pending(pend)]
+assert got == ["new-tagged", "new-untagged", "mid-untagged", "old-tagged", "no-time"], got
+assert order_pending(pend) == order_pending(list(reversed(pend))), "order must be deterministic"
+print("order_pending: strictly newest-first, tags ignored, unknown time last, deterministic")
+
 # --- the batch request is the Summary table alone: the flask feature's
 # CombatantInfo events sub-query is removed and must NOT be requested
 q = batch_query([{"code": "aBc", "fid": 7}, {"code": "dEf", "fid": 9}])
