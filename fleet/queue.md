@@ -28,6 +28,22 @@ crux of any future attempt.
   Commit step now refuses to stage any file over 95 MB (GitHub rejects 100 MB at push):
   gear.jsonl.gz is already ~150 MB and had never been committed; the CSV crosses the
   line around end of September. Durable snapshots move to Release assets under (2).
+- **PR-1 stage A LANDED 17:09 IST** (merge 2801b15), 17 green chained runs since. Measured
+  in production: build.wall_s 238 s (was ~7-8 min), gear pass 104 s single walk over 668k
+  records, trait union incremental (0.2 s, 1,305 new records parsed per run), export
+  1,365 MB peak RSS. Note: the sample prefilter skips only 6.5% today because the legacy
+  payload carries every row (no sampling yet); the flatness comes into play once sampling
+  does. export() measured 241 s per run -> export_gear() (two passes over the gear journal,
+  an artifact nothing reads between runs) is now gated to commit_export/regear runs.
+  Watchdog cron confirmed firing on its own (08:44, 12:59, 17:07 UTC -- throttled to ~4 h,
+  hence the failure-wakes-watchdog path). The commit_export dispatch was pre-empted by the
+  chain's successor (run 554 cancelled); the commit step now self-heals when the committed
+  seed is older than 20 h.
+- **PR-1 stage B**: built (B1 foundation, B2a steps 1-3, B2b cubes + wiring), two verify
+  rounds: operations lens PASS, equivalence and incremental lenses each hold two blockers
+  (rankings overlay when a revised score turns null; pending-file duplication after a kill
+  between cache save and unlink; tuning-patch invalidation range). Round 3 fix + verify
+  running. Not merged.
 - **(2) Partitioned payload + incremental build** -- blueprint LANDED
   (fleet/blueprints/partitioned_payload.md, 1,709 lines, two adversarial revision rounds,
   31 recorded changes). Rows partitioned by UTC day; window = last three resets; four cube

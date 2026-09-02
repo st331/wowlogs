@@ -1283,7 +1283,18 @@ def export() -> None:
     n_rows = len(df)
     n_runs = df[["report_code", "fight_id"]].drop_duplicates().shape[0]
     del df
-    export_gear()
+    # The gear export is a DURABILITY artifact and nothing reads it between
+    # runs: the committed copy never existed (it outgrew GitHub's file limit
+    # before its first Monday) and the runner's local copy dies with the
+    # runner. Two streaming passes over a multi-GB journal cost ~3-4 min on
+    # every 20-minute cycle -- the owner's first priority is time to fresh
+    # runs, so ordinary CI runs skip it (EXPORT_GEAR=0) and a commit_export
+    # or regear dispatch writes it. Release-asset snapshots replace it
+    # (partitioned_payload.md section 7).
+    if os.environ.get("EXPORT_GEAR", "1") != "0":
+        export_gear()
+    else:
+        print("[export] gear export skipped this run (EXPORT_GEAR=0)", flush=True)
     print(f"[export] {n_rows} player-rows ({before - n_rows} dupes dropped) "
           f"across {n_runs} runs -> {CSV_FILE}", flush=True)
     # The export's own clock and memory, into fetch_health.txt (the build

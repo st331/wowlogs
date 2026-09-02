@@ -208,6 +208,9 @@ jobs:
           # small and the deploy is minutes away; everything older waits for
           # the backfill run that follows
           FRESH_ARGS: ${{ inputs.mode == 'fresh' && '--fresh-hours 12' || '' }}
+          # the gear export (two passes over a multi-GB journal, ~3-4 min) only
+          # when something will keep the result: a seed commit or a regear
+          EXPORT_GEAR: ${{ (inputs.commit_export == true || inputs.regear_min_key != '') && '1' || '0' }}
           # the job has 50 minutes; never spend more than 8 of them asleep
           # waiting for a quota window that the next run will get for free
           # Scheduled runs never wait more than 8 minutes for a quota window
@@ -413,10 +416,25 @@ jobs:
           # reaches this step between 02:00 and 02:19. If a slow run slips
           # past the window the seed just waits a day -- the owner
           # explicitly does not mind.
+          # Self-heal: a manual commit_export dispatch is routinely cancelled by
+          # the chain's own successor dispatch (newest pending run wins the
+          # single concurrency slot), and a slipped slot waits a day. So the
+          # seed also commits whenever the committed CSV is older than 20 h,
+          # judged by the API (the checkout is shallow; git log would lie).
           if [ -z "$FORCE" ]; then
+            SEED_TS=$(curl -sf -m 15 -H "Authorization: Bearer ${{ github.token }}" \
+              "https://api.github.com/repos/${{ github.repository }}/commits?path=data/mythic_runs.csv.gz&sha=${{ github.ref_name }}&per_page=1" \
+              | jq -r '.[0].commit.committer.date // empty' || true)
+            SEED_AGE_H=-1
+            if [ -n "$SEED_TS" ]; then SEED_AGE_H=$(( ( $(date -u +%s) - $(date -u -d "$SEED_TS" +%s) ) / 3600 )); fi
+            echo "committed seed age: ${SEED_AGE_H} h (${SEED_TS:-unknown})"
             case "$(date -u +%H%M)" in
               020*|021*) ;;
-              *) echo "not the daily slot; skipping"; exit 0 ;;
+              *) if [ "$SEED_AGE_H" -ge 20 ] 2>/dev/null; then
+                   echo "seed older than 20 h -> committing outside the slot"
+                 else
+                   echo "not the daily slot; skipping"; exit 0
+                 fi ;;
             esac
           fi
           git config user.name  "github-actions[bot]"
