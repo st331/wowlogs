@@ -2216,6 +2216,20 @@ def build(name: str, cfg: dict) -> None:
     # normal reset's runs appearing "within a few hours", as the owner
     # noticed. -1 where the start is unknown, like day.
     hr = started.dt.hour.fillna(-1).astype(int)
+    # Machine-readable liveness, first in build_health.txt. The watchdog
+    # workflow reads these: a build that keeps landing while newest_row stops
+    # advancing is a collection outage with green runs -- the failure that
+    # went five days unnoticed. Anything a human or a script needs to judge
+    # "is the data moving" belongs here, not in a log tail.
+    newest = started.max()
+    health(f"built={pd.Timestamp.now('UTC').strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    health(f"rows={len(df)}")
+    health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")
+    fh_path = ROOT / "data" / "processed" / "fetch_health.txt"
+    if fh_path.exists():
+        for line in fh_path.read_text().splitlines():
+            if line.strip():
+                health(f"fetch.{line.strip()}")
 
     def enc(col):
         cats = sorted(df[col].unique())

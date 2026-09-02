@@ -69,17 +69,14 @@ on:
         description: "Internal: epoch when the predecessor's quota window resets; a drain successor waits for it"
         type: string
         default: ""
-  push:
-    branches: [claude/wow-mythic-dashboard-jv235l]
-    paths:
-      # site/** deliberately absent: UI-only pushes deploy through
-      # deploy-site.yml in seconds instead of queueing behind this pipeline.
-      # A push touching both site/ and scripts/ triggers both workflows;
-      # each publishes a complete artifact, so whichever deploys last wins
-      # with the same UI and the freshest data it knew.
-      - "scripts/**"
-      - "data/tuning_patches.json"
-      - ".github/workflows/refresh.yml"
+  # NO push trigger, deliberately. Every chained run checks out the branch
+  # head, so a pipeline change is live within one cadence tick anyway -- and
+  # a push-triggered run competes for the single concurrency slot, where the
+  # newest PENDING run silently cancels the older one. That is how a code
+  # push cancelled the queued full-budget drain twice in one night, and how
+  # a chained successor cancelled a manual dispatch. UI pushes were already
+  # routed to deploy-site.yml for the same reason. Need a change applied
+  # right now? Dispatch this workflow by hand; the watchdog covers the rest.
 
 # One refresh at a time. A run that is still fetching must not have the next
 # one start underneath it and fight over the same journals.

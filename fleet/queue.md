@@ -179,3 +179,52 @@ implementation staged so it fires the moment the file frees. Pre-write the next 
 script while waiting rather than after.
 The one exception stays: never two implementers on site/index.html at once — that has cost
 merge damage twice. Sequencing is the fix, not more parallelism.
+
+## Incident record — 2026-08-27 → 2026-09-02 (read before touching the pipeline)
+
+Three distinct failures, back to back, each invisible to the mechanism meant to catch it:
+
+1. **Silent collection outage, five days (Aug 27 07:27 UTC → Sep 1 23:58 IST).** The flask
+   removal changed `parse_summary` to three arguments; the caller kept passing four. Every
+   summary raised TypeError, which the caller catches beside genuine bad-report errors and
+   journals as a PERMANENT failure. ~57k runs paid for, discarded, marked done. Every run
+   green; the site republished the same 638,474 rows. Tests passed because they called
+   `parse_summary` directly. Fix: `parse_node` seam under test, poisoned markers released on
+   start, a systemic-parse-failure exit that goes RED after the journal is saved.
+2. **Runner OOM, seven hours (Sep 1 19:50 UTC → Sep 2 03:27 UTC).** `export_gear()` held
+   three copies of every gear row (list of dicts, DataFrame, `to_dict`). The backlog refetch
+   pushed it past the runner's memory; the runner was shut down mid-export, the run went
+   red, failures do not chain, and the `*/30` dead-man cron fired twice in seven hours and
+   failed identically both times. Fix: two-pass streaming export. **Next in line for the
+   same failure: `export()` for player rows (still list-of-dicts + DataFrame).**
+3. **Reset bucketing by calendar day.** Rows carried a UTC day only, so every US run played
+   on Tuesday before 15:00 UTC counted as the NEW reset. Fix: `hr` column, instant-based
+   bucketing client and llms side.
+
+Also fixed along the way: chained runs were `workflow_dispatch` events and so skipped the
+daily CSV commit gate for a week; push-triggered refresh runs pre-empted queued chain runs
+(newest pending wins in the concurrency group) — the push trigger is REMOVED from
+refresh.yml; drain runs could time out before chaining.
+
+**The reliability layer (Sep 2):** `.github/workflows/watchdog.yml` runs on its own cron
+and watches OUTCOMES: no successful refresh for 75 min with nothing running → dispatch one;
+3 h without success, or ≥2 consecutive failures, or the published `newest_row` older than
+6 h → open/update a GitHub issue "Refresh stalled" (label `watchdog`), auto-closed when
+healthy. `build_health.txt` now starts with machine-readable `built=`, `rows=`,
+`newest_row=` and the last run's `fetch.*` counters, so a completed run's fetch story is
+readable without the Actions log API (which returns only tails).
+
+## Known open (pipeline)
+
+- **`export()` player rows will hit the same OOM wall** as `export_gear()` did; it holds
+  the list of dicts and the DataFrame together (now released early, but the DataFrame
+  alone is large). Stream it before the season's row count doubles.
+- **Season-long growth.** ~65k player rows/day baseline; the payload, the builder's
+  full-CSV pandas load and the sidecar ladder all assume the whole season fits. It will
+  not by mid-season. A retention window (the UI already has "Last 2 months") or a
+  partitioned payload is needed before then.
+- **Off-leaderboard loss from the outage.** Runs from Aug 27–31 that dropped off their
+  (dungeon, key) leaderboard before the fix cannot be re-swept; Aug 28 is the worst day.
+  Recovering them would need a resurrect-by-report-code stage (the FAILED keys are known).
+- **CSV recovery seed** last committed Aug 26; dispatch `commit_export=true` once no drain
+  run is pending.

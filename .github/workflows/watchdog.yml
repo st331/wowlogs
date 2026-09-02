@@ -1,0 +1,159 @@
+name: Refresh watchdog
+
+# A second, independent heartbeat for the data pipeline.
+#
+# The refresh cadence is a self-chain: a successful run dispatches the next.
+# That is deliberate and it is fragile in one specific way -- ANY failure ends
+# the chain, and the */30 cron that is supposed to revive it is throttled by
+# GitHub under load (observed gaps of two hours and more). Worse, a
+# deterministic failure (an OOM, a code fault) makes every revival fail the
+# same way, so the site can sit stale indefinitely with every run either red
+# or absent. And a run can be GREEN while collection is dead: for five days in
+# August every summary failed to parse, was journaled as done, and the export
+# republished the same rows -- nothing in the system noticed; the owner did.
+#
+# This workflow watches OUTCOMES, not runs:
+#   1. liveness  -- has a refresh SUCCEEDED recently? If not and nothing is
+#                   queued or running, dispatch one (chain=true so the cadence
+#                   resumes from there).
+#   2. recency   -- does the published site's build_health.txt say the newest
+#                   collected run is recent? A build that keeps landing while
+#                   newest_row stops advancing is the silent-outage signature.
+#   3. alerting  -- when either check fails hard, open (or update) a GitHub
+#                   issue titled "Refresh stalled" so a human is told, and
+#                   close it automatically once things are healthy again.
+#
+# It runs on its own cron, so it is subject to the same throttling as the
+# refresh cron -- but two independent clocks are far less likely to both
+# stall, and every tick that does fire takes a full corrective action rather
+# than a single attempt that can itself fail.
+
+on:
+  schedule:
+    - cron: "11,31,51 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: write
+  issues: write
+
+concurrency:
+  group: wowlogs-watchdog
+  cancel-in-progress: false
+
+env:
+  # thresholds, in minutes
+  STALE_SUCCESS_MIN: 75      # no successful refresh for this long -> dispatch
+  ALERT_SUCCESS_MIN: 180     # ... for this long -> also open the issue
+  STALE_DATA_MIN: 360        # newest collected run older than this -> issue
+  BRANCH: claude/wow-mythic-dashboard-jv235l
+  SITE_HEALTH: https://st331.github.io/wowlogs/build_health.txt
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect the refresh workflow and the published site
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -u
+          api() { curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          NOW=$(date -u +%s)
+
+          # ---- 1. refresh runs: latest success age, anything active, failure streak
+          RUNS=$(api "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/runs?branch=$BRANCH&per_page=25") || RUNS='{"workflow_runs":[]}'
+          LAST_OK=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.conclusion=="success")] | sort_by(.updated_at) | last | .updated_at // empty')
+          ACTIVE=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="queued" or .status=="in_progress" or .status=="pending" or .status=="waiting")] | length')
+          # consecutive non-success conclusions among completed runs, newest first
+          STREAK=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed")] | sort_by(.created_at) | reverse | [.[].conclusion] | (index("success") // length)')
+          LAST_CONCLUSION=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed")] | sort_by(.created_at) | last | .conclusion // "none"')
+          if [ -n "$LAST_OK" ]; then
+            OK_AGE=$(( (NOW - $(date -u -d "$LAST_OK" +%s)) / 60 ))
+          else
+            OK_AGE=99999
+          fi
+
+          # ---- 2. the published site's own account of itself
+          HEALTH=$(curl -sf -m 30 "$SITE_HEALTH" || true)
+          BUILT=$(echo "$HEALTH" | sed -n 's/^\[season\] built=//p;s/^built=//p' | head -1)
+          NEWEST=$(echo "$HEALTH" | sed -n 's/^\[season\] newest_row=//p;s/^newest_row=//p' | head -1)
+          ROWS=$(echo "$HEALTH" | sed -n 's/^\[season\] rows=//p;s/^rows=//p' | head -1)
+          if [ -n "$NEWEST" ] && [ "$NEWEST" != "none" ]; then
+            DATA_AGE=$(( (NOW - $(date -u -d "$NEWEST" +%s)) / 60 ))
+          else
+            DATA_AGE=-1      # health file predates the field; recency unknown
+          fi
+
+          echo "last successful refresh : ${LAST_OK:-never} (${OK_AGE} min ago)"
+          echo "active refresh runs     : $ACTIVE"
+          echo "failure streak          : $STREAK (last: $LAST_CONCLUSION)"
+          echo "site built              : ${BUILT:-unknown}  rows=${ROWS:-?}"
+          echo "newest collected run    : ${NEWEST:-unknown} (data age ${DATA_AGE} min)"
+          {
+            echo "ok_age=$OK_AGE"; echo "active=$ACTIVE"; echo "streak=$STREAK"
+            echo "last_conclusion=$LAST_CONCLUSION"; echo "data_age=$DATA_AGE"
+            echo "built=${BUILT:-unknown}"; echo "newest=${NEWEST:-unknown}"; echo "rows=${ROWS:-?}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Revive the cadence if it has stopped
+        if: steps.probe.outputs.active == '0' && fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "no successful refresh for ${{ steps.probe.outputs.ok_age }} min and nothing running -> dispatching"
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/dispatches" \
+            -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"chain\":\"true\"}}" \
+            && echo "dispatched" || echo "::warning::dispatch failed"
+
+      - name: Raise or clear the alert
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OK_AGE: ${{ steps.probe.outputs.ok_age }}
+          STREAK: ${{ steps.probe.outputs.streak }}
+          DATA_AGE: ${{ steps.probe.outputs.data_age }}
+          BUILT: ${{ steps.probe.outputs.built }}
+          NEWEST: ${{ steps.probe.outputs.newest }}
+          ROWS: ${{ steps.probe.outputs.rows }}
+          LAST_CONCLUSION: ${{ steps.probe.outputs.last_conclusion }}
+        run: |
+          set -u
+          api() { curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          TITLE="Refresh stalled"
+          NL=$'\n'
+          REASONS=""
+          [ "$OK_AGE" -gt "$ALERT_SUCCESS_MIN" ] && REASONS="${REASONS}${NL}- no successful refresh for **${OK_AGE} min** (last run: ${LAST_CONCLUSION})"
+          [ "$STREAK" -ge 2 ] && REASONS="${REASONS}${NL}- **${STREAK} consecutive failed runs** -- a deterministic fault, not a blip; the dead-man cron cannot fix this"
+          [ "$DATA_AGE" -gt "$STALE_DATA_MIN" ] && REASONS="${REASONS}${NL}- site keeps building (built ${BUILT}, ${ROWS} rows) but the **newest collected run is ${DATA_AGE} min old** -- collection is dead while runs are green"
+
+          OPEN=$(api "https://api.github.com/repos/$REPO/issues?state=open&labels=watchdog&per_page=5" | jq -r '[.[] | select(.title=="'"$TITLE"'")] | first | .number // empty')
+
+          if [ -n "$REASONS" ]; then
+            BODY="The refresh watchdog found the pipeline unhealthy at $(date -u +'%Y-%m-%d %H:%M UTC')."
+            BODY="${BODY}${NL}${REASONS}${NL}"
+            BODY="${BODY}${NL}Where to look: the latest runs of [Refresh Season 2 data](https://github.com/$REPO/actions/workflows/refresh.yml), and the published [build_health.txt](${SITE_HEALTH}), whose fetch.* lines carry the last run's fetch counters (released / to go / outcome / backlog)."
+            BODY="${BODY}${NL}${NL}This issue closes itself when a refresh succeeds and the data is moving again."
+            PAYLOAD=$(jq -n --arg t "$TITLE" --arg b "$BODY" '{title:$t, body:$b, labels:["watchdog"]}')
+            if [ -z "$OPEN" ]; then
+              api -X POST "https://api.github.com/repos/$REPO/issues" -d "$PAYLOAD" >/dev/null && echo "opened issue: $TITLE"
+            else
+              api -X POST "https://api.github.com/repos/$REPO/issues/$OPEN/comments" \
+                -d "$(jq -n --arg b "$BODY" '{body:$b}')" >/dev/null && echo "updated issue #$OPEN"
+            fi
+            echo "::error::$TITLE --$REASONS"
+          else
+            echo "healthy: last success ${OK_AGE} min ago, data age ${DATA_AGE} min, streak ${STREAK}"
+            if [ -n "$OPEN" ]; then
+              api -X POST "https://api.github.com/repos/$REPO/issues/$OPEN/comments" \
+                -d "$(jq -n --arg b "Healthy again at $(date -u +'%Y-%m-%d %H:%M UTC'): last successful refresh ${OK_AGE} min ago, newest collected run ${DATA_AGE} min old, ${ROWS} rows." '{body:$b}')" >/dev/null
+              api -X PATCH "https://api.github.com/repos/$REPO/issues/$OPEN" -d '{"state":"closed","state_reason":"completed"}' >/dev/null && echo "closed issue #$OPEN"
+            fi
+          fi

@@ -747,6 +747,17 @@ def write_outputs(**kv) -> None:
     """
     for k, v in kv.items():
         print(f"[output] {k}={v}", flush=True)
+    # Also persist them: the build step folds this file into the published
+    # site/build_health.txt, which is the only place a completed run's fetch
+    # story can be read without the Actions log API (which returns tails).
+    try:
+        PROCESSED.mkdir(parents=True, exist_ok=True)
+        with (PROCESSED / "fetch_health.txt").open("w") as fh:
+            fh.write(f"fetched_at={time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
+            for k, v in kv.items():
+                fh.write(f"{k}={v}\n")
+    except OSError:
+        pass
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
         return
