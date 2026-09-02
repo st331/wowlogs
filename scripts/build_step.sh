@@ -21,15 +21,30 @@
 # it had to be killed instead (rc 124/137) this step writes the line, so the
 # watchdog sees three consecutive hits either way.
 #
+# After both exit: the legacy builder's build.wall_s is appended to
+# data/processed/parts/legacy_wall.txt (the cached history --deadline-default
+# reads; site/build_health.txt itself is untracked and first written AFTER
+# the deadline was computed, so without this the rolling median never has a
+# sample and the 420-60 s fallback always wins), and when the partition
+# builder did not reach its publish step (an exception, or a kill after a
+# TERM ignored for 30 s) site/d/ is mirrored from its out/ cache -- every CI
+# run is a fresh VM and site/d/ is gitignored, so the live d/ tree would
+# otherwise vanish from the Pages artifact for one cycle. Hashed files are
+# copied first, manifest.json last.
+#
 # Overridable for tests/test_build_step_exit.py: LEGACY_CMD, PARTS_CMD,
-# PARTS_DEADLINE_S, HEALTH, PARTS_HEALTH, PARTS_LOG, PYTHON. REBUILD_ALL=true
-# (the workflow_dispatch input) passes --rebuild-all to the partition builder.
+# PARTS_DEADLINE_S, HEALTH, PARTS_HEALTH, PARTS_LOG, PYTHON, SITE_D.
+# REBUILD_ALL=true (the workflow_dispatch input) passes --rebuild-all to the
+# partition builder, which then rebuilds EVERY dirty day in the one run (the
+# per-run cap is lifted; the deadline remains the bound).
 set +e
 T0=$(date +%s)
 PY=${PYTHON:-python}
 HEALTH=${HEALTH:-site/build_health.txt}
 PARTS_HEALTH=${PARTS_HEALTH:-data/processed/parts/health.txt}
 PARTS_LOG=${PARTS_LOG:-parts.log}
+SITE_D=${SITE_D:-site/d}
+PARTS_DIR=$(dirname "$PARTS_HEALTH")
 if [ -z "$PARTS_DEADLINE_S" ]; then
   PARTS_DEADLINE_S=$($PY scripts/partition_build.py --deadline-default 2>/dev/null) || PARTS_DEADLINE_S=""
   case "$PARTS_DEADLINE_S" in ''|*[!0-9]*) PARTS_DEADLINE_S=360 ;; esac
@@ -60,5 +75,26 @@ if { [ "$prc" -eq 124 ] || [ "$prc" -eq 137 ]; } && ! grep -q '^parts.deadline_h
   printf 'parts.deadline_hit=1\nparts.deadline_s=%s\n' "$PARTS_DEADLINE_S" >> "$HEALTH"
 fi
 echo "parts.rc=$prc" >> "$HEALTH"
+# the legacy wall into the cached history the next run's default deadline reads
+WALL=$(grep '^build.wall_s=' "$HEALTH" 2>/dev/null | tail -1 | cut -d= -f2)
+case "$WALL" in
+  ''|*[!0-9.]*) ;;
+  *) mkdir -p "$PARTS_DIR"; echo "$WALL" >> "$PARTS_DIR/legacy_wall.txt" ;;
+esac
+# site/d/ from the builder's out/ cache when this run never published it
+if [ ! -f "$SITE_D/current.json" ]; then
+  for o in "$PARTS_DIR"/*/out; do
+    [ -f "$o/manifest.json" ] || continue
+    slugdir=$(dirname "$o"); slug=$(basename "$slugdir")
+    [ -f "$slugdir/current.json" ] || continue
+    mkdir -p "$SITE_D/$slug"
+    ABS_DST=$(cd "$SITE_D/$slug" && pwd)
+    (cd "$o" && find . -type f ! -name manifest.json ! -name '*.tmp' ! -name '*.tmp.npz' \
+        -exec cp --parents {} "$ABS_DST/" \;)
+    cp "$o/manifest.json" "$SITE_D/$slug/manifest.json"
+    cp "$slugdir/current.json" "$SITE_D/current.json"
+    echo "parts.mirror=fallback:$slug" >> "$HEALTH"
+  done
+fi
 echo "build.step_wall_s=$(( $(date +%s) - T0 ))" >> "$HEALTH"
 exit $rc

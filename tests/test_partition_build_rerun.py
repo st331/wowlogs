@@ -13,8 +13,10 @@ window block, week counts and character registry byte for byte -- with
 the cross-day duplicate collapse recorded on the neighbour day.
 """
 import json
+import os
 import pathlib
 import shutil
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -77,7 +79,42 @@ def test_two_step_matches_one_shot():
     print(f"two-step == one-shot: {len(two['days'])} day entries, seq {two['seq']}")
 
 
+def test_rebuild_all_rebuilds_every_day_in_one_run():
+    """refresh.yml's rebuild_all dispatch runs the builder WITHOUT --max-days
+    (the workflow provisions a 110-minute job and PARTS_DEADLINE_S=5400 for
+    it): --rebuild-all must lift the per-run cap and rebuild every day in
+    the one run, dirtying nothing for later cycles, and reproduce the same
+    files (nothing but `frozen` may differ)."""
+    fx = fixture()
+    src = pu.parts_root()
+    ra = FIXTURE_DIR / "parts_rebuild_all"
+    if ra.exists():
+        shutil.rmtree(ra)
+    shutil.copytree(src, ra)
+    before = _manifest(ra)
+    args = [sys.executable, str(ROOT / "scripts" / "partition_build.py"), "--data-root", str(ra / "data"),
+            "--site-dir", str(ra / "site"), "--now", fx["now"], "--rebuild-all", "--withhold-cubes", "*"]
+    env = dict(os.environ, REBUILD_ALL="true")
+    env.pop("WOWLOGS_PINS", None)
+    env.pop("PARTS_MAX_DAYS", None)
+    r = subprocess.run(args, env=env, capture_output=True, text=True, timeout=1800)
+    assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
+    h = pu.parts_health(ra)
+    n_days = sum(1 for e in before["days"] if e.get("f"))
+    assert h["parts.dirty_days"] == [str(n_days)], (h["parts.dirty_days"], n_days)
+    assert h["parts.rebuilt_days"] == [str(n_days)], (h["parts.rebuilt_days"], n_days)
+    assert h["parts.days_left"] == ["0"], h["parts.days_left"]
+    order = [int(x) for x in h["parts.rebuilt_order"][0].split(",") if x]
+    assert order[0] == max(order) and order[-1] == -1 and len(order) == n_days, order
+    after = _manifest(ra)
+    strip = lambda e: {k: v for k, v in e.items() if k != "frozen"}
+    assert [strip(e) for e in after["days"]] == [strip(e) for e in before["days"]]
+    assert after["seq"] == before["seq"], "an identical rebuild must not advance seq"
+    print(f"rebuild-all: {n_days} days in one run, manifest unchanged")
+
+
 if __name__ == "__main__":
     test_rerun_is_a_noop()
     test_two_step_matches_one_shot()
+    test_rebuild_all_rebuilds_every_day_in_one_run()
     print("test_partition_build_rerun: all green")

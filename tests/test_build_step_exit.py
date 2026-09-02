@@ -124,16 +124,17 @@ def test_real_builder_stalled_between_days_checkpoints():
     assert wall <= 1 + deadline + 30 + 10, wall
     assert h["parts.deadline_hit"] == ["1"], h
     assert h["parts.status"] == ["ok"], h.get("parts.status")          # a clean stop, not a kill
+    all_days = sorted((int(k) for k, e in st["days"].items() if e.get("n")), reverse=True)
     done = [int(x) for x in h["parts.rebuilt_order"][0].split(",") if x]
-    assert 1 <= len(done) < 31 and done == sorted(done, reverse=True), done
-    assert int(h["parts.days_left"][0]) == 31 - len(done)
+    assert 1 <= len(done) < len(all_days) and done == sorted(done, reverse=True), done
+    assert int(h["parts.days_left"][0]) == len(all_days) - len(done)
     man = json.loads((d / "site" / "d" / "s2" / "manifest.json").read_text())
-    assert man["seq"] >= 1 and len([e for e in man["days"] if e.get("f")]) == 31
+    assert man["seq"] >= 1 and len([e for e in man["days"] if e.get("f")]) == len(all_days)
     # the next run continues from the checkpoint without rebuilding the completed days
     r2 = pu.run_parts(d, fx["now"], max_days=400, extra=["--withhold-cubes", "*"])
     h2 = pu.parts_health(d)
     done2 = [int(x) for x in h2["parts.rebuilt_order"][0].split(",") if x]
-    assert not (set(done) & set(done2)) and sorted(set(done) | set(done2)) == list(range(229, 260)), (done, done2)
+    assert not (set(done) & set(done2)) and sorted(set(done) | set(done2)) == sorted(all_days), (done, done2)
     assert h2["parts.days_left"] == ["0"]
     print(f"stall (real builder): {len(done)} days before the deadline, {len(done2)} after, none twice")
 

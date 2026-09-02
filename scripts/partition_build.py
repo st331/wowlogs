@@ -18,8 +18,14 @@ socket, and stops cleanly at the first day/stage boundary past
      per-run SNAPSHOT it is: parse it whole when its sha changed, derive
      the per-run overlay (score, medal, keystone clock) as legacy
      load_fights()/export() do, diff it against the overlay table and dirty
-     a day only when a stored value actually changes (absence = no change);
-  2. rebuild dirty days, newest first, at most 8 per run: today's build()
+     a day only when a SERVED value changes: the clock accumulates, score
+     and medal are served from the current snapshot alone (a run off the
+     pages falls back to the row's own values, exactly export()'s rule);
+     every tail batch is a checkpoint (offset, counters, dirty marks), so a
+     kill loses nothing and a season replay drains across cycles;
+  2. rebuild dirty days, newest first, at most 8 per run (every day under
+     --rebuild-all), re-deriving the queue after each so a neighbour
+     re-dirtied by a collapse is rebuilt in the same run: today's build()
      pipeline on one day's frame (dedup keep=last, overlay, keystone clock,
      the GLOBAL duplicate-upload collapse through the signature table --
      a loser in a neighbour day dirties that day --, hero resolution with
@@ -89,6 +95,7 @@ from hero_from_abilities import HeroResolver                     # noqa: E402
 DAY_MS = 86_400_000
 WEEK_MS = 604_800_000
 MAX_DAYS_PER_RUN = int(os.environ.get("PARTS_MAX_DAYS", "8"))
+TAIL_BATCH = int(os.environ.get("PARTS_TAIL_BATCH", "100000"))   # journal records held at once (§6.2-1)
 FREEZE_QUIET_H = 72
 FREEZE_AGE_D = 7
 PENDING_DAYS = 7
@@ -109,13 +116,19 @@ DAILY_SLOT_H = 20                 # a run this long after the last daily slot is
 DEFAULT_ESLOTS = [0, 4, 6, 7, 8, 10, 11, 14, 15, 16]
 ROLE_RANK = {"Tank": 0, "Healer": 1, "DPS": 2}
 JOURNAL_SHA_SPAN = 65536
-TAIL_BATCH = 100_000              # journal records held at once while tailing (§6.2-1)
 # §3.1 cube gap for the tests / an operator: "*" withholds every cube, else a
 # comma list of absolute weeks whose cube is not emitted (the days stay listed)
 WITHHOLD_CUBES = os.environ.get("PARTS_WITHHOLD_CUBES", "")
 # test hook for test_build_step_exit: sleep this long between days, so a
 # stalled builder can be driven against the Build step's deadline
 TEST_STALL_S = float(os.environ.get("PARTS_TEST_STALL_S", "0") or 0)
+# test hook for the step-1 crash cases: "<journal>:<where>:<n>" kills the
+# process (os._exit 137) inside the n-th batch of that journal's tail --
+# where = "pending" (the batch's records are appended to the day pending
+# files and the run table, the checkpoint NOT yet written) or "batch" (right
+# after the batch's checkpoint). The resumed run must reproduce the clean
+# replay byte for byte (§6.3).
+TEST_CRASH_AT = os.environ.get("PARTS_TEST_CRASH_AT", "")
 CELL_DIMS = tuple(sc.CELL_DIMS)
 RL_DIMS = tuple(sc.RL_DIMS)
 RG_DIMS = tuple(sc.RG_DIMS)
@@ -231,6 +244,27 @@ def ustr(v) -> str:
     return "" if v is None else str(v)
 
 
+def dedupe_records(recs: list) -> list:
+    """Drop exact duplicates -- the whole record INCLUDING its arrival
+    number (_gseq / _aseq, re-assigned identically from the checkpointed
+    counter), only the parking stamp excepted -- keeping the first: a batch
+    re-appended after a kill between the pending append and its checkpoint,
+    or a pending file that survived a kill between the cache save and its
+    unlink, must leave every cache as one clean pass would (§6.3). Records
+    that merely share their content are NOT collapsed: the legacy readers'
+    last-wins rules and the arrival-order tie-breaks see every one."""
+    seen: set = set()
+    out = []
+    for r in recs:
+        key = json.dumps({k: v for k, v in r.items() if k != "_parked"},
+                         sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
 # ------------------------------------------------------------------ paths
 class Paths:
     def __init__(self, data_root: pathlib.Path, site_dir: pathlib.Path, slug: str):
@@ -337,6 +371,12 @@ class Season:
     def week_of_ms(self, started_ms: np.ndarray, reg_names) -> np.ndarray:
         anchors = np.array([self.anchor(r) for r in reg_names], dtype=np.int64)
         return (np.asarray(started_ms, dtype=np.int64) - anchors) // WEEK_MS
+
+    def cur_week(self, reg_name: str, now_ms: int) -> int:
+        """W(now, reg) (§3.1): the week every row at or after the current
+        reset instant belongs to -- computeResetBuckets gives bucket 0 to a
+        row started after `now` too, so W(row) is clamped to this."""
+        return int((now_ms - self.anchor(reg_name)) // WEEK_MS)
 
 
 # ------------------------------------------------------------------ state
@@ -522,27 +562,40 @@ class RunDB:
         c.execute("CREATE TABLE IF NOT EXISTS overlay(code TEXT, fid INTEGER, score REAL, medal TEXT, "
                   "kms INTEGER, first_seen INTEGER, PRIMARY KEY(code, fid))")
         c.execute("CREATE INDEX IF NOT EXISTS losers_day ON losers(day)")
+        # the row's own score/medal per run (what legacy serves when the run
+        # is not on the current pages) and the overlay's presence flag
+        self._add_column("runs", "rscore", "REAL")
+        self._add_column("runs", "rmedal", "TEXT")
+        self._add_column("overlay", "present", "INTEGER NOT NULL DEFAULT 1")
+
+    def _add_column(self, table: str, col: str, decl: str) -> None:
+        have = {r[1] for r in self.con.execute(f"PRAGMA table_info({table})")}
+        if col not in have:
+            self.con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
     def route(self, code: str, fid: int) -> int | None:
         r = self.con.execute("SELECT day FROM runs WHERE code=? AND fid=?", (code, fid)).fetchone()
         return None if r is None else int(r[0])
 
-    def add_run(self, code: str, fid: int, day: int, seq: int) -> None:
-        self.con.execute("INSERT OR IGNORE INTO runs(code, fid, day, first_seen) VALUES(?,?,?,?)",
-                         (code, fid, day, seq))
-
     def add_runs(self, rows: list) -> None:
-        self.con.executemany("INSERT OR IGNORE INTO runs(code, fid, day, first_seen) VALUES(?,?,?,?)", rows)
+        """rows = (code, fid, day, seq, row_score, row_medal): the routing is
+        first-seen (a run's day never moves); the row's own score/medal
+        follow the newest players record (legacy's keep="last")."""
+        self.con.executemany("INSERT OR IGNORE INTO runs(code, fid, day, first_seen) VALUES(?,?,?,?)",
+                             [r[:4] for r in rows])
+        self.con.executemany("UPDATE runs SET rscore=?, rmedal=? WHERE code=? AND fid=?",
+                             [(r[4], r[5], r[0], r[1]) for r in rows])
 
     def overlay_for(self, keys: list) -> dict:
+        """(code, fid) -> (score, medal, kms, present)."""
         out = {}
         for i in range(0, len(keys), 400):
             chunk = keys[i:i + 400]
             q = " OR ".join("(code=? AND fid=?)" for _ in chunk)
             params = [x for k in chunk for x in k]
-            for code, fid, score, medal, kms in self.con.execute(
-                    f"SELECT code, fid, score, medal, kms FROM overlay WHERE {q}", params):
-                out[(code, int(fid))] = (score, medal, kms)
+            for code, fid, score, medal, kms, present in self.con.execute(
+                    f"SELECT code, fid, score, medal, kms, present FROM overlay WHERE {q}", params):
+                out[(code, int(fid))] = (score, medal, kms, bool(present))
         return out
 
     def losers_for_day(self, day: int) -> set:
@@ -559,14 +612,22 @@ class RunDB:
         self.con.execute("INSERT OR REPLACE INTO losers(code, fid, day, wcode, wfid) VALUES(?,?,?,?,?)",
                          (code, fid, day, wcode, wfid))
 
-    def snapshot_diff(self, triples: dict, seq: int) -> list:
-        """Upsert the snapshot's (code,fid) -> (score, medal, kms) triples;
-        return [(code, fid, day|None)] whose stored value changed (a None
-        component in the snapshot is no information, never a change)."""
+    def snapshot_diff(self, triples: dict, seq: int) -> tuple[list, dict]:
+        """Upsert the snapshot's (code,fid) -> (score, medal, kms) triples and
+        set the presence flag: score/medal are SERVED only while the run is
+        on the current pages (export() overlays them from the current
+        rankings.jsonl alone and keeps the row's own values otherwise), the
+        clock is kept forever (keystone_times.json accumulates), §6.2-1.
+        Returns ([(code, fid, day|None)] whose served value changed, stats):
+        a stored component changed (a None component in the snapshot is no
+        information, never a change), or the run left / re-entered the pages
+        and its stored score/medal differ from the row's own values -- a run
+        dropping off with an unchanged value dirties nothing."""
         c = self.con
-        c.execute("CREATE TEMP TABLE IF NOT EXISTS snap(code TEXT, fid INTEGER, score REAL, medal TEXT, kms INTEGER)")
+        c.execute("CREATE TEMP TABLE IF NOT EXISTS snap(code TEXT, fid INTEGER, score REAL, medal TEXT, "
+                  "kms INTEGER, PRIMARY KEY(code, fid))")
         c.execute("DELETE FROM snap")
-        c.executemany("INSERT INTO snap VALUES(?,?,?,?,?)",
+        c.executemany("INSERT OR IGNORE INTO snap VALUES(?,?,?,?,?)",
                       [(k[0], k[1], v[0], v[1], v[2]) for k, v in triples.items()])
         changed = c.execute(
             "SELECT s.code, s.fid, s.score, s.medal, s.kms, o.score, o.medal, o.kms, r.day "
@@ -575,17 +636,40 @@ class RunDB:
             "WHERE o.code IS NULL OR (s.score IS NOT NULL AND s.score IS NOT o.score) "
             "OR (s.medal IS NOT NULL AND s.medal IS NOT o.medal) "
             "OR (s.kms IS NOT NULL AND s.kms IS NOT o.kms)").fetchall()
-        out = []
+        left = c.execute(
+            "SELECT o.code, o.fid, o.score, o.medal, r.day, r.rscore, r.rmedal FROM overlay o "
+            "LEFT JOIN snap s ON s.code=o.code AND s.fid=o.fid "
+            "LEFT JOIN runs r ON r.code=o.code AND r.fid=o.fid "
+            "WHERE o.present=1 AND s.code IS NULL").fetchall()
+        back = c.execute(
+            "SELECT o.code, o.fid, o.score, o.medal, r.day, r.rscore, r.rmedal FROM overlay o "
+            "JOIN snap s ON s.code=o.code AND s.fid=o.fid "
+            "LEFT JOIN runs r ON r.code=o.code AND r.fid=o.fid "
+            "WHERE o.present=0").fetchall()
+        out, seen = [], set()
         for code, fid, ns, nm, nk, os_, om, ok, day in changed:
             score = ns if ns is not None else os_
             medal = nm if nm is not None else om
             kms = nk if nk is not None else ok
-            c.execute("INSERT OR REPLACE INTO overlay(code, fid, score, medal, kms, first_seen) "
-                      "VALUES(?,?,?,?,?, COALESCE((SELECT first_seen FROM overlay WHERE code=? AND fid=?), ?))",
+            c.execute("INSERT OR REPLACE INTO overlay(code, fid, score, medal, kms, first_seen, present) "
+                      "VALUES(?,?,?,?,?, COALESCE((SELECT first_seen FROM overlay WHERE code=? AND fid=?), ?), 1)",
                       (code, fid, score, medal, kms, code, fid, seq))
             out.append((code, int(fid), None if day is None else int(day)))
+            seen.add((code, int(fid)))
+        c.execute("UPDATE overlay SET present=0 WHERE present=1 AND NOT EXISTS("
+                  "SELECT 1 FROM snap s WHERE s.code=overlay.code AND s.fid=overlay.fid)")
+        c.execute("UPDATE overlay SET present=1 WHERE present=0 AND EXISTS("
+                  "SELECT 1 FROM snap s WHERE s.code=overlay.code AND s.fid=overlay.fid)")
+        flips = 0
+        for code, fid, osc, om, day, rs, rm in left + back:
+            if (code, int(fid)) in seen:
+                continue
+            if (osc is not None and osc != rs) or (om is not None and om != rm):
+                flips += 1
+                if day is not None:
+                    out.append((code, int(fid), int(day)))
         c.execute("DELETE FROM snap")
-        return out
+        return out, {"changed": len(changed), "left": len(left), "back": len(back), "flips": flips}
 
     def commit(self) -> None:
         self.con.commit()
@@ -755,7 +839,10 @@ class Builder:
         self.deadline = Deadline(deadline)
         self.pins_inject = pins_inject
         self.force_daily = daily
-        self.max_days = max_days
+        # --rebuild-all means every day in ONE run (the dispatch provisions
+        # the 110-minute job and PARTS_DEADLINE_S=5400 for it); the deadline
+        # remains the only bound
+        self.max_days = 10 ** 9 if rebuild_all else max_days
         self.rebuild_all = rebuild_all
         self._print = log_fn
         self.health_lines: list[str] = []
@@ -829,11 +916,12 @@ class Builder:
         cur = self.static_inputs()
         prev = self.st.d.get("static_inputs")
         if not isinstance(prev, dict):
-            prev = {"all": prev}
-        all_days = [int(k) if k != "undated" else -1 for k in self.st.d["days"]]
+            prev = {}
+        all_days = [int(k) for k in self.st.d["days"]]
         if self.rebuild_all or prev.get("pins") != cur["pins"] or prev.get("vocab") != cur["vocab"] \
-                or prev.get("fmt") != cur["fmt"] or ("all" in prev and prev["all"] != cur["all"]):
-            reason = "rebuild_all" if self.rebuild_all else "pins" if prev.get("pins") != cur["pins"] else "vocab"
+                or prev.get("fmt") != cur["fmt"]:
+            reason = ("rebuild_all" if self.rebuild_all else "pins" if prev.get("pins") != cur["pins"]
+                      else "vocab" if prev.get("vocab") != cur["vocab"] else "format")
             for d in all_days:
                 self.st.mark_dirty(d, reason)
         elif prev.get("rules") != cur["rules"]:
@@ -846,6 +934,13 @@ class Builder:
                 if d < 0 or d >= since - 1:
                     self.st.mark_dirty(d, "patch")
         self.st.d["static_inputs"] = cur
+        # a day holding rows started after the reset instant of its build
+        # (W clamped to W(now), §3.1) is re-queued once that reset has passed:
+        # the client now buckets those rows one week later
+        for key, e in self.st.d["days"].items():
+            wc = e.get("w_clamp") or {}
+            if any(self.season.cur_week(rn, self.now_ms) > int(w) for rn, w in wc.items()):
+                self.st.mark_dirty(int(key), "future")
         if self.daily:
             self.st.d["daily"]["last"] = iso(self.now_ms)
         self._stage("pins", t0)
@@ -853,11 +948,7 @@ class Builder:
     def static_inputs(self) -> dict:
         return {"pins": sha256_bytes(self.pins.inputs_material().encode()), "rules": self.rules_sha,
                 "patch": sha256_bytes(self.patch_id.encode()), "vocab": self.season.vocab_sha,
-                "fmt": str(pf.FORMAT_VERSION), "all": self.static_inputs_sha()}
-
-    def static_inputs_sha(self) -> str:
-        return sha256_bytes((self.pins.inputs_material() + "|" + self.rules_sha + "|" + self.patch_id
-                             + "|" + self.season.vocab_sha + "|" + str(pf.FORMAT_VERSION)).encode())
+                "fmt": str(pf.FORMAT_VERSION)}
 
     def patch_first_day(self) -> int:
         """The UTC day of the earliest per-region cutoff of the current
@@ -988,16 +1079,39 @@ class Builder:
             self.st.d["learned_candidates"].pop(name, None)
 
     # ---- step 1: journals ------------------------------------------------
-    def tail(self, name: str, path: pathlib.Path, batch: int = TAIL_BATCH):
-        """Yields BATCHES of records appended since the stored offset (the
-        journal is streamed, never held whole: a from-scratch replay of a
-        season is gigabytes of JSON); a torn last line is not consumed; a
-        rewritten journal (sha mismatch / seeded marker) is replayed from
-        byte 0. The offset and its preceding-64-KiB sha are recorded once
-        the last batch has been yielded."""
+    def checkpoint(self) -> None:
+        """The durable checkpoint, in this order: sqlite (routing, overlay,
+        signatures), then the character registry log, then state.json last
+        (offsets, arrival counters, dirty marks). A kill between any two
+        leaves a state the next run resumes from without loss: the journal
+        offset only moves in state.json, so anything not yet recorded there
+        is re-tailed, and the pending caches dedupe re-appended records
+        (§6.3)."""
+        self.db.commit()
+        self.reg.flush()
+        self.st.d["char_registry_size"] = self.reg.total
+        self.st.save()
+
+    def _test_crash(self, name: str, where: str, n: int) -> None:
+        if TEST_CRASH_AT and TEST_CRASH_AT == f"{name}:{where}:{n}":
+            self._print(f"[parts] TEST CRASH at {TEST_CRASH_AT}")
+            sys.stdout.flush()
+            os._exit(137)
+
+    def tail(self, name: str, path: pathlib.Path, on_batch, batch: int = TAIL_BATCH) -> bool:
+        """Streams the records appended since the stored offset to
+        `on_batch(records)` in batches (the journal is never held whole: a
+        from-scratch replay of a season is gigabytes of JSON). After EVERY
+        batch the consumed offset and the sha256 of the 64 KiB preceding it
+        are recorded and the step-1 checkpoint is written, so a kill at any
+        instant costs at most one batch of work and never a record; between
+        batches the deadline is checked and the tail stops at a batch
+        boundary (the rest waits for the next run; returns False). A torn
+        last line is not consumed; a rewritten journal (sha mismatch /
+        seeded marker) is replayed from byte 0 (idempotent by §6.3)."""
         ent = self.st.d["journals"].setdefault(name, {})
         if not path.exists():
-            return
+            return True
         size = path.stat().st_size
         off = int(ent.get("offset") or 0)
         marker = path.with_name(path.name + ".seeded")
@@ -1022,6 +1136,8 @@ class Builder:
         bad = 0
         consumed = off
         records: list = []
+        nb = 0
+        complete = True
         with open(path, "rb") as fh:
             fh.seek(off)
             for line in fh:
@@ -1035,18 +1151,35 @@ class Builder:
                 except ValueError:
                     bad += 1
                 if len(records) >= batch:
-                    yield records
+                    nb += 1
+                    on_batch(records)
                     records = []
-        if records:
-            yield records
+                    self._test_crash(name, "pending", nb)
+                    self._tail_checkpoint(name, path, consumed, marker_tag)
+                    self._test_crash(name, "batch", nb)
+                    if self.deadline.reached():
+                        complete = False
+                        break
+        if complete:
+            if records:
+                nb += 1
+                on_batch(records)
+                self._test_crash(name, "pending", nb)
+            self._tail_checkpoint(name, path, consumed, marker_tag)
+            self._test_crash(name, "batch", nb)
+        if bad:
+            self.health(f"parts.journal_bad_lines.{name}={bad}")
+        return complete
+
+    def _tail_checkpoint(self, name: str, path: pathlib.Path, consumed: int, marker_tag) -> None:
+        ent = self.st.d["journals"][name]
         with open(path, "rb") as fh:
             fh.seek(max(0, consumed - JOURNAL_SHA_SPAN))
             pre = fh.read(consumed - max(0, consumed - JOURNAL_SHA_SPAN))
         ent["offset"] = consumed
         ent["sha"] = sha256_bytes(pre)
         ent["seeded"] = marker_tag is not None
-        if bad:
-            self.health(f"parts.journal_bad_lines.{name}={bad}")
+        self.checkpoint()
 
     @staticmethod
     def char_key(rec: dict) -> str:
@@ -1066,102 +1199,162 @@ class Builder:
             return -1
         return int((ms - EPOCH_MS_CACHE[0]) // DAY_MS)
 
-    def step1(self) -> None:
-        """§6.2-1, streamed: every batch of the players tail is routed to
-        its UTC day and appended to that day's pending file before the next
-        batch is read, so a season-long replay never holds a journal in
-        memory; gear/abilities route through the run table (the runs this
-        very tail named are known without a lookup) and park otherwise."""
+    def step1(self) -> bool:
+        """§6.2-1, streamed and checkpointed per batch: every batch of the
+        players tail is routed to its UTC day and appended to that day's
+        pending file (the day marked dirty) before the next batch is read,
+        so a season-long replay never holds a journal in memory and a kill
+        loses nothing; gear/abilities route through the run table (the runs
+        this very tail named are known without a lookup) and park otherwise,
+        the parked records persisted per batch too. Returns False when the
+        deadline stopped a tail (the rest of step 1 waits for the next run)."""
         t0 = time.perf_counter()
-        seq = self.st.d["arrival_seq"]
-        touched: set = set()
+        seq = [self.st.d["arrival_seq"]]
         new_runs: dict = {}
-        n_players = 0
-        for batch in self.tail("players", self.P.players):
+        n_players = [0]
+
+        def touch(days: set) -> None:
+            for d in days:
+                self.st.mark_dirty(d, "arrival")
+                self.st.day(d)["last_arrival"] = iso(self.now_ms)
+
+        def on_players(batch: list) -> None:
             by_day: dict[int, list] = collections.defaultdict(list)
             rows = []
             for rec in batch:
-                seq += 1
+                seq[0] += 1
                 day = self.day_of(rec.get("started_at"))
                 code, fid = ustr(rec.get("report_code")), int(rec.get("fight_id") or 0)
                 rec["_cid"] = self.reg.get_or_assign(self.char_key(rec))
-                rec["_seq"] = seq
-                rows.append((code, fid, day, seq))
+                rec["_seq"] = seq[0]
+                sc_ = rec.get("score")
+                rows.append((code, fid, day, seq[0], float(sc_) if sc_ is not None else None,
+                             ustr(rec.get("medal")) or None))
                 new_runs.setdefault((code, fid), day)
                 by_day[day].append(rec)
             self.db.add_runs(rows)
             for d, recs in by_day.items():
                 append_jsonl(self.P.day_dir(d) / "pending_players.jsonl", recs)
-            touched |= set(by_day)
-            n_players += len(batch)
-        # gear / abilities: routed through the run table; unknown runs park
-        route_cache: dict = {}
+            touch(set(by_day))
+            n_players[0] += len(batch)
+            self.st.d["arrival_seq"] = seq[0]
+        complete = self.tail("players", self.P.players, on_players)
+        counts = {"gear": (0, 0), "abilities": (0, 0)}
+        if complete:
+            # gear / abilities: routed through the run table; unknown runs park
+            route_cache: dict = {}
 
-        def route(code, fid):
-            k = (code, fid)
-            d = new_runs.get(k)
-            if d is not None:
-                return d
-            if k not in route_cache:
-                route_cache[k] = self.db.route(code, fid)
-            return route_cache[k]
-        counts = {}
-        gseq = [int(self.st.d.get("gear_seq") or 0)]
-        for name, path, pend_name, day_file in (("gear", self.P.gear, "gear.jsonl", "pending_gear.jsonl"),
-                                                ("abilities", self.P.abil, "abil.jsonl", "pending_abil.jsonl")):
-            parked_prev = read_jsonl(self.P.pending / pend_name)
-            park: list = []
-            n_new = 0
+            def route(code, fid):
+                k = (code, fid)
+                d = new_runs.get(k)
+                if d is not None:
+                    return d
+                if k not in route_cache:
+                    route_cache[k] = self.db.route(code, fid)
+                return route_cache[k]
+            gseq = [int(self.st.d.get("gear_seq") or 0)]
+            aseq = [int(self.st.d.get("abil_seq") or 0)]
+            for name, path, pend_name, day_file in (("gear", self.P.gear, "gear.jsonl", "pending_gear.jsonl"),
+                                                    ("abilities", self.P.abil, "abil.jsonl", "pending_abil.jsonl")):
+                pend_path = self.P.pending / pend_name
+                parked_prev = dedupe_records(read_jsonl(pend_path))
+                park: list = []
+                n_new = [0]
 
-            def consume(recs):
-                by: dict[int, list] = collections.defaultdict(list)
-                for rec in recs:
-                    if name == "gear" and "_gseq" not in rec:
-                        # the gear journal's own arrival order: legacy's trait
-                        # material (the modal selection blob of a build) is
-                        # taken in journal order, so a tie between blob
-                        # variants resolves to the first one ever journaled
-                        gseq[0] += 1
-                        rec["_gseq"] = gseq[0]
-                    d = route(ustr(rec.get("report_code")), int(rec.get("fight_id") or 0))
-                    if d is None:
-                        rec.setdefault("_parked", iso(self.now_ms))
-                        park.append(rec)
-                    else:
-                        rec.pop("_parked", None)
-                        by[d].append(rec)
-                for d, lst in by.items():
-                    append_jsonl(self.P.day_dir(d) / day_file, lst)
-                touched.update(by)
-            consume(parked_prev)
-            for batch in self.tail(name, path):
-                consume(batch)
-                n_new += len(batch)
-            cutoff = self.now_ms - PENDING_DAYS * DAY_MS
-            keep = [r for r in park if sc.parse_iso_ms(r["_parked"]) >= cutoff]
-            p = self.P.pending / pend_name
-            if p.exists():
-                p.unlink()
-            append_jsonl(p, keep)
-            if len(park) - len(keep):
-                self.health(f"parts.pending_expired.{name}={len(park) - len(keep)}")
-            counts[name] = (n_new, len(park))
-        self.st.d["gear_seq"] = gseq[0]
-        for d in touched:
-            self.st.mark_dirty(d, "arrival")
-            self.st.day(d)["last_arrival"] = iso(self.now_ms)
-        self.st.d["arrival_seq"] = seq
-        self.health(f"parts.tail.players={n_players}")
+                def consume(recs, persist_park: bool) -> None:
+                    by: dict[int, list] = collections.defaultdict(list)
+                    newly_parked = []
+                    for rec in recs:
+                        if name == "gear" and "_gseq" not in rec:
+                            # the gear journal's own arrival order: legacy's trait
+                            # material (the modal selection blob of a build) is
+                            # taken in journal order, so a tie between blob
+                            # variants resolves to the first one ever journaled
+                            gseq[0] += 1
+                            rec["_gseq"] = gseq[0]
+                        elif name == "abilities" and "_aseq" not in rec:
+                            aseq[0] += 1
+                            rec["_aseq"] = aseq[0]
+                        d = route(ustr(rec.get("report_code")), int(rec.get("fight_id") or 0))
+                        if d is None:
+                            rec.setdefault("_parked", iso(self.now_ms))
+                            park.append(rec)
+                            newly_parked.append(rec)
+                        else:
+                            rec.pop("_parked", None)
+                            by[d].append(rec)
+                    for d, lst in by.items():
+                        append_jsonl(self.P.day_dir(d) / day_file, lst)
+                    if persist_park and newly_parked:
+                        # a parked record must survive a kill before the
+                        # end-of-tail rewrite of the pending file: appended
+                        # now, deduped when read back
+                        append_jsonl(pend_path, newly_parked)
+                    touch(set(by))
+                    n_new[0] += len(recs)
+                    self.st.d["gear_seq"] = gseq[0]
+                    self.st.d["abil_seq"] = aseq[0]
+                consume(parked_prev, False)
+                n_new[0] = 0
+                complete = self.tail(name, path, lambda recs: consume(recs, True))
+                if not complete:
+                    counts[name] = (n_new[0], len(park))
+                    break
+                cutoff = self.now_ms - PENDING_DAYS * DAY_MS
+                keep = [r for r in park if sc.parse_iso_ms(r["_parked"]) >= cutoff]
+                if pend_path.exists():
+                    pend_path.unlink()
+                append_jsonl(pend_path, keep)
+                if len(park) - len(keep):
+                    self.health(f"parts.pending_expired.{name}={len(park) - len(keep)}")
+                counts[name] = (n_new[0], len(park))
+        self.health(f"parts.tail.players={n_players[0]}")
         self.health(f"parts.tail.gear={counts['gear'][0]}")
         self.health(f"parts.tail.abilities={counts['abilities'][0]}")
         self.health(f"parts.pending.gear={counts['gear'][1]}")
         self.health(f"parts.pending.abilities={counts['abilities'][1]}")
-        self.health(f"parts.chars_new={len(self.reg.new_order)}")
+        self.health(f"parts.chars_new={self.reg.total - int(self.st.d.get('chars_at_start') or 0)}")
         self._stage("tail", t0)
+        if not complete:
+            self.health("parts.deadline_hit=1")
+            self.health("parts.tail_partial=1")
+            self.checkpoint()
+            return False
         t0 = time.perf_counter()
+        self.seed_clocks()
         self.rankings_snapshot()
         self._stage("rankings", t0)
+        return True
+
+    def seed_clocks(self) -> None:
+        """PR-1 transition (§6.2-1): legacy's keystone clock is the union of
+        every snapshot it ever saw, persisted in data/keystone_times.json; a
+        builder starting mid-season (or replaying after a registry loss) has
+        seen none of the earlier snapshots, so that map is seeded ONCE into
+        the overlay table -- clock only, no score/medal, not present on the
+        pages -- for every run the table does not know. From then on the
+        per-run snapshots keep the table as complete as the file."""
+        p = self.P.data / "keystone_times.json"
+        if self.st.d.get("clocks_seeded") or not p.exists():
+            return
+        try:
+            ks = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            self.health("parts.clocks_seeded=unreadable")
+            return
+        rows = []
+        for k, v in ks.items():
+            code, _, fid = str(k).rpartition(":")
+            try:
+                rows.append((code, int(fid), int(round(float(v) * 1000)), self.st.d["arrival_seq"]))
+            except (TypeError, ValueError):
+                continue
+        self.db.con.executemany("INSERT OR IGNORE INTO overlay(code, fid, score, medal, kms, first_seen, present) "
+                                "VALUES(?,?,NULL,NULL,?,?,0)", rows)
         self.db.commit()
+        self.st.d["clocks_seeded"] = sha256_file(p)
+        self.st.save()
+        self.health(f"parts.clocks_seeded={len(rows)}")
 
     def rankings_snapshot(self) -> None:
         p = self.P.rankings
@@ -1182,56 +1375,63 @@ class Builder:
                 if key in triples:
                     continue                  # first ranking entry wins (F:393)
                 triples[key] = (r.get("score"), r.get("medal"), r.get("duration"))
-        changed = self.db.snapshot_diff(triples, self.st.d["arrival_seq"])
+        changed, stats = self.db.snapshot_diff(triples, self.st.d["arrival_seq"])
         dirty_days = set()
         for code, fid, day in changed:
             if day is not None:
                 dirty_days.add(day)
         for d in dirty_days:
             self.st.mark_dirty(d, "overlay")
+        # three phases so a kill between any two loses nothing: the dirty
+        # marks land first (the sha still old: the snapshot is re-diffed next
+        # run, at worst a rebuild too many), then the overlay commits, then
+        # the sha that says the snapshot is consumed
+        self.st.save()
+        self.db.commit()
         self.st.d["rankings"]["snapshot_sha"] = sha
+        self.st.save()
         self.health(f"parts.rankings=parsed:{len(triples)}:changed:{len(changed)}:days:{len(dirty_days)}")
+        self.health(f"parts.rankings_pages=left:{stats['left']}:back:{stats['back']}:served_changed:{stats['flips']}")
 
     # ---- step 2: day rebuild --------------------------------------------
     def dirty_days(self) -> list:
-        """Newest first; a pending neighbour collapse right after today."""
-        days = [int(k) for k, e in self.st.d["days"].items() if e.get("dirty") and k != "undated"]
+        """Newest first (today's day -- any day at or past today -- first,
+        pref #15), then every pending neighbour collapse, then the rest
+        (§6.2-2); the undated day last."""
+        days = [int(k) for k, e in self.st.d["days"].items() if e.get("dirty")]
         days.sort(reverse=True)
-        pend = [d for d in days if "collapse" in self.st.d["days"][str(d)]["reasons"]]
-        if pend and days:
-            first = days[0]
-            rest = [d for d in days if d != first and d not in pend]
-            pend = [d for d in pend if d != first]
-            days = [first] + sorted(pend, reverse=True) + rest
-        return days
+        today = int((self.now_ms - self.season.epoch_ms) // DAY_MS)
+        first = [d for d in days if d >= today]
+        pend = [d for d in days if d < today and "collapse" in self.st.d["days"][str(d)]["reasons"]]
+        rest = [d for d in days if d < today and d not in pend]
+        return first + pend + rest
 
     def step2(self) -> None:
+        """Rebuild dirty days, at most max_days per run, re-deriving the
+        queue after every day: a cross-day collapse found while building a
+        day re-dirties its neighbour, and that neighbour is rebuilt in THIS
+        run even when it was already built earlier in it (a one-shot or
+        replay build meets the winner after the loser's day), as long as the
+        budget allows (§6.2-2). days_left counts everything still dirty."""
         t0 = time.perf_counter()
-        queue = self.dirty_days()
-        self.dirty_found = len(queue)
+        self.dirty_found = len(self.dirty_days())
         done = 0
-        i = 0
-        while i < len(queue) and done < self.max_days:
+        while done < self.max_days:
             if self.deadline.reached():
                 self.health("parts.deadline_hit=1")
                 break
-            d = queue[i]
-            i += 1
+            queue = self.dirty_days()
+            if not queue:
+                break
+            d = queue[0]
             self.build_day(d)
             done += 1
-            self.st.d["char_registry_size"] = self.reg.total
-            self.db.commit()
-            self.reg.flush()
-            self.st.save()                       # the per-day checkpoint (§6.2-2)
+            self.checkpoint()                    # the per-day checkpoint (§6.2-2)
             if TEST_STALL_S:
                 stall_until = time.monotonic() + TEST_STALL_S
                 while time.monotonic() < stall_until and not STOP[0]:
                     time.sleep(0.05)
-            # a collapse may have queued a neighbour: re-derive the queue
-            newq = self.dirty_days()
-            if newq != queue[i:]:
-                queue = queue[:i] + [x for x in newq if x not in queue[:i]]
-        left = [d for d in queue[i:] if self.st.d["days"][str(d)].get("dirty")]
+        left = self.dirty_days()
         self.health(f"parts.dirty_days={self.dirty_found}")
         self.health(f"parts.rebuilt_days={done}")
         self.health(f"parts.rebuilt_order=" + ",".join(str(d) for d in self.rebuilt_days))
@@ -1366,9 +1566,12 @@ class Builder:
                                            df["score_ov"], df["medal_ov"], df["keystone_s"]):
             o = ov.get((c, int(f)))
             if o is not None:
-                osc, omd, okm = o
-                score_ov.append(osc if osc is not None else s0)
-                medal_ov.append(omd if omd is not None else m0)
+                osc, omd, okm, present = o
+                # score/medal only while the run is on the current pages
+                # (export() overlays from the current snapshot alone); the
+                # clock stays (keystone_times.json accumulates), §6.2-1
+                score_ov.append(osc if present and osc is not None else s0)
+                medal_ov.append(omd if present and omd is not None else m0)
                 ks.append(round(okm / 1000, 1) if okm else np.nan)
             else:
                 score_ov.append(sv if not (isinstance(sv, float) and math.isnan(sv)) else s0)
@@ -1441,7 +1644,7 @@ class Builder:
         # build or gear, stats from the last torn-free one, the trait
         # material over all records) and gear_meta_journal() replays them
         recs = gear_cache_to_records(cache) if cache is not None else []
-        return gear_cache_from_records(recs + pend)
+        return gear_cache_from_records(dedupe_records(recs + pend))
 
     def _abil_cache(self, day: int) -> dict:
         dd = self.P.day_dir(day)
@@ -1452,7 +1655,7 @@ class Builder:
         # every record in arrival order (hero resolution takes the last
         # record with a non-empty breakdown, project() the last record)
         recs = abil_records_from_cache(cache) if cache is not None else []
-        return abil_cache_from_records(recs + pend)
+        return abil_cache_from_records(dedupe_records(recs + pend))
 
     def build_day(self, day: int) -> None:
         t0 = time.perf_counter()
@@ -1480,7 +1683,7 @@ class Builder:
             for k in ("f", "rows_sha"):
                 st_day[k] = None
             st_day.update({"n": 0, "runs": 0, "dirty": False, "reasons": [], "specs": {}, "w": {}, "b": 0,
-                           "built_seq": self.st.d["seq"] + 1})
+                           "w_clamp": {}, "hero_recovered": 0, "built_seq": self.st.d["seq"] + 1})
             for name in ("thin.npz", "keys.npz"):
                 p = dd / name
                 if p.exists():
@@ -1495,8 +1698,9 @@ class Builder:
         st_day.update({"n": out["n"], "runs": out["runs"], "rows_sha": out["rows_sha"],
                        "inputs_sha": out["inputs_sha"], "rules_sha": self.rules_sha,
                        "f": out["f"], "b": out["b"], "specs": out["specs"], "w": out["w"],
-                       "weeks": sorted(out["weeks"]), "dirty": False, "reasons": [],
-                       "built_seq": self.st.d["seq"] + 1, "bytes": out["bytes"]})
+                       "w_clamp": out["w_clamp"], "weeks": sorted(out["weeks"]), "dirty": False,
+                       "reasons": [], "built_seq": self.st.d["seq"] + 1, "bytes": out["bytes"],
+                       "hero_recovered": out["hero_recovered"]})
         self.touched_weeks |= old_weeks | set(out["weeks"])
         self.rebuilt_days.append(day)
         self._stage("day_build", t0)
@@ -1509,6 +1713,8 @@ class Builder:
         wf = self.window_from()
         listed = []
         for d in days_with_rows:
+            if d < 0:
+                continue                          # the undated day is appended by the caller
             if d >= wf:
                 listed.append(d)
             else:
@@ -1534,11 +1740,19 @@ class Builder:
             self.rows_cache[day] = c
         return c
 
+    def days_with_rows(self) -> list:
+        """Every dated day (state key >= 0) holding a rows file."""
+        return sorted(int(k) for k, e in self.st.d["days"].items() if int(k) >= 0 and e.get("n") and e.get("f"))
+
+    def undated_listed(self) -> bool:
+        und = self.st.d["days"].get("-1")
+        return bool(und and und.get("f") and und.get("n"))
+
     def step3(self) -> dict:
         t0 = time.perf_counter()
-        days_all = sorted(int(k) for k, e in self.st.d["days"].items()
-                          if k != "undated" and e.get("n") and e.get("f"))
-        listed = self.listed_days(days_all)
+        # the listed set: the dated days of the window / un-cubed weeks plus,
+        # last, the undated day (§2.2: it counts in unfiltered totals)
+        listed = self.listed_days(self.days_with_rows()) + ([-1] if self.undated_listed() else [])
         # a listed day of an older rules generation (it was unlisted while
         # the rule tables changed) is unprojected-pending: queue it (§3.3)
         for d in listed:
@@ -1571,24 +1785,26 @@ class Builder:
     def write_manifest(self, art: dict) -> dict:
         t0 = time.perf_counter()
         S = self.season
-        days_all = sorted(int(k) for k, e in self.st.d["days"].items()
-                          if k != "undated" and e.get("n") and e.get("f"))
         # always the CURRENT listed set: a deadline stop reuses the previous
         # window artifacts (parts.window_stale=1) but publishes every day
         # that completed -- today's file is never held back (§6)
-        listed = self.listed_days(days_all)
+        listed = self.listed_days(self.days_with_rows())
         days_out = []
         for d in listed:
             e = self.st.d["days"][str(d)]
             days_out.append({"d": d, "n": e["n"], "runs": e["runs"], "frozen": bool(e.get("frozen")),
                              "w": e.get("w") or {}, "f": e["f"], "b": e["b"], "rules_sha": e["rules_sha"],
                              "specs": dict(sorted(e["specs"].items(), key=lambda kv: int(kv[0])))})
+        # exactly ONE undated entry, last (§2.2/§2.6): d "undated" in the
+        # manifest, "undated" in the rows and shard headers, so the client's
+        # block guard (partition_client.join_blocks) sees one spelling
         und = self.st.d["days"].get("-1")
-        days_out.append({"d": "undated", "n": und["n"] if und and und.get("f") else 0,
-                         "runs": und["runs"] if und and und.get("f") else 0, "frozen": True,
-                         "f": und["f"] if und else None, "b": und["b"] if und and und.get("f") else 0,
-                         "rules_sha": und["rules_sha"] if und else None,
-                         "specs": dict(und["specs"]) if und and und.get("f") else {}})
+        has_und = self.undated_listed()
+        days_out.append({"d": "undated", "n": und["n"] if has_und else 0,
+                         "runs": und["runs"] if has_und else 0, "frozen": True,
+                         "f": und["f"] if has_und else None, "b": und["b"] if has_und else 0,
+                         "rules_sha": und["rules_sha"] if has_und else None,
+                         "specs": dict(und["specs"]) if has_und else {}})
         weeks_out = []
         for w in sorted(int(k) for k in self.st.d["weeks"]):
             we = self.st.d["weeks"][str(w)]
@@ -1711,7 +1927,10 @@ class Builder:
         for p in out.rglob("*"):
             if p.is_file():
                 want[p.relative_to(out).as_posix()] = p
-        for rel, src in want.items():
+        # every content-hashed file first, manifest.json last: a kill inside
+        # this copy never leaves a manifest naming files the mirror lacks
+        for rel in sorted(want, key=lambda r: (r == "manifest.json", r)):
+            src = want[rel]
             tgt = dst / rel
             if tgt.exists() and tgt.stat().st_size == src.stat().st_size and rel != "manifest.json":
                 continue
@@ -1757,11 +1976,10 @@ class Builder:
         self.P.state_dir.mkdir(parents=True, exist_ok=True)
         man = None
         try:
+            self.st.d["chars_at_start"] = self.reg.total
             self.prepare_pins()
             self.step1()
-            self.reg.flush()
-            self.st.d["char_registry_size"] = self.reg.total
-            self.st.save()
+            self.checkpoint()
             self.step2()
             # freeze + cubes run before the window stage so this very
             # manifest lists the days of the weeks whose cube it names, and
@@ -1985,7 +2203,8 @@ def empty_abil_cache() -> dict:
             "cls": np.zeros(0, dtype="<U1"), "sets": np.zeros(0, dtype="<U1"), "total": np.zeros(0, dtype=np.int64),
             "ilvl": np.zeros(0, dtype=np.int64), "aoff": np.zeros(1, dtype=np.int64),
             "anames": np.zeros(0, dtype="<U1"), "aid": np.zeros(0, dtype=np.int64),
-            "atot": np.zeros(0, dtype=np.int64), "auses": np.zeros(0, dtype=np.int64)}
+            "atot": np.zeros(0, dtype=np.int64), "auses": np.zeros(0, dtype=np.int64),
+            "aseq": np.zeros(0, dtype=np.int64)}
 
 
 def abil_cache_from_records(recs: list) -> dict:
@@ -2012,7 +2231,8 @@ def abil_cache_from_records(recs: list) -> dict:
             "ilvl": np.array([int(r.get("ilvl") or 0) for r in recs], dtype=np.int64),
             "aoff": np.array(aoff, dtype=np.int64), "anames": np.array(list(names) or [""]),
             "aid": np.array(aid, dtype=np.int64), "atot": np.array(atot, dtype=np.int64),
-            "auses": np.array(auses, dtype=np.int64)}
+            "auses": np.array(auses, dtype=np.int64),
+            "aseq": np.array([int(r.get("_aseq") or 0) for r in recs], dtype=np.int64)}
 
 
 def abil_records_from_cache(c: dict) -> list:
@@ -2020,11 +2240,14 @@ def abil_records_from_cache(c: dict) -> list:
     names = c["anames"]
     for i in range(len(c["code"])):
         a, b = int(c["aoff"][i]), int(c["aoff"][i + 1])
-        out.append({"report_code": str(c["code"][i]), "fight_id": int(c["fid"][i]), "name": str(c["name"][i]),
-                    "class": str(c["cls"][i]), "total": int(c["total"][i]), "ilvl": int(c["ilvl"][i]),
-                    "sets": json.loads(str(c["sets"][i])),
-                    "abilities": [{"name": str(names[c["aid"][j]]), "total": int(c["atot"][j]),
-                                   "uses": int(c["auses"][j])} for j in range(a, b)]})
+        rec = {"report_code": str(c["code"][i]), "fight_id": int(c["fid"][i]), "name": str(c["name"][i]),
+               "class": str(c["cls"][i]), "total": int(c["total"][i]), "ilvl": int(c["ilvl"][i]),
+               "sets": json.loads(str(c["sets"][i])),
+               "abilities": [{"name": str(names[c["aid"][j]]), "total": int(c["atot"][j]),
+                              "uses": int(c["auses"][j])} for j in range(a, b)]}
+        if "aseq" in c and int(c["aseq"][i]):
+            rec["_aseq"] = int(c["aseq"][i])
+        out.append(rec)
     return out
 
 
@@ -2100,6 +2323,7 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
     # hero resolution with the pinned markers (B:142-178)
     hero_tab = B.pins.learned_table("hero_markers")
     heroes = df["hero_talent"].tolist()
+    hero_recovered = 0                    # legacy HERO_FILLED (B:217): rows whose hero came from abilities
     if hero_tab and "Unknown" in set(heroes) and len(abil["code"]):
         hr = HeroResolver(markers={sp: dict(m) for sp, m in hero_tab.get("markers", {}).items()},
                           sole=dict(hero_tab.get("sole") or {}))
@@ -2117,6 +2341,7 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
             got, _ = hr.classify(f"{sp} {cl}", ab_by.get((c, int(f), ch)))
             if got:
                 heroes[i] = got
+                hero_recovered += 1
         df["hero_talent"] = heroes
     started = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"), unit="ms", errors="coerce")
     dcol = ((started - S.epoch_ts).dt.days).fillna(-1).astype(int)
@@ -2341,7 +2566,17 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
                  emb_of, slots)
     # ---- thin.npz (the cube partial, §3.2) and keys.npz
     reg_names = df["region"].tolist()
-    W = np.where(st_ms >= 0, S.week_of_ms(np.where(st_ms >= 0, st_ms, 0), reg_names), -10 ** 6)
+    W_true = np.where(st_ms >= 0, S.week_of_ms(np.where(st_ms >= 0, st_ms, 0), reg_names), -10 ** 6)
+    # §3.1 identity with computeResetBuckets: a row at or after the current
+    # reset instant is bucket 0, however far ahead its uploader's clock ran,
+    # so W(row) is clamped to W(now, reg); the day remembers the clamp
+    # (w_clamp) and is re-queued once that reset has passed (prepare_pins)
+    cur_w_code = {int(c_): S.cur_week(S.vocab["regions"][int(c_)], B.now_ms) for c_ in np.unique(reg)}
+    cur_w = np.array([cur_w_code[int(c_)] for c_ in reg], dtype=np.int64)
+    W = np.where(W_true > -10 ** 6, np.minimum(W_true, cur_w), W_true)
+    w_clamp = {}
+    for c_ in np.unique(reg[W_true > cur_w]):
+        w_clamp[S.vocab["regions"][int(c_)]] = cur_w_code[int(c_)]
     tb = np.where(tier < 0, -1, np.where(tier < 2, 0, np.where(tier < 4, 1, 2)))
     comp_sig = []
     roster_n = np.zeros(n_runs, dtype=np.int64)
@@ -2383,7 +2618,7 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
             we["days"].sort()
     return {"n": len(df), "runs": n_runs, "rows_sha": rows_sha, "inputs_sha": inputs_sha, "f": rows_rel,
             "b": len(w.gz), "specs": specs_out, "w": {k: list(v) for k, v in sorted(wmap.items())},
-            "weeks": sorted(weeks), "bytes": byts}
+            "w_clamp": w_clamp, "weeks": sorted(weeks), "bytes": byts, "hero_recovered": hero_recovered}
 
 
 # ================================================= per-day window partials
@@ -2891,6 +3126,10 @@ def window_stage(B: Builder, listed: list, rio_sha: str) -> dict:
             art["projection"] = {
                 "label": pt.PROJECTION_LABEL, "url": getattr(pt, "PROJECTION_URL", None),
                 "date": pt.PROJECTION_DATE, "parses": covered, "unprojectable": int((tm == 0).sum()),
+                # legacy counts the recovered heroes of its whole frame (the
+                # season's CSV): every day with rows, cubed or listed
+                "hero_recovered": int(sum(int(e.get("hero_recovered") or 0) for e in B.st.d["days"].values()
+                                          if e.get("n") and e.get("f"))),
                 "specs": sorted(pt.RULES),
                 "exact": sorted(s for s, r in pt.RULES.items()
                                 if not r.get("set_bonus") and not r.get("share_scale") and not r.get("caveats")),

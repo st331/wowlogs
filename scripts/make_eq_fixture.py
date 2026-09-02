@@ -25,7 +25,15 @@ tests/test_builds_sidecar.py uses), and every edge case §9 lists:
     registered LAST (its run is the final record of the final players chunk);
   * a fourth, cube-served week (bucket 3 = absolute week 33) so mixed periods
     exist, and a fifth week older than the window (bucket 4 = week 32) whose
-    cube is deliberately withheld -- the cube gap, row-served.
+    cube is deliberately withheld -- the cube gap, row-served;
+  * a REVERSE-order midnight pair (the winner, smaller code, in the OLDER day
+    240, its copy in day 241 arriving in chunk 3): a one-shot or replay build
+    sees day 241 first and must re-queue it after day 240 finds the winner;
+  * an undated run (started_at missing on every row; day -1, rows/undated);
+  * a future-dated run past the NEXT US reset (an uploader clock six days
+    ahead): bucket 0 for computeResetBuckets, W clamped to W(now) (§3.1);
+  * a run revised in snapshot 6 (none -> gold, score +25) that drops off the
+    pages in snapshots 7 and 8, so legacy serves the row's own values again.
 
 Journals arrive in EIGHT chunks (§9.1 test_incremental_idempotent), rankings
 as a FULL snapshot per chunk:
@@ -51,9 +59,11 @@ Written under --out:
   chunks/NN/abilities.jsonl    append part of the abilities journal
   chunks/NN/rankings.jsonl     the FULL rankings snapshot after chunk NN
   chunks/NN/now.txt            the frozen clock (WOWLOGS_NOW) for that run
-  legacy/mythic_runs.csv.gz    what fetch_data.export() produces from all
-                               chunks (dedup keep=last, keystone overlay,
-                               signature collapse, score/medal overlay)
+  legacy/mythic_runs.csv.gz    what the REAL fetch_data.export() produces
+                               from the concatenated journals with the last
+                               snapshot as rankings.jsonl and a
+                               keystone_times.json accumulated over every
+                               snapshot -- exactly the production sequence
   legacy/keystone_times.json   the accumulated keystone-clock map
   legacy/rio_scores.csv.gz     Raider.IO scores (60% of characters rated)
   tuning_patches.json          the one patch with the mid-week cutoff
@@ -72,6 +82,7 @@ import gzip
 import hashlib
 import json
 import pathlib
+import shutil
 import sys
 
 import numpy as np
@@ -502,23 +513,45 @@ def build_fixture(out: pathlib.Path, runs_per_day: int = 300, seed: int = 1,
     twin_start = day_ms(238) + DAY_MS - 20_000
     twin = f.run(238, reg="US", start_ms=twin_start, clocked=True, code="Zdup" + "9" * 12)
     runs.append(twin); chunk_of[twin["code"]] = 1
-    chars = [(row["character"], row["server"], row["region"]) for row in twin["rows"]]
-    seed_state = rng.bit_generator.state
-    copy = f.run(239, reg="US", start_ms=twin_start + 40_000, clocked=True, code="Adup" + "0" * 12,
-                 roster=twin["roster"], forced_chars=chars)
-    rng.bit_generator.state = seed_state
-    # force the copy to agree with the twin on everything the signature reads
-    copy["dun"], copy["key"], copy["kdur_s"] = twin["dun"], twin["key"], twin["kdur_s"]
-    copy["enc"], copy["medal"], copy["score"] = twin["enc"], twin["medal"], twin["score"]
-    copy["ranking"]["duration"] = twin["ranking"]["duration"]
-    copy["ranking"]["bracketData"] = twin["key"]
-    copy["ranking"]["medal"], copy["ranking"]["score"] = twin["medal"], twin["score"]
-    for row in copy["rows"]:
-        row["dungeon"], row["key_level"] = twin["dun"], twin["key"]
-        row["medal"], row["score"] = twin["medal"], twin["score"]
+    copy = _dup_of(f, twin, 239, twin_start + 40_000, "Adup" + "0" * 12)
     runs.append(copy); chunk_of[copy["code"]] = 3
     notes["dup_pair"] = {"twin": [twin["code"], twin["fid"], 238], "copy": [copy["code"], copy["fid"], 239],
                          "survivor": copy["code"]}
+    # the REVERSE-order midnight pair: the winner Arevmid (smaller code) at
+    # 23:59:50 of day 240 in chunk 1, its copy Zrevmid at 00:00:30 of day 241
+    # in chunk 3. Incrementally the copy loses on arrival; a one-shot or
+    # replay build (newest first) builds day 241 BEFORE day 240 finds the
+    # winner and must re-queue day 241 in the same run (§6.2-2).
+    rev_start = day_ms(240) + DAY_MS - 10_000
+    rwin = f.run(240, reg="US", start_ms=rev_start, clocked=True, code="Arevmid" + "0" * 9)
+    runs.append(rwin); chunk_of[rwin["code"]] = 1
+    rcopy = _dup_of(f, rwin, 241, rev_start + 40_000, "Zrevmid" + "9" * 9)
+    runs.append(rcopy); chunk_of[rcopy["code"]] = 3
+    notes["dup_pair_rev"] = {"winner": [rwin["code"], rwin["fid"], 240], "copy": [rcopy["code"], rcopy["fid"], 241],
+                             "survivor": rwin["code"]}
+    # an undated run: started_at missing on every row (day -1, rows/undated, §2.2)
+    und = f.run(252, reg="EU", start_ms=day_ms(252) + 50_000_000, clocked=True)
+    for row in und["rows"]:
+        row["started_at"] = None
+    runs.append(und); chunk_of[und["code"]] = 2
+    notes["undated"] = [und["code"], und["fid"]]
+    # a future-dated run past the NEXT US reset (an uploader clock 6 days
+    # ahead): bucket 0 for computeResetBuckets, so its W is clamped to W(now)
+    # on both sides (§3.1) and the manifest never names a week past now
+    fut_ms = NOW_MS + 6 * DAY_MS
+    fut = f.run(int((fut_ms - EPOCH_MS) // DAY_MS), reg="US", start_ms=fut_ms, clocked=True)
+    runs.append(fut); chunk_of[fut["code"]] = 7
+    notes["future_run"] = [fut["code"], fut["fid"], fut["day"]]
+    # a run whose snapshot-6 revision (none -> gold, score +25) is followed by
+    # the run dropping off the pages in snapshots 7 and 8: export() overlays
+    # score/medal from the CURRENT snapshot only, so legacy serves the row's
+    # own values again (the clock is kept, keystone_times.json accumulates)
+    rev = f.run(246, reg="US", start_ms=day_ms(246) + 20_000_000, clocked=True)
+    rev["medal"] = rev["ranking"]["medal"] = "none"
+    for row in rev["rows"]:
+        row["medal"] = "none"
+    runs.append(rev); chunk_of[rev["code"]] = 2
+    notes["revised_dropped"] = [rev["code"], rev["fid"], 246]
     # a late upload into the frozen day 231 (chunk 3)
     late = f.run(231, reg="EU", start_ms=day_ms(231) + 30_000_000, clocked=True)
     runs.append(late); chunk_of[late["code"]] = 3
@@ -562,7 +595,9 @@ def build_fixture(out: pathlib.Path, runs_per_day: int = 300, seed: int = 1,
     notes["dropped_in_5"] = [[all_codes_by_4[i]["code"], all_codes_by_4[i]["fid"]] for i in sorted(drop)]
     frozen_none = [r for r in all_codes_by_4 if r["day"] <= 243 and r["medal"] == "none"]
     gain = [frozen_none[int(i)] for i in rng.choice(len(frozen_none), size=min(50, len(frozen_none)), replace=False)]
+    gain.append(rev)
     gain_codes = {(r["code"], r["fid"]) for r in gain}
+    rev_key = (rev["code"], rev["fid"])
     notes["medal_gain"] = [[r["code"], r["fid"], r["day"]] for r in gain]
     # -- write chunks -------------------------------------------------------
     chunk_now = {1: day_ms(244) + 12 * 3_600_000, 2: day_ms(254) + 6 * 3_600_000,
@@ -590,8 +625,8 @@ def build_fixture(out: pathlib.Path, runs_per_day: int = 300, seed: int = 1,
         snapshot = known
         if k == 5:
             snapshot = [r for i, r in enumerate(known) if i not in drop]
-        if k == 8:
-            snapshot = known
+        if k >= 7:
+            snapshot = [r for r in known if (r["code"], r["fid"]) != rev_key]
         ranks = []
         for r in snapshot:
             rk = dict(r["ranking"])
@@ -604,16 +639,18 @@ def build_fixture(out: pathlib.Path, runs_per_day: int = 300, seed: int = 1,
         chunk_meta.append({"chunk": k, "now": _iso(chunk_now[k]), "players": len(players),
                            "gear": len(gear), "abilities": len(abil), "runs": len(by_chunk[k]),
                            "rankings_runs": len(snapshot)})
-    # -- the legacy truth: what export() writes from all chunks ----------------
-    csv_rows, ks_map = legacy_export(out / "chunks", gain_codes, runs)
+    # -- the legacy truth: what the REAL export() writes from all chunks --------
     legacy = out / "legacy"
     legacy.mkdir(exist_ok=True)
-    df = pd.DataFrame(csv_rows, columns=CSV_COLUMNS)
-    with gzip.open(legacy / "mythic_runs.csv.gz", "wt", newline="") as fh:
-        df.to_csv(fh, index=False)
+    csv_path, ks_map = legacy_export(out / "chunks", out / "_export")
+    shutil.copyfile(csv_path, legacy / "mythic_runs.csv.gz")
+    shutil.rmtree(out / "_export", ignore_errors=True)
     (legacy / "keystone_times.json").write_text(json.dumps(ks_map, separators=(",", ":")))
+    df = pd.read_csv(legacy / "mythic_runs.csv.gz")
+    csv_rows = df.to_dict("records")
     # Raider.IO scores for 60% of characters
-    chars = sorted({f"{r['character']}@{r['server']}@{r['region']}" for r in csv_rows})
+    chars = sorted({f"{r['character']}@{r['server']}@{r['region']}" for r in csv_rows
+                    if isinstance(r["server"], str)})
     rio_rows = []
     for c in chars:
         h = int(hashlib.md5(c.encode()).hexdigest()[:8], 16)
@@ -693,60 +730,68 @@ def _write_rankings(path, ranks):
                                      "rankings": lst[p:p + 100]}) + "\n")
 
 
-def legacy_export(chunks_dir: pathlib.Path, gain_codes, runs):
-    """fetch_data.export() over the concatenated journals: dedup keep=last
-    on (report, fight, character, server), the keystone-clock map
-    accumulated over every snapshot, the duplicate-upload signature
-    collapse, then the score/medal overlay from the newest snapshot."""
-    rows = []
-    for k in range(1, 9):
-        rows.extend(_read_jsonl(chunks_dir / f"{k:02d}" / "players.jsonl"))
-    last = {}
-    for i, r in enumerate(rows):
-        last[(r["report_code"], r["fight_id"], r["character"], r["server"])] = i
-    keep_idx = sorted(last.values())
-    rows = [rows[i] for i in keep_idx]
-    # the clock map: union over snapshots (a run that dropped off keeps its clock)
+def legacy_export(chunks_dir: pathlib.Path, work: pathlib.Path):
+    """The REAL fetch_data.export() over the concatenated journals, run the
+    way production runs it: players/gear = every chunk appended, rankings =
+    the LAST chunk's full snapshot (the journal is rewritten every run),
+    data/keystone_times.json accumulated over EVERY snapshot (export() merges
+    each run's clocks into it, so a run that dropped off the pages keeps its
+    clock while its score/medal fall back to the row's own values). Returns
+    (csv path, clock map). No replica: what export() does IS the legacy truth."""
+    work = pathlib.Path(work)
+    raw, proc = work / "data" / "raw", work / "data" / "processed"
+    raw.mkdir(parents=True, exist_ok=True)
+    proc.mkdir(parents=True, exist_ok=True)
+    for name, dst in (("players.jsonl", proc / "players.jsonl"), ("gear.jsonl", proc / "gear.jsonl")):
+        with open(dst, "wb") as fh:
+            for k in range(1, 9):
+                fh.write((chunks_dir / f"{k:02d}" / name).read_bytes())
     ks = {}
-    overlay = {}
     for k in range(1, 9):
         for rec in _read_jsonl(chunks_dir / f"{k:02d}" / "rankings.jsonl"):
             for r in rec["rankings"]:
-                code, fid = r["report"]["code"], r["report"]["fightID"]
                 if r.get("duration"):
-                    ks[f"{code}:{fid}"] = round(r["duration"] / 1000, 1)
-                overlay[(code, fid)] = (r.get("score"), r.get("medal"))
-    for r in rows:
-        r["keystone_s"] = ks.get(f"{r['report_code']}:{r['fight_id']}", "")
-    per_run = collections.OrderedDict()
-    for r in rows:
-        per_run.setdefault((r["report_code"], r["fight_id"]), []).append(r)
-    canon = set()
-    best = {}
-    for (code, fid), rs in per_run.items():
-        ksv = rs[0]["keystone_s"]
-        if ksv in ("", None):
-            canon.add((code, fid))
-            continue
-        sig = f"{rs[0]['dungeon']}/{rs[0]['key_level']}/{ksv}/" + "|".join(sorted(str(x["character"]) for x in rs))
-        cand = (-len(rs), code, fid)
-        if sig not in best or cand < best[sig][0]:
-            best[sig] = (cand, (code, fid))
-    canon |= {v[1] for v in best.values()}
-    rows = [r for r in rows if (r["report_code"], r["fight_id"]) in canon]
-    for r in rows:
-        ov = overlay.get((r["report_code"], r["fight_id"]))
-        if ov:
-            if ov[0] is not None:
-                r["score"] = ov[0]
-            if ov[1] is not None:
-                r["medal"] = ov[1]
-    out = []
-    for r in rows:
-        d = {c: r.get(c, "") for c in CSV_COLUMNS}
-        d["set_pieces"] = d["set_id"] = ""
-        out.append(d)
-    return out, ks
+                    ks[f"{r['report']['code']}:{r['report']['fightID']}"] = round(r["duration"] / 1000, 1)
+    (work / "data" / "keystone_times.json").write_text(json.dumps(ks, separators=(",", ":")))
+    shutil.copyfile(chunks_dir / "08" / "rankings.jsonl", raw / "rankings.jsonl")
+    names = ("ROOT", "RAW", "PROCESSED", "RANKINGS_FILE", "PLAYERS_FILE", "CSV_FILE", "GEAR_FILE",
+             "GEAR_CSV", "write_outputs", "export_gear")
+    saved = {k: getattr(fd, k) for k in names}
+    try:
+        fd.ROOT, fd.RAW, fd.PROCESSED = work, raw, proc
+        fd.RANKINGS_FILE, fd.PLAYERS_FILE = raw / "rankings.jsonl", proc / "players.jsonl"
+        fd.CSV_FILE = work / "data" / "mythic_runs.csv.gz"
+        fd.GEAR_FILE, fd.GEAR_CSV = proc / "gear.jsonl", work / "data" / "gear.jsonl.gz"
+        fd.write_outputs = lambda **kv: None
+        fd.export_gear = lambda: None
+        fd.export()
+    finally:
+        for k, v in saved.items():
+            setattr(fd, k, v)
+    ks = json.loads((work / "data" / "keystone_times.json").read_text())
+    return work / "data" / "mythic_runs.csv.gz", ks
+
+
+def _dup_of(f: "Factory", twin: dict, day: int, start_ms: int, code: str) -> dict:
+    """A duplicate upload of `twin` under another report code: same roster
+    (same characters), same dungeon / key / clock / medal / score, so the
+    export's signature collapse sees one run. The RNG state is restored so
+    the plant does not perturb the rest of the fixture."""
+    rng = f.rng
+    chars = [(row["character"], row["server"], row["region"]) for row in twin["rows"]]
+    seed_state = rng.bit_generator.state
+    copy = f.run(day, reg=twin["reg"], start_ms=start_ms, clocked=True, code=code,
+                 roster=twin["roster"], forced_chars=chars)
+    rng.bit_generator.state = seed_state
+    copy["dun"], copy["key"], copy["kdur_s"] = twin["dun"], twin["key"], twin["kdur_s"]
+    copy["enc"], copy["medal"], copy["score"] = twin["enc"], twin["medal"], twin["score"]
+    copy["ranking"]["duration"] = twin["ranking"]["duration"]
+    copy["ranking"]["bracketData"] = twin["key"]
+    copy["ranking"]["medal"], copy["ranking"]["score"] = twin["medal"], twin["score"]
+    for row in copy["rows"]:
+        row["dungeon"], row["key_level"] = twin["dun"], twin["key"]
+        row["medal"], row["score"] = twin["medal"], twin["score"]
+    return copy
 
 
 def legacy_payload(df: pd.DataFrame, pins: dict, hr: HeroResolver, abil_all: list,

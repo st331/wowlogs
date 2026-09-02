@@ -18,6 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 import partition_client as pc                                    # noqa: E402
+import partition_format as pf                                    # noqa: E402
 import parts_util as pu                                          # noqa: E402
 from fixture_util import fixture                                 # noqa: E402
 
@@ -32,7 +33,8 @@ def parts_keys(root: pathlib.Path, loaded: pc.Loaded) -> dict:
     out = {}
     days_dir = root / "data" / "processed" / "parts" / loaded.manifest["slug"] / "days"
     for e in loaded.days:
-        with np.load(days_dir / f"d{e['d']}" / "keys.npz", allow_pickle=False) as z:
+        dkey = -1 if e["d"] == "undated" else e["d"]          # the undated day's state key is -1
+        with np.load(days_dir / f"d{dkey}" / "keys.npz", allow_pickle=False) as z:
             code, fid, ch, sv = z["code"], z["fid"], z["character"], z["server"]
         assert len(code) == e["n"]
         base = loaded.row_base[e["d"]]
@@ -127,7 +129,15 @@ def test_day_file_contracts():
         for k in ("r_dun", "r_key", "r_reg", "r_timed", "r_post", "r_hr", "r_dur", "r_kdur"):
             assert len(c[k]) == e["runs"], k
     assert man["days"][-1]["d"] == "undated"
+    assert sum(1 for e in man["days"] if e["d"] == "undated") == 1
     assert [e["d"] for e in man["days"][:-1]] == sorted(e["d"] for e in man["days"][:-1])
+    # the undated run of the fixture is served once, from rows/undated.<h>.bin,
+    # and its shard blocks carry the same spelling as the manifest entry (§2.2)
+    und = man["days"][-1]
+    assert und["f"] and und["f"].startswith("rows/undated.") and und["n"] == 5, und
+    for rel in und["specs"].values():
+        assert pf.read(loaded.slug_dir / rel, expect_kind="shard").header["day"] == "undated", rel
+    assert int((loaded.R["day"] == -1).sum()) == und["n"]
     assert man["char_max"] >= int(loaded.R["char"].max()) + 1
     print("day file contracts ok")
 

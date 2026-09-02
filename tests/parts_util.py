@@ -70,11 +70,15 @@ def common_root(dst_root: pathlib.Path) -> None:
     shutil.copyfile(ROOT / "data" / "hero_talent_map.json", d / "hero_talent_map.json")
 
 
-def legacy_root(rebuild: bool = False) -> pathlib.Path:
+def legacy_root(rebuild: bool = False, rules: dict | None = None) -> pathlib.Path:
+    """The legacy build over the fixture's CSV (the REAL export()'s output,
+    make_eq_fixture.legacy_export); `rules` builds it under WOWLOGS_RULES
+    (legacy_rules_root), so tmul / projection are comparable with the cubed
+    partition run of the same rule."""
     fx = fixture()
-    root = FIXTURE_DIR / "legacy_build"
+    root = FIXTURE_DIR / ("legacy_build" if rules is None else "legacy_build_rules")
     stamp = _stamp(FIXTURE_DIR / "fixture.json", ROOT / "scripts" / "build_site_data.py",
-                   ROOT / "scripts" / "project_tuning.py")
+                   ROOT / "scripts" / "project_tuning.py") + ("" if rules is None else "-" + json.dumps(rules, sort_keys=True))
     sf = root / "stamp.txt"
     if not rebuild and sf.exists() and sf.read_text().strip() == stamp and ((root / "site" / "data.json.gz").exists() or (root / "site" / "data.json").exists()):
         return root
@@ -87,6 +91,10 @@ def legacy_root(rebuild: bool = False) -> pathlib.Path:
     (root / "docs").mkdir(exist_ok=True)
     env = dict(os.environ, WOWLOGS_PINS=str(FIXTURE_DIR / "pins.json"), WOWLOGS_NOW=fx["now"],
                BUILD_LLMS="0")
+    if rules is not None:
+        env["WOWLOGS_RULES"] = str(rules_file(root, rules))
+    else:
+        env.pop("WOWLOGS_RULES", None)
     code = f"""
 import sys, pathlib
 sys.path.insert(0, {str(ROOT / 'scripts')!r})
@@ -109,6 +117,13 @@ bsd.build('season', bsd.SEASON)
     subprocess.run([sys.executable, "-c", code], check=True, env=env, timeout=1800)
     sf.write_text(stamp)
     return root
+
+
+def legacy_rules_root(rebuild: bool = False) -> pathlib.Path:
+    """The legacy build under RULE_BEFORE -- the rule parts_cubes_root runs
+    under -- so the tmul column and the projection meta are compared against
+    legacy bit for bit (with production's empty RULES neither side has one)."""
+    return legacy_root(rebuild, rules=RULE_BEFORE)
 
 
 def _parts_stamp() -> str:

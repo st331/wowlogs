@@ -55,10 +55,19 @@ def test_refchars_manifest_equals_scan():
     assert man["window"]["keys"] == sorted(int(k) for k in np.unique(loaded.R["key"]))
     assert man["window"]["rows"] == len(loaded.R["dps"])
     assert man["window"]["runs"] == int(loaded.R["run"].max()) + 1
-    # weeks[].reg counts equal a row scan under the §3.1 week rule
+    # weeks[].reg counts equal a row scan under the §3.1 week rule, W clamped
+    # to W(now, reg) exactly as computeResetBuckets buckets a row started
+    # after the current reset instant into bucket 0 (the fixture's future-
+    # dated run): site.W is that identity, and the manifest never names a
+    # week past now
     regions = loaded.D["regions"]
-    W = np.array([sc.week_of(int(ms), regions[int(r)], man["epoch"]) if ms >= 0 else -10 ** 6
-                  for ms, r in zip(_started_ms(loaded), loaded.R["reg"])], dtype=np.int64)
+    W_raw = np.array([sc.week_of(int(ms), regions[int(r)], man["epoch"]) if ms >= 0 else -10 ** 6
+                      for ms, r in zip(_started_ms(loaded), loaded.R["reg"])], dtype=np.int64)
+    cur = np.array([site.curW[int(r)] for r in loaded.R["reg"]], dtype=np.int64)
+    W = np.where(W_raw > -10 ** 6, np.minimum(W_raw, cur), W_raw)
+    assert np.array_equal(W, np.where(site.rbucket < 999, site.W, -10 ** 6))
+    assert int((W_raw > cur).sum()) == 5, "the future-dated run should be clamped"
+    assert max(int(w["w"]) for w in man["weeks"]) <= max(site.curW.values())
     by = {}
     for w in man["weeks"]:
         by[w["w"]] = w["reg"]

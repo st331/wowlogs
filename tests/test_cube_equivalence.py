@@ -503,6 +503,39 @@ def test_generation_guard_and_gap_week():
 
 
 # ------------------------------------------------------- mixed-period line
+def test_tmul_bitexact_vs_legacy_under_the_rule():
+    """§2.2/§5: under the Arcane Mage rule the day files carry tmul; joined on
+    (report_code, fight_id, character, server) it equals legacy's tmul column
+    built under the same WOWLOGS_RULES, and manifest.projection equals
+    legacy's projection meta plus rules_sha."""
+    E = Env.get()
+    lroot = pu.legacy_rules_root()
+    L = pu.legacy_payload(lroot)
+    LR = L["rows"]
+    assert "tmul" in LR and "tmul" in E.rows.R, ("tmul absent", "tmul" in LR, "tmul" in E.rows.R)
+    from test_rows_bitexact_vs_legacy import parts_keys
+    pk = parts_keys(E.root, E.rows)
+    lk = pu.legacy_keys(lroot)
+    N = len(LR["dps"])
+    assert len(E.rows.R["dps"]) == N
+    order = np.empty(N, dtype=np.int64)
+    for i, (c, f, ch, sv) in enumerate(zip(lk["report_code"], lk["fight_id"], lk["character"], lk["server"])):
+        sv = "" if isinstance(sv, float) else str(sv)
+        ch = "" if isinstance(ch, float) else str(ch)
+        order[i] = pk[(str(c), int(f), ch, sv)]
+    lt = np.asarray(LR["tmul"], dtype=np.int64)
+    pt_ = E.rows.R["tmul"][order]
+    bad = np.nonzero(lt != pt_)[0]
+    assert not len(bad), (len(bad), lt[bad[:5]], pt_[bad[:5]])
+    assert int((lt != 10000).sum()) > 0, "the rule projected nothing"
+    lp = dict(L["projection"])
+    mp = dict(E.man["projection"])
+    assert mp.pop("rules_sha")
+    for k in set(lp) | set(mp):
+        assert lp.get(k) == mp.get(k), (k, lp.get(k), mp.get(k))
+    print(f"tmul bit-exact vs legacy under the rule: {N} rows, {int((lt != 10000).sum())} projected")
+
+
 def test_mixed_period_scope_line():
     E = Env.get()
     scl = E.site_cli

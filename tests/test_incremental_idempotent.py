@@ -32,7 +32,17 @@ chunks, rankings as a full snapshot per chunk, under the Arcane Mage rule
            seed_from_csv() rewrite of players.jsonl is detected by the
            offset sha and replayed without duplicate rows; a run stopped by
            the deadline between days leaves a checkpoint the next run
-           continues from without rebuilding the completed days.
+           continues from without rebuilding the completed days; a run
+           KILLED inside step 1 (after a batch's pending append and before
+           its checkpoint, right after a checkpoint, in the players, gear
+           and abilities tails) resumes to the byte-identical result of an
+           uninterrupted run with no duplicated cache record.
+
+Also asserted along the way (the verifier's blockers): the run revised in
+snapshot 6 and dropped from the pages in 7 serves the row's own medal
+again after chunk 7 (export() semantics, §6.2-1); the chunk-7 rules edit
+touches EXACTLY the listed days (no cubed, unlisted day is rebuilt); the
+reverse-order midnight pair is collapsed inside the one-shot replay.
 """
 import collections
 import json
@@ -133,12 +143,32 @@ def drain(root, now, rules, extra=(), env_extra=None) -> list:
     return orders, mans
 
 
-def assert_newest_first(orders: list, today: int | None = None):
+def assert_newest_first(orders: list, today: int | None = None, root=None):
+    """Newest first over the drain (today's / any later day first, the
+    undated day last), every run but the last at the cap. A day may appear
+    a SECOND time only when a cross-day collapse re-queued it (§6.2-2) --
+    then state.invalidations records the collapse."""
     flat = [d for o in orders for d in o]
-    body = flat[1:] if today is not None and flat and flat[0] == today else flat
+    seen, firsts, repeats = set(), [], []
+    for d in flat:
+        (repeats if d in seen else firsts).append(d)
+        seen.add(d)
+    body = [d for d in firsts if d != -1]
     assert body == sorted(body, reverse=True), flat
+    if -1 in firsts:
+        assert firsts[-1] == -1 or firsts.index(-1) == len([d for d in firsts if d >= 0]), flat
+    if repeats:
+        assert root is not None, repeats
+        inv = {x.get("day") for x in state(root)["invalidations"] if x.get("reason") == "collapse"}
+        assert set(repeats) <= inv, (repeats, inv)
     for o in orders[:-1]:
         assert len(o) == CAP, (len(o), o)
+
+
+def served_medal(root, day, code) -> set:
+    """The medal the day's canonical rows carry for a run (raw.npz medal_ov)."""
+    with np.load(state_dir(root) / "days" / f"d{day}" / "raw.npz", allow_pickle=False) as z:
+        return set(str(m) for m in z["medal_ov"][z["report_code"] == code])
 
 
 def run_days(root, keys) -> dict:
@@ -176,7 +206,7 @@ def test_incremental_idempotent():
     assert m1["seq"] == 1
     pu.concat_journals(INC, upto=2)
     orders, _ = drain(INC, now[2], pu.RULE_BEFORE)
-    assert_newest_first(orders, today=254)
+    assert_newest_first(orders, root=INC, today=254)
     m2 = manifest(INC)
     assert set(week_shas(m2)), "no cube published after chunk 2"
     # post-tuning rows exist from the Sep 9 cutoff (chunk 2): the projection is live from here
@@ -185,16 +215,22 @@ def test_incremental_idempotent():
     # ---- chunk 3: late upload, duplicate copy, resend ----------------------
     pu.concat_journals(INC, upto=3)
     orders, _ = drain(INC, now[3], pu.RULE_BEFORE)
-    assert_newest_first(orders, today=254)
+    assert_newest_first(orders, root=INC, today=254)
     h = pu.parts_health(INC)
     m3 = manifest(INC)
     late = fx["notes"]["late_upload"]
     twin, copy = fx["notes"]["dup_pair"]["twin"], fx["notes"]["dup_pair"]["copy"]
+    rev_pair = fx["notes"]["dup_pair_rev"]
     resent = [tuple(k) for k in fx["notes"]["resent"]]
     resent_days = set(run_days(INC, resent).values())
     touched = set(d for o in orders for d in o)
-    expected = resent_days | {late[2], twin[2], copy[2]}
+    # the reverse pair's copy arrives into day 241 and loses on arrival (its
+    # winner's signature is already in the table): its day is touched by the
+    # arrival, the winner's day is not
+    expected = resent_days | {late[2], twin[2], copy[2], rev_pair["copy"][2]}
     assert touched == expected, (touched ^ expected)
+    assert (rev_pair["copy"][0], rev_pair["copy"][1]) not in keys_of_day(INC, rev_pair["copy"][2])
+    assert (rev_pair["winner"][0], rev_pair["winner"][1]) in keys_of_day(INC, rev_pair["winner"][2])
     # every touched day's rows file is renamed (inputs_sha sits in its
     # header, §2.2: the resent gear changed the blocks and the digest), but
     # the row DATA changed exactly where rows changed: the late day and
@@ -246,7 +282,7 @@ def test_incremental_idempotent():
     # ---- chunk 4: the material arrives; the daily slot after it upgrades --
     pu.concat_journals(INC, upto=4)
     orders, _ = drain(INC, now[4], pu.RULE_BEFORE)
-    assert_newest_first(orders, today=258)
+    assert_newest_first(orders, root=INC, today=258)
     p4 = pins(INC)
     before_up = len(p4["upgrades"])
     m4a = manifest(INC)
@@ -268,10 +304,11 @@ def test_incremental_idempotent():
     lu = fx["notes"]["learned_upgrade"]
     assert lu["ability"] in (hm["markers"].get(lu["spec"]) or {}), hm["markers"].get(lu["spec"])
     # every day rebuilt newest-first within the cap, every cube re-emitted
-    assert_newest_first(orders, today=258)
-    all_days = sorted(int(k) for k in state(INC)["days"] if k not in ("undated", "-1")
-                      and state(INC)["days"][k].get("n"))
-    assert sorted(d for o in orders for d in o) == all_days, (len(orders), all_days)
+    assert_newest_first(orders, root=INC, today=258)
+    all_days = sorted(int(k) for k in state(INC)["days"] if int(k) >= 0 and state(INC)["days"][k].get("n"))
+    flat4 = [d for o in orders for d in o]
+    assert sorted(set(flat4) - {-1}) == all_days and len(flat4) == len(set(flat4)), (len(orders), flat4, all_days)
+    assert -1 in flat4, "the undated day is rebuilt by a pin upgrade too"
     m4 = manifest(INC)
     d4, w4 = day_rows_sha(m4), week_shas(m4)
     for W in w4a:
@@ -299,7 +336,9 @@ def test_incremental_idempotent():
     orders, _ = drain(INC, now[6], pu.RULE_BEFORE)
     gain_days = {r[2] for r in fx["notes"]["medal_gain"]}
     assert set(d for o in orders for d in o) == gain_days, (set(d for o in orders for d in o) ^ gain_days)
-    assert_newest_first(orders)
+    assert_newest_first(orders, root=INC)
+    rev = fx["notes"]["revised_dropped"]
+    assert served_medal(INC, rev[2], rev[0]) == {"gold"}, "snapshot 6 revised the run to gold"
     m6 = manifest(INC)
     d6, w6 = day_rows_sha(m6), week_shas(m6)
     for d in gain_days:
@@ -314,12 +353,22 @@ def test_incremental_idempotent():
     pu.concat_journals(INC, upto=7)
     late_char_day = fx["notes"]["late_character"]["run"][2]
     orders, mans = drain(INC, now[7], pu.RULE_AFTER)
-    assert_newest_first(orders, today=259)
+    assert_newest_first(orders, root=INC, today=259)
     m7 = manifest(INC)
     d7, w7 = day_rows_sha(m7), week_shas(m7)
     listed7 = [e["d"] for e in m7["days"] if e.get("f") and e["d"] != "undated"]
     touched7 = set(d for o in orders for d in o)
-    assert set(listed7) <= touched7, set(listed7) - touched7
+    # §6.4: the rule edit dirties EXACTLY the listed days (plus the undated
+    # day, which carries tmul too): the arrival days and the run that fell
+    # off the pages are listed anyway, and no cubed, unlisted day is rebuilt
+    assert touched7 == set(listed7) | {-1}, (touched7 ^ (set(listed7) | {-1}))
+    st7 = state(INC)
+    unlisted = {int(k) for k, e in st7["days"].items() if e.get("n") and int(k) >= 0} - set(listed7)
+    assert unlisted and not (unlisted & touched7), (unlisted & touched7)
+    # the run revised in snapshot 6 dropped off the pages in 7: legacy's
+    # export() overlays score/medal from the current snapshot only, so the
+    # row's own medal is served again (the clock is kept)
+    assert served_medal(INC, rev[2], rev[0]) == {"none"}, served_medal(INC, rev[2], rev[0])
     new_sha = m7["projection"]["rules_sha"]
     assert new_sha != m6["projection"]["rules_sha"]
     assert all(e["rules_sha"] == new_sha for e in m7["days"] if e.get("f"))
@@ -328,8 +377,8 @@ def test_incremental_idempotent():
         if mi["projection"] and len(shas) > 1:
             # derivable: the manifest carries the new generation and a day lags it
             assert mi["projection"]["rules_sha"] == new_sha and any(s != new_sha for s in shas)
-    # today first, then newest first
-    assert orders[0][0] == 259
+    # today first (the future-dated run's day counts as today: it is bucket 0), then newest first
+    assert orders[0][:2] == [fx["notes"]["future_run"][2], 259], orders[0]
     # no cube changed by the rule edit: only the weeks holding an arrival day
     import sitecalc as sc
     epoch_ms = sc.parse_iso_ms(fx["epoch"] + "T00:00:00Z")
@@ -338,10 +387,12 @@ def test_incremental_idempotent():
         for line in fh:
             r = json.loads(line)
             arrival_days.add(int((int(r["started_at"]) - epoch_ms) // 86_400_000))
+    # ... and the week of the run that fell off the pages (its served medal
+    # changed, so its day's rows and its week's cube legitimately change)
     st7 = state(INC)
     weeks_arrival = set()
     for wk, we in st7["weeks"].items():
-        if any(int(d) in arrival_days or int(d) == late_char_day for d in we.get("days", [])):
+        if any(int(d) in arrival_days or int(d) in (late_char_day, rev[2]) for d in we.get("days", [])):
             weeks_arrival.add(int(wk))
     for W in w6:
         if W in w7 and W not in weeks_arrival:
@@ -421,7 +472,7 @@ def test_incremental_idempotent():
     hd = pu.parts_health(DL)
     assert hd.get("parts.deadline_hit") == ["1"], hd
     first = rebuilt(DL)
-    assert first and first[0] == 259 and int(hd["parts.days_left"][0]) > 0
+    assert first and first[0] == max(first) and 259 in first and int(hd["parts.days_left"][0]) > 0
     md = manifest(DL)
     assert md["seq"] > m6["seq"] and {e["d"] for e in md["days"] if e.get("f")} >= set(first)
     run(DL, now[7], pu.RULE_AFTER, max_days=400)
@@ -429,6 +480,48 @@ def test_incremental_idempotent():
     assert not (set(first) & set(second)), set(first) & set(second)
     assert set(first) | set(second) == touched7, (set(first) | set(second)) ^ touched7
     print(f"deadline: {len(first)} days, then {len(second)}, none twice")
+    # ---- a kill inside step 1 ------------------------------------------------
+    CL = FIXTURE_DIR / "parts_crash_clean"
+    if CL.exists():
+        shutil.rmtree(CL)
+    shutil.copytree(after6, CL)
+    pu.concat_journals(CL, upto=7)
+    run(CL, now[7], pu.RULE_AFTER, max_days=400, env_extra={"PARTS_TAIL_BATCH": "500"})
+    mcl = manifest(CL)
+    for where in ("players:pending:2", "players:batch:3", "gear:pending:2", "abilities:batch:1"):
+        CR = FIXTURE_DIR / "parts_crash"
+        if CR.exists():
+            shutil.rmtree(CR)
+        shutil.copytree(after6, CR)
+        pu.concat_journals(CR, upto=7)
+        try:
+            run(CR, now[7], pu.RULE_AFTER, max_days=400,
+                env_extra={"PARTS_TAIL_BATCH": "500", "PARTS_TEST_CRASH_AT": where})
+            raise AssertionError(f"{where}: the crash hook did not fire")
+        except RuntimeError:
+            pass
+        assert not (state_dir(CR) / "health.txt").exists() or "parts.status=ok" not in \
+            (state_dir(CR) / "health.txt").read_text()
+        run(CR, now[7], pu.RULE_AFTER, max_days=400, env_extra={"PARTS_TAIL_BATCH": "500"})
+        mcr = manifest(CR)
+        assert strip(mcr) == strip(mcl), (where, [k for k in strip(mcr) if strip(mcr)[k] != strip(mcl)[k]])
+        assert [sd(e) for e in mcr["days"]] == [sd(e) for e in mcl["days"]], where
+        for rel in named_files(mcl):
+            assert (state_dir(CR) / "out" / rel).read_bytes() == (state_dir(CL) / "out" / rel).read_bytes(), (where, rel)
+        assert (state_dir(CR) / "ids" / "chars.bin").read_bytes() == (state_dir(CL) / "ids" / "chars.bin").read_bytes()
+        stc, stl = state(CR), state(CL)
+        assert stc["journals"] == stl["journals"] and stc["arrival_seq"] == stl["arrival_seq"], where
+        assert (stc["gear_seq"], stc.get("abil_seq")) == (stl["gear_seq"], stl.get("abil_seq")), where
+        for dd in (state_dir(CL) / "days").iterdir():
+            for cache in ("gear.npz", "abil.npz", "raw.npz"):
+                a, b = state_dir(CL) / "days" / dd.name / cache, state_dir(CR) / "days" / dd.name / cache
+                if not a.exists():
+                    continue
+                with np.load(a, allow_pickle=False) as za, np.load(b, allow_pickle=False) as zb:
+                    assert len(za["code"] if "code" in za else za["report_code"]) == \
+                        len(zb["code"] if "code" in zb else zb["report_code"]), (where, dd.name, cache)
+            assert not list((state_dir(CR) / "days" / dd.name).glob("pending_*.jsonl")), (where, dd.name)
+        print(f"crash at {where}: resumed run == clean run")
 
 
 if __name__ == "__main__":
