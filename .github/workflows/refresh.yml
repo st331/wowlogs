@@ -304,36 +304,23 @@ jobs:
           true
 
       # /llms.txt and /llms/ come from the daily llms.yml Release asset, not
-      # from this build. Download it with a HARD 30 s cap into the cached
-      # data/processed (so a fresh runner still holds the previous tarball),
-      # then unpack into site/ and docs/ before the Pages artifact is built.
-      # Best-effort at every step, by design: a slow or missing asset keeps
-      # the cached tarball (llms.unpack=stale); no tarball at all ships this
-      # deploy without llms/ (llms.unpack=none). Never a delay, never red.
+      # from this build (scripts/llms_asset.sh, the one place the mechanism
+      # lives). It downloads the asset with a HARD 30 s cap into the cached
+      # data/processed (a fresh runner still holds the previous tarball) and
+      # unpacks it into site/ and docs/ before the Pages artifact is built.
+      # Best-effort at every step -- never a delay a human notices, never red
+      # -- and SELF-HEALING: with no Release asset AND no cached tarball (the
+      # first run after this landed; a cache-evicted runner during a Release
+      # outage) it builds the export inline once (~1-3 min) and caches the
+      # result, so no deploy can drop a tree the previous deploy carried. A
+      # `fresh` drain run never downloads when the cache has a tarball.
+      # Health: llms.unpack=fresh|cached|stale|built|none, llms.built=<stamp>,
+      # llms.age_h=, llms.files=; a build older than 36 h is a ::warning::.
       - name: Unpack the LLM export
         continue-on-error: true
-        run: |
-          TAR=data/processed/llms.tar.gz
-          URL="https://github.com/${{ github.repository }}/releases/download/llms/llms.tar.gz"
-          STATE=stale
-          if curl -sfL -m 30 -o "$TAR.tmp" "$URL" && tar -tzf "$TAR.tmp" >/dev/null 2>&1; then
-            mv -f "$TAR.tmp" "$TAR"; STATE=fresh
-          else
-            rm -f "$TAR.tmp"
-            echo "llms asset not fetched within 30 s; using the cached tarball if there is one"
-          fi
-          if [ -f "$TAR" ]; then
-            for d in site docs; do
-              rm -rf "$d/llms" "$d/llms.txt"
-              tar -xzf "$TAR" -C "$d" || STATE=none
-            done
-            echo "llms: $STATE -- $(ls site/llms 2>/dev/null | wc -l) files, tarball dated $(date -u -r "$TAR" +%Y-%m-%dT%H:%MZ)"
-          else
-            STATE=none
-            echo "::warning::no LLM export available (no Release asset, no cached tarball); llms/ is not in this deploy"
-          fi
-          for d in site docs; do echo "llms.unpack=$STATE" >> "$d/build_health.txt"; done
-
+        env:
+          LLMS_MODE: ${{ inputs.mode }}
+        run: bash scripts/llms_asset.sh unpack
 
       # This workflow publishes ITS OWN checkout's site/, so a run that started
       # before a UI push republishes the OLD interface and silently reverts it --

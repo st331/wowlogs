@@ -39,6 +39,29 @@ crux of any future attempt.
        build flat at ~7 min instead of growing to the timeout by week 8), streaming
        export() with RSS/wall tripwires, llms off the refresh path into its own daily
        workflow. No new artifacts.
+       LANDING NOTES for stage A (read before pushing it):
+       - /llms/ + /llms.txt now come from the `llms` Release asset, unpacked by
+         scripts/llms_asset.sh. The repo has NO Release yet, so the first refresh
+         that checks out the new refresh.yml finds no asset and no cached tarball:
+         it BUILDS the export inline once (~1-3 min, `llms.unpack=built`), caches
+         the tarball, and every later refresh unpacks that (`stale`, <1 s) until
+         llms.yml publishes. The tree never leaves the site; the cost is one slow
+         Unpack step per runner cache. Still: DISPATCH llms.yml BY HAND right after
+         the push (Actions -> "LLM export (daily)" -> Run workflow) -- a freshly
+         added schedule can take hours to fire, and until an asset exists a
+         cache-evicted runner pays the inline build again.
+       - The first llms.yml run does `gh release create llms`, which writes a git
+         TAG `llms` at the branch head. A new ref, nothing triggers on it, never a
+         branch push. Later runs only replace the asset (`--clobber`).
+       - Health lines on build_health.txt: `llms.unpack=fresh|cached|stale|built|
+         none`, `llms.built=<UTC>`, `llms.age_h=`, `llms.files=`. `fresh` = the
+         download worked, NOT that the data is new: read `llms.built`. Past 36 h
+         the refresh prints a ::warning:: -- that is llms.yml having failed for a
+         day (its job timeout is 120 min; it owns the O(season) tier pass alone).
+       - `/llms.built` is served as a one-line file next to /llms.txt (the stamp
+         travels in the tarball). site/robots.txt and site/sitemap.xml stay tracked
+         but are overwritten by the tarball on every run; the daily commit stages
+         an explicit list, so it can never sweep them in.
     B. partition emission behind the legacy payload: format, builder steps 1-4, manifest,
        sitecalc oracle, fixture, the equivalence + incremental + perf tests, Build step
        running both builders under a deadline.

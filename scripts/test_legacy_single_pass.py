@@ -371,4 +371,32 @@ with tempfile.TemporaryDirectory() as tmp:
     assert E.sets == bsd.sets_from_gear_journal() == {} and E.lines == 0
 print("absence : missing / empty journal -> empty dicts, zero counters, as before")
 
+# --- a line torn INSIDE a multibyte character -------------------------------
+# A kill -9 mid-write can cut the trailing line between the two bytes of a
+# UTF-8 character (a server or character name). The binary walk feeds the
+# bytes to json.loads, which raises UnicodeDecodeError -- a ValueError
+# subclass, caught with the ordinary torn-line case -- so the record is
+# skipped and the build goes on. The text-mode originals decode the line
+# first and raise out of the build (checked 2026-09-02); this pins the
+# single pass's tolerance as deliberate, not accidental.
+with tempfile.TemporaryDirectory() as tmp:
+    tp = pathlib.Path(tmp)
+    whole = next(json.loads(ln) for ln in lines
+                 if ln and isinstance(json.loads(ln).get("gear"), list))
+    first = json.dumps(whole).encode("utf-8")
+    torn_rec = dict(whole, server="Ragnarös", fight_id=whole["fight_id"] + 1)
+    cut = json.dumps(torn_rec, ensure_ascii=False).encode("utf-8")
+    cut = cut[:cut.index("ö".encode("utf-8")) + 1]         # ends on 0xC3
+    assert cut.endswith(b"\xc3")
+    (tp / "gear.jsonl").write_bytes(first + b"\n" + cut)
+    bsd.GEAR_JOURNAL = tp / "gear.jsonl"
+    bsd.GEAR_EXPORT = tp / "none.jsonl.gz"
+    key = bsd._gear_key(whole["report_code"], whole["fight_id"],
+                        whole["character"], whole.get("server"))
+    for codes in (None, {whole["report_code"]}):
+        T = bsd.gear_journal_pass(codes)
+        assert T.lines == 2 and T.parsed == 1, (codes, T.lines, T.parsed)
+        assert list(T.sets) == [key], (list(T.sets), key)
+print("torn    : trailing line cut inside a 2-byte UTF-8 char -> skipped, 1 of 2 parsed, no raise")
+
 print("PASS")

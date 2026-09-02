@@ -7,9 +7,18 @@ name: LLM export (daily)
 # once a day, on its own runner, and publishes the tree as ONE Release asset
 # (tag `llms`, file `llms.tar.gz`). The refresh downloads that asset
 # best-effort with a 30 s cap and unpacks it into site/ before the Pages
-# artifact is built, so https://st331.github.io/wowlogs/llms/ keeps serving;
-# a missing or slow asset leaves the previous unpack in place and never
-# delays or fails a refresh.
+# artifact is built (scripts/llms_asset.sh), so
+# https://st331.github.io/wowlogs/llms/ keeps serving; a missing or slow
+# asset leaves the cached tarball in place, and a refresh with NO tarball at
+# all builds the export inline once, so this job failing never takes the
+# tree off the site -- it only ages it. The refresh warns past 36 h, so a
+# red run here shows up as `llms.age_h` on build_health.txt within a day.
+#
+# The first run ever creates the Release, which writes a git TAG `llms` at
+# the branch head (a new ref; nothing triggers on tags). Every later run only
+# replaces the asset. After merging, DISPATCH THIS WORKFLOW BY HAND once: a
+# freshly added schedule can take hours to fire, and until an asset exists
+# each refresh pays the inline build on a cache-evicted runner.
 #
 # READ-ONLY on everything shared with the refresh, deliberately:
 #   * the Actions cache is RESTORED (actions/cache/restore) and never saved,
@@ -36,7 +45,10 @@ permissions:
 jobs:
   llms:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # This job alone owns the O(season) work now: a whole-journal tier pass
+    # (~60 s today, +~50 s/day) plus the export rewrite. 30 would have gone
+    # red around season week 3-4; the runner is uncontended, so be generous.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
@@ -76,13 +88,14 @@ jobs:
       - name: Build the LLM export
         run: python -u scripts/build_site_data.py --llms-only
 
+      # The file list and the `llms.built` stamp (what the refresh reports as
+      # llms.built / llms.age_h) live in the script, next to the unpack.
       - name: Pack
         run: |
           set -e
-          test -f site/llms.txt && test -d site/llms
-          tar -C site -czf llms.tar.gz llms.txt llms robots.txt sitemap.xml
+          bash scripts/llms_asset.sh pack llms.tar.gz
           ls -la llms.tar.gz
-          echo "llms_files=$(ls site/llms | wc -l)" >> "$GITHUB_STEP_SUMMARY"
+          echo "llms_files=$(ls site/llms | wc -l) built=$(cat site/llms.built)" >> "$GITHUB_STEP_SUMMARY"
 
       # A rolling prerelease: one tag, one asset, overwritten daily. It is
       # never "latest", so the repo's release page does not present a
