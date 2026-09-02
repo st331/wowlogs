@@ -2221,10 +2221,20 @@ def build(name: str, cfg: dict) -> None:
     # advancing is a collection outage with green runs -- the failure that
     # went five days unnoticed. Anything a human or a script needs to judge
     # "is the data moving" belongs here, not in a log tail.
-    newest = started.max()
-    health(f"built={pd.Timestamp.now('UTC').strftime('%Y-%m-%dT%H:%M:%SZ')}")
+    # WCL fight times come from the uploader's combat log, i.e. their PC
+    # clock: the first live build reported newest_row three hours in the
+    # FUTURE. A max() over those would let one wrong clock make the data look
+    # fresh forever, which is precisely the outage the watchdog exists to
+    # catch. Rows dated after the build instant are ignored for this signal.
+    now_utc = pd.Timestamp.now("UTC")
+    plausible = started[started <= now_utc.tz_localize(None)]
+    newest = plausible.max() if len(plausible) else pd.NaT
+    future_n = int((started > now_utc.tz_localize(None)).sum())
+    health(f"built={now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     health(f"rows={len(df)}")
     health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")
+    if future_n:
+        health(f"future_dated_rows={future_n}")
     fh_path = ROOT / "data" / "processed" / "fetch_health.txt"
     if fh_path.exists():
         for line in fh_path.read_text().splitlines():

@@ -407,3 +407,19 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/refresh.yml/dispatches" \
             -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"prev_reset_at\":\"${RESET_AT:-}\"}}" \
             && echo "chained the next run" || echo "chain dispatch failed; the cron dead-man will revive the cadence"
+
+      # A failed run does not chain (a deterministic fault would loop), but it
+      # must not go quiet either: it wakes the watchdog directly, which
+      # evaluates the outcome, revives the cadence if nothing else is running
+      # and opens the alert on a streak. This path does not depend on either
+      # cron firing, which is the point -- GitHub delays scheduled workflows
+      # under load and a freshly added schedule can take hours to start.
+      - name: Wake the watchdog on failure
+        if: failure()
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/watchdog.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.ref_name }}\"}" \
+            && echo "watchdog dispatched" || echo "::warning::could not dispatch the watchdog"
