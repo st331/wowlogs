@@ -8,7 +8,7 @@ and visualizes Mythic+ performance for **Midnight Season 2**, built on the
 scripts/wcl_client.py        quota-aware WCL GraphQL client
 scripts/build_hero_map.py    trait-node → hero-talent mapping from SimC data
 scripts/fetch_data.py        checkpointed collection pipeline → data/mythic_runs.csv.gz
-scripts/build_site_data.py   packs the CSV into site/data.json + the /llms export
+scripts/build_site_data.py   packs the CSV into site/data.json (+ sidecars)
 scripts/fetch_abilities.py   per-ability damage breakdown (tuning projection)
 scripts/project_tuning.py    re-scores parses under an announced tuning pass
 scripts/hero_from_abilities.py  recovers hero talents from the abilities cast
@@ -121,7 +121,6 @@ nothing to project.
   weekly-reset and day-granularity pickers, timed-only and compare-periods.
 * A **Top Comps** table ranks 5-player compositions by a key-normalised
   Strength score, sortable on every column.
-* `/llms.txt` and `/llms/*.csv` expose the whole dataset for LLM analysis.
 
 ## Data dictionary (`data/mythic_runs.csv.gz`)
 

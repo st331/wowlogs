@@ -767,6 +767,11 @@ as a separate artifact.
 
 ## 5. The fate of every precomputed block
 
+> **Removed 2026-09-02 (owner): the LLM export.** Every `llms` item in this document
+> (`build_llms`, `llms.yml`, the Release asset, the unpack step, `site/llms/*`, robots/
+> sitemap) is void. Do not implement or preserve any of it in PR-1 stage B/C or later.
+
+
 | block | today | new |
 |---|---|---|
 | `specstats` | whole df, 14-day tail anchored on the newest run, per-character latest (B:583–640) | same code fed from the open + last 14 days' day caches (`raw.npz` + `gear.npz` stats columns, numpy, no JSON); ships as `meta/specstats.<h>.json.gz`, loaded with the first frame open |

@@ -101,8 +101,6 @@ jobs:
           # products stay whatever the artifact carried.
           tar -C site \
               --exclude='./data.json' --exclude='./data.json.gz' \
-              --exclude='./llms' --exclude='./llms.txt' \
-              --exclude='./sitemap.xml' --exclude='./robots.txt' \
               -cf - . | tar -xf - -C /tmp/out
           ls -la /tmp/out/index.html /tmp/out/data.json.gz
 

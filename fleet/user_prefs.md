@@ -154,3 +154,9 @@
     the daily question is whether the meta is moving NOW. Any future
     prioritisation (a regear pass, a backfill) is added BEHIND this rule, never
     in front of it.
+
+16. **No LLM export, no crawler welcome mat — standing (2026-09-02).** "remove the llm
+    export feature." build_llms(), the /llms/ tree, llms.txt, robots.txt/sitemap.xml
+    and the footer links are gone and stay gone. The site publishes the payload and
+    sidecars for its own page and nothing else.
+

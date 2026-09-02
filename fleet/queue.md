@@ -23,6 +23,14 @@ crux of any future attempt.
 
 ## In flight
 
+- **LLM export REMOVED (owner, 2026-09-02 22:41 IST: "remove the llm export feature.")**
+  build_llms(), llms.yml, llms_asset.sh, the refresh unpack step, robots.txt/sitemap.xml
+  (the AI-crawler welcome mat) and the footer links are gone. The `llms` GitHub Release
+  (prerelease + llms.tar.gz) is an orphan the owner can delete from the Releases page.
+  Stage B/C MUST NOT re-add any llms step; the blueprint's llms items are void. The stage B
+  worktree branched before this removal -- expect refresh.yml/build_site_data.py conflicts
+  at merge; resolve by keeping the removal.
+
 - **Cadence 20 min (owner, 2026-09-02: "start with 1 and then do 2").** Chain pacing
   1800 -> 1200 s; the daily-commit window narrowed to 02:00-02:19 to stay once a day.
   Commit step now refuses to stage any file over 95 MB (GitHub rejects 100 MB at push):
