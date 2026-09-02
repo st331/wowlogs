@@ -28,10 +28,25 @@ crux of any future attempt.
   Commit step now refuses to stage any file over 95 MB (GitHub rejects 100 MB at push):
   gear.jsonl.gz is already ~150 MB and had never been committed; the CSV crosses the
   line around end of September. Durable snapshots move to Release assets under (2).
-- **(2) Partitioned payload + incremental build** -- design workflow running; blueprint
-  lands in fleet/blueprints/partitioned_payload.md. Decision taken on the owner's
-  behalf per the earlier recommendation: THREE resets at row level, older weeks as
-  per-reset aggregate cubes, per-spec sidecar shards, typed binary columns.
+- **(2) Partitioned payload + incremental build** -- blueprint LANDED
+  (fleet/blueprints/partitioned_payload.md, 1,709 lines, two adversarial revision rounds,
+  31 recorded changes). Rows partitioned by UTC day; window = last three resets; four cube
+  files per frozen week (exact counts/means/chars/quantile bins); one shard per (spec, day);
+  WLP1 typed container; incremental builder in parallel with the legacy one; Release-asset
+  journal snapshots. PR-1 (pipeline, dual-emit) is run as THREE STAGES, each merged and
+  proven in production before the next starts, nothing touching site/index.html:
+    A. freshness + safety now: single-pass gear journal with sample prefilter (legacy
+       build flat at ~7 min instead of growing to the timeout by week 8), streaming
+       export() with RSS/wall tripwires, llms off the refresh path into its own daily
+       workflow. No new artifacts.
+    B. partition emission behind the legacy payload: format, builder steps 1-4, manifest,
+       sitecalc oracle, fixture, the equivalence + incremental + perf tests, Build step
+       running both builders under a deadline.
+    C. durability: journal_parts to Release assets, reseed, season pins, clobber guard,
+       nightly compare, deploy-site handling of site/d/.
+  PR-2 (client, site/next/index.html) needs the owner's answer to blueprint section 11.5
+  (trust-gate pool and Trends gate/ranking basis: window vs season). PR-3 cutover, PR-4
+  deletion after seven green nightly compares.
 
 ## Landed 2026-08-31
 
