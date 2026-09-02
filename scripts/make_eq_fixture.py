@@ -33,7 +33,12 @@ tests/test_builds_sidecar.py uses), and every edge case §9 lists:
   * a future-dated run past the NEXT US reset (an uploader clock six days
     ahead): bucket 0 for computeResetBuckets, W clamped to W(now) (§3.1);
   * a run revised in snapshot 6 (none -> gold, score +25) that drops off the
-    pages in snapshots 7 and 8, so legacy serves the row's own values again.
+    pages in snapshots 7 and 8, so legacy serves the row's own values again;
+  * a run LISTED on every page from chunk 2 on whose entry carries a revised
+    value (none -> gold, score +25) in snapshots 2-5 and score:null,
+    medal:null in 6-8 while still listed: export() serves the row's own
+    value whenever the CURRENT entry's value is None, so legacy serves none
+    and the row's own score again from snapshot 6 on (null_after_value).
 
 Journals arrive in EIGHT chunks (§9.1 test_incremental_idempotent), rankings
 as a FULL snapshot per chunk:
@@ -552,6 +557,17 @@ def build_fixture(out: pathlib.Path, runs_per_day: int = 300, seed: int = 1,
         row["medal"] = "none"
     runs.append(rev); chunk_of[rev["code"]] = 2
     notes["revised_dropped"] = [rev["code"], rev["fid"], 246]
+    # a run that STAYS listed but whose entry's score/medal turn null after a
+    # revision (gold / +25 in snapshots 2-5, null / null in 6-8): export()
+    # serves `jmap[col] if jmap[col] is not None else row's own`, so legacy
+    # serves the row's own none / score again from snapshot 6 on -- the
+    # builder must not keep serving the stored revision (the clock stays)
+    nav = f.run(249, reg="US", start_ms=day_ms(249) + 40_000_000, clocked=True)
+    nav["medal"] = nav["ranking"]["medal"] = "none"
+    for row in nav["rows"]:
+        row["medal"] = "none"
+    runs.append(nav); chunk_of[nav["code"]] = 2
+    notes["null_after_value"] = [nav["code"], nav["fid"], 249]
     # a late upload into the frozen day 231 (chunk 3)
     late = f.run(231, reg="EU", start_ms=day_ms(231) + 30_000_000, clocked=True)
     runs.append(late); chunk_of[late["code"]] = 3
@@ -591,7 +607,8 @@ def build_fixture(out: pathlib.Path, runs_per_day: int = 300, seed: int = 1,
     # rankings: chunk 5 drops 30% of runs (no triple changes); chunk 6 gives
     # 50 runs in frozen days (<= day 243) a medal
     all_codes_by_4 = [r for k in (1, 2, 3, 4) for r in by_chunk[k]]
-    drop = set(int(i) for i in rng.choice(len(all_codes_by_4), size=int(0.3 * len(all_codes_by_4)), replace=False))
+    drop = set(int(i) for i in rng.choice(len(all_codes_by_4), size=int(0.3 * len(all_codes_by_4)), replace=False)
+               if all_codes_by_4[int(i)] not in (rev, nav))    # the two overlay plants stay listed in 5
     notes["dropped_in_5"] = [[all_codes_by_4[i]["code"], all_codes_by_4[i]["fid"]] for i in sorted(drop)]
     frozen_none = [r for r in all_codes_by_4 if r["day"] <= 243 and r["medal"] == "none"]
     gain = [frozen_none[int(i)] for i in rng.choice(len(frozen_none), size=min(50, len(frozen_none)), replace=False)]
@@ -633,6 +650,13 @@ def build_fixture(out: pathlib.Path, runs_per_day: int = 300, seed: int = 1,
             if k >= 6 and (r["code"], r["fid"]) in gain_codes:
                 rk["medal"] = "gold"
                 rk["score"] = round(r["score"] + 25.0, 5)
+            if r is nav:
+                if k <= 5:
+                    rk["medal"] = "gold"
+                    rk["score"] = round(r["score"] + 25.0, 5)
+                else:
+                    rk["medal"] = None
+                    rk["score"] = None
             ranks.append((r["enc"], r["key"], rk))
         _write_rankings(d / "rankings.jsonl", ranks)
         (d / "now.txt").write_text(_iso(chunk_now[k]) + "\n")
@@ -724,7 +748,7 @@ def _write_rankings(path, ranks):
         pages[(enc, key - 1)].append(rk)
     with path.open("w", encoding="utf-8") as fh:
         for (enc, bracket) in sorted(pages):
-            lst = sorted(pages[(enc, bracket)], key=lambda r: -r["score"])
+            lst = sorted(pages[(enc, bracket)], key=lambda r: -(r["score"] or 0))   # a null score sorts last
             for p in range(0, len(lst), 100):
                 fh.write(json.dumps({"enc": enc, "bracket": bracket, "page": p // 100 + 1,
                                      "rankings": lst[p:p + 100]}) + "\n")

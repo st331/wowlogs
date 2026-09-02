@@ -905,10 +905,16 @@ ordinary run.
    the registry log flushes, and `state.json` records the consumed offset + its preceding
    sha, the arrival counters and the dirty marks — last. A kill at any instant therefore
    re-tails at most one batch, whose records carry the same `_seq`/`_gseq`/`_aseq` stamps
-   (the counters were checkpointed) and are dropped as exact duplicates when the day's caches
-   are read (`dedupe_records`: the whole record including its stamp, so records that merely
-   share content are never collapsed and the legacy readers' last-wins rules see every
-   one). The deadline is checked between batches; a tail stopped at a batch boundary
+   (the counters were checkpointed) and are dropped as duplicates when the day's caches
+   are read (`dedupe_records` keys on the **arrival stamp alone** — unique per journal record
+   by construction and the one projection of a record that survives the cache round trip
+   unchanged (the `gseq`/`aseq` columns); the journal-shaped fields do not (`flask`,
+   `actor_id`, a guid, ints back as floats), so a whole-record key could never recognise a
+   record the cache had already absorbed — the pending file that survives a kill between the
+   three cache saves of a day rebuild and its unlink then doubled the day's gear/abilities
+   caches for good. Records that merely share content carry distinct stamps and are never
+   collapsed, so the legacy readers' last-wins rules see every one; `PARTS_TEST_CRASH_AT=
+   day:after_save:<n>` stands in that window). The deadline is checked between batches; a tail stopped at a batch boundary
    (`parts.tail_partial=1`) resumes next run, so a season-long replay drains across cycles
    instead of being SIGKILLed mid-tail forever.
 
@@ -923,15 +929,19 @@ ordinary run.
    1106–1160): `(code, fid) → (score, medal, rank_duration_ms)` with the same
    last-wins-within-a-page rule; (c) compare each derived triple against the **overlay
    table** in `ids/runs.sqlite`; (d) a day is dirtied **only when a served value actually
-   changes** for a run in it. What legacy serves (F:1106–1160): the **clock** is the union
-   of every snapshot ever seen (`keystone_times.json` accumulates, a run dropping off the
-   pages keeps it), but **score and medal come from the CURRENT snapshot alone**, the row's
-   own value otherwise (`jmap.get(col) if not None else v`). The overlay table mirrors that
-   with a `present` flag: a stored triple changing (a new medal, a first-seen clock, a score
-   revision) dirties the day; a run **leaving or re-entering the pages** flips `present` and
-   dirties the day **only if its stored score/medal differ from the row's own values** (kept
-   per run in the routing table) — the common case, a run dropping off with the value it
-   arrived with, dirties nothing; a run not yet in the routing table parks its triple in the
+   changes** for a run in it. What legacy serves (F:1228–1278): the **clock** is
+   the union of every snapshot ever seen (`keystone_times.json` accumulates, a run dropping off
+   the pages keeps it; a null or zero `duration` keeps the old clock — legacy's `if ms:`), but
+   **score and medal come from the CURRENT snapshot alone**, the row's own value otherwise
+   (`jmap.get(col) if jmap.get(col) is not None else v` — per component, so a listed entry whose
+   score/medal **turned null after a revision serves the row's own value again**, never the
+   stored earlier revision). The overlay table mirrors that with a `present` flag and stores
+   the current entry's score/medal **as-is, null included**; a day is dirtied when the
+   **served** value changes — served = the stored value if present and not null, else the
+   row's own (kept per run in the routing table) — or the clock does: a new medal, a first-seen
+   clock, a score revision, a value turning null, a run **leaving or re-entering the pages**
+   with a stored value that differs from the row's own; the common case, a run dropping off
+   with the value it arrived with, dirties nothing; a run not yet in the routing table parks its triple in the
    overlay table keyed by `(code, fid)` and is applied when its players record arrives (same
    tail or later). The revision-then-drop case is the fixture's `revised_dropped` run. The
    keystone-clock map is persisted the way `data/keystone_times.json` is (the overlay table
@@ -1016,7 +1026,7 @@ Ordinary run: **≈ 30–60 s**, independent of season length; +20–30 s cache 
 
 `inputs_sha(day) = sha256(canonical rows ‖ gear digest ‖ abil digest ‖ FORMAT_VERSION ‖
 tier_sets pin ‖ learned.hero_markers sha ‖ learned.tuning_items sha ‖ **rules_sha**
-(`project_tuning.rules_digest()`, §5) ‖ hero_map_sha ‖ eslots ‖ patch id ‖ vocab sha)` —
+(`project_tuning.rules_digest()`, §5) ‖ hero_map_sha ‖ eslots ‖ patch id **for the days the patch can touch** (day ≥ earliest cutoff − 1, and the undated day — the §6.4 scope; a constant for every earlier day, whose `post`/`tmul` no patch can change, so a patch change leaves those files byte-identical to a from-scratch replay's) ‖ vocab sha)` —
 **`pars` is deliberately absent** (no day file or block reads it). "Canonical rows" are the
 `raw.npz` rows **including the applied keystone clock `keystone_s` and the rankings overlay
 (score, medal)** — so the clock source is inside the digest and a day's tar reproduces the
@@ -1041,7 +1051,7 @@ rule-table edit or a new patch can never widen into the all-days rows — and la
 |---|---|---|
 | late upload / regear refetch / a **changed** rankings overlay value (medal, score, first-seen clock) for a run in a closed day | that day (rows file + its blocks + partial) → its week's four cube files under a **new `cube_sha`** (if frozen) → `parts.d<day>.tar.gz` re-staged | ~10 s; `parts.invalidated_days=` in health. A run merely dropping off the leaderboard pages is **not** a trigger (§6.2-1) |
 | cross-day duplicate-upload collapse (a copy of a run already frozen in day `d` arrives into `d±1`, or a keystone overlay strengthens a signature whose twin is in `d±1`) | the neighbour day too (same path as above), ordered right after today's day | ~10 s per day; one-cycle transient stated in §3.4-6 |
-| new tuning patch | `post`/`tmul` of days ≥ earliest cutoff − 1; straddling week's cube | ≤ 1 min |
+| new tuning patch (`patches[0]` changes) | `post`/`tmul` of days ≥ **min(old, new) earliest cutoff − 1** — `post` is relative to `patches[0]`, so the rows between the previous cutoff and the new one flip too; the previous patch's earliest day is kept as `state.static_inputs.patch_day` (unknown → every day); the undated day; the straddling weeks' cubes re-emit through the changed `thin` partials | ≤ 1 min |
 | **tuning rule-table edit** (`rules_digest()` changes: `RULES`, `B_CENTRAL`, `HOTFIX_BAND`, `B_BAND`, `PROJECTION_DATE/LABEL`, or `RULES_VERSION`) | `tmul` of every **window** day (newest first, ≤ 8 per run); no cube (cubes carry no `tmul`); the projection is withheld until every window day's `rules_sha` matches the manifest's (§3.3) | ≤ 3 cycles; today's file first |
 | automatic pin upgrade (tier set, learned hero markers, learned tuning items — §5) | all days (newest first, ≤ 8 per run) and all cubes; recorded in `pins.upgrades[]` | ≤ 15 min spread over cycles; today's file first |
 | human edit of `season_pins.json` (tier set, par, hero map), detected as git copy ≠ `pins.mirrored_sha` **and** ≠ authoritative copy (§2.5), or `FORMAT_VERSION` bump | all days (newest first, ≤ 8 per run; or `workflow_dispatch rebuild_all=true` with the 110-min timeout does it in one go, ≈ 4 s/day — `--rebuild-all` lifts the per-run cap itself, the deadline stays the only bound) | ≤ 15 min once; the manifest is written after the current day and after every checkpointed day, so fresh rows never wait. A git copy that merely lags the authoritative one (the ordinary chained-run case) triggers nothing |
@@ -1428,8 +1438,9 @@ runs are in the oldest week and who is registered last, a fourth (cube-served) w
 periods exist, **and a fifth week older than the window whose cube is deliberately withheld
 (a cube gap)**, **a reverse-order midnight pair (the winner, smaller code, in the OLDER day;
 its copy arrives in chunk 3)**, **an undated run**, **a future-dated run past the next US
-reset**, and **a run revised in snapshot 6 (none → gold) that drops off the pages in
-snapshots 7 and 8**. The legacy side of every equivalence test is the **real
+reset**, **a run revised in snapshot 6 (none → gold) that drops off the pages in
+snapshots 7 and 8**, and **a run that stays listed while its entry's score/medal turn null
+(gold/+25 in snapshots 2–5, null/null in 6–8: `null_after_value`)**. The legacy side of every equivalence test is the **real
 `fetch_data.export()`** run over the concatenated journals with the last snapshot and a
 `keystone_times.json` accumulated over every snapshot — the production sequence, never a
 replica. Rankings are fed to the incremental test as **full per-chunk snapshots** (the
@@ -1453,7 +1464,7 @@ fallback under the §3.3 rule, `buildRuns` + `renderComps` scoring, and
 | `test_reset_week` | `W()` vs `computeResetBuckets` for every hour of 2026 under all three rules, on both sides of each boundary, and with a client clock up to 6 h behind `manifest.built` (the `now` clamp) |
 | `test_reset_rule_tables_match` | `RESET_RULES`/`RESET_DEFAULT` parsed out of `site/index.html` (and `site/next/index.html` once it exists) equal `season.json.reset_rules` |
 | `test_shard_join` | for every legacy-covered row, the values resolved through block + vocab maps equal the legacy sidecar's `(item id, emb)`, enchant id, build hash and ten stats; `spec_vocab` equals the legacy `specs` object entry-for-entry **on this fixture (season = window; §4.3 states the mid-season difference as a deliberate change)**; a mutated `rows_sha` makes the block guard drop exactly that block; a mid-window invalidation re-derives `map` and the synthesised columns correctly |
-| `test_incremental_idempotent` | journals fed in **eight** arrival chunks, rankings as a full snapshot per chunk (chunk 3 re-sends 1% of chunk 1 with changed gear + one late upload into a frozen day + the second copy of the midnight duplicate pair; chunk 4 a tier-set upgrade and a learned-table upgrade; chunk 5 empty **with a rankings snapshot from which 30% of runs have dropped off the pages and no triple changed**; chunk 6 a rankings snapshot in which 50 runs in frozen days gain a medal; chunk 7 an edit of `RULES['Arcane Mage']` (coefficient 1.10 → 1.06); chunk 8 the git mirror of `season_pins.json` replaced by a copy older than the chunk-4 upgrade): chunk 5 writes nothing, dirties **zero** days and `seq` does not advance; the late upload changed exactly one day and one week's four cube files under a new `cube_sha` identical in all four headers; the duplicate collapse dirtied exactly the neighbour day and the loser's rows are gone from it; chunk 6 dirtied exactly the days holding those 50 runs; chunk 7 rebuilt **every window day newest-first** within the per-run cap, no cube changed, and no manifest generation in between named window days with two different `rules_sha` values while `projection` was non-null without the withheld state being derivable from the manifest; chunk 8 triggered **no** rebuild and the authoritative pin survived; the upgrades produced `pins.upgrades[]` entries and rebuilt every day newest-first within the per-run cap; a from-scratch replay (4 workers) is byte-identical to the incremental result; a `seed_from_csv()` rewrite of `players.jsonl` mid-sequence is detected by the offset sha and replayed without duplicate rows; a run interrupted by SIGTERM between days leaves a consistent checkpoint from which the next run continues without rebuilding the completed days; **a run killed inside step 1 (after a batch's pending append and before its checkpoint, right after a checkpoint; players, gear and abilities tails) resumes to the byte-identical result of an uninterrupted run with no duplicated cache record; the chunk-7 rules edit touches exactly the listed days and no cubed, unlisted day; the `revised_dropped` run serves the row's own medal again after chunk 7; the reverse-order midnight pair collapses inside the one-shot replay** |
+| `test_incremental_idempotent` | journals fed in **eight** arrival chunks, rankings as a full snapshot per chunk (chunk 3 re-sends 1% of chunk 1 with changed gear + one late upload into a frozen day + the second copy of the midnight duplicate pair; chunk 4 a tier-set upgrade and a learned-table upgrade; chunk 5 empty **with a rankings snapshot from which 30% of runs have dropped off the pages and no triple changed**; chunk 6 a rankings snapshot in which 50 runs in frozen days gain a medal; chunk 7 an edit of `RULES['Arcane Mage']` (coefficient 1.10 → 1.06); chunk 8 the git mirror of `season_pins.json` replaced by a copy older than the chunk-4 upgrade): chunk 5 writes nothing, dirties **zero** days and `seq` does not advance; the late upload changed exactly one day and one week's four cube files under a new `cube_sha` identical in all four headers; the duplicate collapse dirtied exactly the neighbour day and the loser's rows are gone from it; chunk 6 dirtied exactly the days holding those 50 runs; chunk 7 rebuilt **every window day newest-first** within the per-run cap, no cube changed, and no manifest generation in between named window days with two different `rules_sha` values while `projection` was non-null without the withheld state being derivable from the manifest; chunk 8 triggered **no** rebuild and the authoritative pin survived; the upgrades produced `pins.upgrades[]` entries and rebuilt every day newest-first within the per-run cap; a from-scratch replay (4 workers) is byte-identical to the incremental result; a `seed_from_csv()` rewrite of `players.jsonl` mid-sequence is detected by the offset sha and replayed without duplicate rows; a run interrupted by SIGTERM between days leaves a consistent checkpoint from which the next run continues without rebuilding the completed days; **a run killed inside step 1 (after a batch's pending append and before its checkpoint, right after a checkpoint; players, gear and abilities tails, **and inside `build_day` between the three cache saves and the pending-file unlinks**) resumes to the byte-identical result of an uninterrupted run with no duplicated cache record; the chunk-7 rules edit touches exactly the listed days and no cubed, unlisted day; the `revised_dropped` run serves the row's own medal again after chunk 7; **the `null_after_value` run serves gold after chunk 4 and the row's own `none` after chunk 6, its clock kept, its day dirtied by chunk 6**; the reverse-order midnight pair collapses inside the one-shot replay; **a tuning patch inserted on top of the existing one dirties exactly the days ≥ min(old, new) earliest cutoff − 1 plus the undated day, newest first, and the drained result equals a from-scratch replay under the new patches file — every named file byte-identical, `r_post`/`tmul` of every listed day included** |
 | `test_partition_format` | writer/reader round trips for every dtype, planar, delta, u64; clamp counters; generation fields present per kind |
 | `test_partition_build_rerun` | a rerun over unchanged journals is a no-op (seq, manifest bytes); a two-step run equals the one-shot run; **`--rebuild-all` without `--max-days` rebuilds every day in one run with `days_left=0` and an unchanged manifest** |
 | `test_rollover` | synthetic `season.json` with a new zone id, a new dungeon and a dungeon shared with the previous season **under the same encounter id**: new slug directory, routing by `enc ∈ encounters` / `start_utc` never mixes a straddling day; **the old slug's final manifest names a cube for every week of the old season (close-out) and its `d/` tree is byte-identical to `site_final.tar.gz`**; state is slug-scoped; the week-1 old-set-first tier scenario writes a fallback pin, upgrades it and rebuilds |
@@ -1811,3 +1822,11 @@ its cause (a contract or mechanism change plus a test), not with a caveat.
 | 39 | Step 1 **checkpointed per batch** (offset + sha, counters, dirty marks, parked records), deadline checked between batches, exact-duplicate dedupe on the arrival stamps, three-phase snapshot consumption; `PARTS_TEST_CRASH_AT` hook and the kill cases in `test_incremental_idempotent` | §6, §6.1, §6.2-1, §9.1 | blocker 6 (2× caches after a SIGKILL, replay livelock past the deadline, lost dirty marks) |
 | 40 | `--rebuild-all` lifts the per-run cap (the dispatch really rebuilds every day in one go); asserted by `test_partition_build_rerun` | §6.4, §9.1 | blocker 7 |
 | 41 | Build step: `build.wall_s` appended to the cached `legacy_wall.txt` so the adaptive deadline has history; `site/d/` mirrored from `out/` when the builder never published (hashed files first, `manifest.json` last — the builder's own mirror copies in that order too); `parts_util.legacy_rules_root` + `test_tmul_bitexact_vs_legacy_under_the_rule` (tmul and the projection meta against legacy under the same rule) | §6, §9.1 | minors: dead adaptive deadline, `d/` vanishing for a cycle, manifest-before-files copy order, tmul never compared |
+
+## Appendix E — Revision 5 (2026-09-02, PR-1 stage B round 3): changes and the blockers they answer
+
+| # | change | sections | answers |
+|---|---|---|---|
+| 42 | Overlay: a run present in the snapshot stores the entry's score/medal **as-is, null included**, the clock only when the duration is truthy (legacy's `if ms:`); a day is dirtied when the **served** value (stored if present and not null, else the row's own) or the clock changes — `snapshot_diff` no longer treats a null component as "no information"; fixture: `null_after_value` run; asserted in `test_incremental_idempotent` | §6.2-1, §9, §9.1 | round-2 equivalence blocker 1 (a listed ranking whose score/medal turned null was served the stale revision: Shaman Elemental Farseer n 506 vs 507 in the real client; the incremental result was not replay-identical) |
+| 43 | `dedupe_records` keys on the **arrival stamp** (`_seq`/`_gseq`/`_aseq`), the one projection identical on both sides of the cache round trip, instead of the whole record (the journal-shaped fields are lossy through `gear.npz`/`abil.npz`); `PARTS_TEST_CRASH_AT=day:after_save:<n>` inside `build_day`; the kill case added to `test_incremental_idempotent` (cache counts, named files, no pending leftovers) | §6.2-1, §9.1 | round-2 equivalence blocker 2 / incremental blocker 1 (a kill between the cache saves and the pending unlinks doubled the day's gear/abilities records for good and flipped served vocab values) |
+| 44 | New tuning patch: scope = days ≥ **min(old, new) earliest cutoff − 1** (the old patch's `patch_day` kept in `state.static_inputs`; unknown → every day); the case (a patch inserted on top of an existing one, drained result == from-scratch replay) added to `test_incremental_idempotent` | §6.4, §9.1 | round-2 incremental blocker 2 (day 251 kept `post=1` / the old `tmul` between the two cutoffs) |

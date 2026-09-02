@@ -19,8 +19,10 @@ chunks, rankings as a full snapshot per chunk, under the Arcane Mage rule
            the per-run cap, every cube re-emitted
   chunk 5  empty, with a snapshot from which 30% of runs dropped off the
            pages: writes nothing, dirties ZERO days, seq does not advance
-  chunk 6  a snapshot in which 50 runs in frozen days gain a medal: dirtied
-           exactly the days holding those runs
+  chunk 6  a snapshot in which 50 runs in frozen days gain a medal, and the
+           listed null_after_value run's entry turns score:null/medal:null:
+           dirtied exactly the days holding those runs; the null entry serves
+           the row's own medal again (export() semantics), the clock kept
   chunk 7  RULES['Arcane Mage'] 1.10 -> 1.06: every listed day rebuilt
            newest-first within the cap, no cube changed by it, and no
            intermediate manifest names window days with two rules_sha
@@ -35,8 +37,13 @@ chunks, rankings as a full snapshot per chunk, under the Arcane Mage rule
            continues from without rebuilding the completed days; a run
            KILLED inside step 1 (after a batch's pending append and before
            its checkpoint, right after a checkpoint, in the players, gear
-           and abilities tails) resumes to the byte-identical result of an
-           uninterrupted run with no duplicated cache record.
+           and abilities tails, and inside build_day between the cache saves
+           and the pending-file unlinks) resumes to the byte-identical
+           result of an uninterrupted run with no duplicated cache record;
+           a tuning patch inserted on top of the existing one dirties
+           exactly the days from min(old, new) earliest cutoff - 1 and the
+           drained result equals a from-scratch replay under the new
+           patches file (r_post / tmul of every listed day included).
 
 Also asserted along the way (the verifier's blockers): the run revised in
 snapshot 6 and dropped from the pages in 7 serves the row's own medal
@@ -169,6 +176,14 @@ def served_medal(root, day, code) -> set:
     """The medal the day's canonical rows carry for a run (raw.npz medal_ov)."""
     with np.load(state_dir(root) / "days" / f"d{day}" / "raw.npz", allow_pickle=False) as z:
         return set(str(m) for m in z["medal_ov"][z["report_code"] == code])
+
+
+def overlay_row(root, code, fid) -> tuple:
+    """(score, medal, kms, present) stored for a run in the overlay table."""
+    con = sqlite3.connect(str(state_dir(root) / "ids" / "runs.sqlite"))
+    r = con.execute("SELECT score, medal, kms, present FROM overlay WHERE code=? AND fid=?", (code, fid)).fetchone()
+    con.close()
+    return tuple(r) if r else (None, None, None, None)
 
 
 def run_days(root, keys) -> dict:
@@ -311,6 +326,8 @@ def test_incremental_idempotent():
     assert -1 in flat4, "the undated day is rebuilt by a pin upgrade too"
     m4 = manifest(INC)
     d4, w4 = day_rows_sha(m4), week_shas(m4)
+    nav4 = fx["notes"]["null_after_value"]
+    assert served_medal(INC, nav4[2], nav4[0]) == {"gold"}, "snapshots 2-5 list the run as gold"
     for W in w4a:
         assert w4[W] != w4a[W], (W, "cube kept its sha across a pin upgrade")
     # in between, a day of the old pin generation was never served next to a
@@ -334,11 +351,17 @@ def test_incremental_idempotent():
     # ---- chunk 6: 50 runs in frozen days gain a medal ---------------------
     pu.concat_journals(INC, upto=6)
     orders, _ = drain(INC, now[6], pu.RULE_BEFORE)
-    gain_days = {r[2] for r in fx["notes"]["medal_gain"]}
+    nav = fx["notes"]["null_after_value"]
+    gain_days = {r[2] for r in fx["notes"]["medal_gain"]} | {nav[2]}
     assert set(d for o in orders for d in o) == gain_days, (set(d for o in orders for d in o) ^ gain_days)
     assert_newest_first(orders, root=INC)
     rev = fx["notes"]["revised_dropped"]
     assert served_medal(INC, rev[2], rev[0]) == {"gold"}, "snapshot 6 revised the run to gold"
+    # the listed run whose entry turned null: export() serves the row's own
+    # value when the CURRENT entry's value is None, never the stored revision
+    assert served_medal(INC, nav[2], nav[0]) == {"none"}, served_medal(INC, nav[2], nav[0])
+    assert overlay_row(INC, nav[0], nav[1])[:2] == (None, None) and overlay_row(INC, nav[0], nav[1])[3] == 1
+    assert overlay_row(INC, nav[0], nav[1])[2], "the clock is kept across the null entry"
     m6 = manifest(INC)
     d6, w6 = day_rows_sha(m6), week_shas(m6)
     for d in gain_days:
@@ -488,7 +511,8 @@ def test_incremental_idempotent():
     pu.concat_journals(CL, upto=7)
     run(CL, now[7], pu.RULE_AFTER, max_days=400, env_extra={"PARTS_TAIL_BATCH": "500"})
     mcl = manifest(CL)
-    for where in ("players:pending:2", "players:batch:3", "gear:pending:2", "abilities:batch:1"):
+    for where in ("players:pending:2", "players:batch:3", "gear:pending:2", "abilities:batch:1",
+                  "day:after_save:2"):
         CR = FIXTURE_DIR / "parts_crash"
         if CR.exists():
             shutil.rmtree(CR)
@@ -502,6 +526,12 @@ def test_incremental_idempotent():
             pass
         assert not (state_dir(CR) / "health.txt").exists() or "parts.status=ok" not in \
             (state_dir(CR) / "health.txt").read_text()
+        if where.startswith("day:"):
+            # the window under test: the day's caches already absorbed its
+            # pending records and the pending files still exist
+            leftover = [p for dd in (state_dir(CR) / "days").iterdir() for p in dd.glob("pending_*.jsonl")]
+            assert leftover, "the kill inside build_day left no pending file beside the saved caches"
+            assert any(p.name == "pending_gear.jsonl" for p in leftover), [p.name for p in leftover]
         run(CR, now[7], pu.RULE_AFTER, max_days=400, env_extra={"PARTS_TAIL_BATCH": "500"})
         mcr = manifest(CR)
         assert strip(mcr) == strip(mcl), (where, [k for k in strip(mcr) if strip(mcr)[k] != strip(mcl)[k]])
@@ -522,6 +552,61 @@ def test_incremental_idempotent():
                         len(zb["code"] if "code" in zb else zb["report_code"]), (where, dd.name, cache)
             assert not list((state_dir(CR) / "days" / dd.name).glob("pending_*.jsonl")), (where, dd.name)
         print(f"crash at {where}: resumed run == clean run")
+    # ---- a tuning patch inserted on top of the existing one ----------------
+    # post/tmul are relative to patches[0], so the rows between the OLD and
+    # the NEW earliest cutoff flip too: the patch branch dirties every day
+    # from min(old, new) earliest cutoff - 1 (§6.4), and the drained result
+    # equals a from-scratch replay under the new patches file
+    TP = FIXTURE_DIR / "parts_patch"
+    if TP.exists():
+        shutil.rmtree(TP)
+    shutil.copytree(INC, TP)
+    tp_file = TP / "data" / "tuning_patches.json"
+    tp = json.loads(tp_file.read_text())
+    old_patch = tp["patches"][0]
+    new_patch = {"label": "Sep 11 hotfix", "date": "2026-09-11", "note": "test: a second pass on top of the first",
+                 "regions": {"US": "2026-09-11T10:00:00Z", "EU": "2026-09-11T02:00:00Z",
+                             "default": "2026-09-11T06:00:00Z"}}
+    tp["patches"].insert(0, new_patch)
+    tp_file.write_text(json.dumps(tp, indent=1))
+
+    def first_day(patch):
+        return min(int((sc.parse_iso_ms(v) - epoch_ms) // 86_400_000) for v in patch["regions"].values())
+    since = min(first_day(old_patch), first_day(new_patch)) - 1
+    assert first_day(new_patch) > first_day(old_patch) >= since + 1
+    orders, _ = drain(TP, now[8], pu.RULE_AFTER)
+    assert_newest_first(orders, root=TP)
+    flat = [d for o in orders for d in o]
+    st_tp = state(TP)
+    in_scope = {int(k) for k, e in st_tp["days"].items() if e.get("n") and (int(k) < 0 or int(k) >= since)}
+    assert set(flat) == in_scope and len(flat) == len(set(flat)), (sorted(set(flat) ^ in_scope), flat)
+    assert since + 1 in flat and since in flat, (since, flat)     # the old cutoff's day and the day before it
+    assert manifest(TP)["tuning"]["label"] == "Sep 11 hotfix"
+    RP = FIXTURE_DIR / "parts_patch_replay"
+    if RP.exists():
+        shutil.rmtree(RP)
+    pu.common_root(RP)
+    pu.concat_journals(RP, upto=8)
+    shutil.copyfile(tp_file, RP / "data" / "tuning_patches.json")
+    state_dir(RP).mkdir(parents=True)
+    shutil.copyfile(state_dir(TP) / "season_pins.json", state_dir(RP) / "season_pins.json")
+    shutil.copytree(state_dir(TP) / "learned", state_dir(RP) / "learned")
+    run(RP, now[8], pu.RULE_AFTER, max_days=400)
+    mtp, mrp = manifest(TP), manifest(RP)
+    dtp, drp = day_rows_sha(mtp), day_rows_sha(mrp)
+    assert set(dtp) == set(drp)
+    for d in sorted(dtp):
+        a = pf.read(state_dir(TP) / "out" / dtp[d], expect_kind="rows", check_name=False)
+        b = pf.read(state_dir(RP) / "out" / drp[d], expect_kind="rows", check_name=False)
+        assert np.array_equal(a.cols["r_post"], b.cols["r_post"]), (d, int((a.cols["r_post"] == 1).sum()),
+                                                                     int((b.cols["r_post"] == 1).sum()))
+        assert ("tmul" in a.cols) == ("tmul" in b.cols) and \
+            ("tmul" not in a.cols or np.array_equal(a.cols["tmul"], b.cols["tmul"])), d
+    assert strip(mrp) == strip(mtp), [k for k in strip(mrp) if strip(mrp)[k] != strip(mtp)[k]]
+    assert [sd(e) for e in mrp["days"]] == [sd(e) for e in mtp["days"]]
+    for rel in named_files(mtp):
+        assert (state_dir(TP) / "out" / rel).read_bytes() == (state_dir(RP) / "out" / rel).read_bytes(), rel
+    print(f"tuning patch on top: {len(flat)} days rebuilt (>= day {since}), drained result == from-scratch replay")
 
 
 if __name__ == "__main__":

@@ -122,12 +122,14 @@ WITHHOLD_CUBES = os.environ.get("PARTS_WITHHOLD_CUBES", "")
 # test hook for test_build_step_exit: sleep this long between days, so a
 # stalled builder can be driven against the Build step's deadline
 TEST_STALL_S = float(os.environ.get("PARTS_TEST_STALL_S", "0") or 0)
-# test hook for the step-1 crash cases: "<journal>:<where>:<n>" kills the
-# process (os._exit 137) inside the n-th batch of that journal's tail --
-# where = "pending" (the batch's records are appended to the day pending
-# files and the run table, the checkpoint NOT yet written) or "batch" (right
-# after the batch's checkpoint). The resumed run must reproduce the clean
-# replay byte for byte (§6.3).
+# test hook for the crash cases: "<journal>:<where>:<n>" kills the process
+# (os._exit 137) inside the n-th batch of that journal's tail -- where =
+# "pending" (the batch's records are appended to the day pending files and
+# the run table, the checkpoint NOT yet written) or "batch" (right after the
+# batch's checkpoint) -- and "day:after_save:<n>" kills it inside the n-th
+# day rebuild of the run, after the three cache saves and before the pending
+# files are unlinked. The resumed run must reproduce the clean replay byte
+# for byte (§6.3).
 TEST_CRASH_AT = os.environ.get("PARTS_TEST_CRASH_AT", "")
 CELL_DIMS = tuple(sc.CELL_DIMS)
 RL_DIMS = tuple(sc.RL_DIMS)
@@ -244,20 +246,42 @@ def ustr(v) -> str:
     return "" if v is None else str(v)
 
 
+STAMP_KEYS = ("_seq", "_gseq", "_aseq")
+
+
+def record_stamp(r: dict):
+    """The record's arrival number (_seq / _gseq / _aseq): assigned once from
+    the checkpointed counter, unique per journal record by construction, and
+    the ONE projection of a record that survives the cache round trip
+    unchanged (gear.npz/abil.npz keep it as gseq/aseq; the journal-shaped
+    fields do not -- `flask`, `actor_id`, a guid, an int that comes back as
+    a float -- so a whole-record key can never recognise a cached twin)."""
+    for k in STAMP_KEYS:
+        v = r.get(k)
+        if v:
+            return k, int(v)
+    return None
+
+
 def dedupe_records(recs: list) -> list:
-    """Drop exact duplicates -- the whole record INCLUDING its arrival
-    number (_gseq / _aseq, re-assigned identically from the checkpointed
-    counter), only the parking stamp excepted -- keeping the first: a batch
-    re-appended after a kill between the pending append and its checkpoint,
-    or a pending file that survived a kill between the cache save and its
-    unlink, must leave every cache as one clean pass would (§6.3). Records
-    that merely share their content are NOT collapsed: the legacy readers'
-    last-wins rules and the arrival-order tie-breaks see every one."""
+    """Drop duplicates by ARRIVAL STAMP, keeping the first: a batch
+    re-appended after a kill between the pending append and its checkpoint
+    (the counter was checkpointed, so the re-tailed records carry the same
+    stamps), or a pending file that survived a kill between the cache save
+    and its unlink (the cache already holds those stamps), must leave every
+    cache as one clean pass would (§6.3) -- and the key is computed on the
+    same canonical projection on both sides of the cache round trip. Records
+    that merely share their content are NOT collapsed (distinct stamps): the
+    legacy readers' last-wins rules and the arrival-order tie-breaks see
+    every one. A record without a stamp (none is written today) falls back
+    to its whole content minus the parking stamp."""
     seen: set = set()
     out = []
     for r in recs:
-        key = json.dumps({k: v for k, v in r.items() if k != "_parked"},
-                         sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        key = record_stamp(r)
+        if key is None:
+            key = json.dumps({k: v for k, v in r.items() if k != "_parked"},
+                             sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         if key in seen:
             continue
         seen.add(key)
@@ -614,62 +638,67 @@ class RunDB:
 
     def snapshot_diff(self, triples: dict, seq: int) -> tuple[list, dict]:
         """Upsert the snapshot's (code,fid) -> (score, medal, kms) triples and
-        set the presence flag: score/medal are SERVED only while the run is
-        on the current pages (export() overlays them from the current
-        rankings.jsonl alone and keeps the row's own values otherwise), the
-        clock is kept forever (keystone_times.json accumulates), §6.2-1.
-        Returns ([(code, fid, day|None)] whose served value changed, stats):
-        a stored component changed (a None component in the snapshot is no
-        information, never a change), or the run left / re-entered the pages
-        and its stored score/medal differ from the row's own values -- a run
-        dropping off with an unchanged value dirties nothing."""
+        set the presence flag, mirroring what export() serves (F:1228-1278,
+        §6.2-1): for a run ON the current pages the snapshot's score and
+        medal are stored AS-IS -- None included -- because export() serves
+        `jmap[col] if jmap[col] is not None else row's own`, so a listed entry
+        whose value turned null serves the row's own value again, never the
+        stored earlier revision; the clock follows legacy's `if ms:` rule
+        (keystone_times.json accumulates; a null or zero duration keeps the
+        old clock). Returns ([(code, fid, day|None)] whose SERVED value
+        changed, stats): served = snapshot value if not None else the row's
+        own (kept per run in the routing table) while present, the row's own
+        otherwise -- a run leaving or re-entering the pages, or a stored
+        component changing, dirties its day only when that served value or
+        the clock changes."""
         c = self.con
         c.execute("CREATE TEMP TABLE IF NOT EXISTS snap(code TEXT, fid INTEGER, score REAL, medal TEXT, "
                   "kms INTEGER, PRIMARY KEY(code, fid))")
         c.execute("DELETE FROM snap")
         c.executemany("INSERT OR IGNORE INTO snap VALUES(?,?,?,?,?)",
                       [(k[0], k[1], v[0], v[1], v[2]) for k, v in triples.items()])
-        changed = c.execute(
-            "SELECT s.code, s.fid, s.score, s.medal, s.kms, o.score, o.medal, o.kms, r.day "
+        # every listed run whose stored triple or presence would change
+        cand = c.execute(
+            "SELECT s.code, s.fid, s.score, s.medal, s.kms, o.score, o.medal, o.kms, o.present, "
+            "r.day, r.rscore, r.rmedal, o.code IS NULL "
             "FROM snap s LEFT JOIN overlay o ON o.code=s.code AND o.fid=s.fid "
             "LEFT JOIN runs r ON r.code=s.code AND r.fid=s.fid "
-            "WHERE o.code IS NULL OR (s.score IS NOT NULL AND s.score IS NOT o.score) "
-            "OR (s.medal IS NOT NULL AND s.medal IS NOT o.medal) "
-            "OR (s.kms IS NOT NULL AND s.kms IS NOT o.kms)").fetchall()
+            "WHERE o.code IS NULL OR o.present=0 OR s.score IS NOT o.score OR s.medal IS NOT o.medal "
+            "OR (s.kms IS NOT NULL AND s.kms != 0 AND s.kms IS NOT o.kms)").fetchall()
         left = c.execute(
             "SELECT o.code, o.fid, o.score, o.medal, r.day, r.rscore, r.rmedal FROM overlay o "
             "LEFT JOIN snap s ON s.code=o.code AND s.fid=o.fid "
             "LEFT JOIN runs r ON r.code=o.code AND r.fid=o.fid "
             "WHERE o.present=1 AND s.code IS NULL").fetchall()
-        back = c.execute(
-            "SELECT o.code, o.fid, o.score, o.medal, r.day, r.rscore, r.rmedal FROM overlay o "
-            "JOIN snap s ON s.code=o.code AND s.fid=o.fid "
-            "LEFT JOIN runs r ON r.code=o.code AND r.fid=o.fid "
-            "WHERE o.present=0").fetchall()
-        out, seen = [], set()
-        for code, fid, ns, nm, nk, os_, om, ok, day in changed:
-            score = ns if ns is not None else os_
-            medal = nm if nm is not None else om
-            kms = nk if nk is not None else ok
+        out = []
+        n_new = n_back = n_changed = 0
+        for code, fid, ns, nm, nk, os_, om, ok, present, day, rs, rm, is_new in cand:
+            if is_new:
+                n_new += 1
+            elif not present:
+                n_back += 1
+            else:
+                n_changed += 1
+            kms = nk if nk else ok
             c.execute("INSERT OR REPLACE INTO overlay(code, fid, score, medal, kms, first_seen, present) "
                       "VALUES(?,?,?,?,?, COALESCE((SELECT first_seen FROM overlay WHERE code=? AND fid=?), ?), 1)",
-                      (code, fid, score, medal, kms, code, fid, seq))
-            out.append((code, int(fid), None if day is None else int(day)))
-            seen.add((code, int(fid)))
+                      (code, fid, ns, nm, kms, code, fid, seq))
+            was_served = present and not is_new
+            old = (os_ if was_served and os_ is not None else rs, om if was_served and om is not None else rm, ok)
+            new = (ns if ns is not None else rs, nm if nm is not None else rm, kms)
+            if old != new:
+                out.append((code, int(fid), None if day is None else int(day)))
         c.execute("UPDATE overlay SET present=0 WHERE present=1 AND NOT EXISTS("
                   "SELECT 1 FROM snap s WHERE s.code=overlay.code AND s.fid=overlay.fid)")
-        c.execute("UPDATE overlay SET present=1 WHERE present=0 AND EXISTS("
-                  "SELECT 1 FROM snap s WHERE s.code=overlay.code AND s.fid=overlay.fid)")
         flips = 0
-        for code, fid, osc, om, day, rs, rm in left + back:
-            if (code, int(fid)) in seen:
-                continue
+        for code, fid, osc, om, day, rs, rm in left:
+            # off the pages: the row's own values are served again
             if (osc is not None and osc != rs) or (om is not None and om != rm):
                 flips += 1
                 if day is not None:
                     out.append((code, int(fid), int(day)))
         c.execute("DELETE FROM snap")
-        return out, {"changed": len(changed), "left": len(left), "back": len(back), "flips": flips}
+        return out, {"changed": n_changed + n_new, "left": len(left), "back": n_back, "flips": flips}
 
     def commit(self) -> None:
         self.con.commit()
@@ -855,6 +884,7 @@ class Builder:
         self.rules_sha = pt.rules_digest()
         self.emb_cfg = None
         self.rebuilt_days: list = []
+        self.days_built_this_run = 0
         self.dirty_found = 0
         self.touched_weeks: set = set()
         self.window_stale = False
@@ -912,7 +942,9 @@ class Builder:
         # vocab / format change dirties every day; a tuning rule-table edit
         # dirties the LISTED days only (tmul lives in day files; cubes carry
         # none); a new tuning patch dirties the days from the earliest cutoff
-        # minus one. Newest first happens in step 2's queue.
+        # minus one -- of the OLD patch as well as the new one: post/tmul are
+        # relative to patches[0], so the rows between the two cutoffs flip
+        # too (§6.4). Newest first happens in step 2's queue.
         cur = self.static_inputs()
         prev = self.st.d.get("static_inputs")
         if not isinstance(prev, dict):
@@ -929,7 +961,11 @@ class Builder:
             for d in self.listed_days(with_rows) + [d for d in all_days if d < 0]:
                 self.st.mark_dirty(d, "rules")
         elif prev.get("patch") != cur["patch"]:
-            since = self.patch_first_day()
+            since = cur["patch_day"]
+            prev_day = prev.get("patch_day")
+            # a state written before patch_day was recorded: the old cutoff
+            # is unknown, so every day is in scope
+            since = 0 if prev_day is None else min(int(prev_day), since)
             for d in all_days:
                 if d < 0 or d >= since - 1:
                     self.st.mark_dirty(d, "patch")
@@ -947,12 +983,13 @@ class Builder:
 
     def static_inputs(self) -> dict:
         return {"pins": sha256_bytes(self.pins.inputs_material().encode()), "rules": self.rules_sha,
-                "patch": sha256_bytes(self.patch_id.encode()), "vocab": self.season.vocab_sha,
-                "fmt": str(pf.FORMAT_VERSION)}
+                "patch": sha256_bytes(self.patch_id.encode()), "patch_day": self.patch_first_day(),
+                "vocab": self.season.vocab_sha, "fmt": str(pf.FORMAT_VERSION)}
 
     def patch_first_day(self) -> int:
         """The UTC day of the earliest per-region cutoff of the current
-        patch (−1 day is applied by the caller); 0 when unknown."""
+        patch (−1 day is applied by the caller); 0 when unknown. Kept in
+        state.static_inputs so the NEXT patch change knows the old cutoff."""
         if not self.patch:
             return 0
         cands = []
@@ -1671,10 +1708,16 @@ class Builder:
                                                "winner_day": day, "seq": self.st.d["seq"] + 1,
                                                "at": iso(self.now_ms)})
             self.health(f"parts.collapse.neighbour={eday}:{ecode}:{efid}")
-        # persist the canonical caches (the pending files are consumed)
+        # persist the canonical caches (the pending files are consumed). A
+        # kill between these saves and the unlinks below leaves the pending
+        # files beside caches that already absorbed them: the next rebuild
+        # reads both and dedupe_records drops the absorbed records by their
+        # arrival stamps (§6.3) -- the crash hook lets the test stand there
         save_npz(dd / "raw.npz", frame_to_raw(df))
         save_npz(dd / "gear.npz", gear)
         save_npz(dd / "abil.npz", abil)
+        self.days_built_this_run += 1
+        self._test_crash("day", "after_save", self.days_built_this_run)
         for name in ("pending_players.jsonl", "pending_gear.jsonl", "pending_abil.jsonl"):
             p = dd / name
             if p.exists():
@@ -2444,7 +2487,12 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
     run_t = "u32" if n_runs >= 65536 else "u16"
     flags = {"tier": bool((tier >= 0).any()), "timed": bool((timed >= 0).any()),
              "post": bool((post >= 0).any()), "tmul": bool(tmul is not None and (tmul != 0).any())}
-    # inputs_sha (§6.3): canonical rows ‖ gear ‖ abil ‖ FORMAT ‖ pins ‖ rules ‖ patch ‖ vocab
+    # inputs_sha (§6.3): canonical rows ‖ gear ‖ abil ‖ FORMAT ‖ pins ‖ rules ‖ patch ‖ vocab.
+    # The patch enters only for the days it can touch (day >= earliest cutoff
+    # - 1, and the undated day) -- exactly the invalidation scope of §6.4 --
+    # so a day before every cutoff keeps a name a from-scratch replay under
+    # the new patch reproduces byte for byte (its post/tmul cannot differ)
+    patch_scope = B.patch_id if (day < 0 or day >= B.patch_first_day() - 1) else ""
     canon_rows = hashlib.sha256()
     for tup in zip(df["report_code"], df["fight_id"], df["character"], df["server"], df["region"], df["class"],
                    df["spec"], df["hero_talent"], df["role"], df["dungeon"], key, df["duration_s"], df["damage_done"],
@@ -2454,7 +2502,7 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
         canon_rows.update(b"\n")
     inputs_sha = sha256_bytes("|".join([
         canon_rows.hexdigest(), arrays_digest(gear), arrays_digest(abil), str(pf.FORMAT_VERSION),
-        B.pins.inputs_material(), B.rules_sha, B.patch_id, S.vocab_sha]).encode())
+        B.pins.inputs_material(), B.rules_sha, patch_scope, S.vocab_sha]).encode())
     cols = [pf.Column("cls", "u8", cls), pf.Column("spec", "u8", spec), pf.Column("hero", "u8", hero),
             pf.Column("role", "u8", role), pf.Column("deaths", "u8", deaths, clamp=(0, 255)),
             pf.Column("tier", "i8", tier), pf.Column("dps", "u32", dps_i, p=True),
