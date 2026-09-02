@@ -990,25 +990,57 @@ def export_gear() -> None:
     """
     if not GEAR_FILE.exists():
         return
-    import pandas as pd
-    rows = list(_iter_journal(GEAR_FILE))
-    if not rows:
+    # STREAMED, in two passes, deliberately. This used to read the whole
+    # journal into a list of dicts, build a DataFrame from it and then
+    # to_dict("records") it back -- three full copies of every gear row, each
+    # carrying a nested gear list and a talent blob. At ~340k rows that is
+    # several GB of Python objects, and it killed the runner outright: three
+    # consecutive runs died with "the runner has received a shutdown signal"
+    # immediately after the line printed just before this call, with the
+    # collection chain dead behind them because failures do not chain.
+    #
+    # Pass 1 records, per identity, the index of its LAST line; pass 2 copies
+    # those raw lines through. Peak memory is one parsed row plus the index
+    # map, and "last copy wins" is preserved exactly, which is what makes
+    # --regear-min-key work. Writing the ORIGINAL line is also strictly more
+    # faithful than the old path: a field absent from a row stays absent
+    # rather than being NaN-filled by the DataFrame and stripped back out.
+    def _keyed(path, warn=True):
+        """(index, raw line, key) per parsable row; torn lines are skipped."""
+        bad = 0
+        with path.open() as fh:
+            for i, line in enumerate(fh):
+                s = line.strip()
+                if not s:
+                    continue
+                try:
+                    r = json.loads(s)
+                except json.JSONDecodeError:
+                    bad += 1
+                    continue
+                yield i, line, (r.get("report_code"), r.get("fight_id"),
+                                r.get("character"), r.get("server"))
+        if bad and warn:      # pass 1 reports; pass 2 would just repeat it
+            print(f"[journal] skipped {bad} corrupt line(s) in {path.name}",
+                  flush=True)
+
+    winner = {}
+    for i, _line, key in _keyed(GEAR_FILE):
+        winner[key] = i
+    if not winner:
         return
-    df = pd.DataFrame(rows).drop_duplicates(
-        subset=["report_code", "fight_id", "character", "server"], keep="last")
+    keep = set(winner.values())
+    del winner
     tmp = GEAR_CSV.with_name(GEAR_CSV.name + ".tmp")
+    written = 0
     with gzip.open(tmp, "wt", encoding="utf-8") as fh:
-        for rec in df.to_dict("records"):
-            # Rows predating an optional field (flask) get NaN-filled for it
-            # by the DataFrame. Strip those so "field absent" survives the
-            # round trip instead of becoming a literal NaN token, which is
-            # not JSON and would poison every strict reader of the export.
-            rec = {k: v for k, v in rec.items()
-                   if not (isinstance(v, float) and pd.isna(v))}
-            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        for i, line, _key in _keyed(GEAR_FILE, warn=False):
+            if i in keep:
+                fh.write(line if line.endswith("\n") else line + "\n")
+                written += 1
     os.replace(tmp, GEAR_CSV)
     mb = GEAR_CSV.stat().st_size / 1e6
-    print(f"[export] {len(df):,} gear rows -> {GEAR_CSV.name} ({mb:.1f} MB)",
+    print(f"[export] {written:,} gear rows -> {GEAR_CSV.name} ({mb:.1f} MB)",
           flush=True)
 
 
@@ -1022,6 +1054,10 @@ def export() -> None:
         print("[export] no player rows yet", flush=True)
         return
     df = pd.DataFrame(rows)
+    # pandas has copied everything into columns; holding the list of dicts as
+    # well doubles peak memory for no benefit, and this export runs on a
+    # runner that has already been OOM-killed once (see export_gear).
+    del rows
     before = len(df)
     # keep="last": the journal is append-only, so when a run has been fetched
     # twice the later copy is the newer one. That is what makes --regear-min-key
