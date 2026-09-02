@@ -7,6 +7,7 @@ exact string including "" for the empty role set; `window.keys` equals the
 row scan; `window.rows`/`runs` and `weeks[].reg` counts equal the scan.
 """
 import itertools
+import json
 import pathlib
 import sys
 
@@ -79,6 +80,11 @@ def test_refchars_manifest_equals_scan():
             assert cnt["chars"] == len(np.unique(loaded.R["char"][m])), (w, rn)
             assert cnt["dmin"] == int(loaded.R["day"][m].min()) and cnt["dmax"] == int(loaded.R["day"][m].max())
     assert set(by) == set(int(w) for w in np.unique(W[W > -10 ** 6]))
+    # every week's counts were recomputed after the last day rebuild that
+    # touched it (the durable per-week mark, §6.2-3) -- none is left stale
+    st = json.loads((proot / "data" / "processed" / "parts" / "s2" / "state.json").read_text())
+    assert not any(we.get("counts_stale") for we in st["weeks"].values()), \
+        [w for w, we in st["weeks"].items() if we.get("counts_stale")]
     # buckets from the manifest's weeks equal computeResetBuckets' weekCounts
     wc = {}
     for w, regs in by.items():

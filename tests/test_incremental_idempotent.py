@@ -207,6 +207,44 @@ def cube_headers(root, man, W) -> set:
     return {pf.read(root / "site" / "d" / "s2" / f, expect_kind=part).header["cube_sha"] for part, f in w["f"].items()}
 
 
+def collapse_events(root) -> list:
+    return sorted((x["day"], tuple(x["loser"])) for x in state(root)["invalidations"] if x.get("reason") == "collapse")
+
+
+def assert_weeks_equal_scan(root, where: str) -> None:
+    """manifest.weeks[].reg (weekCounts / availWeeks / weekTitle, §2.6) ==
+    a thin.npz row scan over EVERY day of the state -- n, runs, chars,
+    dmin, dmax per region -- and no week's counts are left marked stale."""
+    regs = json.loads((root / "data" / "season.json").read_text())["vocab"]["regions"]
+    acc: dict = {}
+    for dd in (state_dir(root) / "days").glob("d*"):
+        p = dd / "thin.npz"
+        if not p.exists():
+            continue
+        with np.load(p, allow_pickle=False) as th:
+            W, reg, run_, ch, day = th["W"], th["reg"], th["run"], th["char"], th["day"]
+        for w in np.unique(W):
+            if w <= -10 ** 6:
+                continue                              # the undated day's rows carry no week
+            m = W == w
+            for ri in np.unique(reg[m]):
+                mm = m & (reg == ri)
+                a = acc.setdefault(int(w), {}).setdefault(regs[int(ri)], {"n": 0, "runs": 0, "chars": set(),
+                                                                         "dmin": 10 ** 9, "dmax": -1})
+                a["n"] += int(mm.sum())
+                a["runs"] += len(np.unique(run_[mm]))
+                a["chars"].update(ch[mm].tolist())
+                a["dmin"] = min(a["dmin"], int(day[mm].min()))
+                a["dmax"] = max(a["dmax"], int(day[mm].max()))
+    scan = {w: {r: {"n": a["n"], "runs": a["runs"], "chars": len(a["chars"]), "dmin": a["dmin"], "dmax": a["dmax"]}
+                for r, a in d.items()} for w, d in acc.items()}
+    man = {int(w["w"]): w["reg"] for w in manifest(root)["weeks"] if w["reg"]}
+    diffs = [(w, r, man.get(w, {}).get(r), scan.get(w, {}).get(r)) for w in set(man) | set(scan)
+             for r in set(man.get(w, {})) | set(scan.get(w, {})) if man.get(w, {}).get(r) != scan.get(w, {}).get(r)]
+    assert not diffs, (where, diffs)
+    assert not any(we.get("counts_stale") for we in state(root)["weeks"].values()), where
+
+
 def test_incremental_idempotent():
     fx = fixture()
     now = {c["chunk"]: c["now"] for c in fx["chunks"]}
@@ -498,11 +536,17 @@ def test_incremental_idempotent():
     assert first and first[0] == max(first) and 259 in first and int(hd["parts.days_left"][0]) > 0
     md = manifest(DL)
     assert md["seq"] > m6["seq"] and {e["d"] for e in md["days"] if e.get("f")} >= set(first)
+    # the deadline stop reused the previous window artifacts, but the
+    # per-week counts are per-week facts of the published row files: the
+    # manifest it wrote equals a row scan already (§2.6), not after the drain
+    assert hd.get("parts.window_stale") == ["1"], hd
+    assert_weeks_equal_scan(DL, "deadline run 1 (window artifacts reused)")
     run(DL, now[7], pu.RULE_AFTER, max_days=400)
     second = rebuilt(DL)
     assert not (set(first) & set(second)), set(first) & set(second)
     assert set(first) | set(second) == touched7, (set(first) | set(second)) ^ touched7
-    print(f"deadline: {len(first)} days, then {len(second)}, none twice")
+    assert_weeks_equal_scan(DL, "deadline run 2")
+    print(f"deadline: {len(first)} days, then {len(second)}, none twice; weeks[].reg == row scan after each")
     # ---- a kill inside step 1 ------------------------------------------------
     CL = FIXTURE_DIR / "parts_crash_clean"
     if CL.exists():
@@ -551,7 +595,94 @@ def test_incremental_idempotent():
                     assert len(za["code"] if "code" in za else za["report_code"]) == \
                         len(zb["code"] if "code" in zb else zb["report_code"]), (where, dd.name, cache)
             assert not list((state_dir(CR) / "days" / dd.name).glob("pending_*.jsonl")), (where, dd.name)
+        assert_weeks_equal_scan(CR, where)
         print(f"crash at {where}: resumed run == clean run")
+    # ---- a kill between step 2 and step 3 at the per-run cap ----------------
+    # the steady-state drain: three days checkpointed, the kill inside the
+    # fourth day's build, then the cap-8 drain. The counts of the weeks the
+    # checkpointed days touched are marked stale in state.json with their
+    # checkpoint, so the drain publishes counts equal to a row scan (before,
+    # the in-memory touched set died with the process: week 36 under-counted
+    # per region for good, EU/CN/KR without a week-36 entry at all)
+    WS = FIXTURE_DIR / "parts_crash_weeks"
+    if WS.exists():
+        shutil.rmtree(WS)
+    shutil.copytree(after6, WS)
+    pu.concat_journals(WS, upto=7)
+    try:
+        run(WS, now[7], pu.RULE_AFTER, env_extra={"PARTS_TEST_CRASH_AT": "day:after_save:4"})
+        raise AssertionError("day:after_save:4: the crash hook did not fire")
+    except RuntimeError:
+        pass
+    stw = state(WS)
+    checkpointed = sorted(int(k) for k, e in stw["days"].items()
+                          if not e.get("dirty") and e.get("built_seq") == stw["seq"] + 1)
+    assert len(checkpointed) == 3, checkpointed
+    stale_w = {int(w) for w, we in stw["weeks"].items() if we.get("counts_stale")}
+    touched_w = {int(w) for d in checkpointed for w in stw["days"][str(d)].get("weeks", [])}
+    assert touched_w and touched_w <= stale_w, (touched_w, stale_w)
+    orders, _ = drain(WS, now[7], pu.RULE_AFTER)
+    assert_weeks_equal_scan(WS, "kill between step 2 and 3, cap-8 drain")
+    mws = manifest(WS)
+    assert strip(mws) == strip(mcl), [k for k in strip(mws) if strip(mws)[k] != strip(mcl)[k]]
+    assert [sd(e) for e in mws["days"]] == [sd(e) for e in mcl["days"]]
+    for rel in named_files(mcl):
+        assert (state_dir(WS) / "out" / rel).read_bytes() == (state_dir(CL) / "out" / rel).read_bytes(), rel
+    print(f"kill between step 2 and 3: {len(orders)} drain runs, weeks[].reg == row scan, tree == clean run")
+    # ---- a kill inside the per-day checkpoint, after the sqlite commit -------
+    # the one-shot replay walks newest first and builds the reverse-order
+    # midnight pair's LOSER day before the winner's: building the winner's
+    # day records the loser in sqlite (sig + loser rows) and marks the
+    # neighbour dirty in state.json; the per-day checkpoint commits sqlite
+    # first, and the kill stands between that commit and the state save.
+    # The resumed run rebuilds the winner's day (its clean mark was lost too),
+    # re-derives the neighbour from the committed loser row, rebuilds the
+    # neighbour in the same run and converges to the clean replay (§6.2-2,
+    # §6.3) -- before, the loser copy was served for good
+    winner, loser_rev = rev_pair["winner"], rev_pair["copy"]
+    order_re = rebuilt(RE)
+    n_win = order_re.index(winner[2]) + 1
+    assert loser_rev[2] in order_re[:n_win - 1], order_re
+    KC = FIXTURE_DIR / "parts_crash_commit"
+    if KC.exists():
+        shutil.rmtree(KC)
+    pu.common_root(KC)
+    pu.concat_journals(KC, upto=8)
+    state_dir(KC).mkdir(parents=True)
+    shutil.copyfile(state_dir(INC) / "season_pins.json", state_dir(KC) / "season_pins.json")
+    shutil.copytree(state_dir(INC) / "learned", state_dir(KC) / "learned")
+    try:
+        run(KC, now[8], pu.RULE_AFTER, max_days=400, env_extra={"PARTS_TEST_CRASH_AT": f"day:after_commit:{n_win}"})
+        raise AssertionError("day:after_commit: the crash hook did not fire")
+    except RuntimeError:
+        pass
+    stk = state(KC)
+    # the window under test: sqlite holds the collapse, state.json does not
+    assert stk["days"][str(winner[2])]["dirty"] and not stk["days"][str(loser_rev[2])].get("dirty"), \
+        {d: stk["days"][str(d)].get("dirty") for d in (winner[2], loser_rev[2])}
+    assert (loser_rev[0], loser_rev[1]) in keys_of_day(KC, loser_rev[2])
+    assert (loser_rev[2], (loser_rev[0], loser_rev[1])) not in collapse_events(KC)
+    con = sqlite3.connect(str(state_dir(KC) / "ids" / "runs.sqlite"))
+    assert con.execute("SELECT day FROM losers WHERE code=? AND fid=?", loser_rev[:2]).fetchone() == (loser_rev[2],)
+    con.close()
+    run(KC, now[8], pu.RULE_AFTER, max_days=400)
+    hk = pu.parts_health(KC)
+    assert rebuilt(KC)[:2] == [winner[2], loser_rev[2]], rebuilt(KC)
+    assert hk["parts.days_left"] == ["0"]
+    assert (loser_rev[0], loser_rev[1]) not in keys_of_day(KC, loser_rev[2])
+    assert (winner[0], winner[1]) in keys_of_day(KC, winner[2])
+    assert collapse_events(KC) == collapse_events(RE), (collapse_events(KC), collapse_events(RE))
+    mk = manifest(KC)
+    assert strip(mk) == strip(mr), [k for k in strip(mk) if strip(mk)[k] != strip(mr)[k]]
+    assert [sd(e) for e in mk["days"]] == [sd(e) for e in mr["days"]]
+    for rel in named_files(mr):
+        assert (state_dir(KC) / "out" / rel).read_bytes() == (state_dir(RE) / "out" / rel).read_bytes(), rel
+    assert (state_dir(KC) / "ids" / "chars.bin").read_bytes() == (state_dir(RE) / "ids" / "chars.bin").read_bytes()
+    run(KC, now[8], pu.RULE_AFTER, max_days=400)
+    hk3 = pu.parts_health(KC)
+    assert hk3["parts.rebuilt_days"] == ["0"] and hk3["parts.manifest"] == ["unchanged"], hk3
+    print(f"crash after the commit of day {winner[2]}'s checkpoint: neighbour {loser_rev[2]} re-derived, "
+          f"loser gone, tree == replay, third run a no-op")
     # ---- a tuning patch inserted on top of the existing one ----------------
     # post/tmul are relative to patches[0], so the rows between the OLD and
     # the NEW earliest cutoff flip too: the patch branch dirties every day

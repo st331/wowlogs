@@ -636,6 +636,13 @@ class RunDB:
         self.con.execute("INSERT OR REPLACE INTO losers(code, fid, day, wcode, wfid) VALUES(?,?,?,?,?)",
                          (code, fid, day, wcode, wfid))
 
+    def losers_won_by_day(self, day: int) -> list:
+        """(code, fid, day) of every loser recorded in another day whose
+        winner is routed to `day` -- the cross-day collapses this day won."""
+        return [(c, int(f), int(d)) for c, f, d in self.con.execute(
+            "SELECT l.code, l.fid, l.day FROM losers l JOIN runs r ON r.code = l.wcode AND r.fid = l.wfid "
+            "WHERE r.day = ? AND l.day != ?", (day, day))]
+
     def snapshot_diff(self, triples: dict, seq: int) -> tuple[list, dict]:
         """Upsert the snapshot's (code,fid) -> (score, medal, kms) triples and
         set the presence flag, mirroring what export() serves (F:1228-1278,
@@ -886,7 +893,6 @@ class Builder:
         self.rebuilt_days: list = []
         self.days_built_this_run = 0
         self.dirty_found = 0
-        self.touched_weeks: set = set()
         self.window_stale = False
         self.rows_cache: dict = {}
         self.pending_neighbours: list = []
@@ -1116,15 +1122,22 @@ class Builder:
             self.st.d["learned_candidates"].pop(name, None)
 
     # ---- step 1: journals ------------------------------------------------
-    def checkpoint(self) -> None:
+    def checkpoint(self, crash_where: str | None = None) -> None:
         """The durable checkpoint, in this order: sqlite (routing, overlay,
-        signatures), then the character registry log, then state.json last
-        (offsets, arrival counters, dirty marks). A kill between any two
-        leaves a state the next run resumes from without loss: the journal
-        offset only moves in state.json, so anything not yet recorded there
-        is re-tailed, and the pending caches dedupe re-appended records
-        (§6.3)."""
+        signatures, losers), then the character registry log, then
+        state.json last (offsets, arrival counters, dirty marks). A kill
+        between any two leaves a state the next run resumes from without
+        loss: the journal offset only moves in state.json, so anything not
+        yet recorded there is re-tailed, the pending caches dedupe
+        re-appended records, and a day whose clean mark was not yet saved is
+        rebuilt, which re-derives from the committed sig/loser rows the one
+        state-side fact its build produced -- the dirty mark of a cross-day
+        collapse neighbour (_collapse, §6.2-2, §6.3). `PARTS_TEST_CRASH_AT=
+        day:after_commit:<n>` stands between the commit and the state save
+        of the n-th per-day checkpoint."""
         self.db.commit()
+        if crash_where:
+            self._test_crash("day", crash_where, self.days_built_this_run)
         self.reg.flush()
         self.st.d["char_registry_size"] = self.reg.total
         self.st.save()
@@ -1463,7 +1476,7 @@ class Builder:
             d = queue[0]
             self.build_day(d)
             done += 1
-            self.checkpoint()                    # the per-day checkpoint (§6.2-2)
+            self.checkpoint("after_commit")      # the per-day checkpoint (§6.2-2)
             if TEST_STALL_S:
                 stall_until = time.monotonic() + TEST_STALL_S
                 while time.monotonic() < stall_until and not STOP[0]:
@@ -1543,7 +1556,6 @@ class Builder:
                                                    "at": iso(self.now_ms)})
             we.update({"published": True, "cube_sha": cube_sha, "f": files, "b": byts,
                        "frozen_at": iso(self.now_ms), "built_seq": self.st.d["seq"] + 1})
-            self.touched_weeks.add(w)
             emitted.append(w)
             self.st.save()                       # per-week checkpoint
         if emitted:
@@ -1663,6 +1675,27 @@ class Builder:
             else:
                 drop.add((c, f))
                 self.db.add_loser(c, f, day, ecode, efid)
+        # The neighbour marks above live in state.json, the sig/loser rows in
+        # sqlite, and the per-day checkpoint commits sqlite first: a kill
+        # between that commit and the state save keeps this day dirty (its
+        # clean mark was in the same lost save) while the loser's day is
+        # not, and on this day's rebuild the signature already names its
+        # own run -- the loop above finds nothing. The durable truth of the
+        # collapse is the loser row itself, so every loser recorded in
+        # ANOTHER day whose winner is a run of this day and whose copy that
+        # day's keys still hold is a neighbour again (idempotent: once the
+        # neighbour is rebuilt its keys no longer hold the loser).
+        seen = set(neighbours)
+        keys_cache: dict = {}
+        for lcode, lfid, lday in self.db.losers_won_by_day(day):
+            if (lday, lcode, lfid) in seen:
+                continue
+            if lday not in keys_cache:
+                kz = load_npz(self.P.day_dir(lday) / "keys.npz")
+                keys_cache[lday] = set(zip(kz["code"].tolist(), kz["fid"].astype(np.int64).tolist())) if kz is not None else set()
+            if (lcode, lfid) in keys_cache[lday]:
+                neighbours.append((lday, lcode, lfid))
+                seen.add((lday, lcode, lfid))
         if drop:
             keep = [(c, int(f)) not in drop for c, f in zip(df["report_code"], df["fight_id"])]
             df = df[keep].reset_index(drop=True)
@@ -1704,9 +1737,14 @@ class Builder:
         abil = self._abil_cache(day)
         for eday, ecode, efid in neighbours:
             self.st.mark_dirty(eday, "collapse")
-            self.st.d["invalidations"].append({"day": eday, "reason": "collapse", "loser": [ecode, efid],
-                                               "winner_day": day, "seq": self.st.d["seq"] + 1,
-                                               "at": iso(self.now_ms)})
+            # one record per collapse event: a neighbour re-derived from the
+            # loser rows (this day rebuilt again before the neighbour was,
+            # or after a kill lost the first mark) does not count twice
+            if not any(x.get("reason") == "collapse" and x.get("day") == eday and x.get("loser") == [ecode, efid]
+                       for x in self.st.d["invalidations"]):
+                self.st.d["invalidations"].append({"day": eday, "reason": "collapse", "loser": [ecode, efid],
+                                                   "winner_day": day, "seq": self.st.d["seq"] + 1,
+                                                   "at": iso(self.now_ms)})
             self.health(f"parts.collapse.neighbour={eday}:{ecode}:{efid}")
         # persist the canonical caches (the pending files are consumed). A
         # kill between these saves and the unlinks below leaves the pending
@@ -1731,7 +1769,7 @@ class Builder:
                 p = dd / name
                 if p.exists():
                     p.unlink()
-            self.touched_weeks |= set(int(w) for w in st_day.get("weeks", []))
+            self.weeks_stale(set(int(w) for w in st_day.get("weeks", [])))
             st_day["weeks"] = []
             self.rebuilt_days.append(day)
             self._stage("day_build", t0)
@@ -1744,9 +1782,62 @@ class Builder:
                        "w_clamp": out["w_clamp"], "weeks": sorted(out["weeks"]), "dirty": False,
                        "reasons": [], "built_seq": self.st.d["seq"] + 1, "bytes": out["bytes"],
                        "hero_recovered": out["hero_recovered"]})
-        self.touched_weeks |= old_weeks | set(out["weeks"])
+        self.weeks_stale(old_weeks | set(out["weeks"]))
         self.rebuilt_days.append(day)
         self._stage("day_build", t0)
+
+    def weeks_stale(self, weeks: set) -> None:
+        """The per-week counts of these weeks no longer match their row
+        files: a DURABLE mark in state.json (it lands with the day's own
+        checkpoint), consumed by week_counts(). An in-memory set would be
+        lost by any run that ends between this day's checkpoint and the
+        recompute -- the builder's own deadline stop as much as a kill --
+        and the manifest would carry the previous counts for good."""
+        for w in weeks:
+            we = self.st.d["weeks"].setdefault(str(int(w)), {"published": False, "days": []})
+            we["counts_stale"] = True
+
+    def week_counts(self) -> None:
+        """§2.6/§6.2-3: manifest.weeks[].reg -- weekCounts / availWeeks /
+        weekTitle and the 'N of M shown' scope line read it -- recomputed
+        from thin.npz for every week whose counts are stale (weeks_stale) or
+        absent, EVERY run, independent of the window fingerprint and of the
+        deadline: the counts are per-week facts of the very row files being
+        published, not window artifacts, so a deadline stop that reuses the
+        previous window artifacts still publishes counts equal to a row scan."""
+        t0 = time.perf_counter()
+        S, P = self.season, self.P
+        done = []
+        for w_ in sorted(int(k) for k in self.st.d["weeks"]):
+            we = self.st.d["weeks"][str(w_)]
+            if not we.get("counts_stale", True) and we.get("reg") is not None:
+                continue
+            acc: dict = {}
+            days = [d for d in we.get("days", []) if (P.day_dir(d) / "thin.npz").exists()]
+            for d in days:
+                th = load_npz(P.day_dir(d) / "thin.npz")
+                if th is None:
+                    continue
+                m = th["W"] == w_
+                if not m.any():
+                    continue
+                for ri in np.unique(th["reg"][m]):
+                    mm = m & (th["reg"] == ri)
+                    rn = S.vocab["regions"][int(ri)]
+                    a = acc.setdefault(rn, {"n": 0, "runs": 0, "chars": set(), "dmin": 10 ** 9, "dmax": -1})
+                    a["n"] += int(mm.sum())
+                    a["runs"] += len(np.unique(th["run"][mm]))
+                    a["chars"].update(th["char"][mm].tolist())
+                    a["dmin"] = min(a["dmin"], int(th["day"][mm].min()))
+                    a["dmax"] = max(a["dmax"], int(th["day"][mm].max()))
+            we["reg"] = {rn: {"n": a["n"], "runs": a["runs"], "chars": len(a["chars"]), "dmin": a["dmin"],
+                              "dmax": a["dmax"]} for rn, a in sorted(acc.items())}
+            we["days"] = days
+            we["counts_stale"] = False
+            done.append(w_)
+        if done:
+            self.health("parts.weeks_recomputed=" + ",".join(str(w) for w in done))
+        self._stage("weeks", t0)
 
     # ---- step 3: window ----------------------------------------------------
     def listed_days(self, days_with_rows: list) -> list:
@@ -2030,6 +2121,10 @@ class Builder:
             # fetched by the client for nothing (§3.1 cube-gap invariant
             # holds either way: a day stays listed until its cube is named)
             self.step4()
+            # per-week counts before the window stage: they are recomputed
+            # for every stale week whether or not the window stage runs
+            # (fingerprint unchanged, deadline reached), §2.6
+            self.week_counts()
             art = self.step3()
             man = self.write_manifest(art)
             self.prune_and_publish(man)
@@ -3187,35 +3282,8 @@ def window_stage(B: Builder, listed: list, rio_sha: str) -> dict:
                             "meta": art["projection"]}
     B._stage("refchars", t0)
     t0 = time.perf_counter()
-    # ---- per-week counts (weekCounts / availWeeks / weekTitle inputs)
-    weeks_touch = set(B.touched_weeks)
-    for w_, we in B.st.d["weeks"].items():
-        if not we.get("reg"):
-            weeks_touch.add(int(w_))
-    for w_ in sorted(weeks_touch):
-        we = B.st.d["weeks"].setdefault(str(w_), {"published": False, "days": []})
-        acc: dict = {}
-        for d in we.get("days", []):
-            th = load_npz(P.day_dir(d) / "thin.npz")
-            if th is None:
-                continue
-            m = th["W"] == w_
-            if not m.any():
-                continue
-            for ri in np.unique(th["reg"][m]):
-                mm = m & (th["reg"] == ri)
-                rn = S.vocab["regions"][int(ri)]
-                a = acc.setdefault(rn, {"n": 0, "runs": 0, "chars": set(), "dmin": 10 ** 9, "dmax": -1})
-                a["n"] += int(mm.sum())
-                a["runs"] += len(np.unique(th["run"][mm]))
-                a["chars"].update(th["char"][mm].tolist())
-                a["dmin"] = min(a["dmin"], int(th["day"][mm].min()))
-                a["dmax"] = max(a["dmax"], int(th["day"][mm].max()))
-        we["reg"] = {rn: {"n": a["n"], "runs": a["runs"], "chars": len(a["chars"]), "dmin": a["dmin"],
-                          "dmax": a["dmax"]} for rn, a in sorted(acc.items())}
-        we["days"] = [d for d in we.get("days", []) if (P.day_dir(d) / "thin.npz").exists()]
-    B._stage("weeks", t0)
-    t0 = time.perf_counter()
+    # (the per-week counts are Builder.week_counts(), run before this stage
+    # every run: they must not depend on the window stage running)
     # ---- pars for un-pinned dungeons (§5): derive_pars over the window
     # once a dungeon has >= 500 clocked runs with both outcomes
     pins_pars = B.pins.doc.setdefault("pars", {})
