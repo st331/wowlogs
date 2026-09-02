@@ -1,6 +1,6 @@
 name: Refresh Season 2 data
 
-# Collection sidecar, every 30 minutes. Sweeps the Warcraft Logs leaderboards,
+# Collection sidecar, every 20 minutes. Sweeps the Warcraft Logs leaderboards,
 # fetches the summaries for whatever is new, rebuilds the dashboard and
 # publishes it.
 #
@@ -49,7 +49,7 @@ on:
         type: string
         default: ""
       prev_start:
-        description: "Internal: predecessor run's start epoch, for 30-minute pacing"
+        description: "Internal: predecessor run's start epoch, for 20-minute pacing"
         type: string
         default: ""
       # DRAIN MODE -- the owner's sanctioned relaxation of the 70% cap, for one
@@ -59,7 +59,7 @@ on:
       # ceiling, exports, builds and deploys, then chains a successor timed to
       # the quota window's reset. Each successor re-reads the backlog and
       # keeps draining only while it is real; the moment it is gone the chain
-      # continues as an ordinary 70%, 30-minute-paced run. The scheduled path
+      # continues as an ordinary 70%, 20-minute-paced run. The scheduled path
       # never sets this, so the standing cap stands.
       drain:
         description: "One-off: spend the full hourly budget per run and chain at the window reset until the backlog is gone, then revert to the 70% cadence"
@@ -120,11 +120,12 @@ jobs:
 
       # GitHub throttles */30 cron badly (observed gaps up to 4.5 h), so each
       # scheduled/chained run dispatches its own successor at the end and the
-      # cron survives only as a dead-man's restart. A chained successor starts
-      # the moment its predecessor finishes; this step sleeps out the rest of
-      # the 30-minute slot (capped at 25 min, inside the 50-min timeout) so
-      # run STARTS stay ~30 min apart. Concurrency holds one pending run at
-      # most, so cron ticks landing mid-chain self-cancel into it.
+      # cron survives only as a dead-man's restart (the watchdog is the
+      # other). A chained successor starts the moment its predecessor
+      # finishes; this step sleeps out the rest of the 20-minute slot (capped
+      # at ~17 min, inside the 50-min timeout) so run STARTS stay ~20 min
+      # apart. Concurrency holds one pending run at most, so cron ticks
+      # landing mid-chain self-cancel into it.
       - name: Pace the chain
         run: |
           echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
@@ -146,8 +147,12 @@ jobs:
               if [ "$WAIT" -gt 0 ]; then echo "drain: waiting ${WAIT}s for the quota window"; sleep "$WAIT"; fi
             fi
           elif [ "${{ inputs.chain }}" = "true" ] && [ -n "$PREV" ]; then
-            NOW=$(date +%s); WAIT=$(( 1800 - (NOW - PREV) ))
-            [ "$WAIT" -gt 1500 ] && WAIT=1500
+            # 20 minutes between run STARTS (owner, 2026-09-02: worst-case
+            # freshness ~40 -> ~30 min; budget is not the constraint at ~2.5k
+            # points per run against 12.6k). The daily-commit window below
+            # is sized to this cadence -- change both together.
+            NOW=$(date +%s); WAIT=$(( 1200 - (NOW - PREV) ))
+            [ "$WAIT" -gt 1000 ] && WAIT=1000
             if [ "$WAIT" -gt 0 ]; then echo "pacing: sleeping ${WAIT}s"; sleep "$WAIT"; fi
           fi
 
@@ -371,22 +376,33 @@ jobs:
           # slipped run silently skips the day's seed. The 04:00 run cannot
           # reach back into 03, so at most one run a day still matches.
           #
-          # This gate MUST agree with the cron above. A 30-minute cadence
-          # sees four runs across 02:00-03:59, so the window is one half-hour
-          # wide, matched against the commit step's own clock: only the run
-          # that reaches this step between 02:00 and 02:29 commits. If a slow
-          # run slips past the window the seed just waits a day -- the owner
+          # This gate MUST agree with the chain pacing above. Runs start 20
+          # minutes apart, so a 20-minute window matched against the commit
+          # step's own clock admits exactly one run a day: the one that
+          # reaches this step between 02:00 and 02:19. If a slow run slips
+          # past the window the seed just waits a day -- the owner
           # explicitly does not mind.
           if [ -z "$FORCE" ]; then
             case "$(date -u +%H%M)" in
-              020*|021*|022*) ;;
+              020*|021*) ;;
               *) echo "not the daily slot; skipping"; exit 0 ;;
             esac
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
-          git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
+          # GitHub rejects any file over 100 MB at push, and a rejected push
+          # fails this step and the run. Nothing over 95 MB is ever staged;
+          # a skipped file is a loud warning, not a red run. The gear journal
+          # is already past the limit and the CSV crosses it around the end
+          # of September -- durable copies are moving to Release assets.
+          too_big() { [ -f "$1" ] && [ "$(stat -c %s "$1")" -gt 99614720 ]; }
+          if too_big data/mythic_runs.csv.gz; then
+            echo "::warning::mythic_runs.csv.gz is $(du -h data/mythic_runs.csv.gz | cut -f1), over GitHub's 100 MB file limit; NOT committed"
+            git add data/keystone_times.json data/rio_scores.csv.gz
+          else
+            git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
+          fi
           git add data/names_items.json data/names_enchants.json data/crafted_ids.json data/emb_markers.json 2>/dev/null || true
           git add data/emb_identity.json data/emb_items.json data/emb_overrides.json 2>/dev/null || true
           git add data/names_icons.json data/names_spells.json data/trait_geometry.json 2>/dev/null || true
@@ -401,8 +417,12 @@ jobs:
           # the site itself would be unaffected, because the set counts the
           # tier filters need travel in mythic_runs.csv.gz.
           if { [ "$(date -u +%u)" = "1" ] || [ -n "$FORCE" ]; } && [ -f data/gear.jsonl.gz ]; then
-            echo "Monday: including the gear journal ($(du -h data/gear.jsonl.gz | cut -f1))"
-            git add data/gear.jsonl.gz
+            if too_big data/gear.jsonl.gz; then
+              echo "::warning::gear.jsonl.gz is $(du -h data/gear.jsonl.gz | cut -f1), over GitHub's 100 MB file limit; NOT committed (it has never fit -- Release assets are its home)"
+            else
+              echo "Monday: including the gear journal ($(du -h data/gear.jsonl.gz | cut -f1))"
+              git add data/gear.jsonl.gz
+            fi
           fi
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -m "Daily data export ($(date -u +%Y-%m-%d))"

@@ -23,7 +23,15 @@ crux of any future attempt.
 
 ## In flight
 
-Nothing.
+- **Cadence 20 min (owner, 2026-09-02: "start with 1 and then do 2").** Chain pacing
+  1800 -> 1200 s; the daily-commit window narrowed to 02:00-02:19 to stay once a day.
+  Commit step now refuses to stage any file over 95 MB (GitHub rejects 100 MB at push):
+  gear.jsonl.gz is already ~150 MB and had never been committed; the CSV crosses the
+  line around end of September. Durable snapshots move to Release assets under (2).
+- **(2) Partitioned payload + incremental build** -- design workflow running; blueprint
+  lands in fleet/blueprints/partitioned_payload.md. Decision taken on the owner's
+  behalf per the earlier recommendation: THREE resets at row level, older weeks as
+  per-reset aggregate cubes, per-spec sidecar shards, typed binary columns.
 
 ## Landed 2026-08-31
 
