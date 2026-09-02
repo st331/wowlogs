@@ -83,6 +83,13 @@ on:
         description: "Internal: 'fresh' or 'backfill' while draining a backlog; empty for an ordinary run"
         type: string
         default: ""
+      # partitioned_payload.md §6.4 / §10: rebuild every partition day in
+      # one run (a human edit of season_pins.json, a format bump) instead
+      # of draining 8 days per cycle. Never set by the scheduled path.
+      rebuild_all:
+        description: "One-off: rebuild every partitioned day file in this run (partition builder only; the legacy build is unaffected)"
+        type: boolean
+        default: false
   # NO push trigger, deliberately. Every chained run checks out the branch
   # head, so a pipeline change is live within one cadence tick anyway -- and
   # a push-triggered run competes for the single concurrency slot, where the
@@ -111,7 +118,7 @@ jobs:
     # gear refetch needs more than one hourly quota window by arithmetic, so it
     # is allowed to sit through the reset rather than stop and wait to be
     # dispatched again.
-    timeout-minutes: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true') && 110 || 50 }}
+    timeout-minutes: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true' || inputs.rebuild_all == true) && 110 || 50 }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -277,6 +284,19 @@ jobs:
           python -u scripts/fetch_traits.py --limit 1200 || echo "::warning::trait fetch failed; building with existing caches"
           cp "data/names_spells.json" "data/processed/names_spells.json" 2>/dev/null || true
 
+      # BOTH builders in parallel (partitioned_payload.md §6, stage B of
+      # PR-1): scripts/build_step.sh starts the partition builder in the
+      # background under `timeout` with PARTS_DEADLINE_S (the legacy
+      # builder's rolling 7-run median wall minus 60 s, floor 120 s) and
+      # runs the legacy builder in the foreground. The LEGACY exit code
+      # alone decides the job -- a partition failure or a deadline hit is a
+      # ::warning:: plus parts.status/parts.deadline_hit lines appended to
+      # build_health.txt after BOTH exit (legacy write_health() truncates
+      # the file when it finishes), never a red run. The partition builder
+      # opens no network socket and checkpoints state.json after every
+      # completed day, so a deadline stop loses nothing: the next cycle
+      # continues, today's day first. Its outputs land in site/d/<slug>/
+      # (gitignored, Pages artifact only); the legacy payload is untouched.
       - name: Build site
         env:
           # The LLM export is OFF the refresh path, on every run
@@ -285,8 +305,17 @@ jobs:
           # llms.yml builds it once a day and publishes it as a Release
           # asset; the step below unpacks that. Never set this to 1 here.
           BUILD_LLMS: "0"
+          # a dispatch with rebuild_all=true rebuilds every partition day in
+          # one go (the 110-minute timeout above covers it, ~4 s/day)
+          REBUILD_ALL: ${{ inputs.rebuild_all == true && 'true' || '' }}
+          PARTS_DEADLINE_S: ${{ inputs.rebuild_all == true && '5400' || '' }}
         run: |
-          python -u scripts/build_site_data.py
+          rc=0
+          bash scripts/build_step.sh || rc=$?
+          grep -q "^parts.deadline_hit=1" site/build_health.txt \
+            && echo "::warning::partition build stopped at its deadline (parts.deadline_s / parts.days_left in build_health.txt)"
+          grep -q "^parts.status=failed" site/build_health.txt \
+            && echo "::warning::partition build failed (parts.error in build_health.txt, parts.log in the run)"
           # Embellishment identity has now failed twice in
           # production, both times silently. The verdict token is
           # the first line of the [emb] block; surface it as an
@@ -301,7 +330,7 @@ jobs:
             && echo "::warning::legacy build over the 10-minute tripwire (build.wall_s in build_health.txt)"
           grep -q "^fetch.export.rss_tripped=1\|^fetch.export.wall_tripped=1" site/build_health.txt \
             && echo "::warning::export() over a §7.4 tripwire (fetch.export.* in build_health.txt)"
-          true
+          exit $rc
 
       # /llms.txt and /llms/ come from the daily llms.yml Release asset, not
       # from this build (scripts/llms_asset.sh, the one place the mechanism

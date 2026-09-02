@@ -28,12 +28,21 @@ socket, and stops cleanly at the first day/stage boundary past
      the `rows` file, the per-(spec, day) shard blocks (§4.2), thin.npz
      (the cube partial, §3.2) and keys.npz; checkpoint state.json after
      every completed day;
+  4. freeze: a day is frozen when it is not dirty and quiescent (72 h) or
+     aged (day end + 7 d); once every UTC day touching an absolute reset
+     week is frozen the week's four cube files (cells/dist/chars/comps,
+     §3.2) are emitted from the thin.npz partials under ONE cube_sha per
+     generation; a rebuilt day of a cubed week re-emits its cube under a
+     new cube_sha (§6.4); a week's days stay listed until its cube is
+     named by the manifest (§3.1); PARTS_WITHHOLD_CUBES / --withhold-cubes
+     keeps a week row-served (the cube gap of the tests);
   3. window-level, every run: spec/vocab, meta/specstats, meta/charscore
      (daily base + per-run delta), window.refchars / keys, per-week counts
      -- skipped when no window block changed;
   then the manifest (§2.6; seq advances only when something changed),
-  out/ pruned to three generations, copied to site/d/<slug>/, and the
-  health lines in data/processed/parts/health.txt.
+  out/ pruned to three generations or files younger than 15 minutes
+  (§6.5), copied to site/d/<slug>/, and the health lines in
+  data/processed/parts/health.txt.
 
 State lives under data/processed/parts/<slug>/ (§6.1). season_pins.json
 there is the authoritative pins file (§2.5): seeded on the first run,
@@ -41,8 +50,8 @@ injected from --pins / WOWLOGS_PINS in the equivalence tests, and changed
 only through a recorded upgrade; a human edit of the git mirror is adopted
 as one.
 
-Stage C adds: freeze packing + cube emission (step 4), Release staging,
-the reseed and the refuse-to-publish guard.
+Stage C adds: freeze packing to upload/, Release staging, the reseed and
+the refuse-to-publish guard.
 """
 from __future__ import annotations
 
@@ -92,11 +101,24 @@ DEFAULT_LEGACY_WALL_S = 420
 # §5 pin rules; env-tunable so the fixture (300 runs/day) can exercise them
 TIER_MIN_PARSES = int(os.environ.get("PARTS_TIER_MIN_PARSES", "20000"))
 PIN_SLOTS = int(os.environ.get("PARTS_PIN_SLOTS", "3"))
+# the marker-learning in-tree share (HeroResolver.MIN_IN_TREE, 0.85): the
+# fixture plants its chunk-4 marker in five days of a three-week window
+LEARN_MIN_IN = os.environ.get("PARTS_LEARN_MIN_IN")
 PAR_MIN_RUNS = 500
 DAILY_SLOT_H = 20                 # a run this long after the last daily slot is one
 DEFAULT_ESLOTS = [0, 4, 6, 7, 8, 10, 11, 14, 15, 16]
 ROLE_RANK = {"Tank": 0, "Healer": 1, "DPS": 2}
 JOURNAL_SHA_SPAN = 65536
+TAIL_BATCH = 100_000              # journal records held at once while tailing (§6.2-1)
+# §3.1 cube gap for the tests / an operator: "*" withholds every cube, else a
+# comma list of absolute weeks whose cube is not emitted (the days stay listed)
+WITHHOLD_CUBES = os.environ.get("PARTS_WITHHOLD_CUBES", "")
+# test hook for test_build_step_exit: sleep this long between days, so a
+# stalled builder can be driven against the Build step's deadline
+TEST_STALL_S = float(os.environ.get("PARTS_TEST_STALL_S", "0") or 0)
+CELL_DIMS = tuple(sc.CELL_DIMS)
+RL_DIMS = tuple(sc.RL_DIMS)
+RG_DIMS = tuple(sc.RG_DIMS)
 
 STOP = [False]
 
@@ -509,6 +531,9 @@ class RunDB:
         self.con.execute("INSERT OR IGNORE INTO runs(code, fid, day, first_seen) VALUES(?,?,?,?)",
                          (code, fid, day, seq))
 
+    def add_runs(self, rows: list) -> None:
+        self.con.executemany("INSERT OR IGNORE INTO runs(code, fid, day, first_seen) VALUES(?,?,?,?)", rows)
+
     def overlay_for(self, keys: list) -> dict:
         out = {}
         for i in range(0, len(keys), 400):
@@ -722,7 +747,8 @@ class Deadline:
 class Builder:
     def __init__(self, data_root, site_dir, now_ms: int | None = None, deadline: float | None = None,
                  pins_inject: pathlib.Path | None = None, daily: bool = False, max_days: int = MAX_DAYS_PER_RUN,
-                 rebuild_all: bool = False, log_fn=print):
+                 rebuild_all: bool = False, log_fn=print, withhold_cubes: str | None = None):
+        self.withhold_cubes = WITHHOLD_CUBES if withhold_cubes is None else withhold_cubes
         self.season = Season(season_path(pathlib.Path(data_root)))
         self.P = Paths(pathlib.Path(data_root), pathlib.Path(site_dir), self.season.slug)
         self.now_ms = int(now_ms if now_ms is not None else time.time() * 1000)
@@ -795,20 +821,61 @@ class Builder:
             self.daily_learn()
         if pins.changed_keys or (self.st.d.get("pins") or {}).get("sha") != pins.sha:
             pins.save()
-        # a pin/rules/vocab change dirties every day (newest first, §6.4)
-        inputs_static = self.static_inputs_sha()
-        if self.st.d.get("static_inputs") != inputs_static or self.rebuild_all:
-            reason = "rebuild_all" if self.rebuild_all else "pins" if pins.changed_keys else "rules"
-            for key in list(self.st.d["days"]):
-                self.st.mark_dirty(int(key) if key != "undated" else -1, reason)
-            self.st.d["static_inputs"] = inputs_static
+        # the invalidation matrix (§6.4), scoped by what changed: a pin /
+        # vocab / format change dirties every day; a tuning rule-table edit
+        # dirties the LISTED days only (tmul lives in day files; cubes carry
+        # none); a new tuning patch dirties the days from the earliest cutoff
+        # minus one. Newest first happens in step 2's queue.
+        cur = self.static_inputs()
+        prev = self.st.d.get("static_inputs")
+        if not isinstance(prev, dict):
+            prev = {"all": prev}
+        all_days = [int(k) if k != "undated" else -1 for k in self.st.d["days"]]
+        if self.rebuild_all or prev.get("pins") != cur["pins"] or prev.get("vocab") != cur["vocab"] \
+                or prev.get("fmt") != cur["fmt"] or ("all" in prev and prev["all"] != cur["all"]):
+            reason = "rebuild_all" if self.rebuild_all else "pins" if prev.get("pins") != cur["pins"] else "vocab"
+            for d in all_days:
+                self.st.mark_dirty(d, reason)
+        elif prev.get("rules") != cur["rules"]:
+            with_rows = sorted(d for d in all_days if d >= 0)
+            for d in self.listed_days(with_rows) + [d for d in all_days if d < 0]:
+                self.st.mark_dirty(d, "rules")
+        elif prev.get("patch") != cur["patch"]:
+            since = self.patch_first_day()
+            for d in all_days:
+                if d < 0 or d >= since - 1:
+                    self.st.mark_dirty(d, "patch")
+        self.st.d["static_inputs"] = cur
         if self.daily:
             self.st.d["daily"]["last"] = iso(self.now_ms)
         self._stage("pins", t0)
 
+    def static_inputs(self) -> dict:
+        return {"pins": sha256_bytes(self.pins.inputs_material().encode()), "rules": self.rules_sha,
+                "patch": sha256_bytes(self.patch_id.encode()), "vocab": self.season.vocab_sha,
+                "fmt": str(pf.FORMAT_VERSION), "all": self.static_inputs_sha()}
+
     def static_inputs_sha(self) -> str:
         return sha256_bytes((self.pins.inputs_material() + "|" + self.rules_sha + "|" + self.patch_id
                              + "|" + self.season.vocab_sha + "|" + str(pf.FORMAT_VERSION)).encode())
+
+    def patch_first_day(self) -> int:
+        """The UTC day of the earliest per-region cutoff of the current
+        patch (−1 day is applied by the caller); 0 when unknown."""
+        if not self.patch:
+            return 0
+        cands = []
+        regs = self.patch.get("regions") or {}
+        for v in list(regs.values()) + [self.patch.get("date")]:
+            if not v:
+                continue
+            try:
+                s = str(v)
+                ms = sc.parse_iso_ms(s if "T" in s else s + "T00:00:00Z")
+            except (ValueError, TypeError):
+                continue
+            cands.append(int((ms - self.season.epoch_ms) // DAY_MS))
+        return min(cands) if cands else 0
 
     def daily_learn(self) -> None:
         """§5 at the daily slot: tier first-write / auto-upgrade over the
@@ -885,6 +952,9 @@ class Builder:
                 if ab_set:
                     pairs.append((f"{sp} {cl}", str(h) or "Unknown", ab_set))
         if pairs:
+            if LEARN_MIN_IN:
+                import hero_from_abilities as _hfa
+                _hfa.MIN_IN_TREE = float(LEARN_MIN_IN)
             hr = HeroResolver.learn(pairs)
             table = {"markers": {sp: dict(sorted(m.items())) for sp, m in sorted(hr.markers.items())},
                      "sole": dict(sorted(hr.sole.items()))}
@@ -918,13 +988,16 @@ class Builder:
             self.st.d["learned_candidates"].pop(name, None)
 
     # ---- step 1: journals ------------------------------------------------
-    def tail(self, name: str, path: pathlib.Path) -> list:
-        """Records appended since the stored offset; a torn last line is not
-        consumed; a rewritten journal (sha mismatch / seeded marker) is
-        replayed from byte 0."""
+    def tail(self, name: str, path: pathlib.Path, batch: int = TAIL_BATCH):
+        """Yields BATCHES of records appended since the stored offset (the
+        journal is streamed, never held whole: a from-scratch replay of a
+        season is gigabytes of JSON); a torn last line is not consumed; a
+        rewritten journal (sha mismatch / seeded marker) is replayed from
+        byte 0. The offset and its preceding-64-KiB sha are recorded once
+        the last batch has been yielded."""
         ent = self.st.d["journals"].setdefault(name, {})
         if not path.exists():
-            return []
+            return
         size = path.stat().st_size
         off = int(ent.get("offset") or 0)
         marker = path.with_name(path.name + ".seeded")
@@ -946,31 +1019,34 @@ class Builder:
         if replay:
             self.health(f"parts.journal_replay={name}")
             off = 0
-        records = []
+        bad = 0
+        consumed = off
+        records: list = []
         with open(path, "rb") as fh:
             fh.seek(off)
-            data = fh.read()
-        end = len(data)
-        if end and not data.endswith(b"\n"):
-            end = data.rfind(b"\n") + 1        # the torn last line stays unconsumed
-        bad = 0
-        for line in data[:end].split(b"\n"):
-            if not line.strip():
-                continue
-            try:
-                records.append(json.loads(line))
-            except ValueError:
-                bad += 1
-        new_off = off + end
+            for line in fh:
+                if not line.endswith(b"\n"):
+                    break                       # the torn last line stays unconsumed
+                consumed += len(line)
+                if not line.strip():
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except ValueError:
+                    bad += 1
+                if len(records) >= batch:
+                    yield records
+                    records = []
+        if records:
+            yield records
         with open(path, "rb") as fh:
-            fh.seek(max(0, new_off - JOURNAL_SHA_SPAN))
-            pre = fh.read(new_off - max(0, new_off - JOURNAL_SHA_SPAN))
-        ent["offset"] = new_off
+            fh.seek(max(0, consumed - JOURNAL_SHA_SPAN))
+            pre = fh.read(consumed - max(0, consumed - JOURNAL_SHA_SPAN))
+        ent["offset"] = consumed
         ent["sha"] = sha256_bytes(pre)
         ent["seeded"] = marker_tag is not None
         if bad:
             self.health(f"parts.journal_bad_lines.{name}={bad}")
-        return records
 
     @staticmethod
     def char_key(rec: dict) -> str:
@@ -991,71 +1067,95 @@ class Builder:
         return int((ms - EPOCH_MS_CACHE[0]) // DAY_MS)
 
     def step1(self) -> None:
+        """§6.2-1, streamed: every batch of the players tail is routed to
+        its UTC day and appended to that day's pending file before the next
+        batch is read, so a season-long replay never holds a journal in
+        memory; gear/abilities route through the run table (the runs this
+        very tail named are known without a lookup) and park otherwise."""
         t0 = time.perf_counter()
         seq = self.st.d["arrival_seq"]
-        by_day: dict[int, list] = collections.defaultdict(list)
-        players = self.tail("players", self.P.players)
-        for rec in players:
-            seq += 1
-            day = self.day_of(rec.get("started_at"))
-            code, fid = ustr(rec.get("report_code")), int(rec.get("fight_id") or 0)
-            rec["_cid"] = self.reg.get_or_assign(self.char_key(rec))
-            rec["_seq"] = seq
-            self.db.add_run(code, fid, day, seq)
-            by_day[day].append(rec)
+        touched: set = set()
+        new_runs: dict = {}
+        n_players = 0
+        for batch in self.tail("players", self.P.players):
+            by_day: dict[int, list] = collections.defaultdict(list)
+            rows = []
+            for rec in batch:
+                seq += 1
+                day = self.day_of(rec.get("started_at"))
+                code, fid = ustr(rec.get("report_code")), int(rec.get("fight_id") or 0)
+                rec["_cid"] = self.reg.get_or_assign(self.char_key(rec))
+                rec["_seq"] = seq
+                rows.append((code, fid, day, seq))
+                new_runs.setdefault((code, fid), day)
+                by_day[day].append(rec)
+            self.db.add_runs(rows)
+            for d, recs in by_day.items():
+                append_jsonl(self.P.day_dir(d) / "pending_players.jsonl", recs)
+            touched |= set(by_day)
+            n_players += len(batch)
         # gear / abilities: routed through the run table; unknown runs park
-        pend_g = read_jsonl(self.P.pending / "gear.jsonl")
-        pend_a = read_jsonl(self.P.pending / "abil.jsonl")
-        gear_new = pend_g + self.tail("gear", self.P.gear)
-        abil_new = pend_a + self.tail("abilities", self.P.abil)
-        gear_by: dict[int, list] = collections.defaultdict(list)
-        abil_by: dict[int, list] = collections.defaultdict(list)
-        park_g, park_a = [], []
         route_cache: dict = {}
 
         def route(code, fid):
             k = (code, fid)
+            d = new_runs.get(k)
+            if d is not None:
+                return d
             if k not in route_cache:
                 route_cache[k] = self.db.route(code, fid)
             return route_cache[k]
-        for rec in gear_new:
-            d = route(ustr(rec.get("report_code")), int(rec.get("fight_id") or 0))
-            if d is None:
-                rec.setdefault("_parked", iso(self.now_ms))
-                park_g.append(rec)
-            else:
-                rec.pop("_parked", None)
-                gear_by[d].append(rec)
-        for rec in abil_new:
-            d = route(ustr(rec.get("report_code")), int(rec.get("fight_id") or 0))
-            if d is None:
-                rec.setdefault("_parked", iso(self.now_ms))
-                park_a.append(rec)
-            else:
-                rec.pop("_parked", None)
-                abil_by[d].append(rec)
-        cutoff = self.now_ms - PENDING_DAYS * DAY_MS
-        for name, lst in (("gear.jsonl", park_g), ("abil.jsonl", park_a)):
-            keep = [r for r in lst if sc.parse_iso_ms(r["_parked"]) >= cutoff]
-            p = self.P.pending / name
+        counts = {}
+        gseq = [int(self.st.d.get("gear_seq") or 0)]
+        for name, path, pend_name, day_file in (("gear", self.P.gear, "gear.jsonl", "pending_gear.jsonl"),
+                                                ("abilities", self.P.abil, "abil.jsonl", "pending_abil.jsonl")):
+            parked_prev = read_jsonl(self.P.pending / pend_name)
+            park: list = []
+            n_new = 0
+
+            def consume(recs):
+                by: dict[int, list] = collections.defaultdict(list)
+                for rec in recs:
+                    if name == "gear" and "_gseq" not in rec:
+                        # the gear journal's own arrival order: legacy's trait
+                        # material (the modal selection blob of a build) is
+                        # taken in journal order, so a tie between blob
+                        # variants resolves to the first one ever journaled
+                        gseq[0] += 1
+                        rec["_gseq"] = gseq[0]
+                    d = route(ustr(rec.get("report_code")), int(rec.get("fight_id") or 0))
+                    if d is None:
+                        rec.setdefault("_parked", iso(self.now_ms))
+                        park.append(rec)
+                    else:
+                        rec.pop("_parked", None)
+                        by[d].append(rec)
+                for d, lst in by.items():
+                    append_jsonl(self.P.day_dir(d) / day_file, lst)
+                touched.update(by)
+            consume(parked_prev)
+            for batch in self.tail(name, path):
+                consume(batch)
+                n_new += len(batch)
+            cutoff = self.now_ms - PENDING_DAYS * DAY_MS
+            keep = [r for r in park if sc.parse_iso_ms(r["_parked"]) >= cutoff]
+            p = self.P.pending / pend_name
             if p.exists():
                 p.unlink()
             append_jsonl(p, keep)
-            if len(lst) - len(keep):
-                self.health(f"parts.pending_expired.{name.split('.')[0]}={len(lst) - len(keep)}")
-        touched = set(by_day) | set(gear_by) | set(abil_by)
+            if len(park) - len(keep):
+                self.health(f"parts.pending_expired.{name}={len(park) - len(keep)}")
+            counts[name] = (n_new, len(park))
+        self.st.d["gear_seq"] = gseq[0]
         for d in touched:
-            append_jsonl(self.P.day_dir(d) / "pending_players.jsonl", by_day.get(d, []))
-            append_jsonl(self.P.day_dir(d) / "pending_gear.jsonl", gear_by.get(d, []))
-            append_jsonl(self.P.day_dir(d) / "pending_abil.jsonl", abil_by.get(d, []))
             self.st.mark_dirty(d, "arrival")
             self.st.day(d)["last_arrival"] = iso(self.now_ms)
         self.st.d["arrival_seq"] = seq
-        self.health(f"parts.tail.players={len(players)}")
-        self.health(f"parts.tail.gear={len(gear_new) - len(pend_g)}")
-        self.health(f"parts.tail.abilities={len(abil_new) - len(pend_a)}")
-        self.health(f"parts.pending.gear={len(park_g)}")
-        self.health(f"parts.pending.abilities={len(park_a)}")
+        self.health(f"parts.tail.players={n_players}")
+        self.health(f"parts.tail.gear={counts['gear'][0]}")
+        self.health(f"parts.tail.abilities={counts['abilities'][0]}")
+        self.health(f"parts.pending.gear={counts['gear'][1]}")
+        self.health(f"parts.pending.abilities={counts['abilities'][1]}")
         self.health(f"parts.chars_new={len(self.reg.new_order)}")
         self._stage("tail", t0)
         t0 = time.perf_counter()
@@ -1122,7 +1222,11 @@ class Builder:
             self.st.d["char_registry_size"] = self.reg.total
             self.db.commit()
             self.reg.flush()
-            self.st.save()
+            self.st.save()                       # the per-day checkpoint (§6.2-2)
+            if TEST_STALL_S:
+                stall_until = time.monotonic() + TEST_STALL_S
+                while time.monotonic() < stall_until and not STOP[0]:
+                    time.sleep(0.05)
             # a collapse may have queued a neighbour: re-derive the queue
             newq = self.dirty_days()
             if newq != queue[i:]:
@@ -1130,8 +1234,86 @@ class Builder:
         left = [d for d in queue[i:] if self.st.d["days"][str(d)].get("dirty")]
         self.health(f"parts.dirty_days={self.dirty_found}")
         self.health(f"parts.rebuilt_days={done}")
+        self.health(f"parts.rebuilt_order=" + ",".join(str(d) for d in self.rebuilt_days))
         self.health(f"parts.days_left={len(left)}")
         self._stage("days", t0)
+
+    # ---- step 4: freeze + cubes -------------------------------------------
+    def freeze_flags(self) -> None:
+        """§6.2-4: a day is frozen when it is not dirty and either quiescent
+        (no arrival for 72 h) or aged (its end + 7 d < now). A day that has
+        frozen once re-freezes the moment it is rebuilt (a late upload into
+        a closed day re-emits its week's cube under a new cube_sha, §6.4)."""
+        for key, e in self.st.d["days"].items():
+            if key == "undated" or key == "-1":
+                e["frozen"] = bool(e.get("f")) and not e.get("dirty")
+                continue
+            d = int(key)
+            if e.get("dirty"):
+                e["frozen"] = False
+                continue
+            if e.get("frozen_once"):
+                e["frozen"] = True
+                continue
+            la = e.get("last_arrival")
+            quiet = la is None or (self.now_ms - sc.parse_iso_ms(la)) >= FREEZE_QUIET_H * 3_600_000
+            aged = self.season.epoch_ms + (d + 1) * DAY_MS + FREEZE_AGE_D * DAY_MS < self.now_ms
+            e["frozen"] = bool(quiet or aged)
+            if e["frozen"]:
+                e["frozen_once"] = True
+
+    def withheld(self, w: int) -> bool:
+        wh = self.withhold_cubes
+        if not wh:
+            return False
+        if wh.strip() == "*":
+            return True
+        return str(w) in {x.strip() for x in wh.split(",") if x.strip()}
+
+    def step4(self) -> None:
+        """Emit w<W>.{cells,dist,chars,comps} for every week all of whose
+        UTC days (derived from the rows' W, §3.1) are frozen, under one
+        cube_sha per generation; re-emit when the partials changed; each
+        week is checkpointed; the deadline is checked between weeks."""
+        t0 = time.perf_counter()
+        self.freeze_flags()
+        emitted, skipped = [], []
+        for w in sorted(int(k) for k in self.st.d["weeks"]):
+            we = self.st.d["weeks"][str(w)]
+            days = [d for d in we.get("days", []) if (self.P.day_dir(d) / "thin.npz").exists()]
+            we["days"] = days
+            if not days:
+                continue
+            if self.withheld(w):
+                if we.get("published"):
+                    we["published"] = False
+                skipped.append(w)
+                continue
+            if not all(self.st.d["days"].get(str(d), {}).get("frozen") for d in days):
+                continue
+            thin, digest = week_partials(self, w, days)
+            cube_sha = sha256_bytes("|".join([digest, str(pf.FORMAT_VERSION), self.pins.inputs_material()]).encode())
+            if we.get("published") and we.get("cube_sha") == cube_sha \
+                    and all((self.P.out / f).exists() for f in (we.get("f") or {}).values()):
+                continue
+            if self.deadline.reached():
+                self.health("parts.deadline_hit=1")
+                break
+            files, byts = emit_cube(self, w, thin, cube_sha)
+            if we.get("published") and we.get("cube_sha") != cube_sha:
+                self.st.d["invalidations"].append({"week": w, "reason": "cube", "from": we.get("cube_sha"),
+                                                   "to": cube_sha, "seq": self.st.d["seq"] + 1,
+                                                   "at": iso(self.now_ms)})
+            we.update({"published": True, "cube_sha": cube_sha, "f": files, "b": byts,
+                       "frozen_at": iso(self.now_ms), "built_seq": self.st.d["seq"] + 1})
+            self.touched_weeks.add(w)
+            emitted.append(w)
+            self.st.save()                       # per-week checkpoint
+        if emitted:
+            self.health("parts.cubes_emitted=" + ",".join(str(w) for w in emitted))
+        if skipped:
+            self.health("parts.cubes_withheld=" + ",".join(str(w) for w in skipped))
+        self._stage("cubes", t0)
 
     def _frame(self, day: int):
         """The day's frame: raw.npz + pending records, dedup keep=last on
@@ -1357,14 +1539,12 @@ class Builder:
         days_all = sorted(int(k) for k, e in self.st.d["days"].items()
                           if k != "undated" and e.get("n") and e.get("f"))
         listed = self.listed_days(days_all)
-        undated = self.st.d["days"].get("-1") if "-1" in self.st.d["days"] else None
-        # frozen flags (§6.2-4 rule; packing and cubes are stage C)
-        for d in days_all:
+        # a listed day of an older rules generation (it was unlisted while
+        # the rule tables changed) is unprojected-pending: queue it (§3.3)
+        for d in listed:
             e = self.st.d["days"][str(d)]
-            la = e.get("last_arrival")
-            quiet = la is None or (self.now_ms - sc.parse_iso_ms(la)) >= FREEZE_QUIET_H * 3_600_000
-            aged = self.season.epoch_ms + (d + 1) * DAY_MS + FREEZE_AGE_D * DAY_MS < self.now_ms
-            e["frozen"] = bool(not e.get("dirty") and (quiet or aged))
+            if e.get("rules_sha") != self.rules_sha and not e.get("dirty"):
+                self.st.mark_dirty(d, "rules")
         rio_sha = sha256_file(self.P.rio) if self.P.rio.exists() else ""
         fp = sha256_bytes(canon({"days": [(d, self.st.d["days"][str(d)]["rows_sha"]) for d in listed],
                                  "rio": rio_sha, "pins": self.pins.sha,
@@ -1393,7 +1573,10 @@ class Builder:
         S = self.season
         days_all = sorted(int(k) for k, e in self.st.d["days"].items()
                           if k != "undated" and e.get("n") and e.get("f"))
-        listed = art.get("listed") or self.listed_days(days_all)
+        # always the CURRENT listed set: a deadline stop reuses the previous
+        # window artifacts (parts.window_stale=1) but publishes every day
+        # that completed -- today's file is never held back (§6)
+        listed = self.listed_days(days_all)
         days_out = []
         for d in listed:
             e = self.st.d["days"][str(d)]
@@ -1419,10 +1602,9 @@ class Builder:
         if cube_missing:
             self.health("parts.cube_missing=" + ",".join(str(w) for w in cube_missing))
         pars = [int((self.pins.doc.get("pars") or {}).get(dn, 0) or 0) for dn in S.vocab["dungeons"]]
-        proj = self.st.d["projection"]
-        projection = None
-        if proj.get("has_tmul") and proj.get("meta"):
-            projection = dict(proj["meta"], rules_sha=self.rules_sha)
+        projection = art.get("projection") if "projection" in art else (self.st.d["projection"] or {}).get("meta")
+        if projection:
+            projection = dict(projection, rules_sha=self.rules_sha)
         tuning = None
         if self.patch:
             tuning = {"label": self.patch.get("label"), "date": self.patch.get("date"),
@@ -1455,7 +1637,11 @@ class Builder:
             man["built"] = iso(self.now_ms)
             self.st.d["seq"], self.st.d["built"] = man["seq"], man["built"]
             self.st.d["last_manifest_sha"] = probe_sha
-        write_atomic(self.P.out / "manifest.json", json.dumps(man, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+        # sorted keys: state.json round-trips dicts with sorted keys, so an
+        # unchanged manifest must not depend on whether its parts were
+        # computed this run or restored (byte-identical reruns, §6.3)
+        write_atomic(self.P.out / "manifest.json",
+                     json.dumps(man, separators=(",", ":"), ensure_ascii=False, sort_keys=True).encode("utf-8"))
         write_atomic(self.P.out.parent / "current.json",
                      json.dumps({"slug": S.slug, "manifest": f"{S.slug}/manifest.json"}).encode())
         # staged state snapshot for journal_parts.py (stage C uploads)
@@ -1577,6 +1763,12 @@ class Builder:
             self.st.d["char_registry_size"] = self.reg.total
             self.st.save()
             self.step2()
+            # freeze + cubes run before the window stage so this very
+            # manifest lists the days of the weeks whose cube it names, and
+            # no day of a week whose cube it publishes for the first time is
+            # fetched by the client for nothing (§3.1 cube-gap invariant
+            # holds either way: a day stays listed until its cube is named)
+            self.step4()
             art = self.step3()
             man = self.write_manifest(art)
             self.prune_and_publish(man)
@@ -1623,7 +1815,7 @@ def empty_gear_cache() -> dict:
             "bonus_off": np.zeros(n * NSLOTS + 1, dtype=np.int64), "bonus_val": np.zeros(0, dtype=np.int64),
             "build": np.zeros(n, dtype="<U1"), "blob": np.zeros(n, dtype="<U1"),
             "specid": np.zeros(n, dtype=np.int64), "stats": np.zeros((n, len(STATS)), dtype=np.float64),
-            "server_null": np.zeros(n, dtype=bool)}
+            "server_null": np.zeros(n, dtype=bool), "gseq": np.zeros(n, dtype=np.int64)}
 
 
 def gear_cache_from_records(recs: list) -> dict:
@@ -1705,7 +1897,8 @@ def gear_cache_from_records(recs: list) -> dict:
                 "has_gear": has_gear, "has_stats": has_stats, "item": item, "ilvl": ilvl, "setid": setid,
                 "ench": ench, "bonus_off": bonus_off, "bonus_val": np.array(bonus_val, dtype=np.int64),
                 "build": np.array(build), "blob": np.array(blob), "specid": specid, "stats": stats,
-                "server_null": server_null})
+                "server_null": server_null,
+                "gseq": np.array([int(r.get("_gseq") or 0) for r in recs], dtype=np.int64)})
     return out
 
 
@@ -1718,6 +1911,8 @@ def gear_cache_to_records(c: dict) -> list:
                "character": str(c["character"][i]) or None,
                "server": None if c["server_null"][i] else str(c["server"][i]),
                "class": str(c["cls"][i]), "spec": str(c["spec"][i])}
+        if "gseq" in c and int(c["gseq"][i]):
+            rec["_gseq"] = int(c["gseq"][i])
         if c["has_gear"][i]:
             gear = []
             last = 0
@@ -2138,6 +2333,12 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
             B.health(f"parts.block_over_1mb={sub}/{ws.name}:{len(ws.gz)}")
         specs_out[str(c_ * 100 + s_)] = f"spec/{sub}/{ws.name}"
         byts["spec"] += len(ws.gz)
+    # ---- the window partials (§6.2-3): what spec/vocab and specstats need
+    # from this day, so the window stage merges ≤ 24 small tables instead of
+    # walking a million rows through the legacy sidecar code every run
+    seq_arr = df["seq"].astype(np.int64).to_numpy()
+    day_partials(B, day, df, covered, meta_j, stats_j, gear, cls, spec, char, seq_arr, st_ms, timed, key,
+                 emb_of, slots)
     # ---- thin.npz (the cube partial, §3.2) and keys.npz
     reg_names = df["region"].tolist()
     W = np.where(st_ms >= 0, S.week_of_ms(np.where(st_ms >= 0, st_ms, 0), reg_names), -10 ** 6)
@@ -2164,7 +2365,7 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
     save_npz(B.P.day_dir(day) / "keys.npz", {
         "code": df["report_code"].to_numpy().astype(str), "fid": df["fight_id"].astype(np.int64).to_numpy(),
         "character": df["character"].to_numpy().astype(str), "server": df["server"].to_numpy().astype(str),
-        "started_at": st_ms, "char_id": char})
+        "started_at": st_ms, "char_id": char, "raw_idx": np.asarray(perm, dtype=np.int64)})
     # per-region [Wlo, Whi] and the weeks this day touches
     wmap = {}
     weeks = set()
@@ -2183,6 +2384,406 @@ def build_day_outputs(B: Builder, day: int, df: pd.DataFrame, gear: dict, abil: 
     return {"n": len(df), "runs": n_runs, "rows_sha": rows_sha, "inputs_sha": inputs_sha, "f": rows_rel,
             "b": len(w.gz), "specs": specs_out, "w": {k: list(v) for k, v in sorted(wmap.items())},
             "weeks": sorted(weeks), "bytes": byts}
+
+
+# ================================================= per-day window partials
+EMB_NONE = -2          # emb identity codes in the pair tables: None / generic / id
+PAIR_KEY_MUL = 1 << 21  # emb ids and item ids fit 21 bits each in the combined key
+
+
+def pair_key(spec_code, slot, iid, emb):
+    """One int64 per (spec, slot, item id, emb identity)."""
+    spec_code = np.asarray(spec_code, dtype=np.int64)
+    slot = np.asarray(slot, dtype=np.int64)
+    iid = np.asarray(iid, dtype=np.int64)
+    emb = np.asarray(emb, dtype=np.int64) + 2          # -2..  -> 0..
+    return ((spec_code * 16 + slot) * PAIR_KEY_MUL + iid) * PAIR_KEY_MUL + emb
+
+
+def unpair_key(k):
+    k = np.array(k, dtype=np.int64, copy=True)      # never the caller's array: //= below is in place
+    emb = k % PAIR_KEY_MUL - 2
+    k //= PAIR_KEY_MUL
+    iid = k % PAIR_KEY_MUL
+    k //= PAIR_KEY_MUL
+    return k // 16, k % 16, iid, emb
+
+
+def day_partials(B: Builder, day: int, df, covered: list, meta_j: dict, stats_j: dict, gear: dict,
+                 cls, spec, char, seq_arr, st_ms, timed, key, emb_of, slots) -> None:
+    """vocab.npz / traits.json.gz / stats.npz for one day, in the day's
+    ARRIVAL order (seq) where legacy's first-observation rules depend on it."""
+    dd = B.P.day_dir(day)
+    sk_row = (np.asarray(cls, dtype=np.int64) * 100 + np.asarray(spec, dtype=np.int64))
+    p_spec, p_slot, p_iid, p_emb, p_ilvl, p_who, p_seq = [], [], [], [], [], [], []
+    en_spec, en_slot, en_id = [], [], []
+    ench_hits: collections.Counter = collections.Counter()
+    gear_known = 0
+    bld: collections.Counter = collections.Counter()
+    for pos, k, fl in covered:
+        m_ = meta_j.get(k)
+        sk = int(sk_row[pos])
+        if fl & 1:
+            gear_known += 1
+            glist = m_["gear"]
+            for si, s in enumerate(slots):
+                itm = glist[s] if s < len(glist) else None
+                if not isinstance(itm, dict) or not itm.get("id"):
+                    continue
+                iid = int(itm["id"])
+                bonus = itm.get("bonus") if isinstance(itm.get("bonus"), list) else []
+                e = emb_of(iid, bonus)
+                v = itm.get("ilvl")
+                p_spec.append(sk)
+                p_slot.append(si)
+                p_iid.append(iid)
+                p_emb.append(EMB_NONE if e is None else int(e))
+                p_ilvl.append(int(v) if v else 0)
+                p_who.append(int(char[pos]))
+                p_seq.append(int(seq_arr[pos]))
+            for s, itm in enumerate(glist):
+                if isinstance(itm, dict) and itm.get("ench"):
+                    ench_hits[s] += 1
+                    en_spec.append(sk)
+                    en_slot.append(s)
+                    en_id.append(int(itm["ench"]))
+        if fl & 2:
+            bld[(sk, m_["build"])] += 1
+    key_all = pair_key(p_spec, p_slot, p_iid, p_emb) if p_spec else np.zeros(0, dtype=np.int64)
+    # counts per entry over every (row, slot) occurrence
+    c_key, c_n = np.unique(key_all, return_counts=True)
+    # wearer tables: (entry, who) once per day -- first seq with an item
+    # level > 0 (legacy's ilvl observation), and any-row presence for `w`
+    who = np.asarray(p_who, dtype=np.int64)
+    seqs = np.asarray(p_seq, dtype=np.int64)
+    ilv = np.asarray(p_ilvl, dtype=np.int64)
+    if len(key_all):
+        order = np.lexsort([seqs, who, key_all])
+        kk, ww = key_all[order], who[order]
+        first = np.concatenate([[True], (kk[1:] != kk[:-1]) | (ww[1:] != ww[:-1])])
+        w_key, w_who = kk[first], ww[first]
+        m = ilv > 0
+        order2 = np.lexsort([seqs[m], who[m], key_all[m]])
+        k2, w2, s2, i2 = key_all[m][order2], who[m][order2], seqs[m][order2], ilv[m][order2]
+        first2 = np.concatenate([[True], (k2[1:] != k2[:-1]) | (w2[1:] != w2[:-1])]) if len(k2) else np.zeros(0, dtype=bool)
+        i_key, i_who, i_seq, i_ilvl = k2[first2], w2[first2], s2[first2], i2[first2]
+    else:
+        w_key = w_who = i_key = i_who = i_seq = i_ilvl = np.zeros(0, dtype=np.int64)
+    en_key = pair_key(en_spec, en_slot, en_id, np.full(len(en_id), EMB_NONE)) if en_id else np.zeros(0, dtype=np.int64)
+    e_key, e_n = np.unique(en_key, return_counts=True)
+    hit_slot = np.array(sorted(ench_hits), dtype=np.int64)
+    hit_n = np.array([ench_hits[s] for s in hit_slot], dtype=np.int64)
+    b_items = sorted(bld.items())
+    save_npz(dd / "vocab.npz", {
+        "c_key": c_key.astype(np.int64), "c_n": c_n.astype(np.int64),
+        "w_key": w_key.astype(np.int64), "w_who": w_who.astype(np.uint32),
+        "i_key": i_key.astype(np.int64), "i_who": i_who.astype(np.uint32), "i_seq": i_seq.astype(np.int64),
+        "i_ilvl": i_ilvl.astype(np.uint16),
+        "e_key": e_key.astype(np.int64), "e_n": e_n.astype(np.int64), "hit_slot": hit_slot, "hit_n": hit_n,
+        "gear_known": np.array([gear_known], dtype=np.int64),
+        "b_spec": np.array([k[0] for k, _ in b_items], dtype=np.int64),
+        "b_build": np.array([k[1] for k, _ in b_items] or [""]),
+        "b_n": np.array([n for _, n in b_items], dtype=np.int64)})
+    # traits over EVERY gear record of the day (the legacy trait material)
+    traits: dict = {}
+    gs = gear["gseq"] if "gseq" in gear else np.zeros(len(gear["code"]), dtype=np.int64)
+    for i in range(len(gear["code"])):
+        sk = f"{gear['cls'][i]}|{gear['spec'][i]}"
+        o = traits.setdefault(sk, {"specid": collections.Counter(), "entries": set(), "sel": {}})
+        if gear["specid"][i]:
+            o["specid"][int(gear["specid"][i])] += 1
+        bl = str(gear["blob"][i])
+        bd = str(gear["build"][i])
+        if bl:
+            for part in bl.split("|"):
+                o["entries"].add(int(part.split(":", 1)[0]))
+            e = o["sel"].setdefault(bd, {}).get(bl)
+            if e is None:
+                o["sel"][bd][bl] = [1, int(gs[i])]
+            else:
+                e[0] += 1
+                e[1] = min(e[1], int(gs[i]))
+    tdoc = {sk: {"specid": {str(k): v for k, v in sorted(o["specid"].items())},
+                 "entries": sorted(o["entries"]),
+                 "sel": {b: dict(sorted(c.items())) for b, c in sorted(o["sel"].items())}}
+            for sk, o in sorted(traits.items())}
+    write_atomic(dd / "traits.json.gz", gz_json(tdoc))
+    # specstats: the cohort-eligible rows (timed, key >= floor, dated);
+    # the window cut and the latest-per-character rule are applied at merge
+    key_arr = np.asarray(key, dtype=np.int64)
+    elig = (np.asarray(timed) == 1) & (key_arr >= bsd.SPECSTATS_MIN_KEY) & (np.asarray(st_ms) >= 0)
+    ss_all_t = np.asarray(st_ms, dtype=np.int64)[elig]
+    rows_idx, vals = [], []
+    for pos, k, fl in covered:
+        if fl & 4 and elig[pos]:
+            rows_idx.append(pos)
+            stt = stats_j[k]["stats"]
+            vals.append([float(stt[nm]) if nm in stt else np.nan for nm in STATS])
+    ri = np.array(rows_idx, dtype=np.int64)
+    save_npz(dd / "stats.npz", {
+        "all_t": ss_all_t,
+        "t": np.asarray(st_ms, dtype=np.int64)[ri], "seq": seq_arr[ri], "cls": np.asarray(cls)[ri].astype(np.int64),
+        "spec": np.asarray(spec)[ri].astype(np.int64), "char": np.asarray(char)[ri].astype(np.int64),
+        "stats": np.array(vals, dtype=np.float64).reshape(len(ri), len(STATS))})
+
+
+def js_round_half_even(x: float) -> int:
+    return int(round(x))
+
+
+def vocab_and_specstats(B: Builder, listed: list) -> tuple[dict | None, dict | None]:
+    """spec/vocab (§4.3) and meta/specstats from the merged per-day
+    partials: the legacy builds_sidecar()/spec_stats_block() documents,
+    entry for entry, over the listed days."""
+    S, P = B.season, B.P
+    _items, _enchs, crafted, embc, markers, icon_names = B.emb_cfg
+    emb_names = embc["names"]
+    item_names, ench_names = _items, _enchs
+    # ---- merge the count tables
+    c_keys, c_ns, e_keys, e_ns, hits = [], [], [], [], collections.Counter()
+    gear_known = 0
+    bld: collections.Counter = collections.Counter()
+    days_v = []
+    for d in listed:
+        v = load_npz(P.day_dir(d) / "vocab.npz")
+        if v is None:
+            continue
+        days_v.append(d)
+        c_keys.append(v["c_key"])
+        c_ns.append(v["c_n"])
+        e_keys.append(v["e_key"])
+        e_ns.append(v["e_n"])
+        for s_, n_ in zip(v["hit_slot"], v["hit_n"]):
+            hits[int(s_)] += int(n_)
+        gear_known += int(v["gear_known"][0])
+        for sp_, b_, n_ in zip(v["b_spec"], v["b_build"], v["b_n"]):
+            if str(b_):
+                bld[(int(sp_), str(b_))] += int(n_)
+    if not days_v or not sum(len(k) for k in c_keys):
+        return None, None
+
+    def merge_counts(keys, ns):
+        if not keys:
+            return np.zeros(0, dtype=np.int64), np.zeros(0, dtype=np.int64)
+        k = np.concatenate(keys)
+        n = np.concatenate(ns)
+        u, inv = np.unique(k, return_inverse=True)
+        return u, np.bincount(inv, weights=n).astype(np.int64)
+    ck, cn = merge_counts(c_keys, c_ns)
+    ek, en_n = merge_counts(e_keys, e_ns)
+    spec_c, slot_c, iid_c, emb_c = unpair_key(ck)
+    # eslots are MEASURED over the window (>= 1% of gear-known rows), then
+    # intersected with the pinned list (a slot the blocks do not carry
+    # cannot be displayed)
+    eslots_m = sorted(s for s, c in hits.items() if c >= bsd.BUILDS_ESLOT_MIN_SHARE * max(gear_known, 1))
+    pinned_es = [int(x) for x in (B.pins.doc.get("eslots") or DEFAULT_ESLOTS)]
+    eslots = [s for s in eslots_m if s in pinned_es]
+    # ---- the ranking per (spec, slot): (-n, id, emb or 0), capped
+    embkey = np.where(emb_c == EMB_NONE, 0, emb_c)
+    cdf = pd.DataFrame({"sk": spec_c, "k": slot_c, "iid": iid_c, "emb": emb_c, "ek": embkey, "n": cn, "key": ck})
+    cdf = cdf.sort_values(["sk", "k", "n", "iid", "ek"], ascending=[True, True, False, True, True], kind="stable")
+    caps = np.where(np.isin(np.array([bsd.BUILDS_SLOTS[k] for k in cdf["k"]]), list(bsd.BUILDS_BIG_SLOTS)),
+                    bsd.BUILDS_ITEM_CAP_BIG, bsd.BUILDS_ITEM_CAP)
+    rank = cdf.groupby(["sk", "k"], sort=False).cumcount().to_numpy()
+    top = cdf[rank < caps]
+    top_keys = top["key"].to_numpy()
+    # the iup gate over the FULL tallies: (id, emitted emb label) unique per (spec, slot)
+    labels = np.array([None if e == EMB_NONE else (emb_names.get(int(e)) or "embellished") for e in emb_c], dtype=object)
+    gate = pd.DataFrame({"sk": spec_c, "k": slot_c, "iid": iid_c, "lab": labels})
+    iup_ok = not gate.duplicated(["sk", "k", "iid", "lab"]).any()
+    # ---- wearer tables for the top entries: first ilvl observation per
+    # (entry, wearer) in arrival order across days; distinct wearers for w
+    i_parts, w_parts = [], []
+    for d in days_v:
+        v = load_npz(P.day_dir(d) / "vocab.npz")
+        m = np.isin(v["i_key"], top_keys)
+        i_parts.append((v["i_key"][m], v["i_who"][m].astype(np.int64), v["i_seq"][m], v["i_ilvl"][m].astype(np.int64)))
+        m2 = np.isin(v["w_key"], top_keys)
+        w_parts.append((v["w_key"][m2], v["w_who"][m2].astype(np.int64)))
+    ik = np.concatenate([p[0] for p in i_parts]) if i_parts else np.zeros(0, dtype=np.int64)
+    iw = np.concatenate([p[1] for p in i_parts]) if i_parts else np.zeros(0, dtype=np.int64)
+    isq = np.concatenate([p[2] for p in i_parts]) if i_parts else np.zeros(0, dtype=np.int64)
+    iil = np.concatenate([p[3] for p in i_parts]) if i_parts else np.zeros(0, dtype=np.int64)
+    ilvls_of: dict = {}
+    if len(ik):
+        o = np.lexsort([isq, iw, ik])
+        ik, iw, iil = ik[o], iw[o], iil[o]
+        first = np.concatenate([[True], (ik[1:] != ik[:-1]) | (iw[1:] != iw[:-1])])
+        ik, iil = ik[first], iil[first]
+        starts = np.concatenate([[0], np.nonzero(ik[1:] != ik[:-1])[0] + 1])
+        ends = np.concatenate([starts[1:], [len(ik)]])
+        for a, b in zip(starts, ends):
+            ilvls_of[int(ik[a])] = iil[a:b]
+    wk = np.concatenate([p[0] for p in w_parts]) if w_parts else np.zeros(0, dtype=np.int64)
+    wwho = np.concatenate([p[1] for p in w_parts]) if w_parts else np.zeros(0, dtype=np.int64)
+    w_of: dict = {}
+    if len(wk):
+        pairs = np.unique(wk * (1 << 32) + wwho)
+        u, c = np.unique(pairs // (1 << 32), return_counts=True)
+        w_of = dict(zip(u.tolist(), c.tolist()))
+    # ---- traits (sel) for the wanted builds
+    traits: dict = {}
+    sel_acc: dict = {}                # (sk, build) -> {blob: [count, first gseq]}
+    for d in days_v:
+        p = P.day_dir(d) / "traits.json.gz"
+        if not p.exists():
+            continue
+        with gzip.open(p, "rt", encoding="utf-8") as fh:
+            tdoc = json.load(fh)
+        for sk, o in tdoc.items():
+            t = traits.setdefault(sk, {"specid": collections.Counter(), "entries": set(), "sel": {}})
+            for k_, v_ in o["specid"].items():
+                t["specid"][int(k_)] += int(v_)
+            t["entries"].update(o["entries"])
+            for b_, cnt in o["sel"].items():
+                acc = sel_acc.setdefault((sk, b_), {})
+                for blob, v_ in cnt.items():
+                    n_, g_ = (int(v_[0]), int(v_[1])) if isinstance(v_, list) else (int(v_), 0)
+                    e = acc.get(blob)
+                    if e is None:
+                        acc[blob] = [n_, g_]
+                    else:
+                        e[0] += n_
+                        e[1] = min(e[1], g_)
+    # Counters inserted in journal order, so most_common() breaks a tie
+    # between blob variants exactly as legacy's whole-journal walk does
+    for (sk, b_), acc in sel_acc.items():
+        c_ = traits[sk]["sel"].setdefault(b_, collections.Counter())
+        for blob, (n_, _g) in sorted(acc.items(), key=lambda kv: kv[1][1]):
+            c_[blob] += n_
+    names = {code: f"{S.vocab['classes'][code // 100]}|{S.vocab['specs'][code % 100]}"
+             for code in set(int(x) for x in spec_c) | {k[0] for k in bld}}
+    b_by: dict = collections.defaultdict(list)
+    for (sp_, b_), n_ in bld.items():
+        b_by[sp_].append((b_, n_))
+    b_ranked = {sp_: sorted(lst, key=lambda kv: (-kv[1], kv[0]))[:bsd.BUILDS_BUILD_CAP] for sp_, lst in b_by.items()}
+    wanted = {names[sp_]: {s for s, _ in lst} for sp_, lst in b_ranked.items() if lst}
+    usage = bsd._trait_journal_pass(wanted, traits) if wanted else {}
+    geo, _ = bsd._trait_caches()
+    sel_by: dict = {}
+    geo_entries = geo.get("entries", {}) if geo else {}
+    if geo_entries:
+        geo_node_entries = bsd._node_entries(geo_entries)
+        for sk, o in usage.items():
+            for build, blobs in o["sel"].items():
+                pairs_ = bsd._sel_pairs(blobs.most_common(1)[0][0], geo_entries, geo_node_entries)
+                if pairs_:
+                    sel_by[(sk, build)] = pairs_
+    blob_of = {(sk, b): c.most_common(1)[0][0] for sk, o in traits.items() for b, c in o["sel"].items() if c}
+    # ---- the document
+    specs_v: dict = {}
+    top_by = {}
+    for sk_, k_, iid_, emb_, n_, key_ in zip(top["sk"], top["k"], top["iid"], top["emb"], top["n"], top["key"]):
+        top_by.setdefault(int(sk_), {}).setdefault(int(k_), []).append((int(iid_), int(emb_), int(n_), int(key_)))
+    en_spec_, en_slot_, en_id_, _ = unpair_key(ek)
+    en_by: dict = {}
+    for sp_, s_, eid_, n_ in zip(en_spec_, en_slot_, en_id_, en_n):
+        en_by.setdefault(int(sp_), {}).setdefault(int(s_), []).append((int(eid_), int(n_)))
+    keep_idx = [i for i, s in enumerate(eslots_m) if s in pinned_es]
+    for code in sorted(set(top_by) | set(b_ranked), key=lambda c: names[c]):
+        sk = names[code]
+        items_v = []
+        for k_ in range(len(bsd.BUILDS_SLOTS)):
+            col = []
+            for iid_, emb_, cnt_, key_ in top_by.get(code, {}).get(k_, []):
+                il = ilvls_of.get(key_)
+                il_list = il.tolist() if il is not None else []
+                e: dict = {"id": iid_, "n": (item_names.get(iid_) or {}).get("n"),
+                           "ilvl": (int(round(float(np.median(il_list)))) if il_list else None)}
+                if len(il_list) >= bsd.BUILDS_IUP_MIN_WEARERS and iup_ok:
+                    cnts = collections.Counter(il_list)
+                    tp = max(cnts.values())
+                    mode = max(v for v, c in cnts.items() if c == tp)
+                    e["iup"] = int(round(100.0 * sum(1 for v in il_list if v > mode) / len(il_list)))
+                ic = icon_names.get(iid_)
+                if ic:
+                    e["ic"] = ic
+                if iid_ in crafted:
+                    e["cr"] = 1
+                if emb_ != EMB_NONE:
+                    e["emb"] = emb_names.get(emb_) or "embellished"
+                e["w"] = int(w_of.get(key_, 0))
+                col.append(e)
+            items_v.append(col)
+        en_v = []
+        for s_ in eslots_m:
+            ranked = sorted(en_by.get(code, {}).get(s_, []), key=lambda kv: (-kv[1], kv[0]))[:bsd.BUILDS_ENCH_CAP]
+            en_v.append([{"id": eid_, "n": ench_names.get(eid_)} for eid_, _ in ranked])
+        entry = {"items": items_v, "ench": [en_v[i] for i in keep_idx]}
+        b_out = []
+        for s_, c_ in b_ranked.get(code, []):
+            b = {"s": s_, "n": c_}
+            sel = sel_by.get((sk, s_))
+            if sel:
+                b["sel"] = sel
+            b["h"] = "%016x" % build_hash64(s_, blob_of.get((sk, s_), ""))
+            b_out.append(b)
+        entry["builds"] = b_out
+        if b_ranked.get(code):
+            entry["bkind"] = "hash" if all(s_.startswith("t:") for s_, _ in b_ranked[code]) else "string"
+        specs_v[sk] = entry
+    vocab_doc = {"v": 1, "slots": list(bsd.BUILDS_SLOTS), "eslots": eslots, "specs": specs_v}
+    B.log(f"vocab: {len(specs_v)} specs, {len(top)} entries over {len(days_v)} days, eslots {eslots} "
+          f"(measured {eslots_m}), iup {'on' if iup_ok else 'OFF'}")
+    # ---- specstats (spec_stats_block over the window, from the partials)
+    block = None
+    all_t, parts = [], []
+    for d in listed:
+        s = load_npz(P.day_dir(d) / "stats.npz")
+        if s is None:
+            continue
+        all_t.append(s["all_t"])
+        parts.append(s)
+    if parts:
+        at = np.concatenate(all_t)
+        if len(at):
+            cutoff = int(at.max()) - bsd.SPECSTATS_WINDOW_DAYS * DAY_MS
+            n_cohort = int((at >= cutoff).sum())
+            t = np.concatenate([p["t"] for p in parts])
+            seqv = np.concatenate([p["seq"] for p in parts])
+            clsv = np.concatenate([p["cls"] for p in parts])
+            specv = np.concatenate([p["spec"] for p in parts])
+            chv = np.concatenate([p["char"] for p in parts])
+            stv = np.concatenate([p["stats"] for p in parts]) if parts else np.zeros((0, len(STATS)))
+            m = t >= cutoff
+            n_hit = int(m.sum())
+            if n_hit:
+                t, seqv, clsv, specv, chv, stv = t[m], seqv[m], clsv[m], specv[m], chv[m], stv[m]
+                # latest per character (ties: the first in arrival order, like `t > prev`)
+                o = np.lexsort([seqv, -t, chv, specv, clsv])
+                ck_ = np.stack([clsv[o], specv[o], chv[o]], axis=1)
+                first = np.concatenate([[True], np.any(ck_[1:] != ck_[:-1], axis=1)])
+                sel_i = o[first]
+                spec_out: dict = {}
+                groups = collections.defaultdict(list)
+                for i in sel_i:
+                    groups[(int(clsv[i]), int(specv[i]))].append(i)
+                for (c_, s_) in sorted(groups, key=lambda cs: (S.vocab["classes"][cs[0]], S.vocab["specs"][cs[1]])):
+                    idx = groups[(c_, s_)]
+                    n = len(idx)
+                    if n < bsd.SPECSTATS_MIN_CHARS:
+                        continue
+                    rows = stv[idx]
+                    stats = list(bsd.SPECSTATS_CORE) + [
+                        s2 for s2 in bsd.SPECSTATS_EXTRA
+                        if int((~np.isnan(rows[:, STATS.index(s2)])).sum()) >= bsd.SPECSTATS_EXTRA_MIN_SHARE * n]
+                    q = {}
+                    for s2 in stats:
+                        vals = rows[:, STATS.index(s2)]
+                        vals = vals[~np.isnan(vals)].tolist()
+                        if vals:
+                            q[s2] = [int(round(v)) for v in np.percentile(vals, (25, 50, 75))]
+                    spec_out[f"{S.vocab['classes'][c_]}|{S.vocab['specs'][s_]}"] = {"n": n, "q": q}
+                if spec_out:
+                    cohort = (f"timed +{bsd.SPECSTATS_MIN_KEY}s and higher from the last "
+                              f"{bsd.SPECSTATS_WINDOW_DAYS} days of data; one record per "
+                              f"character (their latest parse); stats known for {n_hit:,} of "
+                              f"{n_cohort:,} parses ({n_hit / n_cohort:.0%}); values are "
+                              f"stat ratings as the character sheet read at the pull — "
+                              f"active consumables (flask, food) included; not percentages")
+                    block = {"cohort": cohort, "keyMin": bsd.SPECSTATS_MIN_KEY,
+                             "windowDays": bsd.SPECSTATS_WINDOW_DAYS, "specs": spec_out}
+    return vocab_doc, block
 
 
 # ============================================================ window stage
@@ -2277,6 +2878,26 @@ def window_stage(B: Builder, listed: list, rio_sha: str) -> dict:
         win["newest_row"] = iso(newest) if newest >= 0 else None
         win["day_to"] = max(win["day_to"], max(listed))
     art["window"] = win
+    # projection (§3.3): a single-generation, row-window feature. The column
+    # is present on every listed day iff the rule tables define a projection;
+    # the manifest's object is legacy's (tuning_multipliers' meta) plus the
+    # generation's rules_sha, and null when nothing is covered (legacy hides
+    # the toggle rather than shipping a column of 1.0s).
+    art["projection"] = None
+    if n_rows and "tmul" in R and pt.RULES:
+        tm = R["tmul"]
+        covered = int(((tm != 10000) & (tm != 0)).sum())
+        if covered:
+            art["projection"] = {
+                "label": pt.PROJECTION_LABEL, "url": getattr(pt, "PROJECTION_URL", None),
+                "date": pt.PROJECTION_DATE, "parses": covered, "unprojectable": int((tm == 0).sum()),
+                "specs": sorted(pt.RULES),
+                "exact": sorted(s for s, r in pt.RULES.items()
+                                if not r.get("set_bonus") and not r.get("share_scale") and not r.get("caveats")),
+                "caveats": {s: r["caveats"] for s, r in pt.RULES.items() if r.get("caveats")},
+                "rules_sha": B.rules_sha}
+    B.st.d["projection"] = {"rules_sha": B.rules_sha, "has_tmul": bool(n_rows and "tmul" in R),
+                            "meta": art["projection"]}
     B._stage("refchars", t0)
     t0 = time.perf_counter()
     # ---- per-week counts (weekCounts / availWeeks / weekTitle inputs)
@@ -2308,116 +2929,40 @@ def window_stage(B: Builder, listed: list, rio_sha: str) -> dict:
         we["days"] = [d for d in we.get("days", []) if (P.day_dir(d) / "thin.npz").exists()]
     B._stage("weeks", t0)
     t0 = time.perf_counter()
-    # ---- the legacy-shaped window frame + journals for vocab / specstats
-    frames, sets_all, stats_all, meta_all = [], {}, {}, {}
-    traits: dict = {}
-    wearers: dict = collections.defaultdict(lambda: collections.defaultdict(set))
-    blob_of: dict = {}
-    for d in listed:
-        raw = load_npz(P.day_dir(d) / "raw.npz")
-        kz = load_npz(P.day_dir(d) / "keys.npz")
-        if raw is None or kz is None:
-            continue
-        # rows in the day file's order: keys.npz carries it; raw fields by key
-        byk = {}
-        for i in range(len(raw["report_code"])):
-            byk[(str(raw["report_code"][i]), int(raw["fight_id"][i]), str(raw["character"][i]), str(raw["server"][i]))] = i
-        idx = np.array([byk[(str(c), int(f), str(ch), str(sv))] for c, f, ch, sv in
-                        zip(kz["code"], kz["fid"], kz["character"], kz["server"])], dtype=np.int64)
-        cls_n = np.where(raw["class"][idx] == "", "Unknown", raw["class"][idx])
-        spec_n = np.where(raw["spec"][idx] == "", "Unknown", raw["spec"][idx])
-        reg_n = np.where(raw["region"][idx] == "", "Unknown", raw["region"][idx])
-        frames.append(pd.DataFrame({
-            "report_code": kz["code"].astype(str), "fight_id": kz["fid"].astype(int),
-            "character": kz["character"].astype(str), "server": kz["server"].astype(str),
-            "class": cls_n, "spec": spec_n, "region": reg_n, "key_level": raw["key_level"][idx],
-            "started_at": raw["started_at"][idx], "medal": raw["medal_ov"][idx],
-            "keystone_s": raw["keystone_s"][idx], "dungeon": raw["dungeon"][idx], "seq": raw["seq"][idx]}))
-        g = load_npz(P.day_dir(d) / "gear.npz")
-        if g is None or not len(g["code"]):
-            continue
-        s_, st_, m_ = gear_meta_journal(g)
-        sets_all.update(s_)
-        stats_all.update(st_)
-        meta_all.update(m_)
-        for i in range(len(g["code"])):
-            sk = f"{g['cls'][i]}|{g['spec'][i]}"
-            o = traits.setdefault(sk, {"specid": collections.Counter(), "entries": set(), "sel": {}})
-            if g["specid"][i]:
-                o["specid"][int(g["specid"][i])] += 1
-            bl = str(g["blob"][i])
-            bd = str(g["build"][i])
-            if bl:
-                for part in bl.split("|"):
-                    o["entries"].add(int(part.split(":", 1)[0]))
-                o["sel"].setdefault(bd, collections.Counter())[bl] += 1
-            if bd:
-                blob_of[(sk, bd)] = bl
-    # in journal ARRIVAL order, which is the legacy df's order: builds_sidecar
-    # takes a wearer's item level from the first row it sees (B:1720), so the
-    # vocab is only entry-for-entry equal when the rows come in that order
-    df_w = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(
-        columns=["report_code", "fight_id", "character", "server", "class", "spec", "region", "key_level",
-                 "started_at", "medal", "keystone_s", "dungeon", "seq"])
-    if len(df_w):
-        df_w = df_w.sort_values("seq", kind="stable").reset_index(drop=True)
-    # pars for un-pinned dungeons (§5): derive_pars over the window once
-    # a dungeon has >= 500 runs with both outcomes
+    # ---- pars for un-pinned dungeons (§5): derive_pars over the window
+    # once a dungeon has >= 500 clocked runs with both outcomes
     pins_pars = B.pins.doc.setdefault("pars", {})
     missing = [dn for dn in S.vocab["dungeons"] if dn != "Unknown" and not pins_pars.get(dn)]
-    if missing and len(df_w):
-        sub = df_w[df_w["dungeon"].isin(missing)]
-        per_run = sub.drop_duplicates(["report_code", "fight_id"])
-        derived = dict(zip(missing, bsd.derive_pars(sub.assign(medal=sub["medal"]), missing))) if len(sub) else {}
-        for dn in missing:
-            g = per_run[per_run["dungeon"] == dn]
-            ks_ok = pd.to_numeric(g["keystone_s"], errors="coerce").notna()
-            timed_ok = g["medal"].isin(["timed", "gold", "silver", "bronze"])
-            if ks_ok.sum() >= PAR_MIN_RUNS and timed_ok[ks_ok].nunique() == 2 and derived.get(dn):
-                pins_pars[dn] = int(derived[dn])
-                B.pins.upgrade(f"pars.{dn}", None, int(derived[dn]), "derive")
-        if B.pins.changed_keys:
-            B.pins.save()
-    # ---- spec/vocab (§4.3): the legacy specs object over the window
+    if missing:
+        frames = []
+        for d in listed:
+            raw = load_npz(P.day_dir(d) / "raw.npz")
+            if raw is None or not len(raw["report_code"]):
+                continue
+            m = np.isin(raw["dungeon"], missing)
+            if m.any():
+                frames.append(pd.DataFrame({
+                    "report_code": raw["report_code"][m], "fight_id": raw["fight_id"][m],
+                    "dungeon": raw["dungeon"][m], "medal": raw["medal_ov"][m], "keystone_s": raw["keystone_s"][m]}))
+        sub = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(
+            columns=["report_code", "fight_id", "dungeon", "medal", "keystone_s"])
+        if len(sub):
+            per_run = sub.drop_duplicates(["report_code", "fight_id"])
+            derived = dict(zip(missing, bsd.derive_pars(sub, missing)))
+            for dn in missing:
+                g = per_run[per_run["dungeon"] == dn]
+                ks_ok = pd.to_numeric(g["keystone_s"], errors="coerce").notna()
+                timed_ok = g["medal"].isin(["timed", "gold", "silver", "bronze"])
+                if ks_ok.sum() >= PAR_MIN_RUNS and timed_ok[ks_ok].nunique() == 2 and derived.get(dn):
+                    pins_pars[dn] = int(derived[dn])
+                    B.pins.upgrade(f"pars.{dn}", None, int(derived[dn]), "derive")
+            if B.pins.changed_keys:
+                B.pins.save()
+    # ---- spec/vocab (§4.3) + specstats from the per-day partials
     _items, _enchs, crafted, embc, markers, _icons = B.emb_cfg or bsd._name_caches()
     B.emb_cfg = B.emb_cfg or (_items, _enchs, crafted, embc, markers, _icons)
     art["emb"] = emb_labels(embc)
-    vocab_doc = None
-    if meta_all and len(df_w):
-        doc = bsd.builds_sidecar(df_w, meta_all, "parts", enc="sparse", target=10 ** 12, cap=10 ** 12,
-                                 traits=traits)
-        if doc:
-            j = json.loads(doc)
-            specs_v = j["specs"]
-            pinned_es = [int(x) for x in (B.pins.doc.get("eslots") or DEFAULT_ESLOTS)]
-            es = [s for s in j["eslots"] if s in pinned_es]
-            keep_idx = [i for i, s in enumerate(j["eslots"]) if s in pinned_es]
-            # per-entry `w` (distinct wearers per (spec, slot, id, emb
-            # label), from the window frame) and per-build `h` (hash64)
-            emb_of = emb_of_factory(embc, markers, crafted)
-            who = {}
-            for c, f, ch, sv, cl, sp in zip(df_w["report_code"], df_w["fight_id"], df_w["character"], df_w["server"],
-                                            df_w["class"], df_w["spec"]):
-                k = bsd._gear_key(c, int(f), ch if ch != "" else None, sv if sv != "" else None)
-                rec = meta_all.get(k)
-                if rec is None or not isinstance(rec.get("gear"), list):
-                    continue
-                sk = f"{cl}|{sp}"
-                for si, s in enumerate(bsd.BUILDS_SLOTS):
-                    it = rec["gear"][s] if s < len(rec["gear"]) else None
-                    if isinstance(it, dict) and it.get("id"):
-                        e = emb_of(it["id"], it.get("bonus") if isinstance(it.get("bonus"), list) else [])
-                        lab = None if e is None else (embc["names"].get(e) or "embellished")
-                        wearers[(sk, si)][(it["id"], lab)].add((ch, sv))
-            for sk, entry in specs_v.items():
-                for si, col in enumerate(entry["items"]):
-                    for e in col:
-                        e["w"] = len(wearers[(sk, si)].get((e["id"], e.get("emb")), ()))
-                if "ench" in entry:
-                    entry["ench"] = [entry["ench"][i] for i in keep_idx]
-                for b in entry.get("builds", []):
-                    b["h"] = "%016x" % build_hash64(b["s"], blob_of.get((sk, b["s"]), ""))
-            vocab_doc = {"v": 1, "slots": j["slots"], "eslots": es, "specs": specs_v}
+    vocab_doc, block = vocab_and_specstats(B, listed)
     if vocab_doc is not None:
         body = gz_json(vocab_doc)
         name, _ = hashed_write(P.out / "spec", "vocab", "json.gz", body)
@@ -2426,22 +2971,157 @@ def window_stage(B: Builder, listed: list, rio_sha: str) -> dict:
         art["spec_vocab"] = None
     B._stage("vocab", t0)
     t0 = time.perf_counter()
-    # ---- specstats (B:602), the same code over the window frame
     art["specstats"] = None
-    if stats_all and len(df_w):
-        started = pd.to_datetime(pd.to_numeric(df_w["started_at"], errors="coerce"), unit="ms", errors="coerce")
-        timed = df_w["medal"].map(bsd.MEDAL_TIMED).fillna(-1).astype(int)
-        block = bsd.spec_stats_block(df_w, started, timed, "parts", journal=stats_all)
-        if block:
-            body = gz_json(block)
-            name, _ = hashed_write(P.out / "meta", "specstats", "json.gz", body)
-            art["specstats"] = {"f": f"meta/{name}", "b": len(body)}
+    if block:
+        body = gz_json(block)
+        name, _ = hashed_write(P.out / "meta", "specstats", "json.gz", body)
+        art["specstats"] = {"f": f"meta/{name}", "b": len(body)}
     B._stage("specstats", t0)
     B.health(f"parts.bytes.rows={sum(B.st.d['days'][str(d)]['b'] for d in listed)}")
     B.health(f"parts.bytes.spec={sum((B.st.d['days'][str(d)].get('bytes') or {}).get('spec', 0) for d in listed)}")
     if art["spec_vocab"]:
         B.health(f"parts.bytes.vocab={art['spec_vocab']['b']}")
     return art
+
+
+# ============================================================ cubes (§3.2)
+THIN_ROW_KEYS = ("reg", "cls", "spec", "hero", "role", "dun", "key", "timed", "post", "tb",
+                 "dps", "deaths", "char", "day")
+THIN_RUN_KEYS = ("r_kdur", "r_comp", "r_reg", "r_dun", "r_key", "r_timed", "r_post", "r_deaths", "r_day")
+
+
+def week_partials(B: Builder, w: int, days: list) -> tuple[dict, str]:
+    """The W == w rows of the days' thin.npz partials concatenated in day
+    order (run ids made week-global by a per-day offset), plus the per-run
+    arrays of the runs those rows belong to, and the sha256 of the
+    day-local partials that enters cube_sha."""
+    cols: dict = collections.defaultdict(list)
+    h = hashlib.sha256()
+    run_off = 0
+    for d in sorted(days):
+        th = load_npz(B.P.day_dir(d) / "thin.npz")
+        if th is None:
+            continue
+        m = th["W"] == w
+        n_runs_day = len(th["r_kdur"])
+        if not m.any():
+            run_off += n_runs_day
+            continue
+        rmask = np.zeros(n_runs_day, dtype=bool)
+        rmask[np.unique(th["run"][m])] = True
+        part = {k: th[k][m] for k in THIN_ROW_KEYS}
+        part["run"] = th["run"][m]
+        for k in THIN_RUN_KEYS:
+            part[k] = th[k][rmask]
+        h.update(f"d{d}:".encode())
+        h.update(arrays_digest(part).encode())
+        for k, v in part.items():
+            cols[k].append(v if k != "run" else v + run_off)
+        cols["r_id"].append(np.nonzero(rmask)[0] + run_off)
+        run_off += n_runs_day
+    thin = {k: np.concatenate(v) for k, v in cols.items()}
+    return thin, h.hexdigest()
+
+
+def emit_cube(B: Builder, w: int, T: dict, cube_sha: str) -> tuple[dict, dict]:
+    """Write w<W>.{cells,dist,chars,comps} from the week's partials; the
+    tables are exactly sitecalc.cube_from_rows()'s (the reference
+    definition), computed vectorised. Returns (files, bytes)."""
+    S = B.season
+    n = len(T["dps"])
+    order = np.lexsort([T["dps"]] + [T[d] for d in reversed(CELL_DIMS)])
+    keys = np.stack([T[d][order].astype(np.int64) for d in CELL_DIMS], axis=1)
+    change = np.any(keys[1:] != keys[:-1], axis=1)
+    starts = np.concatenate([[0], np.nonzero(change)[0] + 1]).astype(np.int64)
+    ends = np.concatenate([starts[1:], [n]])
+    nc = len(starts)
+    cnt = ends - starts
+    cells = {d: keys[starts, j] for j, d in enumerate(CELL_DIMS)}
+    dps_o = T["dps"][order].astype(np.int64)
+    dth_o = T["deaths"][order].astype(np.int64)
+    ch_o = T["char"][order].astype(np.int64)
+    run_o = T["run"][order].astype(np.int64)
+    day_o = T["day"][order].astype(np.int64)
+    dsum = np.add.reduceat(dps_o, starts)
+    dth = np.add.reduceat(dth_o, starts)
+    dz = np.add.reduceat((dth_o == 0).astype(np.int64), starts)
+    cell_id = np.repeat(np.arange(nc, dtype=np.int64), cnt)
+    rmax = int(run_o.max()) + 1
+    pair = np.unique(cell_id * rmax + run_o)
+    nr = np.bincount(pair // rmax, minlength=nc)
+    dmin = np.minimum.reduceat(day_o, starts)
+    dmax = np.maximum.reduceat(day_o, starts)
+    # Table B / C through pandas (sorted groupby == sorted int tuples)
+    df = pd.DataFrame({d: T[d].astype(np.int64) for d in RL_DIMS})
+    df["run"] = T["run"].astype(np.int64)
+    g = df.groupby(list(RL_DIMS) + ["run"], sort=True).size().reset_index(name="c")
+    g["dup"] = (g["c"] >= 2).astype(np.int64)
+    rl = g.groupby(list(RL_DIMS), sort=True).agg(nr_rl=("c", "size"), dup_rl=("dup", "sum")).reset_index()
+    rg = df[list(RG_DIMS) + ["run"]].drop_duplicates().groupby(list(RG_DIMS), sort=True).size() \
+        .reset_index(name="nrun")
+    # comps over clocked runs, in first-appearance (content) order
+    keep = T["r_kdur"] > 0
+    comp_codes, uniques = pd.factorize(pd.Series(T["r_comp"][keep]).astype(str), sort=False)
+    rd = pd.DataFrame({"comp": comp_codes.astype(np.int64), "dun": T["r_dun"][keep].astype(np.int64),
+                       "key": T["r_key"][keep].astype(np.int64), "reg": T["r_reg"][keep].astype(np.int64),
+                       "timed": T["r_timed"][keep].astype(np.int64), "post": T["r_post"][keep].astype(np.int64),
+                       "kdur": T["r_kdur"][keep].astype(np.int64), "deaths": T["r_deaths"][keep].astype(np.int64),
+                       "day": T["r_day"][keep].astype(np.int64)})
+    comp_dims = ["comp", "dun", "key", "reg", "timed", "post"]
+    if len(rd):
+        grp = rd.groupby(comp_dims, sort=True)
+        cc = grp.agg(n=("kdur", "size"), ksum=("kdur", "sum"), dsum=("deaths", "sum"),
+                     kmin=("kdur", "min"), best=("kdur", "idxmin")).reset_index()
+        cc["bday"] = rd["day"].to_numpy()[cc["best"].to_numpy()]
+        cc["bdeaths"] = rd["deaths"].to_numpy()[cc["best"].to_numpy()]
+    else:
+        cc = pd.DataFrame({k: np.zeros(0, dtype=np.int64) for k in comp_dims + ["n", "ksum", "dsum", "kmin", "bday", "bdeaths"]})
+    comp_list = [tuple(int(x) for x in str(s).split(",") if x != "") for s in uniques]
+    K = max((len(c) for c in comp_list), default=0)
+    C = len(comp_list)
+    cmat = np.full((K, C), 0xFFFF, dtype=np.int64)
+    for j, comp in enumerate(comp_list):
+        for i, code in enumerate(comp):
+            cmat[i, j] = code
+    clen = np.array([len(c) for c in comp_list], dtype=np.int64)
+    out_dir = B.P.out / "cube"
+    hdr = {"week": int(w), "cube_sha": cube_sha}
+    cols_cells = [pf.Column(d, "u8", cells[d]) for d in ("reg", "cls", "spec", "hero", "role", "dun", "key")]
+    cols_cells += [pf.Column(d, "i8", cells[d]) for d in ("timed", "post", "tb")]
+    cols_cells += [pf.Column("n", "u32", cnt), pf.Column("dsum", "u64", dsum), pf.Column("dth", "u32", dth),
+                   pf.Column("dz", "u32", dz), pf.Column("nr", "u32", nr),
+                   pf.Column("dmin", "u16", dmin), pf.Column("dmax", "u16", dmax), pf.Column("doff", "u32", starts)]
+    cols_cells += [pf.Column(f"rl_{d}", "u8", rl[d].to_numpy()) for d in ("cls", "spec", "dun", "key", "reg")]
+    cols_cells += [pf.Column(f"rl_{d}", "i8", rl[d].to_numpy()) for d in ("timed", "post")]
+    cols_cells += [pf.Column("nr_rl", "u32", rl["nr_rl"].to_numpy()), pf.Column("dup_rl", "u32", rl["dup_rl"].to_numpy())]
+    cols_cells += [pf.Column(f"rg_{d}", "u8", rg[d].to_numpy()) for d in ("dun", "key", "reg")]
+    cols_cells += [pf.Column(f"rg_{d}", "i8", rg[d].to_numpy()) for d in ("timed", "post")]
+    cols_cells += [pf.Column("nrun", "u32", rg["nrun"].to_numpy())]
+    wc = pf.write(out_dir, f"w{w}.cells", "cells", S.slug, nc, cols_cells,
+                  dict(hdr, n_cells=int(nc), n_rl=int(len(rl)), n_rg=int(len(rg))))
+    coff = np.concatenate([starts, [n]]).astype(np.int64)
+    wd = pf.write(out_dir, f"w{w}.dist", "dist", S.slug, n,
+                  [pf.Column("coff", "u32", coff), pf.Column("dps", "u32", dps_o, p=True, d=True),
+                   pf.Column("deaths", "u8", dth_o, clamp=(0, 255))], dict(hdr))
+    wh = pf.write(out_dir, f"w{w}.chars", "chars", S.slug, n, [pf.Column("char", "u32", ch_o, p=True)], dict(hdr))
+    cols_comps = [pf.Column(f"c{i}", "u16", cmat[i]) for i in range(K)] + [pf.Column("clen", "u8", clen)]
+    cols_comps += [pf.Column("comp", "u32", cc["comp"].to_numpy())]
+    cols_comps += [pf.Column(d, "u8", cc[d].to_numpy()) for d in ("dun", "key", "reg")]
+    cols_comps += [pf.Column(d, "i8", cc[d].to_numpy()) for d in ("timed", "post")]
+    cols_comps += [pf.Column("n", "u32", cc["n"].to_numpy()), pf.Column("ksum", "u32", cc["ksum"].to_numpy()),
+                   pf.Column("kmin", "u16", cc["kmin"].to_numpy(), clamp=(0, 65535)),
+                   pf.Column("bday", "u16", cc["bday"].to_numpy()),
+                   pf.Column("bdeaths", "u8", cc["bdeaths"].to_numpy(), clamp=(0, 255)),
+                   pf.Column("dsum", "u32", cc["dsum"].to_numpy())]
+    wm = pf.write(out_dir, f"w{w}.comps", "comps", S.slug, int(len(cc)), cols_comps,
+                  dict(hdr, K=int(K), n_comps=int(C)))
+    for wr in (wc, wd, wh, wm):
+        B.health_lines.extend(pf.clamp_health_lines(f"cube/{wr.name}", wr.clamped))
+    files = {"cells": f"cube/{wc.name}", "dist": f"cube/{wd.name}", "chars": f"cube/{wh.name}",
+             "comps": f"cube/{wm.name}"}
+    byts = {"cells": len(wc.gz), "dist": len(wd.gz), "chars": len(wh.gz), "comps": len(wm.gz)}
+    B.health(f"parts.bytes.cube.w{w}={sum(byts.values())}:rows:{n}:cells:{nc}")
+    return files, byts
 
 
 def read_rio(path: pathlib.Path) -> dict:
@@ -2499,6 +3179,8 @@ def main(argv=None) -> int:
     ap.add_argument("--daily", action="store_true")
     ap.add_argument("--max-days", type=int, default=MAX_DAYS_PER_RUN)
     ap.add_argument("--rebuild-all", action="store_true")
+    ap.add_argument("--withhold-cubes", default=None,
+                    help="'*' or a comma list of absolute weeks whose cube is not emitted (PARTS_WITHHOLD_CUBES)")
     a = ap.parse_args(argv)
     if a.deadline_default:
         season = Season(season_path(pathlib.Path(a.data_root)))
@@ -2507,7 +3189,7 @@ def main(argv=None) -> int:
     now_ms = sc.parse_iso_ms(a.now) if a.now else None
     b = Builder(a.data_root, a.site_dir, now_ms=now_ms, deadline=a.deadline,
                 pins_inject=pathlib.Path(a.pins) if a.pins else None, daily=a.daily,
-                max_days=a.max_days, rebuild_all=a.rebuild_all)
+                max_days=a.max_days, rebuild_all=a.rebuild_all, withhold_cubes=a.withhold_cubes)
     return b.run()
 
 

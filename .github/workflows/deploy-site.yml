@@ -103,8 +103,88 @@ jobs:
               --exclude='./data.json' --exclude='./data.json.gz' \
               --exclude='./llms' --exclude='./llms.txt' \
               --exclude='./sitemap.xml' --exclude='./robots.txt' \
+              --exclude='./d' \
               -cf - . | tar -xf - -C /tmp/out
           ls -la /tmp/out/index.html /tmp/out/data.json.gz
+
+      # The partitioned data path (partitioned_payload.md §10 PR-1): site/d/
+      # is gitignored and travels in the Pages artifact only, so the same
+      # older-than-live trap exists for it -- an artifact seeded from the
+      # run BEFORE the newest refresh would roll d/<slug>/ backwards. The
+      # generation is manifest.seq (strictly increasing), not a timestamp.
+      # When the live manifest is newer, keep the live tree: fetch the live
+      # manifest plus ONLY the files it names that the artifact lacks (every
+      # file but the manifest is content-hashed and immutable, so anything
+      # already present is byte-identical), and write current.json +
+      # manifest.json LAST, immediately before upload, so no manifest ever
+      # names a file the artifact does not carry.
+      - name: Keep the live partitioned data at least as new as the artifact's
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib, sys, urllib.request
+          LIVE = "https://st331.github.io/wowlogs/"
+          out = pathlib.Path("/tmp/out/d")
+
+          def get(rel):
+              try:
+                  with urllib.request.urlopen(LIVE + rel, timeout=20) as r:
+                      return r.read()
+              except Exception as e:                       # noqa: BLE001
+                  print(f"  live {rel}: {e}")
+                  return None
+
+          cur_raw = get("d/current.json")
+          if cur_raw is None:
+              print("no live d/current.json; the artifact's d/ stands")
+              sys.exit(0)
+          cur = json.loads(cur_raw)
+          slug = cur["slug"]
+          man_raw = get("d/" + cur["manifest"])
+          if man_raw is None:
+              print("live manifest unreadable; the artifact's d/ stands")
+              sys.exit(0)
+          live = json.loads(man_raw)
+          art_p = out / cur["manifest"]
+          art_seq = json.loads(art_p.read_text())["seq"] if art_p.exists() else -1
+          print(f"partition manifest seq -- live: {live['seq']} artifact: {art_seq}")
+          if art_seq >= live["seq"]:
+              sys.exit(0)
+          print(f"::warning::artifact d/{slug} (seq {art_seq}) is OLDER than live (seq {live['seq']}); keeping the live partitioned data")
+          names = set()
+          for e in live.get("days", []):
+              if e.get("f"):
+                  names.add(e["f"])
+              names.update((e.get("specs") or {}).values())
+          for w in live.get("weeks", []):
+              names.update((w.get("f") or {}).values())
+          for k in ("spec_vocab", "specstats", "talents"):
+              if live.get(k) and live[k].get("f"):
+                  names.add(live[k]["f"])
+          cs = live.get("charscore") or {}
+          if cs.get("f"):
+              names.add(cs["f"])
+          if (cs.get("delta") or {}).get("f"):
+              names.add(cs["delta"]["f"])
+          fetched = missing = 0
+          for rel in sorted(names):
+              p = out / slug / rel
+              if p.exists():
+                  continue
+              b = get(f"d/{slug}/{rel}")
+              if b is None:
+                  missing += 1
+                  continue
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_bytes(b)
+              fetched += 1
+          if missing:
+              print(f"::warning::{missing} live partition files could not be fetched; keeping the artifact's manifest")
+              sys.exit(0)
+          (out / slug).mkdir(parents=True, exist_ok=True)
+          (out / slug / "manifest.json").write_bytes(man_raw)
+          (out / "current.json").write_bytes(cur_raw)
+          print(f"kept live d/{slug} seq {live['seq']}: {fetched} files fetched, {len(names) - fetched} already present")
+          EOF
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

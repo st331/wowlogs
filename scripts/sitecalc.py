@@ -782,7 +782,10 @@ def _rl_mask(site: Site, cube: CubeWeek, m: dict, weeks) -> np.ndarray:
             if sr is None:
                 raise ValueError("D.spec_role is needed for a role filter over run-level cells")
             roles = site.D["roles"]
-            role_code = np.array([roles.index(x) if x in roles else -1 for x in sr])
+            # manifest.spec_role carries role CODES (§2.6); a legacy-shaped
+            # payload in the tests carries names -- accept both
+            role_code = np.array([x if isinstance(x, (int, np.integer)) else (roles.index(x) if x in roles else -1)
+                                  for x in sr])
             ok &= np.isin(role_code[c["spec"]], list(m["role"]))
     return ok
 
@@ -988,6 +991,8 @@ def aggregate(site: Site, weeks, cubes: dict | None = None) -> dict:
                     "qdA": qp(g["dth"], pctl), "qdB": qp(g["dth"], pctlB),
                     "adeaths": g["dsum"] / g["n"], "deathless": 100 * g["dzero"] / g["n"],
                     "chars": gchars, "runs": runs_g, "runs_bound": bound,
+                    # False = the Runs column carries the "≤" label (§3.4-1)
+                    "runs_exact": bool(g["cube_runs_exact"] and st["merge"]) or not g["cube_chars"],
                     "arating": arating, "mrating": mrating, "rn": rn}
     chars_all = site.stamp.count(*all_chars)
     return {"groups": out, "parses": parses, "runs": runs + cube_runs_total,
@@ -1403,7 +1408,8 @@ def comps_from_cube(site: Site, weeks, cubes: dict, A_rows: dict | None = None) 
     atk_lut = [1 if k in MELEE else 2 if k in RANGED else 0 for k in keys_all]
     sr = D.get("spec_role")
     roles = D["roles"]
-    role_code = [roles.index(x) if x in roles else -1 for x in sr] if sr else None
+    role_code = [x if isinstance(x, (int, np.integer)) else (roles.index(x) if x in roles else -1)
+                 for x in sr] if sr else None
 
     def member_pass(code):
         c, s = divmod(code, 100)
@@ -1459,11 +1465,15 @@ def comps_from_cube(site: Site, weeks, cubes: dict, A_rows: dict | None = None) 
             sxy += key * spct
             cells.append((",".join(str(x) for x in comp), key, dun, par, cn, ksum, kmin,
                           int(c["bday"][ci]), int(c["bdeaths"][ci]), int(c["dsum"][ci])))
+    row_runs: list = []
     if A_rows is not None:
-        rows_part = comps(site, A_rows)
-        n += rows_part["nQual"]
+        # the row-served part of a mixed period: legacy's own qualification
+        # (pct !== null, i.e. par && kdur) over the runs the row accumulator
+        # saw; they feed the SAME regression and the same per-comp rows
         for o in (site.RUNS[r] for r in range(site.runCount) if A_rows["runSeen"][r]):
             if o and o["pct"] is not None:
+                row_runs.append(o)
+                n += 1
                 sx += o["key"]
                 sy += o["pct"]
                 sxx += o["key"] * o["key"]
@@ -1474,22 +1484,36 @@ def comps_from_cube(site: Site, weeks, cubes: dict, A_rows: dict | None = None) 
     ref_key = sx / n if n else 0
     Wt = abs(slope)
     by: dict = {}
+    # per comp: `best` (the pct column) is max(pcts) over the comp's runs
+    # (C:6925), which per cell is the min-kdur run's pct; the run identity
+    # shown beside it (kdur/dun/key/day) is the max-SCORE run's (C:6900)
+    for o in row_runs:
+        e = by.setdefault(o["key_"], {"m": 0, "sscore": 0, "best": None, "bpct": -math.inf, "keys": 0, "deaths": 0})
+        sc_ = (o["pct"] - (icpt + slope * o["key"])) + Wt * (o["key"] - ref_key)
+        e["m"] += 1
+        e["sscore"] += sc_
+        e["keys"] += o["key"]
+        e["deaths"] += o["deaths"]
+        e["bpct"] = max(e["bpct"], o["pct"])
+        if e["best"] is None or sc_ > e["best"][0]:
+            e["best"] = (sc_, o["pct"], o["kdur"], o["dun"], o["key"], o["day"], o["deaths"])
     for key_, key, dun, par, cn, ksum, kmin, bday, bdeaths, dsum in cells:
-        e = by.setdefault(key_, {"m": 0, "sscore": 0, "best": None, "keys": 0, "deaths": 0})
+        e = by.setdefault(key_, {"m": 0, "sscore": 0, "best": None, "bpct": -math.inf, "keys": 0, "deaths": 0})
         spct = cn * 100 - 100 * ksum / par
         e["m"] += cn
         e["sscore"] += spct - cn * icpt - slope * cn * key + Wt * (cn * key - cn * ref_key)
         e["keys"] += cn * key
         e["deaths"] += dsum
         bpct = (par - kmin) / par * 100
+        e["bpct"] = max(e["bpct"], bpct)
         bscore = (bpct - (icpt + slope * key)) + Wt * (key - ref_key)
         if e["best"] is None or bscore > e["best"][0]:
             e["best"] = (bscore, bpct, kmin, dun, key, bday, bdeaths)
     rows_all = []
     for key_, e in by.items():
-        _, bpct, kmin, dun, key, bday, _ = e["best"]
+        _, _, kmin, dun, key, bday, _ = e["best"]
         rows_all.append({"key_": key_, "strength": e["sscore"] / (e["m"] + COMPS_K),
-                         "best": bpct, "median": None, "avgkey": e["keys"] / e["m"],
+                         "best": e["bpct"], "median": None, "avgkey": e["keys"] / e["m"],
                          "n": e["m"], "kdur": kmin, "dun": D["dungeons"][dun], "key": key,
                          "deaths": e["deaths"] / e["m"], "day": bday})
     rows = [r for r in rows_all if r["n"] >= st["compMin"]]

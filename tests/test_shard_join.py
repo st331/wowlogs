@@ -179,6 +179,25 @@ def test_shard_join():
           f"{len(vocab['specs'])} vocab specs")
 
 
+def test_specstats_equals_legacy():
+    """meta/specstats.<h>.json.gz (merged from the per-day partials) equals
+    legacy spec_stats_block() -- payload["specstats"] -- on this fixture
+    (season = window), cohort string included."""
+    lroot, proot = pu.legacy_root(), pu.parts_root()
+    L = pu.legacy_payload(lroot)
+    loaded = pc.load_site(proot / "site" / "d")
+    man = loaded.manifest
+    assert ("specstats" in L) == bool(man.get("specstats"))
+    if not man.get("specstats"):
+        return
+    with gzip.open(loaded.slug_dir / man["specstats"]["f"], "rt") as fh:
+        block = json.load(fh)
+    assert block == L["specstats"], [k for k in set(block) | set(L["specstats"])
+                                     if block.get(k) != L["specstats"].get(k)]
+    print(f"specstats: {len(block['specs'])} specs equal to legacy")
+
+
 if __name__ == "__main__":
     test_shard_join()
+    test_specstats_equals_legacy()
     print("test_shard_join: all green")

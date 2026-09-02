@@ -111,12 +111,19 @@ bsd.build('season', bsd.SEASON)
     return root
 
 
+def _parts_stamp() -> str:
+    return _stamp(FIXTURE_DIR / "fixture.json", ROOT / "scripts" / "partition_build.py",
+                  ROOT / "scripts" / "partition_format.py", ROOT / "scripts" / "partition_client.py",
+                  ROOT / "scripts" / "project_tuning.py", ROOT / "data" / "season.json")
+
+
 def parts_root(rebuild: bool = False) -> pathlib.Path:
+    """The one-shot run with EVERY cube withheld: season = window, so the
+    row-level artifacts, the vocab and specstats are comparable with the
+    legacy build over the whole fixture (the cubed run is parts_cubes_root)."""
     fx = fixture()
     root = FIXTURE_DIR / "parts_run"
-    stamp = _stamp(FIXTURE_DIR / "fixture.json", ROOT / "scripts" / "partition_build.py",
-                   ROOT / "scripts" / "partition_format.py", ROOT / "scripts" / "partition_client.py",
-                   ROOT / "scripts" / "project_tuning.py", ROOT / "data" / "season.json")
+    stamp = _parts_stamp()
     sf = root / "stamp.txt"
     if not rebuild and sf.exists() and sf.read_text().strip() == stamp and (root / "site" / "d" / "current.json").exists():
         return root
@@ -124,7 +131,46 @@ def parts_root(rebuild: bool = False) -> pathlib.Path:
         shutil.rmtree(root)
     common_root(root)
     concat_journals(root)
-    run_parts(root, fx["now"], pins=FIXTURE_DIR / "pins.json", max_days=400)
+    run_parts(root, fx["now"], pins=FIXTURE_DIR / "pins.json", max_days=400, extra=["--withhold-cubes", "*"])
+    sf.write_text(stamp)
+    return root
+
+
+# the tuning rule the cube / incremental tests run under (§9.1: chunk 7 edits
+# RULES['Arcane Mage'] 1.10 -> 1.06); today's production RULES is empty, so
+# without it no day file carries tmul and the projection rules are untestable
+RULE_BEFORE = {"Arcane Mage": {"aura": 1.10, "aura_scope": "ability"}}
+RULE_AFTER = {"Arcane Mage": {"aura": 1.06, "aura_scope": "ability"}}
+
+
+def rules_file(root: pathlib.Path, rules: dict) -> pathlib.Path:
+    p = root / "rules.json"
+    p.write_text(json.dumps(rules, sort_keys=True))
+    return p
+
+
+def parts_cubes_root(rebuild: bool = False) -> pathlib.Path:
+    """The cubed one-shot run of the §9 fixture under the Arcane Mage rule:
+    first with every cube withheld (site_rows/d = the row reference, every
+    day listed), then the same instant again with only the gap week (32)
+    withheld, which emits the cubes and unlists the cubed weeks' old days
+    (site/d = what the client fetches)."""
+    fx = fixture()
+    root = FIXTURE_DIR / "parts_cubes"
+    stamp = _parts_stamp() + "-cubes2"
+    sf = root / "stamp.txt"
+    if not rebuild and sf.exists() and sf.read_text().strip() == stamp and (root / "site_rows" / "d" / "current.json").exists():
+        return root
+    if root.exists():
+        shutil.rmtree(root)
+    common_root(root)
+    concat_journals(root)
+    env = {"WOWLOGS_RULES": str(rules_file(root, RULE_BEFORE))}
+    run_parts(root, fx["now"], pins=FIXTURE_DIR / "pins.json", max_days=400,
+              extra=["--withhold-cubes", "*"], env_extra=env)
+    shutil.copytree(root / "site" / "d", root / "site_rows" / "d")
+    run_parts(root, fx["now"], pins=FIXTURE_DIR / "pins.json", max_days=400,
+              extra=["--withhold-cubes", str(fx["gap_weeks"][0])], env_extra=env)
     sf.write_text(stamp)
     return root
 

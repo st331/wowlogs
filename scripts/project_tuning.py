@@ -86,6 +86,23 @@ def classify_abilities(rows) -> set[str]:
 # data/tuning_patches.json, write its rules here and assign them to RULES.
 RULES: dict = {}
 
+# Test hook (partitioned_payload.md §9.1, test_incremental_idempotent chunk
+# 7 "an edit of RULES['Arcane Mage']"): WOWLOGS_RULES names a JSON file whose
+# object REPLACES RULES for this process, so a rule-table edit can be staged
+# between two builder runs without editing this module. Production never
+# sets it; the digest below covers whatever RULES ends up being.
+if __import__("os").environ.get("WOWLOGS_RULES"):
+    with open(__import__("os").environ["WOWLOGS_RULES"], "r", encoding="utf-8") as _fh:
+        RULES = {k: dict(v) for k, v in json.load(_fh).items()}
+    for _rule in RULES.values():
+        for _k in ("set_bonus", "share_scale"):
+            if _k in _rule:
+                _rule[_k] = [tuple(x) for x in _rule[_k]]
+        if "attack_speed" in _rule:
+            _rule["attack_speed"] = tuple(_rule["attack_speed"])
+        if "strength" in _rule:
+            _rule["strength"] = tuple(_rule["strength"])
+
 RULES_AUG18_2026 = {
     "Frost DeathKnight": dict(
         aura=1.09, aura_scope="ability",

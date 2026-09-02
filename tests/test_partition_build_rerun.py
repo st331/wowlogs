@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """tests/test_partition_build_rerun.py (partitioned_payload.md §6.3)
 
+(Every cube withheld, like parts_root: the cubed path is test_cube_equivalence
+and test_incremental_idempotent.)
+
 Idempotence and determinism of the stage-B builder on the §9 fixture:
 a rerun over unchanged journals writes nothing new (seq does not advance,
 zero dirty days, the manifest is byte-identical); and a two-step run
@@ -29,7 +32,7 @@ def test_rerun_is_a_noop():
     fx = fixture()
     root = pu.parts_root()
     before = (root / "site" / "d" / "s2" / "manifest.json").read_bytes()
-    pu.run_parts(root, fx["now"], pins=FIXTURE_DIR / "pins.json")
+    pu.run_parts(root, fx["now"], pins=FIXTURE_DIR / "pins.json", extra=["--withhold-cubes", "*"])
     h = pu.parts_health(root)
     assert (root / "site" / "d" / "s2" / "manifest.json").read_bytes() == before
     assert h["parts.dirty_days"] == ["0"] and h["parts.rebuilt_days"] == ["0"]
@@ -46,11 +49,11 @@ def test_two_step_matches_one_shot():
         shutil.rmtree(inc)
     pu.common_root(inc)
     pu.concat_journals(inc, upto=2)
-    pu.run_parts(inc, fx["chunks"][1]["now"], pins=FIXTURE_DIR / "pins.json")
+    pu.run_parts(inc, fx["chunks"][1]["now"], pins=FIXTURE_DIR / "pins.json", extra=["--withhold-cubes", "*"])
     m1 = _manifest(inc)
     assert m1["seq"] == 1 and m1["window"]["rows"] < one["window"]["rows"]
     pu.concat_journals(inc, upto=8)
-    pu.run_parts(inc, fx["now"], pins=FIXTURE_DIR / "pins.json")
+    pu.run_parts(inc, fx["now"], pins=FIXTURE_DIR / "pins.json", extra=["--withhold-cubes", "*"])
     h = pu.parts_health(inc)
     two = _manifest(inc)
     assert two["seq"] == 2
