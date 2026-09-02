@@ -759,15 +759,25 @@ def backlog_size(regions: set[str] | None) -> int:
     return sum(1 for k in dedupe_fights(fights) if k not in done)
 
 
+_OUTPUTS: dict = {}          # everything write_outputs() was handed this run
+
+
 def write_outputs(**kv) -> None:
     """Hand facts to the workflow (GITHUB_OUTPUT), and print them regardless.
 
     The chain decides from these whether the next run keeps draining at full
     budget or drops back to the standing cadence, and when the quota window
     it should wait for opens.
+
+    Calls ACCUMULATE: export() writes its own clock and memory lines before
+    main() writes the backlog, and the health file must carry both, so every
+    call rewrites the file with everything handed over so far. A key with a
+    dot (export.wall_s) is a health line; it reaches GITHUB_OUTPUT with the
+    dot as an underscore, since a step output name cannot carry one.
     """
     for k, v in kv.items():
         print(f"[output] {k}={v}", flush=True)
+    _OUTPUTS.update(kv)
     # Also persist them: the build step folds this file into the published
     # site/build_health.txt, which is the only place a completed run's fetch
     # story can be read without the Actions log API (which returns tails).
@@ -775,7 +785,7 @@ def write_outputs(**kv) -> None:
         PROCESSED.mkdir(parents=True, exist_ok=True)
         with (PROCESSED / "fetch_health.txt").open("w") as fh:
             fh.write(f"fetched_at={time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
-            for k, v in kv.items():
+            for k, v in _OUTPUTS.items():
                 fh.write(f"{k}={v}\n")
     except OSError:
         pass
@@ -784,7 +794,7 @@ def write_outputs(**kv) -> None:
         return
     with open(path, "a") as fh:
         for k, v in kv.items():
-            fh.write(f"{k}={v}\n")
+            fh.write(f"{k.replace('.', '_')}={v}\n")
 
 
 def _worker_client() -> WCLClient:
@@ -1082,20 +1092,129 @@ def export_gear() -> None:
           flush=True)
 
 
+# --- streaming players export (partitioned_payload.md §7.4) ------------------
+# export() used to materialise list(_iter_journal(PLAYERS_FILE)) -- every
+# player row as a dict, ~2 KB each -- and then build the frame from it: about
+# 6 GB at season week 6 and 10 GB at week 10 on a 16 GB runner, the same OOM
+# path that killed export_gear() on Sep 1. The journal is now read in chunks
+# of EXPORT_CHUNK_ROWS rows, each chunk becomes a frame at once and the dicts
+# die with the chunk; the dedup and the roster collapse below operate on the
+# ONE concatenated frame exactly as before, so "last copy wins" holds across
+# chunk boundaries by construction (the frame keeps journal order).
+EXPORT_CHUNK_ROWS = 200_000
+EXPORT_WALL_TRIPWIRE_S = 300         # §7.4 dual-emit hard-stop clocks
+EXPORT_RSS_TRIPWIRE_MB = 6 * 1024
+
+
+def _rss_mb() -> float:
+    """Peak resident set of this process so far, in MB (Linux ru_maxrss is
+    KB; macOS reports bytes -- normalised so a local run reads sanely)."""
+    try:
+        import resource
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    except (ImportError, OSError, ValueError):
+        return 0.0
+    if sys.platform == "darwin":
+        peak /= 1024
+    return peak / 1024
+
+
+def _iter_journal_chunks(path: pathlib.Path, size: int):
+    """_iter_journal in lists of at most `size` records, journal order."""
+    chunk: list = []
+    for rec in _iter_journal(path):
+        chunk.append(rec)
+        if len(chunk) >= size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
+
+
+def load_players_frame(path: pathlib.Path,
+                       chunk_rows: int = EXPORT_CHUNK_ROWS):
+    """The players journal as ONE DataFrame, built chunk by chunk.
+
+    Equivalent to pd.DataFrame(list(_iter_journal(path))) -- same rows in
+    the same order, same columns in first-seen order, same dtypes -- without
+    ever holding every row as a dict. Returns None for an empty journal.
+
+    Two things make it exact rather than approximately so:
+
+    * String values are interned per load: the JSON parser makes a fresh str
+      for every occurrence, so "Restoration" existed once per row; sharing
+      one object per distinct value is what turns ~870 bytes per row of
+      Python strings into a few hundred MB of distinct values for the whole
+      season. Equal strings are equal; nothing downstream can tell.
+    * pandas infers a column's dtype from the whole list in the old path but
+      from each chunk here, and the two disagree in exactly one situation: a
+      chunk in which a column is entirely null (object dtype holding None)
+      while other chunks carry numbers or strings. Whole-list inference
+      gives float64 / str with NaN; concat gives object with None -- and a
+      float64 column writes "720.0" where object writes "720". So each
+      chunk's dtype is recorded, all-null chunks are treated as no evidence
+      (the same as a missing key, which concat already fills with NaN), and
+      after the concat any column whose informative chunks agree on a
+      numeric or string dtype is cast to the dtype whole-list inference
+      would have produced. A column that genuinely mixes numbers and
+      strings across chunks is left as concat made it and reported: it
+      cannot occur from parse_summary/seed_from_csv, and a chunk that saw
+      numbers with nulls has already become float64.
+    """
+    import pandas as pd
+    from pandas.api import types as pdt
+    frames: list = []
+    evidence: dict[str, list] = {}     # column -> dtypes of informative chunks
+    pool: dict[str, str] = {}
+    for chunk in _iter_journal_chunks(path, chunk_rows):
+        for rec in chunk:
+            for k, v in rec.items():
+                if type(v) is str:
+                    rec[k] = pool.setdefault(v, v)
+        f = pd.DataFrame(chunk)
+        chunk.clear()
+        for col in f.columns:
+            s = f[col]
+            if s.dtype == object and s.isna().all():
+                continue                    # all-null: no evidence
+            evidence.setdefault(col, []).append(s.dtype)
+        frames.append(f)
+    del pool
+    if not frames:
+        return None
+    df = pd.concat(frames, ignore_index=True, sort=False) \
+        if len(frames) > 1 else frames[0]
+    del frames
+    mixed = []
+    for col in df.columns:
+        if df[col].dtype != object:
+            continue
+        kinds = evidence.get(col, [])
+        if not kinds or all(k == object for k in kinds):
+            continue         # null everywhere, or plain object strings (pandas 2)
+        if all(pdt.is_integer_dtype(k) or pdt.is_float_dtype(k)
+               for k in kinds) and not any(pdt.is_bool_dtype(k) for k in kinds):
+            df[col] = df[col].astype("float64")   # nulls seen -> float, as before
+        elif all(isinstance(k, pd.StringDtype) for k in kinds):
+            df[col] = df[col].astype(kinds[0])
+        else:
+            mixed.append(col)
+    if mixed:
+        print(f"[export] WARNING: column(s) {', '.join(mixed)} mix numbers "
+              f"and strings across chunks; left as read", flush=True)
+    return df
+
+
 def export() -> None:
     if not PLAYERS_FILE.exists():
         print("[export] no player rows yet", flush=True)
         return
     import pandas as pd
-    rows = list(_iter_journal(PLAYERS_FILE))  # tolerates a torn trailing line
-    if not rows:
+    t0 = time.perf_counter()
+    df = load_players_frame(PLAYERS_FILE, EXPORT_CHUNK_ROWS)  # torn tail ok
+    if df is None:
         print("[export] no player rows yet", flush=True)
         return
-    df = pd.DataFrame(rows)
-    # pandas has copied everything into columns; holding the list of dicts as
-    # well doubles peak memory for no benefit, and this export runs on a
-    # runner that has already been OOM-killed once (see export_gear).
-    del rows
     before = len(df)
     # keep="last": the journal is append-only, so when a run has been fetched
     # twice the later copy is the newer one. That is what makes --regear-min-key
@@ -1161,10 +1280,30 @@ def export() -> None:
     tmp = CSV_FILE.with_name(CSV_FILE.name + ".tmp")
     df.to_csv(tmp, index=False, compression="gzip")
     os.replace(tmp, CSV_FILE)  # atomic: the live dashboard never sees a torn file
+    n_rows = len(df)
+    n_runs = df[["report_code", "fight_id"]].drop_duplicates().shape[0]
+    del df
     export_gear()
-    print(f"[export] {len(df)} player-rows ({before - len(df)} dupes dropped) "
-          f"across {df[['report_code', 'fight_id']].drop_duplicates().shape[0]} runs "
-          f"-> {CSV_FILE}", flush=True)
+    print(f"[export] {n_rows} player-rows ({before - n_rows} dupes dropped) "
+          f"across {n_runs} runs -> {CSV_FILE}", flush=True)
+    # The export's own clock and memory, into fetch_health.txt (the build
+    # folds it into site/build_health.txt as fetch.export.*). §7.4: dual-emit
+    # stops when either trips on two consecutive days -- a measured deadline.
+    wall = time.perf_counter() - t0
+    rss = _rss_mb()
+    health = {"export.wall_s": f"{wall:.1f}", "export.rss_mb": f"{rss:.0f}",
+              "export.rows": n_rows}
+    if wall > EXPORT_WALL_TRIPWIRE_S:
+        health["export.wall_tripped"] = 1
+        print(f"::warning::export() took {wall / 60:.1f} min, over the "
+              f"{EXPORT_WALL_TRIPWIRE_S // 60}-minute tripwire "
+              f"(partitioned_payload.md §7.4)", flush=True)
+    if rss > EXPORT_RSS_TRIPWIRE_MB:
+        health["export.rss_tripped"] = 1
+        print(f"::warning::peak RSS {rss / 1024:.1f} GB after export(), over "
+              f"the {EXPORT_RSS_TRIPWIRE_MB // 1024} GB tripwire "
+              f"(partitioned_payload.md §7.4)", flush=True)
+    write_outputs(**health)
 
 
 def status(regions: set[str] | None) -> None:
