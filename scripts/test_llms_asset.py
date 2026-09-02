@@ -15,6 +15,8 @@ state it can be in:
   stale   corrupt download               -> cache kept
   built   corrupt cached tarball         -> discarded, rebuilt
   none    no Release, no cache, build fails -> exit 0, warning, no tree
+  none    no Release, no cache, build exceeds LLMS_BUILD_MAX_S -> stopped by
+          `timeout`, exit 0, warning, no half tree, no tarball
   age     an old stamp -> llms.age_h and a ::warning:: past the threshold
   pack    the tarball carries exactly the served set plus the stamp
 
@@ -106,6 +108,7 @@ with tempfile.TemporaryDirectory() as td:
     (root / "fakebuild.sh").write_text(f"""#!/usr/bin/env bash
 echo call >> "{calls}"
 [ -n "${{FAKE_FAIL:-}}" ] && {{ echo "fake build failing"; exit 1; }}
+[ -n "${{FAKE_SLOW:-}}" ] && {{ mkdir -p site/llms; echo half > site/llms/partial.csv; sleep 20; }}
 for d in site docs; do
   mkdir -p "$d/llms"
   echo "inline build" > "$d/llms.txt"
@@ -206,6 +209,23 @@ done
     assert not (root / "cache" / "llms.tar.gz").exists()
     assert h == health(root, "docs")
     print("none    : no Release + no cache + build fails -> exit 0, two warnings, health none/unknown")
+
+    # ---- 7b. none: the inline build is O(season); past the cap it is stopped
+    reset_health(root)
+    t0 = time.time()
+    p = sh(root, env={"FAKE_SLOW": "1", "LLMS_BUILD_MAX_S": "2"})
+    took = time.time() - t0
+    h = health(root)
+    assert p.returncode == 0, "a timed-out inline build must never fail the deploy"
+    assert took < 10, f"timeout did not stop the build ({took:.1f}s)"
+    assert h["llms.unpack"] == "none" and h["llms.files"] == "0", (h, p.stdout)
+    assert "::warning::inline LLM build exceeded 2 s" in p.stdout, p.stdout
+    assert not (root / "site" / "llms").exists() and not (root / "docs" / "llms").exists(), \
+        "a half-written tree must not ship"
+    assert not (root / "cache" / "llms.tar.gz").exists()
+    assert h == health(root, "docs")
+    print(f"none    : inline build over LLMS_BUILD_MAX_S -> stopped in {took:.1f}s, exit 0, warning, "
+          "half tree removed, nothing cached")
 
     # ---- 8. age: an old stamp is reported and warned about past the threshold
     reset_health(root)

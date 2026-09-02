@@ -1179,14 +1179,33 @@ single walk that parses each line once and feeds the four consumers** (`sets_fro
 `stats_from_gear_journal`, `meta_from_gear_journal`, `_trait_journal_pass`, B:369/532/894/
 1219), **guarded by a byte-level prefilter on `report_code` against the set of runs the
 legacy payload actually samples** (`sample_runs`, B:296, is moved ahead of the passes; it
-depends only on the df). Records of unsampled runs cost a substring test (~2 µs) instead of
-a parse, so the legacy build is **O(sample) = O(150k runs) for the rest of dual-emit,
-flat at today's ~7 min** — the sets/stats/meta consumers only ever read sampled keys, and
-the trait union (which talent entries a wanted build's players allocated) is computed over
-the sampled players of that build, the only invisible change (it annotates tree geometry,
-prints no number). `build.wall_s` and `build.gear_records_parsed` are written to
-`build_health.txt` with a tripwire at 10 min (`::warning::` + watchdog line). **The fetch
-side has its own clock:** `export()` materialises `list(_iter_journal(PLAYERS_FILE))` as
+depends only on the df). Records of unsampled reports cost a substring test (~2 µs) instead
+of a parse, so the legacy build is **O(sample) for the rest of dual-emit, flat at today's
+~7 min**. The prefilter's granularity is the **report** (`report_code`), not the run: every
+fight of a sampled report passes, measured at ~1.8× the sampled records. **It applies to
+sets/stats/meta only** — those consumers only ever read sampled keys, so for them it is exact.
+It is **not** exact for the trait union (`_trait_journal_pass`: which talent entries and hero
+subtrees a spec's players *ever* allocated, the modal selection blob of a build): `talents_doc`
+draws tree geometry and hero panes from it journal-wide, and computing it over sampled records
+lost one node in 40/40 specs and Retribution's Lightsmith pane on an adversarial journal (~34%
+of reports are sampled today, ~11% by season end; revision 3 wrongly called this change
+invisible). **The trait union is therefore complete and incremental** (`TraitUnion`, stage A
+follow-up): the journal is append-only and the union only grows, so it is persisted as
+`data/processed/trait_union.json.gz` — inside the existing cache path list, no new path — with
+a checkpoint {source, byte offset, size, sha of the first 64 KB, sha of the 64 KB before the
+offset, line and record counts}. Each build parses **only the bytes appended since the offset**
+(O(new records), ~1–2k per 20-min cycle) and merges; a checkpoint that no longer describes the
+file (evicted cache, a reseed that rewrote the journal, a file shorter than the offset)
+triggers **one** whole-journal rebuild. A torn trailing line is merged for that build's
+consumers when it parses but never committed to the checkpoint. Tree-hash builds' blobs are
+not persisted (the hash is the blob's md5; the sampled pass of the same run supplies the blob
+for any build it can want), so the state is ~30 bytes per distinct build. `build.wall_s`,
+`build.gear_records_parsed`, `build.trait_union_mode=incremental|rebuild`,
+`build.trait_union_rebuild=<reason>`, `build.trait_records_parsed`, `build.trait_union_records`
+and `build.trait_union_s` are written to `build_health.txt`, `build.wall_s` with a tripwire at
+10 min (`::warning::` + watchdog line). `test_trait_union` proves `talents.json.gz` and
+`builds.json.gz` byte-identical three ways — HEAD-style whole walk, cold checkpoint, two
+incremental appends — on that adversarial journal. **The fetch side has its own clock:** `export()` materialises `list(_iter_journal(PLAYERS_FILE))` as
 dicts (~2 KB per row) — ≈ 6 GB at week 6 and ≈ 10 GB at week 10 on a 16 GB runner, an OOM
 path that would precede the 10-min wall trigger. PR-1 therefore makes `export()` stream the
 players journal in 200k-row chunks into the frame (the dedup and roster collapse already
@@ -1378,7 +1397,8 @@ fallback under the §3.3 rule, `buildRuns` + `renderComps` scoring, and
 | `test_reseed` | with `parts/` deleted and a local mock of Pages + Release: Half A restores journals only and writes a `reseed_pending` state; Half B restores state and every frozen output byte-identical and flips to `ok`; a live day file newer than the snapshot is rejected and rebuilt (the registry keeps the snapshot's ids); with the Release unreachable and the CSV present it seeds from the CSV, keeps `reseed_pending`, and the next run with the Release back completes the restore **without duplicating journal rows**; journals present but state missing → extended only on matching overlap, else moved aside; with both unreachable and no journal/CSV it exits 1; Half B under a 60 s deadline stops at a day boundary and the next run continues |
 | `test_clobber_guard` | `export_gear()`/`export()` **skip** (no file written, exit 0, `export.skipped=clobber_guard` in health, `::warning::` emitted) on a journal < 90% of the manifest's line count, and export normally once the journal is whole |
 | `test_build_step_exit` | a shell test of the §6 Build step: partition failure → legacy rc, `::warning::`, `parts.*` lines present in `site/build_health.txt` after both exit; **a partition builder that stalls (sleeps) does not extend the step past the legacy builder's exit + `PARTS_DEADLINE_S` grace, and `parts.deadline_hit=1` is written**; a builder run with the network namespace disabled completes an ordinary run (no socket is ever opened) |
-| `test_legacy_single_pass` | `gear_journal_pass()` with the sample prefilter produces the same `sets/stats/meta` dicts as the four original passes on the fixture, and parses ≤ the records of sampled **reports** (the prefilter keys on `report_code`, so unsampled fights of a sampled report are parsed too) plus the lines it cannot classify |
+| `test_legacy_single_pass` | `gear_journal_pass()` with the sample prefilter produces the same `sets/stats/meta` dicts as the original passes on the fixture, and parses ≤ the records of sampled **reports** (the prefilter keys on `report_code`, so unsampled fights of a sampled report are parsed too) plus the lines it cannot classify; the sampled trait material it retains equals the original walk over the sampled records alone, and completed by the `TraitUnion` it reproduces the whole-journal talents doc, builds sidecar and usage dict |
+| `test_trait_union` | on a journal written by the real collector where an entry, a class node, a hero subtree (Lightsmith), a whole spec and the modal blob of a string-identified build exist only in unsampled reports: the stage-A sampled material loses each of them; `talents.json.gz` and `builds.json.gz` are byte-identical three ways (HEAD-style whole walk, cold checkpoint, two incremental appends) and the usage dict equals the whole walk's including counts; an incremental run parses exactly the appended lines, an idle run none; a journal shorter than the offset, a rewritten head and a rewritten body under the same head each trigger one whole rebuild with its reason; a torn trailing line (half a record; a record without its newline) never moves the checkpoint and is read correctly after `_repair_tail`; the `.gz` export as the source rebuilds once and is idle until rewritten |
 | `test_llms_asset` | `scripts/llms_asset.sh` driven as the workflows drive it (bash, `file://` Release, fake build): `built` (no asset, no cache → inline build ONCE, cached), `stale` (cache kept, build never run), `fresh`, `cached` (`mode=fresh` skips the download when cached, downloads when not), corrupt download → cache kept, corrupt cache → rebuilt, `none` only when the inline build fails too (exit 0, warning); `llms.built`/`llms.age_h` carried from the stamp, warned past the threshold; `pack` = exactly the served set plus the stamp and refuses an empty tree; site/ and docs/ identical after every case |
 
 ### 9.2 Production checks
@@ -1714,3 +1734,4 @@ its cause (a contract or mechanism change plus a test), not with a caveat.
 | # | change | sections | answers |
 |---|---|---|---|
 | 32 | The llms unpack is **self-healing**: no Release asset and no cached tarball → `build_site_data.py --llms-only` inline once, packed into the cache (`llms.unpack=built`), so the first refresh after stage A lands (the repo had **zero** Releases and the live site served `/llms/` — the R2-W10 wording accepted "no llms/ in that deploy" for an outage, but the transition would have made it a scheduled ~18 h regression, 3 deploys/h) and a cache-evicted runner during a Release outage both keep the tree; `cached` state for `fresh` drain runs (never a download on the latency-critical path); `llms.built` stamp in the tarball → `llms.built=`/`llms.age_h=` health lines and a `::warning::` past 36 h (`fresh` never meant the data was new); `llms.yml` `timeout-minutes` 30 → 120 (it owns the O(season) tier pass alone, ~+50 s/day); mechanism factored into `scripts/llms_asset.sh` (`pack`/`unpack`) under `test_llms_asset`; `test_legacy_single_pass` wording corrected to the prefilter's report granularity | §5, §9.1, §10 PR-1 | stage-A review blocker 1, minors 6, 7, 8, 2 (wording) |
+| 33 | **The trait union is complete and incremental** — revision 3's §7.4 claim that computing it over sampled records was invisible was wrong: an adversarial verifier showed `talents.json.gz` losing one node in 40/40 specs and a hero pane (Retribution [Lightsmith, Templar] → [Templar]) whenever an entry or subtree occurs only in unsampled reports (~34% of reports sampled today, ~11% by season end). `TraitUnion` persists the whole-journal union in `data/processed/trait_union.json.gz` (existing cache path) with a checkpoint {source, offset, size, head sha, pre-offset sha, counts}; each build parses only the appended bytes, a stale checkpoint triggers one whole rebuild, a torn tail is never committed; `build.trait_union_mode` / `build.trait_union_rebuild` / `build.trait_records_parsed` / `build.trait_union_records` / `build.trait_union_s` in health; `test_trait_union` (three-way byte identity on the adversarial journal). §7.4 restated: the prefilter applies to sets/stats/meta, its granularity is the report (~1.8× sampled records), not the run. Also: `llms.yml` publishes nothing when no journal was restored or the export failed (the committed CSV is a days-old seed; `::warning::`, Build/Pack/Publish skipped); the refresh's inline self-heal build runs under `timeout 300` and on timeout the deploy goes out without `llms/` plus a `::warning::` (never red; half tree removed); `site/llms.built`, `docs/llms.built` gitignored | §7.4, §9.1, §10 PR-1 | adversarial verification of stage A (trait union), llms.yml stale-seed publish, unbounded inline build |

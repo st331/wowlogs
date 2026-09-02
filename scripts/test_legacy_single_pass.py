@@ -15,13 +15,17 @@ Pinned here, on a journal written by the REAL collector (parse_summary):
   * with the sample prefilter, sets/stats/meta equal the originals
     restricted to the sampled codes; lines parsed <= sampled records;
     unsampled records are skipped WITHOUT parsing;
-  * every consumer -- tier_pieces, spec_stats_block, stats_sidecar,
-    spec_meta_block, builds_sidecar, talents_doc -- emits byte-identical
-    output on the sampled payload from either source;
-  * the one deliberate change §7.4 states: the trait material (entry
-    union, modal specID, selection blobs) is computed over the sampled
-    records. It equals what the original walk yields over a journal
-    holding only those records -- and nothing else changes;
+  * every consumer that reads sets/stats/meta -- tier_pieces,
+    spec_stats_block, stats_sidecar, spec_meta_block, builds_sidecar --
+    emits byte-identical output on the sampled payload from either source;
+  * the prefilter is NOT exact for the trait material (entry union, modal
+    specID, selection blobs): what gear_journal_pass() retains is computed
+    over the sampled records and equals the original walk over a journal
+    holding only those records. build() never hands that to a consumer: it
+    completes it with the persisted whole-journal TraitUnion first
+    (test_trait_union pins the three-way byte identity on an adversarial
+    journal), and here the completed material reproduces the whole-journal
+    talents doc, builds sidecar and usage dict exactly;
   * lines the prefilter cannot classify (a null report_code, an escaped
     code) are parsed, never dropped; a torn trailing line and blank lines
     are tolerated exactly as before.
@@ -327,10 +331,11 @@ for gz in (False, True):
         assert legacy["builds"] is not None and legacy["talents"] is not None
         assert legacy["specstats"] and legacy["specmeta"]
         assert sum(1 for t in legacy["tier"] if t >= 0) > 0
-        # the talents doc / trait material: the §7.4 change, and only that.
-        # From the whole journal the docs may legitimately differ (entries
-        # allocated only by unsampled players); from a journal holding only
-        # the sampled records the original walk must agree exactly.
+        # the SAMPLED trait material, on its own: from the whole journal the
+        # docs differ (entries allocated only by unsampled players -- which
+        # is exactly why build() does not use it as is, see below); from a
+        # journal holding only the sampled records the original walk must
+        # agree exactly.
         (tp / "s").mkdir()
         j_s = write_journal(tp / "s", only_codes=codes | unclassifiable | {None})
         keep_j, keep_e = bsd.GEAR_JOURNAL, bsd.GEAR_EXPORT
@@ -344,6 +349,15 @@ for gz in (False, True):
             "talents doc != the original walk over the sampled records"
         assert legacy_s["usage"] == single["usage"]
         assert legacy_s["builds"] == single["builds"]
+        # ... and what build() actually hands the consumers -- the sampled
+        # material completed by the whole-journal union -- equals the
+        # original whole-journal walk on the FULL journal, docs and usage
+        bsd.TRAIT_UNION = tp / "union" / "trait_union.json.gz"
+        TU = quiet(bsd.trait_union_update, S.src)
+        assert TU.mode == "rebuild" and TU.reason == "no_state"
+        whole = consumers(df_s, S.sets, S.stats, S.meta, TU.complete(S.traits))
+        for key in ("talents", "builds", "usage", "tier", "specstats", "stats_sidecar", "specmeta"):
+            assert whole[key] == legacy[key], f"{key}: union-completed material != whole-journal walk"
         # ... and the union really is the only thing that can move: with the
         # sample = every run, the doc from the whole journal is identical too
         F = quiet(bsd.gear_journal_pass, set(df_all["report_code"].astype(str)))

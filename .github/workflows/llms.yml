@@ -73,24 +73,38 @@ jobs:
           restore-keys: wowlogs-journals-
 
       # Export the CSV from the restored players journal so the dataset is
-      # current to the last refresh rather than to the daily commit (up to a
-      # day older). No API call is made (--stage export reads journals only).
-      # Best-effort: without a journal the committed CSV is used as is.
+      # current to the last refresh. No API call is made (--stage export
+      # reads journals only). NOT best-effort any more: without a journal
+      # (cache evicted, or never saved on this runner) or with the export
+      # failing, the only CSV is the committed seed, which is days old --
+      # publishing THAT as the `fresh` asset would replace a newer tree on
+      # the site with an older one (the refresh's unpack takes the Release
+      # over its cache) and stamp it as freshly built. So: warn, publish
+      # nothing, and let the refresh keep serving the cached/self-built
+      # tree; the next day's run publishes when the journal is back.
       - name: Refresh the CSV from the journal
+        id: csv
         run: |
-          if [ -f data/processed/players.jsonl ]; then
-            python -u scripts/fetch_data.py --stage export \
-              || echo "::warning::export from the cached journal failed; building from the committed CSV"
+          if [ ! -f data/processed/players.jsonl ]; then
+            echo "::warning::no cached journal on this runner; the committed CSV is a days-old seed -- NOT publishing a fresh llms asset from it (the refresh keeps serving its cached tree)"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          elif python -u scripts/fetch_data.py --stage export; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           else
-            echo "no cached journal on this runner; building from the committed CSV"
+            echo "::warning::export from the cached journal failed; the committed CSV is a days-old seed -- NOT publishing a fresh llms asset from it"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Build, Pack and Publish all hang off the export above: an asset is
+      # only ever published from a CSV the journal produced in this run.
       - name: Build the LLM export
+        if: steps.csv.outputs.publish == 'true'
         run: python -u scripts/build_site_data.py --llms-only
 
       # The file list and the `llms.built` stamp (what the refresh reports as
       # llms.built / llms.age_h) live in the script, next to the unpack.
       - name: Pack
+        if: steps.csv.outputs.publish == 'true'
         run: |
           set -e
           bash scripts/llms_asset.sh pack llms.tar.gz
@@ -101,6 +115,7 @@ jobs:
       # never "latest", so the repo's release page does not present a
       # dataset tarball as a software release.
       - name: Publish as the `llms` Release asset
+        if: steps.csv.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

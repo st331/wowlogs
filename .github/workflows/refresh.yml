@@ -311,9 +311,11 @@ jobs:
       # Best-effort at every step -- never a delay a human notices, never red
       # -- and SELF-HEALING: with no Release asset AND no cached tarball (the
       # first run after this landed; a cache-evicted runner during a Release
-      # outage) it builds the export inline once (~1-3 min) and caches the
-      # result, so no deploy can drop a tree the previous deploy carried. A
-      # `fresh` drain run never downloads when the cache has a tarball.
+      # outage) it builds the export inline once (~1-3 min, under `timeout
+      # 300`: it is O(season), and past the cap the deploy goes out without
+      # llms/ plus a ::warning::, never red) and caches the result, so no
+      # deploy can drop a tree the previous deploy carried. A `fresh` drain
+      # run never downloads when the cache has a tarball.
       # Health: llms.unpack=fresh|cached|stale|built|none, llms.built=<stamp>,
       # llms.age_h=, llms.files=; a build older than 36 h is a ::warning::.
       - name: Unpack the LLM export

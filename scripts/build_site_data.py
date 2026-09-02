@@ -2226,13 +2226,19 @@ def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,
 # The four readers above (sets/stats/meta/_trait_journal_pass) each walked the
 # whole journal and parsed every line: four O(season) passes at ~140 us per
 # record-pass, which by season week 6 would have pushed the build from ~7 to
-# ~28 minutes and crossed the 50-minute job timeout around week 8. Every
-# consumer only ever LOOKS UP keys of the payload's rows, and the payload is a
-# MAX_RUNS sample of whole runs -- so records of unsampled runs are parsed for
-# nothing. gear_journal_pass() walks once, parses each kept line once, feeds
-# all four consumers, and skips a record whose report_code is not sampled on a
-# byte-level test (a regex on the raw line, ~2 us) before any JSON parsing.
-# The build is O(sample) for the rest of the season instead of O(season).
+# ~28 minutes and crossed the 50-minute job timeout around week 8. The
+# sets/stats/meta consumers only ever LOOK UP keys of the payload's rows, and
+# the payload is a MAX_RUNS sample of whole runs -- so for THEM records of
+# unsampled runs are parsed for nothing. gear_journal_pass() walks once,
+# parses each kept line once, feeds those three consumers, and skips a record
+# whose report_code is not sampled on a byte-level test (a regex on the raw
+# line, ~2 us) before any JSON parsing. The granularity is the REPORT, not
+# the run: every fight of a sampled report passes (measured ~1.8x the sampled
+# records). The trait material is the exception -- talents_doc needs the
+# union over EVERY record, not the sampled ones -- and is kept complete by
+# the persisted, incremental TraitUnion below; the sampled trait material
+# this pass retains only supplies the tree-hash builds' blobs to it. The
+# build is O(sample) + O(new records) for the rest of the season.
 BUILD_WALL_TRIPWIRE_S = 600        # §7.4: build.wall_s over 10 min = warn
 # The writer (parse_summary -> json.dumps) puts report_code first; a code is
 # a 16-char [A-Za-z0-9] token, so no real line needs escaping. A line that
@@ -2250,8 +2256,10 @@ class GearJournalPass:
     to the sampled report codes when a prefilter was given (identical for
     every key a consumer can look up: consumers only read the payload rows'
     keys, and every payload row is a sampled run). traits is the per-spec
-    talent material _trait_journal_pass() derives its answer from. The
-    counters are for build_health.txt.
+    talent material over the SAMPLED records only -- build() completes it
+    to the whole journal with TraitUnion.complete() before any consumer
+    sees it; on its own it is not what talents_doc needs. The counters are
+    for build_health.txt.
     """
     __slots__ = ("sets", "stats", "meta", "traits", "lines", "parsed",
                  "prefiltered", "wall_s", "src")
@@ -2279,10 +2287,11 @@ def gear_journal_pass(codes=None) -> GearJournalPass:
     Per record the work is exactly the union of the four readers' work,
     shared where they overlapped: the JSON parse, the key, the tree blob
     (the meta reader hashed it and the trait reader split it -- once now)
-    and the build identity. The one deliberate semantic change is stated in
-    §7.4: the trait material (entry union, modal specID, the selection blobs
-    behind a build) is computed over the sampled records, not the whole
-    journal. It annotates tree geometry and prints no number.
+    and the build identity. The prefilter is exact for sets/stats/meta and
+    NOT for the trait material (entry union, modal specID, the selection
+    blobs behind a build), which talents_doc needs over the whole journal:
+    that is what the persisted TraitUnion is for (§7.4). The sampled trait
+    material kept here is its input, not a consumer's.
     """
     out = GearJournalPass()
     src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
@@ -2384,6 +2393,295 @@ def gear_journal_pass(codes=None) -> GearJournalPass:
     return out
 
 
+# --------------------------------------------------------------------------
+# The trait union: COMPLETE over the whole journal, INCREMENTAL per run
+# --------------------------------------------------------------------------
+# The sample prefilter above is exact for sets/stats/meta -- those consumers
+# only look up keys of sampled rows -- but it is NOT invisible to the talent
+# material: talents_doc draws a spec's tree from the union of entries its
+# players EVER allocated and its hero panes from the subtrees ever seen,
+# journal-wide, and builds_sidecar's sel pairs take the modal blob of a build
+# over every record of it. Over the sampled records only (~34% of reports
+# today, ~11% by season end) an entry or a whole hero subtree allocated only
+# by unsampled players vanished from the tree -- verified 2026-09-02 on an
+# adversarial journal: one node lost in 40/40 specs, Retribution's hero panes
+# [Lightsmith, Templar] -> [Templar]. So the union is kept complete here, and
+# incremental: the journal is append-only and the union only grows, so it is
+# persisted in data/processed (inside the Actions cache; NO new cache path --
+# see the warning above the cache step in refresh.yml) with a checkpoint
+# {source, byte offset, size, sha of the first 64 KB, sha of the 64 KB before
+# the offset, counts}, and each run parses only the bytes appended since. A
+# checkpoint that no longer describes the file (evicted cache, a reseed that
+# rewrote the journal, a file shorter than the offset) triggers ONE whole-
+# journal rebuild, reported as build.trait_union_mode=rebuild in
+# build_health.txt. Per-run cost is O(new records) + O(|state|) to load/save.
+TRAIT_UNION = ROOT / "data" / "processed" / "trait_union.json.gz"
+TRAIT_UNION_V = 1
+TRAIT_UNION_HEAD = 65536          # bytes hashed at the head / before the offset
+
+
+def _sha_range(path: pathlib.Path, start: int, length: int) -> str:
+    with open(path, "rb") as fh:
+        fh.seek(start)
+        return hashlib.sha1(fh.read(length)).hexdigest()[:16]
+
+
+class TraitUnion:
+    """The whole-journal talent material and its checkpoint.
+
+    specs, per "Class|Spec": "specid" -- Counter of WCL spec ids in first-
+    appearance order (so the modal tie-break is the one a single walk makes);
+    "entries" -- the set of TraitNodeEntry ids ever allocated; "sel" -- per
+    STRING-identified build the Counter of its selection blobs (a string
+    build's blob can vary, the modal one ships); "tn" -- per tree-hash build
+    its record count. A tree-hash build's blob is deliberately NOT persisted:
+    the hash IS the blob's md5, so every record of the build carries the same
+    blob, and any build a run can want (builds_sidecar ranks builds from the
+    SAMPLED records) had one of its records parsed by gear_journal_pass() in
+    that very run. complete() puts that blob and the whole-journal count back
+    together, which keeps the state at ~30 bytes per distinct build instead
+    of ~1 KB. Production journals carry no import strings at all (430,507 /
+    430,507 records), so "sel" is empty there and "tn" is the state.
+    """
+    __slots__ = ("specs", "checkpoint", "mode", "reason", "lines", "parsed",
+                 "records", "wall_s")
+
+    def __init__(self):
+        self.specs: dict[str, dict] = {}
+        self.checkpoint: dict = {}
+        self.mode = "rebuild"        # incremental | rebuild
+        self.reason = "no_journal"   # why a rebuild happened; "" when not
+        self.lines = 0               # raw lines walked THIS run
+        self.parsed = 0              # lines json-parsed THIS run
+        self.records = 0             # talent records merged THIS run
+        self.wall_s = 0.0
+
+    # ---- merging ----------------------------------------------------------
+    def merge(self, rec: dict) -> bool:
+        """One journal record into the union. Same reading of the record as
+        gear_journal_pass()'s trait block and the original walk: the spec
+        key exists for any record with a talents dict, the entry ids come
+        from the canonical blob, the build identity is _record_build_id()."""
+        tal = rec.get("talents")
+        if not isinstance(tal, dict):
+            return False
+        sk = f"{rec.get('class')}|{rec.get('spec')}"
+        o = self.specs.get(sk)
+        if o is None:
+            o = self.specs[sk] = {"specid": Counter(), "entries": set(),
+                                  "sel": {}, "tn": Counter()}
+        spec_id = tal.get("specID")
+        if isinstance(spec_id, int) and spec_id:
+            o["specid"][spec_id] += 1
+        blob = _tree_blob(tal.get("tree"))
+        if blob is None:
+            return True
+        ent = o["entries"]
+        for part in blob.split("|"):
+            ent.add(int(part.split(":", 1)[0]))
+        build = tal.get("talentImportString")
+        if isinstance(build, str) and build:
+            s = o["sel"].get(build)
+            if s is None:
+                s = o["sel"][build] = Counter()
+            s[blob] += 1
+        else:
+            o["tn"]["t:" + hashlib.md5(blob.encode()).hexdigest()[:12]] += 1
+        return True
+
+    def merge_line(self, raw: bytes) -> bool:
+        """One raw journal line; False when blank or unparseable."""
+        line = raw.strip()
+        if not line:
+            return False
+        try:
+            rec = json.loads(line)
+        except ValueError:                     # a torn line, a garbage join
+            return False
+        self.parsed += 1
+        if self.merge(rec):
+            self.records += 1
+        return True
+
+    def walk(self, fh, pos: int) -> tuple[int, bytes | None]:
+        """Lines from the open binary handle, positioned at byte `pos`, into
+        the union. Returns (offset after the last COMPLETE line, the torn
+        tail without a newline or None). The tail is never merged here: the
+        checkpoint must not move past bytes the writer may still be adding
+        to (fetch_data's _repair_tail closes such a line with "\\n" on the
+        next fetch, and the next run reads it from this offset)."""
+        off = pos
+        tail = None
+        with fh:
+            for raw in fh:
+                pos += len(raw)
+                if not raw.endswith(b"\n"):
+                    tail = raw                 # by construction the last chunk
+                    break
+                self.lines += 1
+                off = pos
+                self.merge_line(raw)
+        return off, tail
+
+    # ---- the consumers' view ---------------------------------------------
+    def complete(self, sampled: dict[str, dict]) -> dict[str, dict]:
+        """gear_journal_pass()'s SAMPLED trait material -> the whole-journal
+        material, in the shape _trait_journal_pass(wanted, traits) reads.
+
+        Whole-journal specid Counter and entry set per spec; sel: string
+        builds from the union, tree-hash builds as {blob seen in the sample:
+        whole-journal count} -- exactly the Counter the original whole-
+        journal walk built for them (one blob per hash by construction).
+        """
+        out: dict[str, dict] = {}
+        for sk, o in self.specs.items():
+            sel = {b: Counter(c) for b, c in o["sel"].items()}
+            s = sampled.get(sk)
+            if s:
+                tn = o["tn"]
+                for b, c in s["sel"].items():
+                    if b in sel:
+                        continue               # string build: union wins
+                    if b in tn and len(c) == 1:
+                        sel[b] = Counter({next(iter(c)): tn[b]})
+                    else:                      # never expected: keep, not drop
+                        sel[b] = Counter(c)
+            out[sk] = {"specid": Counter(o["specid"]),
+                       "entries": set(o["entries"]), "sel": sel}
+        for sk, s in sampled.items():          # never expected after update()
+            if sk not in out:
+                out[sk] = {"specid": Counter(s["specid"]),
+                           "entries": set(s["entries"]),
+                           "sel": {b: Counter(c) for b, c in s["sel"].items()}}
+        return out
+
+    # ---- persistence ------------------------------------------------------
+    def save(self) -> None:
+        doc = {"v": TRAIT_UNION_V, "checkpoint": self.checkpoint,
+               "specs": {sk: {"specid": list(o["specid"].items()),
+                              "entries": sorted(o["entries"]),
+                              "sel": {b: list(c.items())
+                                      for b, c in o["sel"].items()},
+                              "tn": dict(o["tn"])}
+                         for sk, o in self.specs.items()}}
+        TRAIT_UNION.parent.mkdir(parents=True, exist_ok=True)
+        tmp = TRAIT_UNION.with_name(TRAIT_UNION.name + ".tmp")
+        with gzip.open(tmp, "wb", compresslevel=6) as fh:
+            fh.write(json.dumps(doc, separators=(",", ":")).encode("utf-8"))
+        os.replace(tmp, TRAIT_UNION)
+
+    @classmethod
+    def load(cls) -> tuple["TraitUnion | None", str]:
+        """(union, "") or (None, reason)."""
+        if not TRAIT_UNION.exists():
+            return None, "no_state"
+        try:
+            with gzip.open(TRAIT_UNION, "rb") as fh:
+                doc = json.loads(fh.read().decode("utf-8"))
+            if not isinstance(doc, dict) or doc.get("v") != TRAIT_UNION_V:
+                return None, "state_version"
+            tu = cls()
+            tu.checkpoint = dict(doc["checkpoint"])
+            for sk, o in doc["specs"].items():
+                tu.specs[sk] = {
+                    "specid": Counter(dict((int(k), int(n))
+                                           for k, n in o["specid"])),
+                    "entries": set(int(e) for e in o["entries"]),
+                    "sel": {b: Counter(dict((blob, int(n)) for blob, n in c))
+                            for b, c in o["sel"].items()},
+                    "tn": Counter({b: int(n) for b, n in o["tn"].items()}),
+                }
+            return tu, ""
+        except (OSError, EOFError, ValueError, KeyError, TypeError):
+            return None, "corrupt_state"
+
+
+def _checkpoint_mismatch(cp: dict, src: pathlib.Path, size: int,
+                         gz: bool) -> str:
+    """Why the checkpoint no longer describes `src`; "" when it does."""
+    if cp.get("src") != src.name:
+        return "source_changed"
+    off = cp.get("offset")
+    if not isinstance(off, int) or off < 0 or not isinstance(cp.get("head_len"), int):
+        return "corrupt_state"
+    if size < off:
+        return "journal_shorter"
+    if gz and size != off:               # an export is rewritten whole
+        return "export_changed"
+    head_len = min(TRAIT_UNION_HEAD, off)
+    if cp.get("head_len") != head_len or \
+            _sha_range(src, 0, head_len) != cp.get("head_sha"):
+        return "head_changed"
+    # a reseed that kept the head but rewrote the body (export_gear dedups)
+    # almost surely changed the bytes just before the offset
+    if _sha_range(src, off - head_len, head_len) != cp.get("tail_sha"):
+        return "body_changed"
+    return ""
+
+
+def trait_union_update(src: pathlib.Path | None) -> TraitUnion:
+    """Bring the persisted trait union up to date with the journal at `src`
+    (gear_journal_pass().src: the live journal, else the committed export)
+    and return it. Incremental when the checkpoint validates, else ONE
+    whole-journal rebuild; the result is saved before a torn trailing line
+    is merged in memory, so the checkpoint never covers bytes still being
+    written. mode/reason/lines/parsed/records/wall_s describe this run."""
+    t0 = time.perf_counter()
+    tu = TraitUnion()
+    if src is None or not src.exists():
+        tu.wall_s = time.perf_counter() - t0
+        return tu
+    gz = src.suffix == ".gz"
+    size = src.stat().st_size
+    prev, reason = TraitUnion.load()
+    start = 0
+    if prev is not None:
+        reason = _checkpoint_mismatch(prev.checkpoint, src, size, gz)
+        if not reason:
+            tu, start = prev, prev.checkpoint["offset"]
+    tu.mode, tu.reason = ("incremental", "") if not reason else ("rebuild", reason)
+    tail = None
+    if gz:
+        if tu.mode == "rebuild":
+            _, tail = tu.walk(gzip.open(src, "rb"), 0)
+            if tail is not None:               # an export is complete: keep it
+                tu.lines += 1
+                tu.merge_line(tail)
+                tail = None
+        new_off = size
+    else:
+        fh = open(src, "rb", buffering=8 << 20)
+        fh.seek(start)
+        new_off, tail = tu.walk(fh, start)
+    cp = tu.checkpoint if tu.mode == "incremental" else {}
+    head_len = min(TRAIT_UNION_HEAD, new_off)
+    tu.checkpoint = {
+        "src": src.name, "offset": new_off, "size": size,
+        "head_len": head_len, "head_sha": _sha_range(src, 0, head_len),
+        "tail_sha": _sha_range(src, new_off - head_len, head_len),
+        "lines": int(cp.get("lines", 0)) + tu.lines,
+        "records": int(cp.get("records", 0)) + tu.records,
+    }
+    tu.save()
+    if tail is not None:
+        # this run's consumers see what a whole walk over the current bytes
+        # sees; the checkpoint (already saved) does not
+        tu.lines += 1
+        tu.merge_line(tail)
+    tu.wall_s = time.perf_counter() - t0
+    if tu.mode == "rebuild":
+        print(f"[traits] union REBUILT from the whole {src.name} ({tu.reason}): "
+              f"{tu.lines:,} lines, {tu.parsed:,} parsed, "
+              f"{len(tu.specs)} specs ({tu.wall_s:.1f}s)", flush=True)
+    else:
+        print(f"[traits] union incremental: {tu.lines:,} new lines since byte "
+              f"{start:,}, {tu.parsed:,} parsed, {len(tu.specs)} specs, "
+              f"{tu.checkpoint['records']:,} records in the union "
+              f"({tu.wall_s:.1f}s)", flush=True)
+    return tu
+
+
+
 def build(name: str, cfg: dict) -> None:
     t_build = time.perf_counter()
     csv = ROOT / "data" / cfg["csv"]
@@ -2463,6 +2761,19 @@ def build(name: str, cfg: dict) -> None:
     health(f"build.gear_records_parsed={gj.parsed}")
     health(f"build.gear_records_prefiltered={gj.prefiltered}")
     health(f"build.gear_pass_s={gj.wall_s:.1f}")
+    # The talent material must be COMPLETE (journal-wide), not sampled: the
+    # persisted union is brought up to date with only the bytes appended
+    # since its checkpoint, or rebuilt once when the checkpoint no longer
+    # describes the file (see TraitUnion). The sampled material from the
+    # pass above supplies the tree-hash builds' blobs; the union, the rest.
+    tu = trait_union_update(gj.src)
+    health(f"build.trait_union_mode={tu.mode}")
+    if tu.mode == "rebuild":
+        health(f"build.trait_union_rebuild={tu.reason}")
+    health(f"build.trait_records_parsed={tu.parsed}")
+    health(f"build.trait_union_records={tu.checkpoint.get('records', 0)}")
+    health(f"build.trait_union_s={tu.wall_s:.1f}")
+    traits = tu.complete(gj.traits)
     tier = tier_pieces(df, name, journal=gj.sets)
 
     # character identity (name@server@region), for distinct-player counts
@@ -2581,7 +2892,7 @@ def build(name: str, cfg: dict) -> None:
         print(f"[{name}] stats sidecar -> stats.json.gz "
               f"({sz / 1e6:.2f} MB gz, {len(sidecar) / 1e6:.1f} MB raw)")
     # builds sidecar, same discipline: rewritten or unlinked with the payload
-    builds = builds_sidecar(df, meta_journal, name, traits=gj.traits)
+    builds = builds_sidecar(df, meta_journal, name, traits=traits)
     for d in SITE_DIRS:
         out = d / "builds.json.gz"
         if builds is None:
@@ -2595,9 +2906,9 @@ def build(name: str, cfg: dict) -> None:
         print(f"[{name}] builds sidecar -> builds.json.gz "
               f"({sz / 1e6:.2f} MB gz, {len(builds) / 1e6:.1f} MB raw)")
     # lazy talent-tree document, same rewritten-or-unlinked discipline; the
-    # trait material comes from the single pass, never a re-walk
+    # trait material is the whole-journal union, never a re-walk
     talents = talents_doc(name, usage=getattr(builds_sidecar, "usage", None),
-                          traits=gj.traits)
+                          traits=traits)
     for d in SITE_DIRS:
         out = d / "talents.json.gz"
         if talents is None:

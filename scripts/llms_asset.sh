@@ -17,9 +17,13 @@
 #   3. a slow, missing or corrupt asset falls back to the cached tarball;
 #   4. NO tarball at all (first run after this landed, a cache-evicted runner
 #      during a Release outage) builds the export inline ONCE with
-#      `build_site_data.py --llms-only` (~50-150 s) and packs the result into
-#      the cache, so the next run is back to a plain unpack;
-#   5. only when that build fails too does the deploy go out without llms/.
+#      `build_site_data.py --llms-only` (~50-150 s today; it is O(season) --
+#      the whole-journal tier pass -- so it runs under `timeout` at
+#      LLMS_BUILD_MAX_S = 300 s) and packs the result into the cache, so the
+#      next run is back to a plain unpack;
+#   5. only when that build fails or times out does the deploy go out
+#      without llms/ (any half-written tree removed), with a ::warning:: --
+#      never red, never a build that can hold the 20-minute cycle hostage.
 #
 # Health lines appended to <dir>/build_health.txt for every site dir:
 #   llms.unpack=fresh|cached|stale|built|none   how the tree got here
@@ -36,6 +40,7 @@
 #   LLMS_MODE        refresh `mode` input  "" ("fresh" skips the download when cached)
 #   LLMS_SITE_DIRS   dirs to unpack into   "site docs" (the first is packed from)
 #   LLMS_BUILD_CMD   inline build          "python -u scripts/build_site_data.py --llms-only"
+#   LLMS_BUILD_MAX_S inline build cap      300 (coreutils timeout; rc 124)
 #   LLMS_CURL_MAX_S  download cap          30
 #   LLMS_STALE_WARN_H                      36
 set -u
@@ -46,6 +51,7 @@ MODE="${LLMS_MODE:-}"
 DIRS="${LLMS_SITE_DIRS:-site docs}"
 BUILD_CMD="${LLMS_BUILD_CMD:-python -u scripts/build_site_data.py --llms-only}"
 CURL_MAX_S="${LLMS_CURL_MAX_S:-30}"
+BUILD_MAX_S="${LLMS_BUILD_MAX_S:-300}"
 STALE_WARN_H="${LLMS_STALE_WARN_H:-36}"
 PRIMARY="${DIRS%% *}"
 STAMP=llms.built          # tarball root -> <dir>/llms.built next to llms.txt
@@ -100,15 +106,27 @@ if [ ! -f "$TAR" ]; then
   # would vanish from this one; build it here instead, once. The result is
   # packed into the cache so every later run is a plain unpack again, and
   # the daily llms.yml asset replaces it the next time a download succeeds.
-  echo "::warning::no LLM export available (no Release asset, no cached tarball); building it inline once (~1-3 min) so llms/ stays in this deploy"
+  echo "::warning::no LLM export available (no Release asset, no cached tarball); building it inline once (~1-3 min, capped at ${BUILD_MAX_S} s) so llms/ stays in this deploy"
   T0=$(date +%s)
-  if $BUILD_CMD && pack "$PRIMARY" "$TAR" && unpack_all; then
+  # The inline build is O(season) with no bound of its own; `timeout` gives
+  # it one (rc 124 past the cap). Without coreutils timeout it runs bare.
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$BUILD_MAX_S" $BUILD_CMD; RC=$?
+  else
+    $BUILD_CMD; RC=$?
+  fi
+  if [ "$RC" -eq 0 ] && pack "$PRIMARY" "$TAR" && unpack_all; then
     STATE=built
     echo "llms: built inline in $(( $(date +%s) - T0 )) s and cached as $TAR"
   else
     STATE=none
     rm -f "$TAR" "$TAR.tmp"
-    echo "::warning::inline LLM build failed as well; llms/ is not in this deploy (see the log above)"
+    for d in $DIRS; do rm -rf "$d/llms" "$d/llms.txt" "$d/$STAMP"; done   # no half tree
+    if [ "$RC" -eq 124 ]; then
+      echo "::warning::inline LLM build exceeded ${BUILD_MAX_S} s and was stopped; llms/ is not in this deploy (the daily llms.yml owns the O(season) build)"
+    else
+      echo "::warning::inline LLM build failed as well; llms/ is not in this deploy (see the log above)"
+    fi
   fi
 fi
 
