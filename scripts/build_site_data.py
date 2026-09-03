@@ -1114,8 +1114,25 @@ BUILDS_IUP_MIN_WEARERS = 20
 # field, so the headroom is taken BEFORE that lands rather than discovered by
 # its absence. 4.7 keeps 300 KB under the 5.0 MB hard cap, which is the rung
 # that refuses to ship at all.
-BUILDS_GZ_TARGET = 4_700_000
-BUILDS_GZ_CAP = 5_000_000
+# RAISED 2026-09-03 after the ladder bottomed out in production and shipped
+# the most degraded document it can build -- no enchants AND 12/20 item caps,
+# i.e. the exact "other / none" tiles the owner reported on 2026-08-30, back
+# again and silently. What grew is COVERAGE, not the season: the backfill took
+# gear coverage 55% -> 64% and the full rung went 4.31 -> 6.07 MB in a day.
+# The old 4.7/5.0 pair could not ship a full document at that coverage, so the
+# ladder stopped being a safety net and became the normal path.
+# These numbers buy days, not weeks (the document grows ~0.6 MB/day at the
+# current row rate), which is what BUILDS_WINDOW_RESETS below is for.
+BUILDS_GZ_TARGET = 6_500_000
+BUILDS_GZ_CAP = 7_500_000
+# Rows older than this many weekly resets are not covered by the sidecar. The
+# character screen answers "what are people wearing NOW"; a parse from three
+# resets ago is not that, and covering the whole season is what pushes the
+# document down the ladder. Today the season is younger than the window, so
+# this excludes nothing -- it starts biting on 2026-09-08 and from then on
+# holds the document at roughly three resets' worth instead of a season's.
+# 0 disables it. Undated rows (no start time) stay covered.
+BUILDS_WINDOW_RESETS = 3
 
 NAMES_ITEMS = ROOT / "data" / "names_items.json"
 NAMES_ENCHANTS = ROOT / "data" / "names_enchants.json"
@@ -1576,6 +1593,28 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     # The wearer identity rides along for §1.8: iup is a share of DISTINCT
     # wearers, and a 40-key grinder must not vote forty times. Transient
     # only -- two references per covered row, nothing on the wire.
+    win = None
+    win_dropped = 0
+    if BUILDS_WINDOW_RESETS:
+        _st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
+                             unit="ms", errors="coerce").dt.tz_localize("UTC")
+        # ANCHORED TO THE DATA, not to the wall clock. If collection stalls
+        # for a fortnight a now-anchored window would slide past every row it
+        # has and cover nothing, emptying the character screen entirely -- the
+        # same silent class of failure as the outages this week. The anchor is
+        # the newest row that is not in the future (uploader clocks run ahead;
+        # a +3 h row is normal, and one wrong clock must not drag the window),
+        # and never later than now.
+        _now = pd.Timestamp.now("UTC")
+        _plaus = _st[_st <= _now]
+        _anchor = min(_plaus.max(), _now) if len(_plaus) else _now
+        _inst = reset_instants(_anchor,
+                               sorted(df["region"].astype(str).unique()))
+        _back = pd.Timedelta(days=7 * (BUILDS_WINDOW_RESETS - 1))
+        _cut = df["region"].astype(str).map({r: t - _back for r, t in _inst.items()})
+        # a row with no start time, or a region with no rule, stays covered:
+        # never drop data because a field is missing
+        win = (_st >= _cut).fillna(True).to_numpy()
     rows_c = []
     gear_known = 0
     ench_hits: Counter = Counter()
@@ -1583,6 +1622,9 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     for i, (code, fid, ch, sv, cls, spec) in enumerate(zip(
             df["report_code"], df["fight_id"], df["character"],
             df["server"], df["class"], df["spec"])):
+        if win is not None and not win[i]:
+            win_dropped += 1
+            continue
         rec = journal.get(_gear_key(code, fid, ch, sv))
         if rec is None:
             continue
@@ -1900,7 +1942,11 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
 
     health(f"[{name}] builds sidecar: {len(rows_c):,}/{n:,} rows covered "
           f"({len(rows_c) / n:.0%}), {len(tallies)} specs, "
-          f"eslots {eslots}, iup {'on' if iup_ok else 'OFF'}")
+          f"eslots {eslots}, iup {'on' if iup_ok else 'OFF'}"
+          + (f", window {BUILDS_WINDOW_RESETS} resets excluded "
+             f"{win_dropped:,} older rows" if win_dropped else
+             (f", window {BUILDS_WINDOW_RESETS} resets (excludes nothing yet)"
+              if BUILDS_WINDOW_RESETS else "")))
     if iup_ok:
         health(f"[{name}] [iup] gate: 0 (spec,slot,id,emb) collisions over "
                f"{iup_cols:,} vocab columns -> WRITTEN")
@@ -1956,6 +2002,26 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
            + f" || SHIPPED caps {rung[0]}/{rung[1]} builds {rung[2]} "
              f"en={'y' if rung[3] else 'n'} at {sizes[-1][1] / 1e6:.2f} MB "
              f"(target {target / 1e6:.1f}, hard cap {cap / 1e6:.1f})")
+    # A degraded rung is a DEFECT, not a tradeoff quietly taken. Losing the
+    # enchant block empties a pane; a truncated item vocabulary pools the
+    # remainder into an "other / none" bucket that can outrank every real item
+    # on a slot. Both shipped for a day before anyone noticed, twice. The
+    # ladder stays -- shipping something beats shipping nothing -- but it now
+    # says so where the watchdog and a human both read it.
+    if rung != ladder[0]:
+        lost = []
+        if not rung[3]:
+            lost.append("the Enchants pane is EMPTY")
+        if rung[0] < ladder[0][0]:
+            lost.append(f"item vocabularies truncated to {rung[0]}/{rung[1]}"
+                        f" (tiles can read 'other / none')")
+        if rung[2] < ladder[0][2]:
+            lost.append(f"talent builds capped at {rung[2]}")
+        msg = "; ".join(lost)
+        health(f"[{name}] builds sidecar DEGRADED: {msg}")
+        print(f"::warning::builds sidecar degraded -- {msg} (full document "
+              f"{sizes[0][1] / 1e6:.2f} MB gz against a {target / 1e6:.1f} MB "
+              f"target; see build_health.txt)", flush=True)
     _iup_health(name, iup_ok, dict(iup_stats), gz, sizes[-1][1], doc,
                 target, cap)
     _emb_health(name, embc, emb_markers, crafted, EMB, emb_labels, emb_cfgs,

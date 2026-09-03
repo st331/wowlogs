@@ -23,6 +23,22 @@ crux of any future attempt.
 
 ## In flight
 
+- **Builds sidecar regression FIXED 2026-09-03** (live check: the ladder had bottomed out,
+  SHIPPED caps 12/20 builds 24 en=n -- blank Enchants pane AND the "other / none" tiles the
+  owner reported on 08-30, both back silently). Cause: coverage grew 55% -> 64% with the
+  backfill and the full document went 4.31 -> 6.07 MB in a day, so the 4.7/5.0 pair could not
+  ship a full document at any coverage -- the ladder had stopped being a safety net and
+  become the normal path. Three changes: target/cap 6.5/7.5 MB (buys days, not weeks -- the
+  document grows ~0.6 MB/day); BUILDS_WINDOW_RESETS=3 so the sidecar covers the last three
+  resets instead of the season, anchored to the NEWEST ROW rather than the wall clock (a
+  now-anchored window would cover nothing if collection ever stalled, emptying the character
+  screen); and a DEGRADED health line + ::warning:: whenever the shipped rung is not the full
+  one, so this can never regress silently again. The window excludes nothing until 09-08.
+  If the document outgrows 6.5 MB before the client work lands, the next lever is
+  BUILDS_WINDOW_RESETS=2, then the partitioned payload.
+- **Stage B backed up** to origin as `claude/pr1-stage-b-partitioned-payload` (2ba176a, 6
+  commits). PARKED at the owner's direction; not merged, nothing runs on it.
+
 - **INCIDENT 2026-09-02 17:18-~20:00 UTC (22:48-01:30 IST): every refresh failed on
   `NameError: STAMP_FILE`** -- the LLM-export removal cut a line range that also held the
   build-stamp constant main() reads; no suite runs main(), so tests stayed green. The
