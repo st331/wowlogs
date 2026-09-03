@@ -1464,10 +1464,15 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     <div class="secbody" id="sec-trajectory">
     <div class="segrow">
       <div class="seg" id="trendseg"></div>
+      <div class="seg" id="trendaxis">
+        <button data-x="time" class="on">Over: resets</button>
+        <button data-x="key">Key level</button>
+      </div>
       <div class="seg" id="trendnorm">
-        <button data-n="dps" class="on">DPS</button>
+        <button data-n="dps" class="on">Value</button>
         <button data-n="rank">Rank</button>
         <button data-n="share">Share</button>
+        <button data-n="ret">Retention</button>
       </div>
       <div class="seg" id="trendview"></div>
       <div class="seg" id="trajsort">
@@ -1570,8 +1575,18 @@ const TABS = [
 // Trajectory is a plain last section now — no Trend tab (feedback #4)
 const TREND_CAP="Weekly {metric} for the top groups under the current filters, "
   +"whole season. Weeks with fewer than 25 parses for a group are skipped.";
+const TREND_CAP_KEY="{metric} at each key level for the top groups under the "
+  +"current filters, whole season. This is the whole ladder, not the key band "
+  +"the slider selects.";
 const CHART_MAX = 40;
 const TREND_MAX = 16;
+// Key-level axis. The floor is a DATA rule, not a preference: fetch_data.py
+// sweeps 20 leaderboard pages per dungeon x key at +10 and above but only 4
+// below it, so a distinct-character count under +10 is a ~200-run sample
+// sitting beside a ~1,000-run one. Putting both on one curve would make the
+// curve lie about where players actually stop.
+const TREND_KEY_FLOOR = 10;
+const TREND_KEY_MINP = 15;    // parses per (group, key) before a point is drawn
 const PULSE_MAX = 12, PULSE_THIN = 25;
 
 let D=null, R=null, N=0, runCount=0;
@@ -1604,7 +1619,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              pctl:50, elite:false,
              // V2 additions — all inert defaults, no existing default touched
              skill:false, pctlB:85,          // Compare: Skill axis (second qp pass)
-             trendNorm:"dps", trajSort:"metric",
+             trendNorm:"dps", trajSort:"metric", trendAxis:"time",
              trustPrev:null};
 let hasTimed=false, hasTune=false, hasProj=false;
 let hasRating=false, hasTier=false, CHARSCORE=[];
@@ -2615,7 +2630,9 @@ function rowPass(i,m,anyTier){
   if(state.timedOnly&&R.timed[i]!==1) return false;
   // anyTier: the set-bonus table needs the cohorts the checkboxes filter away
   if(!anyTier&&!tierPass(i)) return false;
-  if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
+  // m.anyKey: the Trajectory panel's key-level axis looks ACROSS key levels,
+  // so the slider that picks one band cannot also bound it (§ renderTrend).
+  if(!m.anyKey&&(R.key[i]<state.klo||R.key[i]>state.khi)) return false;
   if(m.cls&&!m.cls.has(R.cls[i])) return false;
   if(m.spec&&!m.spec.has(R.spec[i])) return false;
   if(!state.merge&&m.hero&&!m.hero.has(R.hero[i])) return false;
@@ -6701,6 +6718,11 @@ function renderPulse(rowsGated){
 }
 
 // Trajectory extras: DPS|Rank|Share normalization (E17) and Metric|Slope sort
+document.querySelectorAll("#trendaxis button").forEach(b=>{
+  b.onclick=()=>{ if(!D) return; state.trendAxis=b.dataset.x;
+    document.querySelectorAll("#trendaxis button").forEach(x=>x.classList.toggle("on",x===b));
+    render(); };
+});
 document.querySelectorAll("#trendnorm button").forEach(b=>{
   b.onclick=()=>{ if(!D) return; state.trendNorm=b.dataset.n;
     document.querySelectorAll("#trendnorm button").forEach(x=>x.classList.toggle("on",x===b));
@@ -7067,15 +7089,25 @@ function renderTrend(){
       case "deathless": return 100*z/n;
     }
   };
-  const m=baseMasks();
-  // per (group, week) source values, ignoring the period selection
-  const tot=new Map(), byWeek=new Map(), byDay=new Map();
-  const wTot=new Map(), dTot=new Map();   // per-bucket parse totals (Share view)
-  const weeksSeen=new Set(), daysSeen=new Set(), charsAll=new Set();
+  // The KEY-LEVEL axis answers "how far up the ladder does a spec keep its
+  // players". That means looking ACROSS key levels, so it ignores the key
+  // slider exactly as this panel already ignores the period selection, and it
+  // floors at TREND_KEY_FLOOR for the collection-depth reason recorded there.
+  const keyAxis=state.trendAxis==="key";
+  const m={...baseMasks(), anyKey:keyAxis};
+  // per (group, bucket) source values, ignoring the period selection
+  const tot=new Map(), byWeek=new Map(), byDay=new Map(), byKey=new Map();
+  const wTot=new Map(), dTot=new Map(), kTot=new Map();  // per-bucket parse totals
+  const weeksSeen=new Set(), daysSeen=new Set(), keysSeen=new Set();
+  const charsAll=new Set();
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     if(projSkip(i)) continue;   // same projection contract as aggregate()
-    const w=R.rbucket[i]; if(w>=999) continue;
+    const w=R.rbucket[i];
+    // an undated row has no week but it does have a key level, so it is
+    // usable on the key axis and only dropped on the time one
+    if(!keyAxis&&w>=999) continue;
+    if(keyAxis&&R.key[i]<TREND_KEY_FLOOR) continue;
     charsAll.add(R.char[i]);
     const v=useChars?R.char[i]:useDeaths?R.deaths[i]
            :dpsAt(i);
@@ -7085,19 +7117,50 @@ function renderTrend(){
              n:0,vals:[],chars:new Set()};
       tot.set(key,t)}
     t.n++; t.vals.push(v); t.chars.add(R.char[i]);
-    weeksSeen.add(w);
-    wTot.set(w,(wTot.get(w)||0)+1);
-    let g=byWeek.get(key*1000+w);
-    if(!g){g=[]; byWeek.set(key*1000+w,g)}
-    g.push(v);
-    const d0=R.day[i];
-    if(d0>=0){
-      daysSeen.add(d0);
-      dTot.set(d0,(dTot.get(d0)||0)+1);
-      let gd=byDay.get(key*1000+d0);
-      if(!gd){gd=[]; byDay.set(key*1000+d0,gd)}
-      gd.push(v);
+    if(keyAxis){
+      const kv=R.key[i];
+      keysSeen.add(kv);
+      kTot.set(kv,(kTot.get(kv)||0)+1);
+      let gk=byKey.get(key*1000+kv);
+      if(!gk){gk=[]; byKey.set(key*1000+kv,gk)}
+      gk.push(v);
+    }else{
+      weeksSeen.add(w);
+      wTot.set(w,(wTot.get(w)||0)+1);
+      let g=byWeek.get(key*1000+w);
+      if(!g){g=[]; byWeek.set(key*1000+w,g)}
+      g.push(v);
+      const d0=R.day[i];
+      if(d0>=0){
+        daysSeen.add(d0);
+        dTot.set(d0,(dTot.get(d0)||0)+1);
+        let gd=byDay.get(key*1000+d0);
+        if(!gd){gd=[]; byDay.set(key*1000+d0,gd)}
+        gd.push(v);
+      }
     }
+  }
+  // Buckets are decided BEFORE the top-N pass so the slope sort measures the
+  // same points the chart draws, on whichever axis is selected.
+  let daily=false, buckets, store, MINP, bLabel, bTip;
+  if(keyAxis){
+    buckets=[...keysSeen].sort((a,b)=>a-b);       // lowest key on the left
+    store=byKey; MINP=TREND_KEY_MINP;
+    bLabel=b=>"+"+b; bTip=b=>"key +"+b;
+  }else{
+    const wks=[...availWeeks].filter(w=>weeksSeen.has(w)).sort((a,b)=>b-a);
+    daily=wks.length<=3&&daysSeen.size>2;
+    buckets=daily?[...daysSeen].sort((a,b)=>a-b):wks;
+    store=daily?byDay:byWeek;
+    MINP=daily?8:25;
+    bLabel=b=>daily?fmtDay(b):(b===0?"now":fmtDay(usB0-7*b));
+    bTip=b=>daily?fmtDay(b):(b===0?"this reset":fmtDay(usB0-7*b)+" wk");
+  }
+  if(!buckets.length){
+    box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
+      +(keyAxis?'No runs at +'+TREND_KEY_FLOOR+' or above match the current filters.'
+               :'No dated runs match the current filters.')+'</div>';
+    $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
   }
   // top groups by the selected metric itself ("best" respects its direction),
   // or — Sort: Slope — by the season's least-squares fit at the current lens
@@ -7108,11 +7171,12 @@ function renderTrend(){
   let cand=[...tot.entries()].filter(([,t])=>t.chars.size>=trendMin)
     .map(([key,t])=>[key,t,calc(t.vals)]);
   if(state.trajSort==="slope"){
-    const wksAsc=[...availWeeks].filter(w=>weeksSeen.has(w)).sort((a,b)=>b-a); // oldest→newest
+    // over the SELECTED axis's buckets, at the same per-bucket minimum the
+    // chart uses -- the sort must describe the line the reader can see
     const slopeOf=key=>{
       const xs=[],ys=[];
-      wksAsc.forEach((w,idx)=>{const g=byWeek.get(key*1000+w);
-        if(g&&g.length>=25){xs.push(idx); ys.push(calc(g))}});
+      buckets.forEach((b,idx)=>{const g=store.get(key*1000+b);
+        if(g&&g.length>=MINP){xs.push(idx); ys.push(calc(g))}});
       if(xs.length<2) return -Infinity;
       const nn=xs.length, sx=xs.reduce((a,b)=>a+b,0), sy=ys.reduce((a,b)=>a+b,0);
       let sxx=0,sxy=0; for(let i=0;i<nn;i++){sxx+=xs[i]*xs[i]; sxy+=xs[i]*ys[i]}
@@ -7126,30 +7190,14 @@ function renderTrend(){
   if(!top.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
       +'minimum-runs threshold under the current filters.</div>';
-    $("trend-caption").textContent=trendCap(mt); return;
-  }
-  // Only span buckets that actually hold data under the current filters —
-  // otherwise a filter that cuts dates (post-tuning especially) leaves most of
-  // the chart blank. A short surviving span is shown per DAY instead of per
-  // week, since two weekly points is not a trend.
-  const wks=[...availWeeks].filter(w=>weeksSeen.has(w)).sort((a,b)=>b-a);
-  const daily=wks.length<=3&&daysSeen.size>2;
-  const buckets=daily?[...daysSeen].sort((a,b)=>a-b):wks;
-  const store=daily?byDay:byWeek;
-  const MINP=daily?8:25;               // per bucket, per group
-  const bLabel=b=>daily?fmtDay(b):(b===0?"now":fmtDay(usB0-7*b));
-  const bTip=b=>daily?fmtDay(b):(b===0?"this reset":fmtDay(usB0-7*b)+" wk");
-  if(!buckets.length){
-    box.innerHTML='<div class="caption" style="padding:1.4rem 0">No dated runs '
-      +'match the current filters.</div>';
-    $("trend-caption").textContent=trendCap(mt); return;
+    $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
   }
   const weeks=buckets;   // x positions are indices into buckets
   const W=Math.max(box.clientWidth||900,480), H=380;
   const ML=70, MR=190, MT=18, MB=34;
   const DASHES=["","5,4","2,3","9,3,2,3"];   // 1st..4th spec of the same class
   const seen={};
-  const series=top.map(([key,t])=>{
+  let series=top.map(([key,t])=>{
     const pts=[];
     buckets.forEach((b,xi)=>{
       const g=store.get(key*1000+b);
@@ -7167,6 +7215,7 @@ function renderTrend(){
   // E17 normalization: the same weekly bags re-read as rank-over-time or
   // share-of-population-of-parses over time
   const norm=state.trendNorm, inv=norm==="rank";
+  let retDropped=0;
   if(norm==="rank"){
     const eligible=[...tot.keys()].filter(k=>tot.get(k).chars.size>=trendMin);
     for(const b of buckets){
@@ -7181,11 +7230,31 @@ function renderTrend(){
         if(p.b===b&&rk.has(s.key)) p.v=rk.get(s.key)}));
     }
   } else if(norm==="share"){
+    const TOT=keyAxis?kTot:(daily?dTot:wTot);
     series.forEach(s=>s.pts.forEach(p=>{
-      const T=(daily?dTot:wTot).get(p.b)||1; p.v=100*p.n/T;}));
+      const T=TOT.get(p.b)||1; p.v=100*p.n/T;}));
+  } else if(norm==="ret"){
+    // Each line re-read as a share of ITS OWN value at the leftmost bucket,
+    // which is what "which specs drop off faster" actually asks. The baseline
+    // is the SAME bucket for every line: indexing each to its own first point
+    // would compare a spec measured from +10 against one measured from +13 and
+    // call that a comparison. A group with no reading there is dropped and
+    // counted in the caption rather than quietly rebased.
+    const b0=buckets[0], before=series.length;
+    series=series.filter(s=>s.pts.length&&s.pts[0].b===b0&&s.pts[0].v>0);
+    series.forEach(s=>{const base=s.pts[0].v;
+      s.pts.forEach(p=>{p.v=100*p.v/base})});
+    retDropped=before-series.length;
+  }
+  if(!series.length){
+    box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
+      +'No group has a reading at '+esc(bLabel(buckets[0]))+' to index against, '
+      +'so there is nothing to measure retention from.</div>';
+    $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
   }
   const vfmt=norm==="rank"?(v=>"#"+Math.round(v))
     :norm==="share"?(v=>v.toFixed(1)+"%")
+    :norm==="ret"?(v=>Math.round(v)+"%")
     :mt.fmt;
   let ymin=1e18,ymax=-1e18;
   series.forEach(s=>s.pts.forEach(p=>{ymin=Math.min(ymin,p.v);ymax=Math.max(ymax,p.v)}));
@@ -7196,24 +7265,43 @@ function renderTrend(){
   }
   if(norm==="rank"&&ymin<1) ymin=1-pad;
   if(norm==="share"&&ymin<0) ymin=0;
+  if(norm==="ret"&&ymin<0) ymin=0;
   const xs=xi=>ML+(W-ML-MR)*(weeks.length<2?0.5:xi/(weeks.length-1));
   const ys=v=>MT+(H-MT-MB)*(inv?(v-ymin)/(ymax-ymin):1-(v-ymin)/(ymax-ymin));
   const axf=norm==="rank"?(v=>"#"+Math.round(v))
+    :norm==="ret"?(v=>Math.round(v)+"%")
     :norm==="share"?(v=>v.toFixed(1)+"%")
     :v=>useDeaths?(mt.id==="deathless"?Math.round(v)+"%":v.toFixed(1))
     :useChars?String(Math.round(v))
     :Math.round(v/1000)+"k";
   let extraCap="";
   if(norm==="rank") extraCap=" Rank view: each point is the group's rank that week among every qualifying group (1 = best, top of the chart).";
-  if(norm==="share") extraCap=" Share view: each point is the group's share of all qualifying parses that week.";
-  if(state.trajSort==="slope") extraCap+=" Sorted by season slope — steepest riser first, least-squares over the weekly points.";
+  if(norm==="share") extraCap=" Share view: each point is the group's share of all qualifying parses in that bucket.";
+  if(norm==="ret") extraCap=" Retention is measured inside the leaderboard"
+    +" sample, which is deepest where a key level is busiest, so the true"
+    +" drop-off is steeper than these lines: read them against each other,"
+    +" not as a population count."
+    +" Every line starts at 100% at "
+    +bLabel(buckets[0])+" and is read as a share of its own reading there, so "
+    +"the lines can be compared as rates of drop-off rather than as sizes."
+    +(retDropped?" "+retDropped+" group"+(retDropped===1?"":"s")+" had no reading at "
+      +bLabel(buckets[0])+" to index against and "+(retDropped===1?"is":"are")
+      +" not shown.":"");
+  if(keyAxis) extraCap+=" Key-level axis: this panel ignores the key slider so the"
+    +" whole ladder is visible, and starts at +"+TREND_KEY_FLOOR+" because the"
+    +" leaderboards below it are sampled ~5x shallower, which would understate"
+    +" the low end of every curve.";
+  if(state.trajSort==="slope") extraCap+=" Sorted by slope — least-squares over the"
+    +" plotted points, "+(keyAxis?"so the specs that hold up best as keys rise come"
+      +" first and the fastest drop-offs last":"steepest riser first")+".";
   if(hasTune&&state.postTune) extraCap+=" Range truncated by the post-tuning filter.";
   if(state.trendView==="grid"){
-    renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv);
-    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP))
+    renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv,
+                    keyAxis?(pt=>"at "+bLabel(pt.b)):(()=>"latest"));
+    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis)
       +extraCap
       +" Each card is one group, ranked best-first; all cards share one y-scale, "
-      +"time running left → right.";
+      +(keyAxis?"key level rising left → right.":"time running left → right.");
     return;
   }
   let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
@@ -7228,7 +7316,7 @@ function renderTrend(){
       esc(bLabel(b))}</text>`;
   });
   // tuning-patch markers: vertical hairlines at each pass (hasTune-gated)
-  if(hasTune&&D.tuning&&D.tuning.date){
+  if(!keyAxis&&hasTune&&D.tuning&&D.tuning.date){
     const td=Math.floor((new Date(D.tuning.date+"T00:00:00Z")
       -new Date(D.epoch+"T00:00:00Z"))/864e5);
     let xi=-1;
@@ -7283,23 +7371,27 @@ function renderTrend(){
     el.addEventListener("mouseleave",()=>{hover=null; apply();});
   }
   apply();
-  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP))
+  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis)
     +extraCap
     +" Dash patterns distinguish specs of the same class. Hover a line or its "
     +"label to spotlight it.";
 }
-function trendCap(mt,span){
-  return TREND_CAP.replace("{metric}",mt.label.toLowerCase())
+function trendCap(mt,span,keyAxis){
+  return (keyAxis?TREND_CAP_KEY:TREND_CAP).replace("{metric}",mt.label.toLowerCase())
     +(mt.betterUp?"":" The best (lowest) groups are shown.")
     +(span?" "+span:"");
 }
-function trendSpan(daily,n,minp){
+function trendSpan(daily,n,minp,keyAxis){
+  if(keyAxis)
+    return "Showing "+n+" key level"+(n===1?"":"s")+" with data under the current "
+      +"filters; one point per key level, and a point needs at least "+minp
+      +" parses.";
   return "Showing "+n+(daily?" day":" week")+(n===1?"":"s")
     +" with data under the current filters; "
     +(daily?"points are daily":"points are weekly")
     +", and a point needs at least "+minp+" parses.";
 }
-function renderTrendGrid(box,series,weeks,ymin,ymax,mt,vfmt,inv){
+function renderTrendGrid(box,series,weeks,ymin,ymax,mt,vfmt,inv,lastLbl){
   const w=230,h=84,padX=6,padY=7;
   const xs=xi=>padX+(w-2*padX)*(weeks.length<2?0.5:xi/(weeks.length-1));
   const ys=v=>padY+(h-2*padY)*(inv?(v-ymin)/(ymax-ymin):1-(v-ymin)/(ymax-ymin));
@@ -7318,7 +7410,8 @@ function renderTrendGrid(box,series,weeks,ymin,ymax,mt,vfmt,inv){
       mini+=`<circle cx="${xs(p.xi).toFixed(1)}" cy="${ys(p.v).toFixed(1)}" r="2.6" fill="${s.color}"/>`;
     mini+="</svg>";
     html+=`<div class="tcard"><div class="tname" style="color:${s.color}">${si+1}. ${esc(s.name)}`
-      +` <span class="tval">· ${esc(vfmt(last.v))} latest</span></div>${mini}</div>`;
+      +` <span class="tval">· ${esc(vfmt(last.v))} ${
+        esc(lastLbl?lastLbl(last):"latest")}</span></div>${mini}</div>`;
   });
   box.innerHTML=html+"</div>";
 }

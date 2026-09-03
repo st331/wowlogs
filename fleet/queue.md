@@ -23,6 +23,17 @@ crux of any future attempt.
 
 ## In flight
 
+- **Key-level drop-off (owner, 2026-09-03) LANDED.** Trajectory gains an axis switch
+  (Over: resets | Key level) and a Retention normalisation. Verified against the live
+  payload: 11 key levels (+10..+20), 16 lines, overlay and grid, retention y-axis in %,
+  slope sort over the plotted points, no console errors, no horizontal scroll, and the
+  time axis byte-unchanged in behaviour. Measured field-wide retention (no filters):
+  +10 100%, +11 79%, +12 77%, +13 69%, +14 57%, +15 40%, +16 25%, +17 15%, +18 5%.
+  Per-spec differences are real and readable (Ret Paladin holds 85% at +13 against the
+  field's 69%). NOTE: a cohort filter such as 4PC distorts the low end badly (100/48/78)
+  because tier availability, not player behaviour, drives it -- that is the filter
+  showing through, not a defect.
+
 - **Builds sidecar regression FIXED 2026-09-03** (live check: the ladder had bottomed out,
   SHIPPED caps 12/20 builds 24 en=n -- blank Enchants pane AND the "other / none" tiles the
   owner reported on 08-30, both back silently). Cause: coverage grew 55% -> 64% with the

@@ -160,3 +160,15 @@
     and the footer links are gone and stay gone. The site publishes the payload and
     sidecars for its own page and nothing else.
 
+17. **Key-level drop-off is a first-class question (2026-09-03).** "I want to be able
+    to see how much the unique characters of a spec drops off as the key level
+    increases ... compare which specs are dropping off faster as the keys go up."
+    Lives in Trajectory as a second AXIS (Over: resets | Key level) plus a Retention
+    normalisation, because the panel already compares per-spec series with a gate,
+    top-N and a slope sort. Two rules that must not be quietly relaxed: the key axis
+    ignores the key slider (a drop-off curve is about the whole ladder, not one band),
+    and it floors at +10 because the leaderboards below that are swept ~5x shallower,
+    so a character count under +10 cannot sit on the same curve. Retention indexes
+    every line to the SAME bucket; per-series baselines would compare a spec measured
+    from +10 against one measured from +13 and call it a comparison.
+
