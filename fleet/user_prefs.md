@@ -172,3 +172,14 @@
     every line to the SAME bucket; per-series baselines would compare a spec measured
     from +10 against one measured from +13 and call it a comparison.
 
+18. **The page opens on the Overview alone — standing (2026-09-04).** "start with all
+    sections collapsed except the overview." Top Comps, Set Bonus Gain, Data Table,
+    Pulse and Trajectory all start closed; each is one click away and the choice then
+    persists per browser. The storage key is VERSIONED (wowlogs.collapsed.v2): the
+    default changed, so a browser holding the old preference had to be migrated once
+    or it would keep opening everything forever. An explicit "everything open" choice
+    still survives. Any new section starts closed unless it is added to
+    SEC_OPEN_FIRST. Load-bearing consequence: a hidden section has ZERO width while it
+    renders, so anything sized from clientWidth (the Trajectory chart, the comps rail)
+    would draw to a fallback -- opening a section re-renders.
+

@@ -23,6 +23,12 @@ crux of any future attempt.
 
 ## In flight
 
+- **Sections collapsed by default (owner, 2026-09-04) LANDED.** Only the Overview is
+  open on a fresh load; page height 1588px instead of the full stack. Verified five
+  ways: fresh browser, open-then-reload persistence, migration from the old storage
+  key, an explicit "everything open" choice surviving, and the Trajectory chart
+  re-rendering at the true 1116px width instead of the 900px hidden-element fallback.
+
 - **Key-level drop-off (owner, 2026-09-03) LANDED.** Trajectory gains an axis switch
   (Over: resets | Key level) and a Retention normalisation. Verified against the live
   payload: 11 key levels (+10..+20), 16 lines, overlay and grid, retention y-axis in %,

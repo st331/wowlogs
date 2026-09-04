@@ -1820,10 +1820,29 @@ window.addEventListener("resize",()=>{
 // watch the comps react while you drag. Choices persist per browser;
 // localStorage can throw (private windows, blocked site data), so every access
 // is guarded and a failure just means the sections open normally.
-const SEC_KEY="wowlogs.collapsed";
+// The page opens on the OVERVIEW ALONE (owner, 2026-09-04: "start with all
+// sections collapsed except the overview"). Everything below it is one click
+// away and the choice persists per browser from then on. The storage key is
+// versioned because the DEFAULT changed: a browser still holding the old
+// preference would otherwise keep opening every section forever, and the
+// owner's own browser is the one that has it.
+const SEC_KEY="wowlogs.collapsed.v2";
+const SEC_OPEN_FIRST=new Set(["overview"]);
+function defaultCollapsed(){
+  const s=new Set();
+  document.querySelectorAll(".sec[data-sec]").forEach(h=>{
+    if(!SEC_OPEN_FIRST.has(h.dataset.sec)) s.add(h.dataset.sec);
+  });
+  return s;
+}
 function readCollapsed(){
-  try{ return new Set(JSON.parse(localStorage.getItem(SEC_KEY)||"[]")) }
-  catch(e){ return new Set() }
+  try{
+    const raw=localStorage.getItem(SEC_KEY);
+    // absent = never chosen, so the default applies; "[]" is a real choice
+    // (everything open) and must survive
+    return raw==null?defaultCollapsed():new Set(JSON.parse(raw));
+  }
+  catch(e){ return defaultCollapsed() }
 }
 function applyCollapsed(){
   const shut=readCollapsed();
@@ -1840,9 +1859,15 @@ document.querySelectorAll(".sec[data-sec]").forEach(h=>{
   h.setAttribute("tabindex","0");
   const toggle=()=>{
     const shut=readCollapsed(), id=h.dataset.sec;
-    shut.has(id) ? shut.delete(id) : shut.add(id);
+    const opening=shut.has(id);
+    opening ? shut.delete(id) : shut.add(id);
     try{ localStorage.setItem(SEC_KEY,JSON.stringify([...shut])) }catch(e){}
     applyCollapsed();
+    // A hidden section has ZERO width while it renders, so anything sized
+    // from clientWidth -- the Trajectory chart, the comps rail -- drew to its
+    // fallback. Now that most sections start closed, that is the normal path
+    // rather than a corner, so re-render once the body is actually visible.
+    if(opening&&D) render();
   };
   h.onclick=toggle;
   h.onkeydown=e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle() } };
@@ -1852,7 +1877,8 @@ function openSection(id){
   const shut=readCollapsed();
   if(shut.has(id)){ shut.delete(id);
     try{ localStorage.setItem(SEC_KEY,JSON.stringify([...shut])) }catch(e){}
-    applyCollapsed(); }
+    applyCollapsed();
+    if(D) render(); }          // see the toggle: width is measured on render
 }
 
 loadSeason();
