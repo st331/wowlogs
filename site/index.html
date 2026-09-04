@@ -7199,13 +7199,53 @@ function renderTrend(){
   const trendMin=effMinFor(charsAll.size);
   let cand=[...tot.entries()].filter(([,t])=>t.chars.size>=trendMin)
     .map(([key,t])=>[key,t,calc(t.vals)]);
+  const norm=state.trendNorm, inv=norm==="rank";
+  // ONE definition of "the value this chart draws", used by BOTH the slope
+  // sort and the series it plots. They used to disagree: the slope was always
+  // taken over the raw metric, so under Retention it ranked by ABSOLUTE
+  // change -- and absolute change in a headcount is just spec size. Measured
+  // on the live payload, spec size against raw slope correlates -1.00, so
+  // "Sort: Slope" on a retention view answered "which spec is biggest", not
+  // "which drops off fastest", which is the one question the view exists for.
+  const rankAt=new Map();
+  if(norm==="rank"){
+    for(const b of buckets){
+      const lst=[];
+      for(const [k] of cand){
+        const g=store.get(k*1000+b);
+        if(g&&g.length>=MINP) lst.push([k,calc(g)]);
+      }
+      lst.sort((x,y)=>(y[1]-x[1])*(mt.betterUp?1:-1));
+      rankAt.set(b,new Map(lst.map((e,i)=>[e[0],i+1])));
+    }
+  }
+  const retBase=new Map();
+  if(norm==="ret"){
+    for(const [k] of cand){
+      const g=store.get(k*1000+buckets[0]);
+      if(g&&g.length>=MINP){ const v=calc(g); if(v>0) retBase.set(k,v) }
+    }
+  }
+  const shTot=keyAxis?kTot:(daily?dTot:wTot);
+  const drawn=(key,b)=>{
+    const g=store.get(key*1000+b);
+    if(!g||g.length<MINP) return null;
+    if(norm==="share") return 100*g.length/(shTot.get(b)||1);
+    if(norm==="rank"){ const mp=rankAt.get(b);
+      return mp&&mp.has(key)?mp.get(key):null }
+    if(norm==="ret"){ const base=retBase.get(key);
+      // no reading at the baseline bucket = nothing to index against, so the
+      // group is absent from this view rather than quietly rebased
+      return base?100*calc(g)/base:null }
+    return calc(g);
+  };
   if(state.trajSort==="slope"){
     // over the SELECTED axis's buckets, at the same per-bucket minimum the
     // chart uses -- the sort must describe the line the reader can see
     const slopeOf=key=>{
       const xs=[],ys=[];
-      buckets.forEach((b,idx)=>{const g=store.get(key*1000+b);
-        if(g&&g.length>=MINP){xs.push(idx); ys.push(calc(g))}});
+      buckets.forEach((b,idx)=>{const v=drawn(key,b);
+        if(v!=null){xs.push(idx); ys.push(v)}});
       if(xs.length<2) return -Infinity;
       const nn=xs.length, sx=xs.reduce((a,b)=>a+b,0), sy=ys.reduce((a,b)=>a+b,0);
       let sxx=0,sxy=0; for(let i=0;i<nn;i++){sxx+=xs[i]*xs[i]; sxy+=xs[i]*ys[i]}
@@ -7229,52 +7269,22 @@ function renderTrend(){
   let series=top.map(([key,t])=>{
     const pts=[];
     buckets.forEach((b,xi)=>{
-      const g=store.get(key*1000+b);
-      if(g&&g.length>=MINP) pts.push({xi,b,lbl:bTip(b),v:calc(g),n:g.length});
+      const v=drawn(key,b);
+      if(v!=null) pts.push({xi,b,lbl:bTip(b),v,n:store.get(key*1000+b).length});
     });
     return {key, cls:D.classes[t.cls],
       name:D.specs[t.spec]+" "+D.classes[t.cls]+(t.hero>=0&&!state.merge?" — "+D.heroes[t.hero]:""),
       pts};
-  }).filter(s=>s.pts.length)
+  });
+  const retDropped=norm==="ret"?series.filter(s=>!s.pts.length).length:0;
+  series=series.filter(s=>s.pts.length)
     .map(s=>{
       const nth=seen[s.cls]||0; seen[s.cls]=nth+1;
       return {...s, color:CLASS_COLORS[s.cls]||"#999",
               dash:DASHES[nth%DASHES.length]};
     });
-  // E17 normalization: the same weekly bags re-read as rank-over-time or
-  // share-of-population-of-parses over time
-  const norm=state.trendNorm, inv=norm==="rank";
-  let retDropped=0;
-  if(norm==="rank"){
-    const eligible=[...tot.keys()].filter(k=>tot.get(k).chars.size>=trendMin);
-    for(const b of buckets){
-      const lstB=[];
-      for(const k of eligible){
-        const g=store.get(k*1000+b);
-        if(g&&g.length>=MINP) lstB.push([k,calc(g)]);
-      }
-      lstB.sort((x,y)=>(y[1]-x[1])*(mt.betterUp?1:-1));
-      const rk=new Map(lstB.map((e,i)=>[e[0],i+1]));
-      series.forEach(s=>s.pts.forEach(p=>{
-        if(p.b===b&&rk.has(s.key)) p.v=rk.get(s.key)}));
-    }
-  } else if(norm==="share"){
-    const TOT=keyAxis?kTot:(daily?dTot:wTot);
-    series.forEach(s=>s.pts.forEach(p=>{
-      const T=TOT.get(p.b)||1; p.v=100*p.n/T;}));
-  } else if(norm==="ret"){
-    // Each line re-read as a share of ITS OWN value at the leftmost bucket,
-    // which is what "which specs drop off faster" actually asks. The baseline
-    // is the SAME bucket for every line: indexing each to its own first point
-    // would compare a spec measured from +10 against one measured from +13 and
-    // call that a comparison. A group with no reading there is dropped and
-    // counted in the caption rather than quietly rebased.
-    const b0=buckets[0], before=series.length;
-    series=series.filter(s=>s.pts.length&&s.pts[0].b===b0&&s.pts[0].v>0);
-    series.forEach(s=>{const base=s.pts[0].v;
-      s.pts.forEach(p=>{p.v=100*p.v/base})});
-    retDropped=before-series.length;
-  }
+  // The normalisations are applied by drawn() above, not re-applied here: one
+  // definition, so the slope sort and the plotted line cannot disagree.
   if(!series.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
       +'No group has a reading at '+esc(bLabel(buckets[0]))+' to index against, '

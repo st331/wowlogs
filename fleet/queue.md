@@ -23,6 +23,17 @@ crux of any future attempt.
 
 ## In flight
 
+- **Slope sort fixed (2026-09-04), found while answering "what is the difference between
+  sort: metric/slope?".** The slope was always least-squares over the RAW metric, even
+  when the chart drew a normalised line, so on a retention view it ranked by absolute
+  change -- and absolute change in a headcount is spec size. Measured on the live
+  payload: correlation(spec size, raw slope) = -1.00, i.e. it was a pure size proxy and
+  answered the opposite of the question the view exists for. Both the sort and the plot
+  now read one drawn() helper, so they cannot disagree; the duplicated post-hoc
+  normalisation block is gone. Verified: retention+slope returns Outlaw Rogue / Feral
+  Druid / BM Hunter (matches an independent Python least-squares), retention+metric
+  still ranks by size, and rank/share on the time axis are unchanged.
+
 - **Retention zoom (owner, 2026-09-04) LANDED.** The key axis honours the key slider
   instead of ignoring it, so narrowing the slider zooms and re-indexes from the new low
   key. Verified at four ranges: +10..+30 (11 levels), +14..+19 (6), +16..+30 (5), and

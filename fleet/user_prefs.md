@@ -191,3 +191,11 @@
     renders, so anything sized from clientWidth (the Trajectory chart, the comps rail)
     would draw to a fallback -- opening a section re-renders.
 
+19. **A sort must measure the line that is drawn — standing (2026-09-04).** Trajectory's
+    "Sort: Slope" took least-squares over the RAW metric while the chart drew a
+    normalised line, so under Retention it ranked by absolute change; absolute change in
+    a headcount is spec size (measured: correlation -1.00). One helper, drawn(key,
+    bucket), is now the single definition of the plotted value and both the sort and the
+    series read it. Any future normalisation goes in there, never as a pass over the
+    series afterwards.
+
