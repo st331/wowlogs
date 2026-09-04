@@ -165,12 +165,20 @@
     increases ... compare which specs are dropping off faster as the keys go up."
     Lives in Trajectory as a second AXIS (Over: resets | Key level) plus a Retention
     normalisation, because the panel already compares per-spec series with a gate,
-    top-N and a slope sort. Two rules that must not be quietly relaxed: the key axis
-    ignores the key slider (a drop-off curve is about the whole ladder, not one band),
-    and it floors at +10 because the leaderboards below that are swept ~5x shallower,
-    so a character count under +10 cannot sit on the same curve. Retention indexes
-    every line to the SAME bucket; per-series baselines would compare a spec measured
-    from +10 against one measured from +13 and call it a comparison.
+    top-N and a slope sort.
+    REVISED 2026-09-04, same day, by the owner: "I want to be able to zoom into the
+    retention by key level; not just starting from 10. starting from 10 makes it very
+    difficult to see the actual differences between the specs in the higher keys."
+    The key axis was built to IGNORE the key slider so the whole ladder showed at once.
+    That was my call and it was wrong for how this is read: indexed from +10 the high
+    keys are squeezed into a corner where the specs cannot be told apart. The chart now
+    spans the keys the slider selects, so narrowing it zooms and re-indexes every line
+    from the new low key. Do not put the "whole ladder always" rule back.
+    Two rules that DO stand: it floors at +10 whatever the slider says, because the
+    leaderboards below that are swept ~5x shallower and a character count there cannot
+    sit on the same curve; and retention indexes every line to the SAME bucket, since
+    per-series baselines would compare a spec measured from +14 against one measured
+    from +16 and present that as a comparison.
 
 18. **The page opens on the Overview alone — standing (2026-09-04).** "start with all
     sections collapsed except the overview." Top Comps, Set Bonus Gain, Data Table,

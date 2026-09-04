@@ -1576,15 +1576,19 @@ const TABS = [
 const TREND_CAP="Weekly {metric} for the top groups under the current filters, "
   +"whole season. Weeks with fewer than 25 parses for a group are skipped.";
 const TREND_CAP_KEY="{metric} at each key level for the top groups under the "
-  +"current filters, whole season. This is the whole ladder, not the key band "
-  +"the slider selects.";
+  +"current filters, whole season, across the key range the slider selects.";
 const CHART_MAX = 40;
 const TREND_MAX = 16;
-// Key-level axis. The floor is a DATA rule, not a preference: fetch_data.py
-// sweeps 20 leaderboard pages per dungeon x key at +10 and above but only 4
-// below it, so a distinct-character count under +10 is a ~200-run sample
-// sitting beside a ~1,000-run one. Putting both on one curve would make the
-// curve lie about where players actually stop.
+// Key-level axis. The chart's RANGE is whatever the key slider selects, so
+// narrowing the slider zooms into the top of the ladder -- which is the whole
+// point, because indexing everything from +10 squeezes the high keys into a
+// corner where the specs cannot be told apart (owner, 2026-09-04).
+// The FLOOR below is separate and is a data rule, not a preference:
+// fetch_data.py sweeps 20 leaderboard pages per dungeon x key at +10 and above
+// but only 4 below it, so a distinct-character count under +10 is a ~200-run
+// sample sitting beside a ~1,000-run one. Putting both on one curve would make
+// the curve lie about where players actually stop, so the floor holds whatever
+// the slider says.
 const TREND_KEY_FLOOR = 10;
 const TREND_KEY_MINP = 15;    // parses per (group, key) before a point is drawn
 const PULSE_MAX = 12, PULSE_THIN = 25;
@@ -2656,9 +2660,7 @@ function rowPass(i,m,anyTier){
   if(state.timedOnly&&R.timed[i]!==1) return false;
   // anyTier: the set-bonus table needs the cohorts the checkboxes filter away
   if(!anyTier&&!tierPass(i)) return false;
-  // m.anyKey: the Trajectory panel's key-level axis looks ACROSS key levels,
-  // so the slider that picks one band cannot also bound it (§ renderTrend).
-  if(!m.anyKey&&(R.key[i]<state.klo||R.key[i]>state.khi)) return false;
+  if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
   if(m.cls&&!m.cls.has(R.cls[i])) return false;
   if(m.spec&&!m.spec.has(R.spec[i])) return false;
   if(!state.merge&&m.hero&&!m.hero.has(R.hero[i])) return false;
@@ -7116,11 +7118,11 @@ function renderTrend(){
     }
   };
   // The KEY-LEVEL axis answers "how far up the ladder does a spec keep its
-  // players". That means looking ACROSS key levels, so it ignores the key
-  // slider exactly as this panel already ignores the period selection, and it
-  // floors at TREND_KEY_FLOOR for the collection-depth reason recorded there.
+  // players", over the key range the slider selects: narrowing it re-indexes
+  // the curves from a higher key, which is the only way the differences near
+  // the top are legible at all. TREND_KEY_FLOOR still clips the bottom.
   const keyAxis=state.trendAxis==="key";
-  const m={...baseMasks(), anyKey:keyAxis};
+  const m=baseMasks();
   // per (group, bucket) source values, ignoring the period selection
   const tot=new Map(), byWeek=new Map(), byDay=new Map(), byKey=new Map();
   const wTot=new Map(), dTot=new Map(), kTot=new Map();  // per-bucket parse totals
@@ -7184,7 +7186,8 @@ function renderTrend(){
   }
   if(!buckets.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
-      +(keyAxis?'No runs at +'+TREND_KEY_FLOOR+' or above match the current filters.'
+      +(keyAxis?'No runs between +'+Math.max(state.klo,TREND_KEY_FLOOR)+' and +'
+               +state.khi+' match the current filters.'
                :'No dated runs match the current filters.')+'</div>';
     $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
   }
@@ -7313,10 +7316,12 @@ function renderTrend(){
     +(retDropped?" "+retDropped+" group"+(retDropped===1?"":"s")+" had no reading at "
       +bLabel(buckets[0])+" to index against and "+(retDropped===1?"is":"are")
       +" not shown.":"");
-  if(keyAxis) extraCap+=" Key-level axis: this panel ignores the key slider so the"
-    +" whole ladder is visible, and starts at +"+TREND_KEY_FLOOR+" because the"
-    +" leaderboards below it are sampled ~5x shallower, which would understate"
-    +" the low end of every curve.";
+  if(keyAxis) extraCap+=" Key-level axis: the chart spans the keys the slider"
+    +" selects, so narrowing it zooms into the top of the ladder and every line"
+    +" is re-indexed from the new low key; widening it shows the whole ramp."
+    +(state.klo<TREND_KEY_FLOOR?" It stops at +"+TREND_KEY_FLOOR+" whatever the"
+      +" slider says: the leaderboards below that are swept ~5x shallower, so a"
+      +" character count there cannot sit on the same curve.":"");
   if(state.trajSort==="slope") extraCap+=" Sorted by slope — least-squares over the"
     +" plotted points, "+(keyAxis?"so the specs that hold up best as keys rise come"
       +" first and the fastest drop-offs last":"steepest riser first")+".";

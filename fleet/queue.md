@@ -23,6 +23,12 @@ crux of any future attempt.
 
 ## In flight
 
+- **Retention zoom (owner, 2026-09-04) LANDED.** The key axis honours the key slider
+  instead of ignoring it, so narrowing the slider zooms and re-indexes from the new low
+  key. Verified at four ranges: +10..+30 (11 levels), +14..+19 (6), +16..+30 (5), and
+  +2..+30 which still starts at +10 because the collection-depth floor holds whatever
+  the slider says. No console errors, no horizontal scroll.
+
 - **Sections collapsed by default (owner, 2026-09-04) LANDED.** Only the Overview is
   open on a fresh load; page height 1588px instead of the full stack. Verified five
   ways: fresh browser, open-then-reload persistence, migration from the old storage
