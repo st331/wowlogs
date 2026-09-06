@@ -480,13 +480,23 @@ jobs:
           NEXT_DRAIN=""; NEXT_MODE=""
           DRAINING=""
           { [ "${{ inputs.drain }}" = "true" ] || [ -n "${{ inputs.mode }}" ]; } && DRAINING=1
-          if [ -n "$DRAINING" ] && [ "${BACKLOG:-0}" -gt 300 ] 2>/dev/null; then
-            NEXT_DRAIN="true"
-            # alternate: a fresh run is always followed by a backfill run and
-            # vice versa; the first successor of a plain drain run is fresh,
-            # so the present gets the next slot
-            if [ "${{ inputs.mode }}" = "fresh" ]; then NEXT_MODE="backfill"; else NEXT_MODE="fresh"; fi
-            echo "drain: ${BACKLOG} runs still pending -> successor is a ${NEXT_MODE} run, starting immediately"
+          # A FRESH run cannot judge the backlog: its sweep and its pending set
+          # are the 12-hour slice, so the number it reports is the slice's
+          # remainder, not the season's (2026-09-06: a fresh run said 490
+          # while the backfill run that followed fetched for ten minutes).
+          # Gating the drain on that number would end it the first time the
+          # slice happened to be small. So a fresh run ALWAYS chains a
+          # backfill run, and only a backfill (or plain drain) run, which
+          # sees the whole pending set, decides whether draining continues.
+          if [ -n "$DRAINING" ] && [ "${{ inputs.mode }}" = "fresh" ]; then
+            NEXT_DRAIN="true"; NEXT_MODE="backfill"
+            echo "drain: fresh slice done (${BACKLOG:-0} left in it) -> successor is a backfill run, which judges the real backlog"
+          elif [ -n "$DRAINING" ] && [ "${BACKLOG:-0}" -gt 300 ] 2>/dev/null; then
+            NEXT_DRAIN="true"; NEXT_MODE="fresh"
+            # alternate: the backfill run's successor is fresh, so the present
+            # gets the next slot; the first successor of a plain drain run is
+            # fresh for the same reason
+            echo "drain: ${BACKLOG} runs still pending -> successor is a fresh run, starting immediately"
           elif [ -n "$DRAINING" ]; then
             echo "drain: backlog ${BACKLOG:-0} -> done; successor returns to the 70% cadence"
           fi
