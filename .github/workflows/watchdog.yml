@@ -47,6 +47,7 @@ env:
   STALE_SUCCESS_MIN: 75      # no successful refresh for this long -> dispatch
   ALERT_SUCCESS_MIN: 180     # ... for this long -> also open the issue
   STALE_DATA_MIN: 360        # newest collected run older than this -> issue
+  STUCK_QUEUE_MIN: 45        # queued/pending this long with NOTHING running -> cancel it
   BRANCH: claude/wow-mythic-dashboard-jv235l
   SITE_HEALTH: https://st331.github.io/wowlogs/build_health.txt
 
@@ -68,7 +69,40 @@ jobs:
           # ---- 1. refresh runs: latest success age, anything active, failure streak
           RUNS=$(api "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/runs?branch=$BRANCH&per_page=25") || RUNS='{"workflow_runs":[]}'
           LAST_OK=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.conclusion=="success")] | sort_by(.updated_at) | last | .updated_at // empty')
-          ACTIVE=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="queued" or .status=="in_progress" or .status=="pending" or .status=="waiting")] | length')
+          # A run that is RUNNING is active. A run that is merely waiting for a
+          # runner is not -- and treating it as active is how this workflow sat
+          # and watched the pipeline die for 68 hours.
+          #
+          # 2026-09-03T10:33Z a self-chained workflow_dispatch went to "queued"
+          # and never got a runner. concurrency wowlogs-refresh has
+          # cancel-in-progress:false, so it held the group; every scheduled run
+          # after it went "pending" and was cancelled by the next one arriving.
+          # 22 consecutive cancelled runs, data frozen for 2.8 days. This step
+          # counted that stuck run as ACTIVE on every tick, so the revive step
+          # was SKIPPED every time. The alert fired correctly and was ignored
+          # -- an alarm nobody is awake for is not a recovery mechanism.
+          #
+          # So: waiting runs count as active only while something is actually
+          # running (a legitimate queue behind a 110-minute drain), or while
+          # they are young. Older than STUCK_QUEUE_MIN with nothing running is
+          # a stuck run, and the next step cancels it to free the group.
+          RUNNING=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="in_progress")] | length')
+          WAITING=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="queued" or .status=="pending" or .status=="waiting")] | length')
+          STUCK_ID=""; STUCK_AGE=0
+          if [ "$RUNNING" = "0" ] && [ "$WAITING" != "0" ]; then
+            # `empty` for "none", never a placeholder pair: a sentinel like
+            # " 0" reads back through `read` as the id 0 and this workflow
+            # would then POST a cancel for run 0 on every quiet tick.
+            STUCK_LINE=$(echo "$RUNS" | jq -r --argjson now "$NOW" --argjson lim "$STUCK_QUEUE_MIN" '
+              [.workflow_runs[]
+               | select(.status=="queued" or .status=="pending" or .status=="waiting")
+               | {id, age: (($now - (.created_at | fromdateiso8601)) / 60 | floor)}
+               | select(.age > $lim)]
+              | sort_by(-.age) | first | if . then "\(.id) \(.age)" else empty end')
+            if [ -n "$STUCK_LINE" ]; then read -r STUCK_ID STUCK_AGE <<<"$STUCK_LINE"; fi
+          fi
+          ACTIVE=$(( RUNNING + WAITING ))
+          [ -n "$STUCK_ID" ] && ACTIVE=$(( ACTIVE - 1 ))
           # consecutive non-success conclusions among completed runs, newest first
           STREAK=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed")] | sort_by(.created_at) | reverse | [.[].conclusion] | (index("success") // length)')
           LAST_CONCLUSION=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed")] | sort_by(.created_at) | last | .conclusion // "none"')
@@ -90,15 +124,34 @@ jobs:
           fi
 
           echo "last successful refresh : ${LAST_OK:-never} (${OK_AGE} min ago)"
-          echo "active refresh runs     : $ACTIVE"
+          echo "active refresh runs     : $ACTIVE (running $RUNNING, waiting $WAITING)"
+          [ -n "$STUCK_ID" ] && echo "STUCK queued run        : #$STUCK_ID, ${STUCK_AGE} min with nothing running"
           echo "failure streak          : $STREAK (last: $LAST_CONCLUSION)"
           echo "site built              : ${BUILT:-unknown}  rows=${ROWS:-?}"
           echo "newest collected run    : ${NEWEST:-unknown} (data age ${DATA_AGE} min)"
           {
             echo "ok_age=$OK_AGE"; echo "active=$ACTIVE"; echo "streak=$STREAK"
+            echo "stuck_id=$STUCK_ID"; echo "stuck_age=$STUCK_AGE"
             echo "last_conclusion=$LAST_CONCLUSION"; echo "data_age=$DATA_AGE"
             echo "built=${BUILT:-unknown}"; echo "newest=${NEWEST:-unknown}"; echo "rows=${ROWS:-?}"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Free the concurrency group from a run that never got a runner
+        # Cancelling is the ONLY way to release a stuck run's concurrency slot;
+        # there is no API to evict one. The run has done no work -- it never
+        # started -- so nothing is lost, and the revive step below immediately
+        # dispatches a replacement.
+        if: steps.probe.outputs.stuck_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "cancelling #${{ steps.probe.outputs.stuck_id }}, queued ${{ steps.probe.outputs.stuck_age }} min with nothing running"
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/runs/${{ steps.probe.outputs.stuck_id }}/cancel" \
+            && echo "cancelled" || echo "::warning::cancel failed"
+          sleep 10   # let the group actually release before the dispatch below
 
       - name: Revive the cadence if it has stopped
         # Two triggers: the cadence has gone quiet, OR the last runs failed and
@@ -107,7 +160,7 @@ jobs:
         # two three-minute failures leave the site stale for hours. Past three
         # failures the fault is deterministic: the issue is open, and only the
         # 75-minute rule keeps probing (once per tick, never a tight loop).
-        if: steps.probe.outputs.active == '0' && (fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN) || (fromJSON(steps.probe.outputs.streak) >= 1 && fromJSON(steps.probe.outputs.streak) <= 3))
+        if: steps.probe.outputs.active == '0' && (steps.probe.outputs.stuck_id != '' || fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN) || (fromJSON(steps.probe.outputs.streak) >= 1 && fromJSON(steps.probe.outputs.streak) <= 3))
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -125,6 +178,8 @@ jobs:
           REPO: ${{ github.repository }}
           OK_AGE: ${{ steps.probe.outputs.ok_age }}
           STREAK: ${{ steps.probe.outputs.streak }}
+          STUCK_ID: ${{ steps.probe.outputs.stuck_id }}
+          STUCK_AGE: ${{ steps.probe.outputs.stuck_age }}
           DATA_AGE: ${{ steps.probe.outputs.data_age }}
           BUILT: ${{ steps.probe.outputs.built }}
           NEWEST: ${{ steps.probe.outputs.newest }}
@@ -138,6 +193,7 @@ jobs:
           REASONS=""
           [ "$OK_AGE" -gt "$ALERT_SUCCESS_MIN" ] && REASONS="${REASONS}${NL}- no successful refresh for **${OK_AGE} min** (last run: ${LAST_CONCLUSION})"
           [ "$STREAK" -ge 2 ] && REASONS="${REASONS}${NL}- **${STREAK} consecutive failed runs** -- a deterministic fault, not a blip; the dead-man cron cannot fix this"
+          [ -n "$STUCK_ID" ] && REASONS="${REASONS}${NL}- run [#${STUCK_ID}](https://github.com/${REPO}/actions/runs/${STUCK_ID}) sat **${STUCK_AGE} min** waiting for a runner with nothing running, holding the \`wowlogs-refresh\` concurrency group so every later run queued behind it and was cancelled; this watchdog has cancelled it"
           [ "$DATA_AGE" -gt "$STALE_DATA_MIN" ] && REASONS="${REASONS}${NL}- site keeps building (built ${BUILT}, ${ROWS} rows) but the **newest collected run is ${DATA_AGE} min old** -- collection is dead while runs are green"
 
           OPEN=$(api "https://api.github.com/repos/$REPO/issues?state=open&labels=watchdog&per_page=5" | jq -r '[.[] | select(.title=="'"$TITLE"'")] | first | .number // empty')
