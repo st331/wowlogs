@@ -732,7 +732,10 @@ SIDECAR_CORE = 7               # first 7 of SIDECAR_STATS; the tertiaries
 # 7 core windowed = 4.4, /8 = 3.5, /16 = 3.0. The target lands on the 7-core
 # rung, which is lossless, whole-season and exactly what the block was
 # showing before it broke; growth is absorbed by the window rung below it.
-SIDECAR_GZ_TARGET = 5_000_000  # step down the ladder above this
+# 2026-09-06 21:43 IST: 4.97 MB after the catch-up, 30 KB under the target;
+# the next rung is lossless but its DEGRADED line would be noise while the
+# 3-reset window still excludes nothing. Room to stay whole-season a while.
+SIDECAR_GZ_TARGET = 5_500_000  # step down the ladder above this
 SIDECAR_GZ_CAP = 6_500_000     # never ship over this (builds.json.gz is 7.5)
 # Rows older than this many weekly resets are dropped from the SPARSE
 # encoding's coverage, mirroring BUILDS_WINDOW_RESETS. It is a ladder rung,
@@ -1283,7 +1286,12 @@ BUILDS_IUP_MIN_WEARERS = 20
 # ladder stopped being a safety net and became the normal path.
 # These numbers buy days, not weeks (the document grows ~0.6 MB/day at the
 # current row rate), which is what BUILDS_WINDOW_RESETS below is for.
-BUILDS_GZ_TARGET = 6_500_000
+# 2026-09-06 21:43 IST: the day's ~30k-run catch-up took the full document
+# to 6.51 MB, the ladder dropped the enchant block, and the Enchants pane
+# went blank -- the third time. Target raised to sit under the unchanged
+# 7.5 cap; BUILDS_WINDOW_RESETS starts excluding rows on 2026-09-08 and is
+# the lever that actually bounds this.
+BUILDS_GZ_TARGET = 7_000_000
 BUILDS_GZ_CAP = 7_500_000
 # Rows older than this many weekly resets are not covered by the sidecar. The
 # character screen answers "what are people wearing NOW"; a parse from three
