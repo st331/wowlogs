@@ -374,6 +374,43 @@ Footer, in order:
 Compare/lens have no effect here — and under Time/Skill compare the footer's
 disclaimer already says why.
 
+### 7.1 AMENDMENT 2026-09-06 — this section describes FALLBACK mode only
+
+Everything above is what the block does when `stats.json.gz` is absent or
+still in flight. Since 2026-08-27 the block has had a **live mode**: when the
+per-parse stats sidecar decodes, `frameLiveStatsHTML` replaces the whole
+block and it follows every filter — key range, period, dungeon, region,
+timed, tier cohort and the percentile lens — through
+`frameLensSlice()` → `frameLiveIdx()` → `rowPass()`. The blueprint was never
+amended when that shipped, so §7 read as though frozen numbers were the
+finished design. They are the degraded one.
+
+Two rules follow, and both are now enforced in code:
+
+1. **The disclaimer moves to the top in fallback mode.** Footer item 3 was
+   the third `<br>` line of a 0.7rem muted block under a ~60-word cohort
+   sentence. Nobody reaches it. It is now a `.fsub` line directly beneath the
+   title, before the bars.
+2. **Fallback withholds its numbers when the live view is empty.** `ctx.g`
+   null means no parses match the filters; the Overview block two above says
+   exactly that. Printing a populated distribution underneath it is a
+   contradiction, not a disclosure.
+
+**Why the amendment exists.** On 2026-09-02 the sidecar packer breached its
+gz cap, returned `None`, and the caller unlinked the file. The site kept
+building; every test stayed green; nothing reached `build_health.txt`. The
+block reverted to fallback mode and sat there for four days until the owner
+found it by hand: *"the character pinned screen is not working correctly. as
+i adjust key levels, the stats don't seem to change at all."* At +20–+20 the
+Overview read "no parses match the current filters" while Character stats
+printed Intellect 3,276 (3,166–3,392) from a build-time constant.
+
+The pipeline half of the fix is in `stats_sidecar()`: a five-rung ladder that
+degrades losslessly first, a target and hard cap sized against a measured
+production-scale run, and every outcome on the published `health()` channel
+instead of a job log. See `scripts/test_stats_sidecar_roundtrip.py` for the
+Python→JavaScript contract this now has and did not have then.
+
 ## 8. Edge cases (all must be built)
 
 - **Rare spec** (Fire Mage: 0 of 22 qualifying, 9 distinct at defaults): comps

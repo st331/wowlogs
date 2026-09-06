@@ -3051,17 +3051,40 @@ function decodeStatsSidecar(j){
     const map=new Int32Array(N).fill(-1);     // payload row → sidecar row
     const vb=b64(j.data);
     const vals=new Uint16Array(vb.buffer,0,(vb.byteLength/2)|0);
+    // scale: a stored value TIMES this is the rating. The pipeline only spends
+    // it on a degraded rung, so it is 1 in the normal case; 0 stays "unknown"
+    // at every scale because the packer never quantises a known rating to 0.
+    const scale=(typeof j.scale==="number"&&j.scale>0)?j.scale:1;
+    // layout: "col" packs all of stat 0 for the covered rows, then all of
+    // stat 1, and so on — like magnitudes adjacent, which gzips far better
+    // than the row-major interleave. Absent ⇒ row-major, so the documents
+    // published before 2026-09-06 still decode.
+    const colMajor=(j.layout==="col");
+    let rowsC;
     if(j.enc==="sparse"){
       if(typeof j.idx!=="string") return null;
       const ib=b64(j.idx);
       const idx=new Uint32Array(ib.buffer,0,(ib.byteLength/4)|0);
       if(vals.length<idx.length*cols) return null;
-      for(let k=0;k<idx.length;k++) if(idx[k]<N) map[idx[k]]=k;
+      // idxdelta: each entry is the GAP from the previous covered row rather
+      // than an absolute index — small integers with zero high bytes, which
+      // is worth ~0.9 MB gz at current coverage. Running sum restores it.
+      if(j.idxdelta){
+        let run=0;
+        for(let k=0;k<idx.length;k++){ run+=idx[k]; if(run<N) map[run]=k }
+      }else{
+        for(let k=0;k<idx.length;k++) if(idx[k]<N) map[idx[k]]=k;
+      }
+      rowsC=idx.length;
     }else{                                    // dense (the default when enc is absent)
       if(vals.length<N*cols) return null;
       for(let k=0;k<N;k++) map[k]=k;
+      rowsC=N;
     }
-    return {stats:j.stats, cols, vals, map};
+    // ONE accessor, so no caller has to know the layout or the scale
+    const at=colMajor ? (r,s)=>vals[s*rowsC+r]*scale
+                      : (r,s)=>vals[r*cols+s]*scale;
+    return {stats:j.stats, cols, vals, map, at, rowsC, scale};
   }catch(e){ return null }
 }
 // The frame's live row set: the CHART's own row-pass (masks incl. key range,
@@ -3268,12 +3291,34 @@ function frameStatsHTML(ctx){
   // disappear from the payload; both shapes must render identically).
   const statMap=S.q||S.stats;
   let h='<div class="bt">Character stats</div>';
+  /* FIXED MODE — the sidecar is missing or still loading, so these numbers
+     are a build-time per-spec constant. It has to say so ABOVE the bars, not
+     in the third line of a muted footer.
+
+     2026-09-06: stats.json.gz had been 404ing since 2026-09-02 (the packer
+     breached its gz cap and the caller unlinked the file). The block kept
+     drawing full quantiles while the Overview two blocks up said "no parses
+     match the current filters", and the owner reasonably read the whole rail
+     as broken: "as i adjust key levels, the stats don't seem to change at
+     all". The pipeline fix is the real one; this is the honesty that should
+     have been here anyway, because fixed mode is also what a slow network
+     shows for the first second of every session.
+
+     When the live view is EMPTY, printing a populated distribution is a flat
+     contradiction of the blocks above it. ctx.g is null in exactly that case
+     (frameIdentityHTML renders its own "no parses" state off the same test),
+     so the numbers stand down and only the explanation remains. */
+  h+='<div class="fsub">fixed build-time cohort — these do <b>not</b> follow '
+    +'the key, period, dungeon or lens filters</div>';
+  if(!ctx.g)
+    return h+'<div class="foot" style="margin-top:0">no parses match the '
+      +'current filters, so the live figures are unavailable; the fixed cohort '
+      +'below is withheld rather than shown against a filter it ignores.</div>';
   const entries=Object.entries(statMap||{})
     .filter(([,q])=>Array.isArray(q)&&q.length>=3)
     .map(([name,q])=>({name,q}));
   h+=statRowsHTML(entries);
   h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc("n="+fmtInt(S.n))
-    +'<br>fixed build-time cohort — does not follow the filters, period, or lens above'
     +'<br>ordered by median rating; what gear drops biases this</div>';
   return h;
 }
@@ -3306,7 +3351,7 @@ function frameLensSlice(){
   return {idx, Y, lo, hi, sdps, inWin};
 }
 function frameLiveStatsHTML(ctx){
-  const C=STATSC, cols=C.cols, nst=C.stats.length;
+  const C=STATSC, nst=C.stats.length;   // layout/scale live behind C.at()
   const L=frameLensSlice(), idx=L.idx, Y=L.Y;
   let h='<div class="bt">Character stats</div>';
   if(!Y)
@@ -3314,7 +3359,7 @@ function frameLiveStatsHTML(ctx){
   const {lo,hi,sdps}=L;
   const rowAt=i=>C.map[i];
   const known=i=>{const r=rowAt(i); if(r<0) return false;
-    const o=r*cols; for(let s=0;s<nst;s++) if(C.vals[o+s]) return true; return false};
+    for(let s=0;s<nst;s++) if(C.at(r,s)) return true; return false};
   let X=0;
   for(const i of idx) if(known(i)) X++;
   // the lens window's stats-known slice — what the quantile rows read
@@ -3325,7 +3370,7 @@ function frameLiveStatsHTML(ctx){
   const entries=[];
   for(let s=0;s<nst;s++){                // every stat with data gets a row; 0 = unknown
     const v=[];
-    for(const i of slice){const x=C.vals[rowAt(i)*cols+s]; if(x) v.push(x)}
+    for(const i of slice){const x=C.at(rowAt(i),s); if(x) v.push(x)}
     if(!v.length) continue;
     v.sort((a,b)=>a-b);
     entries.push({name:String(C.stats[s]), q:[qp(v,.25),qp(v,.5),qp(v,.75)]});
@@ -4270,12 +4315,21 @@ function csFoldTR(e,nameHTML,s,c,ph,extra){
 /* the fold-out's columns. LEAN % and FIELD exist only in lean mode — a column
    that does not apply in the current state is ABSENT from cols entirely
    (3.2.4): not blank, not a dash, not sortable, nothing dormant. The
-   stale-column guard reverts the sort when the mode leaves lean. */
+   stale-column guard reverts the sort when the mode leaves lean.
+
+   BOTH are season-wide build-time constants, and the header says so. The
+   fold-out REPLACES csLeanTableHTML, whose "Lean %" is live (per-item rates
+   weighted by the mix counted off the current window) — same label, same
+   tooltip, one moves with the filters and one cannot. Naming this one
+   "Season lean %" is the whole fix: Share and n beside it are live, so a
+   column that never moves has to be readable as such without a hover. */
 function csFoldCols(){
   const c=[[null,"","fi"],["item","Item","txt"],["share","Share"],["n","n"]];
   if(gearMode==="lean")
-    c.push(["lean","Lean %","",CS_LEAN_TITLE],
-      ["field","Field","","median across the other specs that list this piece"]);
+    c.push(["lean","Season lean %","",
+        "season-wide and fixed: "+CS_LEAN_TITLE],
+      ["field","Field","","season-wide and fixed: median across the other "
+        +"specs that list this piece"]);
   return c;
 }
 /* accessors return Number / String / null and NEVER a dash. Pinned aggregate

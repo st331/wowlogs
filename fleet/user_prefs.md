@@ -199,3 +199,29 @@
     series read it. Any future normalisation goes in there, never as a pass over the
     series afterwards.
 
+
+20. **A degradation that silences a live surface must reach build_health.txt —
+    standing (2026-09-06).** "the character pinned screen is not working correctly.
+    as i adjust key levels, the stats don't seem to change at all." The Spec Frame's
+    Character stats block had two modes: LIVE off stats.json.gz, and a fixed
+    build-time cohort when that file is absent. On 2026-09-02 the packer breached
+    its 4 MB gz cap, returned None, and the caller unlinked the file. The block fell
+    back and stayed there for four days. Every run was green, every test passed, and
+    the only record was a job log, because stats_sidecar() reported through print()
+    while its sibling builds_sidecar() reported through health().
+    Three rules stand from this:
+    (a) Any ladder that can silently drop a feature reports EVERY rung on the
+        published health channel, and shouts (::warning:: degraded, ::error:: omitted).
+        A cap with no telemetry is a trapdoor.
+    (b) Shipping something beats shipping nothing. The ladder now has five rungs and
+        degrades losslessly first (drop the tertiary stats, then shorten the window)
+        before it quantises, because a quantised rung visibly lumps every printed
+        number. Omission is the last resort, not the second.
+    (c) A cap is a measurement, not a number someone liked once. 4 MB was set against
+        a 3.2 MB document and never revisited while the payload grew 71%; meanwhile
+        the same build happily shipped a 6.12 MB builds sidecar. Sizes in the
+        blueprints are stale by default -- read build_health.txt.
+    Also standing: when a fallback surface cannot follow the filters, it says so
+    ABOVE its numbers, and it withholds them entirely when the live view is empty.
+    A block printing a full distribution under an Overview that reads "no parses
+    match the current filters" is a contradiction, not a disclaimer.

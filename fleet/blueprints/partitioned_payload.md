@@ -43,6 +43,15 @@ blocker it closes; section numbers are unchanged.
   by anything, including itself.
 - Builds sidecar 4.7 MB target / 5.0 MB cap over every row of the season; the ladder fired
   once this week and dropped the enchant block. Stats sidecar 2.5 MB.
+  **CORRECTION 2026-09-06.** "Stats sidecar 2.5 MB" was not a measurement: it is
+  `SIDECAR_GZ_TARGET`, a constant that was defined and never read. The document was
+  really ~5.0 MB against a 4.0 MB hard cap, i.e. already over it — the file had been
+  404ing since 2026-09-02 when this audit was written, and the section below plans
+  around an artifact that was not being published. The builds numbers here are also
+  stale (raised to 6.5/7.5 on 2026-09-03). Current, measured: builds 6.12 MB shipped;
+  stats 4.91 MB at 7 core stats, sparse column-major with delta-coded indices, against
+  a 5.0 MB target and a 6.5 MB cap. Take sizes in this document from `build_health.txt`,
+  which now carries a `stats sidecar:` ladder line, not from constants.
 - Build step 7–8 min of a ~20-min cycle; 4–8 of those minutes are six full JSON passes over
   the 430k-record gear journal (B:369, :532, :894, :1219, and two more inside `build_llms`,
   which alone costs ~90 s and runs on every ordinary cycle). **Each pass costs ≈ 140 µs per

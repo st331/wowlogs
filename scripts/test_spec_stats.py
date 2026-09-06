@@ -430,7 +430,7 @@ print(f"meta size   : 27 specs, 4 dims, 2 bands = {len(mblob):,} bytes raw / "
 # ===========================================================================
 
 
-def run_sidecar(rows, recs, enc=None, cap=None):
+def run_sidecar(rows, recs, enc=None, cap=None, target=None):
     """Same journal-on-disk path as run_block, returning (df, parsed doc)."""
     with tempfile.TemporaryDirectory() as tmp:
         journal = pathlib.Path(tmp) / "gear.jsonl"
@@ -441,6 +441,8 @@ def run_sidecar(rows, recs, enc=None, cap=None):
         bsd.GEAR_EXPORT = pathlib.Path(tmp) / "absent.jsonl.gz"
         df = pd.DataFrame(rows)
         kw = {} if cap is None else {"cap": cap}
+        if target is not None:
+            kw["target"] = target
         doc = bsd.stats_sidecar(df, bsd.stats_from_gear_journal(),
                                 "test", enc=enc, **kw)
         return df, (json.loads(doc) if doc is not None else None)
@@ -493,37 +495,80 @@ assert arr_r[i * W:(i + 1) * W].tolist() == \
 print("sidecar     : alignment follows the df (payload) order, pinned "
       "against a reversed frame")
 
-# sparse: same values, addressed through the Uint32 row-index array
+# sparse: same values, COLUMN-major, addressed through a DELTA-coded Uint32
+# row-index array. Column-major groups like magnitudes together and the gaps
+# between covered rows are small integers with zero high bytes; together they
+# are worth ~22% of the gzipped document, losslessly (2026-09-06).
 _, sp = run_sidecar(rows, recs, enc="sparse")
 assert sp["enc"] == "sparse" and sp["n"] == len(df_s)
-sarr, sidx = decode(sp, "<u2"), decode(sp, "<u4", "idx")
-assert len(sarr) == len(sidx) * W
+assert sp["layout"] == "col" and sp["idxdelta"] is True, sp["layout"]
+assert sp["scale"] == 1, sp["scale"]
+sarr, sgap = decode(sp, "<u2"), decode(sp, "<u4", "idx")
+COV = len(sgap)
+assert len(sarr) == COV * W
+sidx = np.cumsum(sgap.astype("<u8"))               # delta -> absolute
+assert (np.diff(sidx) > 0).all(), "covered rows must be strictly ascending"
 lookup = {int(r): j for j, r in enumerate(sidx)}
 i = rowat(df_s, "Priest1", "P1")
 j = lookup[i]
-assert sarr[j * W:(j + 1) * W].tolist() == arr[i * W:(i + 1) * W].tolist()
+assert [int(sarr[s * COV + j]) for s in range(W)] == \
+    arr[i * W:(i + 1) * W].tolist()
 assert rowat(df_s, "Torn", "RX4") not in lookup    # unknown rows: no entry
-print(f"sidecar     : sparse carries {len(sidx)} known rows + Uint32 "
-      f"indices, values identical to dense")
+print(f"sidecar     : sparse carries {COV} known rows column-major + "
+      f"delta-coded indices, values identical to dense")
+
+# quantisation is opt-in per rung and never turns a KNOWN rating into the
+# unknown sentinel: 0 has to stay reserved, so a small rating floors to 1
+_, q8 = run_sidecar(rows, recs, enc="dense", cap=10 ** 9, target=1)
+assert q8 is not None and q8["scale"] > 1, "the ladder must reach a quantised rung"
+if True:
+    sc_q = q8["scale"]
+    qarr = decode(q8, "<u2")
+    QW = len(q8["stats"])
+    i = rowat(df_s, "Priest1", "P1")
+    for s in range(QW):
+        exact, stored = arr[i * W + s], int(qarr[i * QW + s])
+        assert (stored == 0) == (exact == 0), (s, exact, stored)
+        if exact:
+            assert abs(stored * sc_q - exact) <= sc_q, (s, exact, stored)
+    print(f"sidecar     : quantised rung /{sc_q} round-trips within one step "
+          f"and never collides with the 0 = unknown sentinel")
 
 # auto mode picks one of the two and says which
 _, auto = run_sidecar(rows, recs)
 assert auto["enc"] in ("dense", "sparse"), auto["enc"]
 
-# cap: tertiaries dropped first (and said so), then nothing rather than over
+# The ladder steps on the TARGET and only OMITS on the hard cap. Before
+# 2026-09-06 the two were the same number, so the first breach fell straight
+# off the end: on 2026-09-02 both rungs went over 4 MB, the file was unlinked,
+# and the Character stats block silently reverted to a build-time cohort that
+# ignores every filter. It stayed that way for four days.
 g10 = len(gzip.compress(json.dumps(
     run_sidecar(rows, recs, enc="dense")[1],
-    separators=(",", ":")).encode(), 6))
-_, capped = run_sidecar(rows, recs, enc="dense", cap=g10 - 1)
+    separators=(",", ":")).encode(), 9))
+
+# a target just under the full document steps down exactly one rung --
+# tertiaries first, because that degradation is lossless
+_, capped = run_sidecar(rows, recs, enc="dense", target=g10 - 1)
 assert capped is not None
 assert capped["stats"] == list(bsd.SIDECAR_STATS[:bsd.SIDECAR_CORE]), \
     capped["stats"]
+assert capped["scale"] == 1, "quantisation is not the FIRST degradation"
 assert len(decode(capped, "<u2")) == len(df_s) * bsd.SIDECAR_CORE
-_, gone = run_sidecar(rows, recs, enc="dense", cap=1)
+
+# an unreachable target walks the whole ladder and still ships the last rung
+# rather than nothing, as long as it clears the hard cap
+_, floor = run_sidecar(rows, recs, enc="dense", target=1, cap=10 ** 9)
+assert floor is not None, "the poorest rung must still ship"
+assert floor["stats"] == list(bsd.SIDECAR_STATS[:bsd.SIDECAR_CORE])
+assert floor["scale"] > 1, floor["scale"]
+
+# only the hard cap omits, and an empty journal omits
+_, gone = run_sidecar(rows, recs, enc="dense", cap=1, target=1)
 assert gone is None
 _, empty = run_sidecar(rows, [])
 assert empty is None
-print("sidecar     : cap drops Leech/Speed/Avoidance first, then omits; "
-      "empty journal -> no file")
+print("sidecar     : target steps the ladder (lossless rungs first), only "
+      "the hard cap omits; empty journal -> no file")
 
 print("\nPASS")

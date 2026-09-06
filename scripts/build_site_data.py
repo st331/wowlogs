@@ -712,41 +712,112 @@ SIDECAR_STATS = ("Intellect", "Agility", "Strength", "Crit", "Haste",
                  "Mastery", "Versatility", "Leech", "Speed", "Avoidance")
 SIDECAR_CORE = 7               # first 7 of SIDECAR_STATS; the tertiaries
                                # (Leech/Speed/Avoidance) are the droppable tail
-SIDECAR_GZ_TARGET = 2_500_000  # aim under this
-SIDECAR_GZ_CAP = 4_000_000     # never ship over this
+# 2026-09-06. The 4.0 MB cap was set on 2026-08-27 against a 3.2 MB document
+# and never revisited while the payload went 440k -> 752k rows and the gear
+# backfill took coverage 55% -> 64%. On 2026-09-02 both rungs of the two-rung
+# ladder breached it, stats_sidecar() returned None, the caller unlinked
+# site/stats.json.gz, and the client's live branch died: the Spec Frame's
+# "Character stats" block silently fell back to the fixed build-time cohort,
+# which by construction cannot follow the key/period/dungeon filters. The
+# owner reported it as "as i adjust key levels, the stats don't seem to
+# change at all" -- four days after it broke, because NONE of this reached
+# build_health.txt (see the health() calls below, which is the other half of
+# the fix).
+#
+# 4.0 MB was never a hosting or client limit: the same build happily ships a
+# 6.12 MB builds.json.gz. The cap now sits below the builds sidecar's 7.5 and
+# the TARGET is finally read rather than merely defined.
+# Sized against a measured run of this packer at the live build's scale
+# (751,748 rows / 482,935 covered): 10 stats = 7.2 MB, 7 core = 4.9 MB,
+# 7 core windowed = 4.4, /8 = 3.5, /16 = 3.0. The target lands on the 7-core
+# rung, which is lossless, whole-season and exactly what the block was
+# showing before it broke; growth is absorbed by the window rung below it.
+SIDECAR_GZ_TARGET = 5_000_000  # step down the ladder above this
+SIDECAR_GZ_CAP = 6_500_000     # never ship over this (builds.json.gz is 7.5)
+# Rows older than this many weekly resets are dropped from the SPARSE
+# encoding's coverage, mirroring BUILDS_WINDOW_RESETS. It is a ladder rung,
+# not a default: the full document keeps the whole season, and the window is
+# only spent when the bytes demand it. 0 disables it.
+SIDECAR_WINDOW_RESETS = 3
 
 
-def _sidecar_json(names, enc, n, vals, idx=None) -> str:
+def _sidecar_json(names, enc, n, vals, idx=None, scale=1,
+                  layout="row", idxdelta=False) -> str:
     """The sidecar document, exactly as published.
 
-    data decodes to a little-endian Uint16Array: per covered row, one rating
-    per stat in `stats` order (0 = unknown/absent) and nothing else --
-    "flaskcol": false says so in-band, because an earlier layout carried a
-    trailing flask column and the client tolerates both. Dense covers every
-    payload row in order; sparse covers only stats-known rows, with `idx`
-    decoding to a Uint32Array of their payload row indices.
+    data decodes to a little-endian Uint16Array of STORED values; a stored
+    value times `scale` is the rating (scale defaults to 1, i.e. exact).
+    0 is unknown/absent at every scale. "flaskcol": false says in-band that
+    no trailing flask column is present, because an earlier layout carried
+    one and the client tolerates both.
+
+    Dense covers every payload row in order and is always row-major. Sparse
+    covers only stats-known rows, with `idx` giving their payload row
+    indices, and is COLUMN-major ("layout":"col"): all of stat 0 for the
+    covered rows, then all of stat 1, and so on. Column-major groups values
+    of like magnitude together, which is worth ~8% of the gzipped document;
+    delta-coding `idx` ("idxdelta":true -- each entry the gap from the
+    previous covered row rather than an absolute index) is worth a further
+    ~0.9 MB at current coverage, because the gaps are small integers whose
+    high bytes are all zero. Both are lossless. Every field is
+    feature-detected by the client, so an older document still decodes.
     """
     obj = {"stats": list(names), "flaskcol": False, "enc": enc, "n": n,
-           "data": base64.b64encode(vals.astype("<u2").tobytes()).decode()}
+           "layout": layout, "scale": int(scale),
+           "data": base64.b64encode(
+               np.ascontiguousarray(vals).astype("<u2").tobytes()).decode()}
     if idx is not None:
-        obj["idx"] = base64.b64encode(idx.astype("<u4").tobytes()).decode()
+        out = np.asarray(idx, dtype="<u8")
+        if idxdelta:
+            out = np.diff(np.concatenate([[0], out]))
+            obj["idxdelta"] = True
+        obj["idx"] = base64.b64encode(out.astype("<u4").tobytes()).decode()
     return json.dumps(obj, separators=(",", ":"))
 
 
+def _sidecar_window(df, resets: int):
+    """Boolean mask of rows inside the newest `resets` weekly resets.
+
+    Anchored to the DATA, not the wall clock, exactly like the builds
+    sidecar's window: if collection stalls, a now-anchored window would
+    slide past every row it has and cover nothing. Undated rows and regions
+    with no rule stay covered -- never drop data because a field is missing.
+    Returns None when windowing is off.
+    """
+    if not resets:
+        return None
+    st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
+                        unit="ms", errors="coerce").dt.tz_localize("UTC")
+    now = pd.Timestamp.now("UTC")
+    plaus = st[st <= now]
+    anchor = min(plaus.max(), now) if len(plaus) else now
+    inst = reset_instants(anchor, sorted(df["region"].astype(str).unique()))
+    back = pd.Timedelta(days=7 * (resets - 1))
+    cut = df["region"].astype(str).map({r: t - back for r, t in inst.items()})
+    return (st >= cut).fillna(True).to_numpy()
+
+
 def stats_sidecar(df, journal, name: str, enc: str | None = None,
-                  cap: int = SIDECAR_GZ_CAP) -> str | None:
+                  cap: int = SIDECAR_GZ_CAP,
+                  target: int = SIDECAR_GZ_TARGET) -> str | None:
     """Per-parse stat ratings, packed for the client's typed arrays.
 
     Emitted by walking df in row order, so index i in the decoded matrix IS
     row i of the payload's rows arrays -- never a separate join that could
-    drift. Both encodings are built and the one that gzips smaller ships
-    (enc forces one, for tests); if even that breaches the cap the
-    tertiaries are dropped first, loudly, and shipping nothing beats
-    shipping an oversized or misaligned file.
+    drift. Both encodings are built at every rung and the one that gzips
+    smaller ships (enc forces one, for tests).
+
+    The ladder degrades LOSSLESSLY first -- drop the tertiary stats, then
+    shorten the coverage window -- and only then quantises, because a
+    quantised rung makes every printed number a multiple of the step and
+    that is visible to the reader. Whatever rung ships, it ships: total
+    omission blinds the Character stats block completely (it falls back to a
+    fixed cohort that ignores every filter), so "nothing" is the last resort
+    and it is announced on the published health channel, not to stdout.
 
     Returns the JSON document as a string (the caller gzips it), or None
-    when the journal offers no stats at all -- the client feature-detects
-    the file exactly like the payload blocks.
+    when the journal offers no stats at all, or when even the poorest rung
+    breaches the hard cap.
     """
     per_row: list[tuple[int, dict]] = []
     for i, (code, fid, ch, sv) in enumerate(zip(
@@ -756,43 +827,132 @@ def stats_sidecar(df, journal, name: str, enc: str | None = None,
         if rec is not None:
             per_row.append((i, rec))
     if not per_row:
-        print(f"[{name}] no stats in the gear journal; sidecar omitted")
+        health(f"[{name}] stats sidecar: no stats in the gear journal; "
+               f"OMITTED -- the Character stats block falls back to the "
+               f"fixed build-time cohort and stops following the filters")
         return None
     n = len(df)
 
-    def build_doc(names) -> str:
+    # one walk of the journal, at full precision; every rung below is a cheap
+    # transform of this matrix rather than a second walk
+    full = np.zeros((len(per_row), len(SIDECAR_STATS)), dtype="<u4")
+    all_idx = np.zeros(len(per_row), dtype="<u8")
+    for j, (i, rec) in enumerate(per_row):
+        st = rec["stats"]
+        for k, nm in enumerate(SIDECAR_STATS):
+            full[j, k] = min(max(int(round(st.get(nm, 0))), 0), 0xFFFF)
+        all_idx[j] = i
+
+    windows: dict[int, np.ndarray] = {}
+
+    def covered(resets: int):
+        """(matrix, payload row indices) for a rung's coverage window."""
+        if not resets:
+            return full, all_idx
+        if resets not in windows:
+            mask = _sidecar_window(df, resets)
+            windows[resets] = (np.ones(n, dtype=bool) if mask is None
+                               else np.asarray(mask, dtype=bool))
+        keep = windows[resets][all_idx]
+        return full[keep], all_idx[keep]
+
+    def make_doc(names, scale, resets) -> str:
         cols = len(names)
-        packed = np.zeros((len(per_row), cols), dtype="<u2")
-        idx = np.zeros(len(per_row), dtype="<u4")
-        for j, (i, rec) in enumerate(per_row):
-            st = rec["stats"]
-            for k, nm in enumerate(names):
-                packed[j, k] = min(max(int(round(st.get(nm, 0))), 0), 0xFFFF)
-            idx[j] = i
-        sparse = _sidecar_json(names, "sparse", n, packed, idx)
+        mat, idx = covered(resets)
+        vals = mat[:, :cols]
+        if scale > 1:
+            # round to nearest, but never quantise a KNOWN rating down to 0:
+            # 0 is the unknown sentinel and has to stay reserved
+            q = (vals + scale // 2) // scale
+            vals = np.where((q == 0) & (vals > 0), 1, q)
+        vals = vals.astype("<u2")
+        sparse = _sidecar_json(names, "sparse", n, vals.T, idx,
+                               scale=scale, layout="col", idxdelta=True)
         if enc == "sparse":
             return sparse
         dense_m = np.zeros((n, cols), dtype="<u2")
-        dense_m[idx] = packed
-        dense = _sidecar_json(names, "dense", n, dense_m)
+        dense_m[idx] = vals
+        dense = _sidecar_json(names, "dense", n, dense_m, scale=scale)
         if enc == "dense":
             return dense
         gz_d = len(gzip.compress(dense.encode(), 6))
         gz_s = len(gzip.compress(sparse.encode(), 6))
-        print(f"[{name}] sidecar {len(per_row):,}/{n:,} rows known: "
-              f"dense {gz_d / 1e6:.2f} MB gz vs sparse {gz_s / 1e6:.2f} MB "
-              f"gz -> {'dense' if gz_d <= gz_s else 'sparse'}")
         return dense if gz_d <= gz_s else sparse
 
-    doc = build_doc(SIDECAR_STATS)
-    if len(gzip.compress(doc.encode(), 6)) > cap:
-        print(f"[{name}] sidecar over the {cap / 1e6:.1f} MB gz cap; "
-              f"dropping tertiaries ({', '.join(SIDECAR_STATS[SIDECAR_CORE:])})")
-        doc = build_doc(SIDECAR_STATS[:SIDECAR_CORE])
-        if len(gzip.compress(doc.encode(), 6)) > cap:
-            print(f"[{name}] sidecar still over the cap without tertiaries; "
-                  f"NOT shipped (client falls back to the specstats block)")
-            return None
+    W = SIDECAR_WINDOW_RESETS
+    core = SIDECAR_STATS[:SIDECAR_CORE]
+    # (stat names, quantisation step, coverage window in resets)
+    ladder = [(SIDECAR_STATS, 1, 0), (core, 1, 0)]
+    if W:
+        ladder.append((core, 1, W))
+    ladder += [(core, 8, W), (core, 16, W)]
+
+    def rung_label(r) -> str:
+        names, scale, resets = r
+        return (f"{len(names)} stats"
+                + ("" if scale == 1 else f" /{scale}")
+                + (" whole season" if not resets else f" {resets}-reset window"))
+
+    def gz(d: str) -> int:
+        return len(gzip.compress(d.encode(), 9))
+
+    rung = ladder[0]
+    doc = make_doc(*rung)
+    sizes = [(rung, gz(doc))]
+    for nxt in ladder[1:]:
+        if sizes[-1][1] <= target:
+            break
+        health(f"[{name}] stats sidecar {sizes[-1][1] / 1e6:.2f} MB gz is over "
+               f"the {target / 1e6:.1f} MB target; stepping down to "
+               f"{rung_label(nxt)}")
+        rung = nxt
+        doc = make_doc(*rung)
+        sizes.append((rung, gz(doc)))
+    cov = len(covered(rung[2])[1])
+    # The whole ladder, on the PUBLISHED channel. The 2026-09-02 outage was
+    # invisible for four days because every one of these lines used to be a
+    # bare print() into a job log that ages out.
+    health(f"[{name}] stats sidecar: {cov:,}/{n:,} rows covered "
+           f"({100 * cov / max(1, n):.0f}%), ladder: "
+           + " | ".join(f"{rung_label(r)} -> {sz / 1e6:.2f} MB"
+                        for r, sz in sizes)
+           + f" || SHIPPED {rung_label(rung)} at {sizes[-1][1] / 1e6:.2f} MB "
+             f"(target {target / 1e6:.1f}, hard cap {cap / 1e6:.1f})")
+    if sizes[-1][1] > cap:
+        health(f"[{name}] stats sidecar OMITTED: even {rung_label(rung)} is "
+               f"{sizes[-1][1] / 1e6:.2f} MB gz, over the {cap / 1e6:.1f} MB "
+               f"hard cap -- the Character stats block loses its live data "
+               f"source and falls back to the fixed build-time cohort, which "
+               f"does NOT follow the key/period/dungeon filters")
+        print(f"::error::stats sidecar NOT shipped ({sizes[-1][1] / 1e6:.2f} MB "
+              f"gz over a {cap / 1e6:.1f} MB cap); the Character stats block "
+              f"is frozen at the build-time cohort. See build_health.txt",
+              flush=True)
+        return None
+    # A degraded rung is a DEFECT taken deliberately, not a tradeoff quietly
+    # banked -- the same discipline the builds sidecar got on 2026-09-03.
+    #
+    # Measured against the CORE rung, not the fullest one. Leech/Speed/
+    # Avoidance are the declared droppable tail (SIDECAR_CORE) and shedding
+    # them is routine housekeeping, not damage; warning about it on every
+    # build would make the alarm permanent, and a permanent alarm is a broken
+    # alarm. What IS damage: a shortened coverage window or quantised
+    # ratings, both of which change what the reader sees.
+    baseline = (core, 1, 0)
+    if rung != ladder[0] and rung != baseline:
+        lost = []
+        if len(rung[0]) < len(core):
+            lost.append("no " + "/".join(core[len(rung[0]):]))
+        if rung[2]:
+            lost.append(f"coverage cut to the newest {rung[2]} resets")
+        if rung[1] > 1:
+            lost.append(f"ratings quantised to steps of {rung[1]} -- every "
+                        f"printed number is a multiple of {rung[1]}")
+        msg = "; ".join(lost)
+        health(f"[{name}] stats sidecar DEGRADED: {msg}")
+        print(f"::warning::stats sidecar degraded -- {msg} (full document "
+              f"{sizes[0][1] / 1e6:.2f} MB gz against a {target / 1e6:.1f} MB "
+              f"target; see build_health.txt)", flush=True)
     return doc
 
 
@@ -2957,6 +3117,12 @@ def build(name: str, cfg: dict) -> None:
         sz = (SITE_DIRS[0] / "stats.json.gz").stat().st_size
         print(f"[{name}] stats sidecar -> stats.json.gz "
               f"({sz / 1e6:.2f} MB gz, {len(sidecar) / 1e6:.1f} MB raw)")
+    else:
+        # The unlink itself goes on the record. stats_sidecar() has already
+        # said WHY on the health channel; this line says the file is gone,
+        # which is what the watchdog and a reader of build_health.txt can
+        # check against the published site.
+        health(f"[{name}] stats.json.gz REMOVED from the site directory")
     # builds sidecar, same discipline: rewritten or unlinked with the payload
     builds = builds_sidecar(df, meta_journal, name, traits=traits)
     for d in SITE_DIRS:
