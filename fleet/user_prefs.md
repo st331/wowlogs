@@ -225,3 +225,15 @@
     ABOVE its numbers, and it withholds them entirely when the live view is empty.
     A block printing a full distribution under an Overview that reads "no parses
     match the current filters" is a contradiction, not a disclaimer.
+
+21. **70% cap waived for 2026-09-06 (IST) only — "ignore the 70% limit for today".**
+    Context: the refresh chain had been dead 68 h (a queued run held the concurrency
+    group); the first run back at 70% cleared ~14k of a ~29k-run backlog. The waiver
+    is the per-operation relaxation pref #-standing allows, and it is scoped to the
+    day: drain mode (fresh 1.0 / backfill 0.8, alternating, chained at the quota
+    window) runs until the backlog is gone and then reverts to 70% on its own. Nothing
+    about the standing cap changes tomorrow.
+    Learned the same hour: a push to the branch while a run is between its checkout
+    and its "Commit the export" step makes that step's `git push` non-fast-forward,
+    which fails the run -- and a failed run does not chain. Do not push mid-run while
+    a drain is in flight; batch pushes into the gap after a run's commit step.

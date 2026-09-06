@@ -448,6 +448,20 @@ jobs:
           fi
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -m "Daily data export ($(date -u +%Y-%m-%d))"
+          # The branch may have moved since this run's checkout -- a code push
+          # landing mid-run is routine -- and a plain push is then rejected as
+          # non-fast-forward, which fails the run, and a failed run does not
+          # chain (2026-09-06: that ended a drain, and the watchdog revived it
+          # as a plain 70% run). The export touches only data files that no
+          # code commit edits, so replaying it onto the new tip is safe; if
+          # the rebase somehow conflicts, give up on THIS commit loudly and
+          # let the 20-hour seed rule retry next run rather than fail the run.
+          git fetch --depth=50 origin "${{ github.ref_name }}"
+          if ! git rebase FETCH_HEAD; then
+            git rebase --abort || true
+            echo "::warning::export commit could not be replayed onto the moved branch tip; skipped (the seed rule retries next run)"
+            exit 0
+          fi
           git push origin HEAD:${{ github.ref_name }}
 
       # Self-chain: successful scheduled/chained runs dispatch the next one.
