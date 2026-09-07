@@ -2305,11 +2305,11 @@ def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,
 
 
 # --- the single gear-journal walk (blueprint partitioned_payload.md §7.4) --
-# The four readers above (sets/stats/meta/_trait_journal_pass) each walked the
+# The three readers above (stats/meta/_trait_journal_pass) each walked the
 # whole journal and parsed every line: four O(season) passes at ~140 us per
 # record-pass, which by season week 6 would have pushed the build from ~7 to
 # ~28 minutes and crossed the 50-minute job timeout around week 8. The
-# sets/stats/meta consumers only ever LOOK UP keys of the payload's rows, and
+# stats/meta consumers only ever LOOK UP keys of the payload's rows, and
 # the payload is a MAX_RUNS sample of whole runs -- so for THEM records of
 # unsampled runs are parsed for nothing. gear_journal_pass() walks once,
 # parses each kept line once, feeds those three consumers, and skips a record
@@ -2362,13 +2362,13 @@ def gear_journal_pass(codes=None) -> GearJournalPass:
 
     codes: the report codes the caller will look up (the sampled payload's
     df["report_code"]), as str or bytes; None disables the prefilter and the
-    result equals the four original readers exactly, key for key. With a
+    result equals the three original readers exactly, key for key. With a
     prefilter, records of other runs cost a substring test, not a parse.
 
-    Per record the work is exactly the union of the four readers' work,
+    Per record the work is exactly the union of the three readers' work,
     shared where they overlapped: the JSON parse, the key, the tree blob
     (the meta reader hashed it and the trait reader split it -- once now)
-    and the build identity. The prefilter is exact for sets/stats/meta and
+    and the build identity. The prefilter is exact for stats/meta and
     NOT for the trait material (entry union, modal specID, the selection
     blobs behind a build), which talents_doc needs over the whole journal:
     that is what the persisted TraitUnion is for (§7.4). The sampled trait
@@ -2466,7 +2466,7 @@ def gear_journal_pass(codes=None) -> GearJournalPass:
 # --------------------------------------------------------------------------
 # The trait union: COMPLETE over the whole journal, INCREMENTAL per run
 # --------------------------------------------------------------------------
-# The sample prefilter above is exact for sets/stats/meta -- those consumers
+# The sample prefilter above is exact for stats/meta -- those consumers
 # only look up keys of sampled rows -- but it is NOT invisible to the talent
 # material: talents_doc draws a spec's tree from the union of entries its
 # players EVER allocated and its hero panes from the subtrees ever seen,
@@ -2820,7 +2820,8 @@ def build(name: str, cfg: dict) -> None:
     roles, role_arr = enc("role")
     run_ids = (df["report_code"].astype(str) + ":" + df["fight_id"].astype(str))
     run_arr = pd.factorize(run_ids)[0].tolist()
-    # The gear journal, walked ONCE for everything below (the specstats block, the stats sidecar, specmeta, the builds sidecar and
+    # The gear journal, walked ONCE for everything below (the specstats
+    # block, the stats sidecar, specmeta, the builds sidecar and
     # the talents doc), prefiltered to the runs this payload samples: df is
     # already the sample_runs() output, so its report codes are exactly the
     # keys any consumer can look up (§7.4).

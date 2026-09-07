@@ -181,8 +181,8 @@
     from +16 and present that as a comparison.
 
 18. **The page opens on the Overview alone — standing (2026-09-04).** "start with all
-    sections collapsed except the overview." Top Comps, Set Bonus Gain, Data Table,
-    Pulse and Trajectory all start closed; each is one click away and the choice then
+    sections collapsed except the overview." Top Comps, Data Table, Pulse and Trajectory (and, until its removal on
+    2026-09-07, Set Bonus Gain) all start closed; each is one click away and the choice then
     persists per browser. The storage key is VERSIONED (wowlogs.collapsed.v2): the
     default changed, so a browser holding the old preference had to be migrated once
     or it would keep opening everything forever. An explicit "everything open" choice

@@ -2450,7 +2450,7 @@ function archonTitle(){
   return "Replicates archon.gg's high-keys table: per spec, the top decile of key "
     +"levels over the last 14 days, then p85 DPS within (per-spec elite key floor). "
     +"Keys and weeks are parked at full range because the replica path bypasses them; "
-    +"timed filter off, gear cohorts off, hero talents merged, DPS role, compare off. "
+    +"timed filter off, hero talents merged, DPS role, compare off. "
     +"Validated against their live table at ρ≈0.95. "
     +"Unchecks itself the moment any of those settings moves.";
 }
@@ -3013,7 +3013,7 @@ function decodeStatsSidecar(j){
   }catch(e){ return null }
 }
 // The frame's live row set: the CHART's own row-pass (masks incl. key range,
-// dungeon, region, timed, tier cohort, period A — everything EXCEPT the
+// dungeon, region, timed, period A — everything EXCEPT the
 // min-characters trust gate, which gates the roster, never the sample), sliced
 // to the framed group. In Archon-replica mode it mirrors aggregateElite's
 // dedicated pass instead, reusing the group's published key floor.
@@ -6483,7 +6483,7 @@ function renderArchonCard(){
    +(eliteHidden?'; <b>'+eliteHidden+' spec'+(eliteHidden>1?'s':'')
      +'</b> hidden for having under '+ELITE_MIN+' qualifying parses':'')+'. '
    +'<div class="byp">Bypassed while active: <s>key range</s> · <s>period selection</s> · '
-   +'<s>timed filter</s> · <s>gear cohorts</s> · <s>minimum characters'
+   +'<s>timed filter</s> · <s>minimum characters'
    +(em?' ('+esc(em)+')':'')+'</s> — parked at full range so a mid-range setting '
    +'cannot misleadingly suggest it applies; moving any of them exits the mode.</div>';
 }

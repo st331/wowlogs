@@ -1,7 +1,7 @@
 """test_legacy_single_pass (partitioned_payload.md §9.1, §7.4).
 
 gear_journal_pass() -- one walk over the gear journal, parsing each line
-once and feeding the four consumers, with a byte-level prefilter on the
+once and feeding the three consumers, with a byte-level prefilter on the
 sampled report codes -- must produce the SAME stats/meta dicts as the
 three original readers (stats_from_gear_journal,
 meta_from_gear_journal, _trait_journal_pass), and must parse at most as
@@ -9,7 +9,7 @@ many lines as the sample has records.
 
 Pinned here, on a journal written by the REAL collector (parse_summary):
 
-  * with no prefilter, all four outputs are identical, key for key, value
+  * with no prefilter, all three outputs are identical, key for key, value
     for value, including the trait material for an empty, a partial and a
     full `wanted`, and the modal specID tie-break;
   * with the sample prefilter, stats/meta equal the originals
@@ -92,7 +92,7 @@ BASE_MS = 1_787_000_000_000
 
 
 def gear_for(i: int):
-    """16 slots; set ids vary so tier cohorts are real."""
+    """16 slots; set ids vary, so the rows look like the collector's."""
     g = []
     for s in range(16):
         it = {"id": 5000 + s + (i % 7), "itemLevel": 700 + (i % 30)}
