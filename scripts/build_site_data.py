@@ -344,11 +344,6 @@ def player_scores() -> dict[str, float]:
     return out
 
 
-# Share of a class's equipped set pieces a set must reach to be considered its
-# tier set. Keeps a stray non-tier set that a few players wear from winning on
-# id alone, while staying far below the ~40%+ that a real tier set reaches.
-SEASON_SET_MIN_SHARE = 0.05
-
 def _gear_key(code, fid, character, server) -> tuple:
     """Join key for gear rows, identical from either source.
 
@@ -365,153 +360,6 @@ def _gear_key(code, fid, character, server) -> tuple:
 
 GEAR_JOURNAL = ROOT / "data" / "processed" / "gear.jsonl"
 GEAR_EXPORT = ROOT / "data" / "gear.jsonl.gz"
-
-
-def sets_from_gear_journal() -> dict[tuple, dict[str, int]]:
-    """(report, fight, character, server) -> {set id: pieces}, from raw gear.
-
-    Authoritative, because it counts every set off the equipped items rather
-    than trusting a summary written at collection time. Parses collected before
-    the collector counted more than the dominant set are only correct through
-    this path, which is why it is preferred over the packed column.
-    """
-    src = GEAR_JOURNAL if GEAR_JOURNAL.exists() else GEAR_EXPORT
-    if not src.exists():
-        return {}
-    opener = gzip.open if src.suffix == ".gz" else open
-    out: dict[tuple, dict[str, int]] = {}
-    with opener(src, "rt", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except ValueError:
-                continue                       # tolerate a torn trailing line
-            gear = rec.get("gear")
-            if not isinstance(gear, list):
-                continue                       # talents only: gear unknown
-            counts: dict[str, int] = {}
-            for item in gear:
-                if not isinstance(item, dict):
-                    continue
-                sid = item.get("set")
-                if sid in (None, 0, "0", ""):
-                    continue
-                counts[str(sid)] = counts.get(str(sid), 0) + 1
-            out[_gear_key(rec.get("report_code"), rec.get("fight_id"),
-                          rec.get("character"), rec.get("server"))] = counts
-    return out
-
-
-def unpack_sets(v) -> dict[str, int] | None:
-    """'1729:4|1600:2' -> {'1729': 4, '1600': 2}; '' -> {}; missing -> None."""
-    if v is None or (isinstance(v, float) and pd.isna(v)):
-        return None
-    v = str(v)
-    # "none" = gear visible, no set items (see pack_sets); "" kept for safety
-    if v in ("none", "", "nan"):
-        return {}
-    out: dict[str, int] = {}
-    for part in v.split("|"):
-        sid, _, n = part.partition(":")
-        if sid and n.isdigit():
-            out[sid] = int(n)
-    return out
-
-
-def tier_pieces(df: "pd.DataFrame", name: str, journal=None) -> "pd.Series":
-    """Season tier pieces per parse: -1 unknown, else 0-5.
-
-    journal: the sets dict from gear_journal_pass() (build() passes it so
-    the journal is walked once per build); None walks the journal here.
-
-    The collector records how many items a player wears from their commonest
-    item set, and which set that is. It does not know which set is *this*
-    season's tier -- that would mean hard-coding item-set ids that change every
-    patch. Instead the season's set is read off the data: for each class, the
-    set id worn by the most of that class's parses is the current tier, since
-    that is what the set bonus makes everyone wear.
-
-    Pieces from any other set (an old tier kept for transmog, a crafted set)
-    count as zero rather than being credited to this season's bonus.
-
-    -1 means the report carried no gear at all, which stays distinct from a
-    real zero all the way to the client so the filter can exclude it rather
-    than treat it as "no set".
-    """
-    if journal is None:
-        journal = sets_from_gear_journal()
-    packed = (df["set_counts"] if "set_counts" in df.columns
-              else pd.Series(None, index=df.index, dtype=object))
-    keys = [_gear_key(c, f, ch, sv) for c, f, ch, sv in
-            zip(df["report_code"], df["fight_id"],
-                df["character"], df["server"])]
-
-    # per parse: {set id: pieces}, or None when the report carried no gear
-    per: list[dict | None] = []
-    for k, pv in zip(keys, packed):
-        c = journal.get(k)
-        per.append(c if c is not None else unpack_sets(pv))
-    if not any(c is not None for c in per):
-        print(f"[{name}] no gear captured yet; tier filter unavailable")
-        return pd.Series(-1, index=df.index, dtype=int)
-
-    # This season's tier set per class. Hard-coding item-set ids would mean
-    # editing this every patch, so it is read off the data -- but "the set most
-    # of the class wears" is the wrong rule, and was wrong in production: two
-    # tier sets are in circulation at once, and plenty of players still had
-    # last season's on. Measured on 21,362 parses, that rule picked the OLDER
-    # set for Druid, Monk, Paladin and Priest -- Paladin by 0.7% (5,141 vs
-    # 5,104) -- so four classes counted last season's pieces as this season's.
-    #
-    # Item-set ids are issued in content order, so the current tier is the
-    # highest id, and the two seasons land in tidy blocks (1978-1990 and
-    # 2055-2067). Taking the highest id alone would catch stray non-tier sets
-    # a handful of players wear, so a set has to clear a share of the class's
-    # equipped set pieces before it is eligible.
-    tally: dict[str, dict[str, int]] = {}
-    for cls, c in zip(df["class"], per):
-        if not c:
-            continue
-        for sid, n in c.items():
-            tally.setdefault(cls, {})
-            tally[cls][sid] = tally[cls].get(sid, 0) + n
-
-    def newest(counts: dict[str, int]) -> str:
-        total = sum(counts.values())
-        qual = [s for s, n in counts.items()
-                if n >= SEASON_SET_MIN_SHARE * total and s.isdigit()]
-        if not qual:                       # nothing clears the bar: fall back
-            return max(counts, key=counts.get)
-        return max(qual, key=int)
-
-    seasonal = {cls: newest(v) for cls, v in tally.items() if v}
-
-    # Pieces of THIS season's set specifically. A player wearing last season's
-    # four-piece and nothing current is a true zero, which is the point: the
-    # no-set cohort is "no Season 2 set", verified against visible gear, not
-    # "no set at all" and not "gear unknown".
-    out = []
-    for cls, c in zip(df["class"], per):
-        if c is None:
-            out.append(-1)                       # report carried no gear
-            continue
-        sid = seasonal.get(cls)
-        out.append(min(c.get(sid, 0), 5) if sid else 0)
-    res = pd.Series(out, index=df.index, dtype=int)
-
-    n_known = int((res >= 0).sum())
-    print(f"[{name}] gear on {n_known:,} of {len(df):,} parses "
-          f"({n_known / max(len(df), 1):.1%}); {int((res >= 2).sum()):,} with "
-          f"2-piece, {int((res >= 4).sum()):,} with 4-piece; tier set "
-          f"identified for {len(seasonal)} classes "
-          f"({len(journal):,} parses read from the gear journal)")
-    if seasonal:
-        picked = ", ".join(f"{c}={seasonal[c]}" for c in sorted(seasonal))
-        print(f"[{name}] season tier sets: {picked}")
-    return res
 
 
 # --- per-spec character stats for the spec frame ---------------------------
@@ -614,7 +462,7 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
     formula, not this file.
 
     Returns None when the journal carries no usable stats: the payload key is
-    then absent and the client feature-detects it exactly like tier/rating.
+    then absent and the client feature-detects it exactly like rating.
     """
     if journal is None:
         journal = stats_from_gear_journal()
@@ -1123,7 +971,7 @@ def spec_meta_block(df, started, timed, name: str, journal=None):
     fewer than SPECMETA_ENTRY_MIN characters are dropped, never shown thin.
 
     Returns None when the journal carries no builds or gear at all -- the
-    payload key is then absent, feature-detected like tier/rating.
+    payload key is then absent, feature-detected like rating.
     """
     if journal is None:
         journal = meta_from_gear_journal()
@@ -2485,8 +2333,8 @@ _CODE_RE = re.compile(rb'"report_code"\s*:\s*"([^"\\]*)"')
 class GearJournalPass:
     """What one walk over the gear journal yields.
 
-    sets/stats/meta are the dicts sets_from_gear_journal(),
-    stats_from_gear_journal() and meta_from_gear_journal() return, restricted
+    stats/meta are the dicts stats_from_gear_journal() and
+    meta_from_gear_journal() return, restricted
     to the sampled report codes when a prefilter was given (identical for
     every key a consumer can look up: consumers only read the payload rows'
     keys, and every payload row is a sampled run). traits is the per-spec
@@ -2495,11 +2343,10 @@ class GearJournalPass:
     sees it; on its own it is not what talents_doc needs. The counters are
     for build_health.txt.
     """
-    __slots__ = ("sets", "stats", "meta", "traits", "lines", "parsed",
+    __slots__ = ("stats", "meta", "traits", "lines", "parsed",
                  "prefiltered", "wall_s", "src")
 
     def __init__(self):
-        self.sets: dict[tuple, dict[str, int]] = {}
         self.stats: dict[tuple, dict] = {}
         self.meta: dict[tuple, dict] = {}
         self.traits: dict[str, dict] = {}
@@ -2540,7 +2387,7 @@ def gear_journal_pass(codes=None) -> GearJournalPass:
     # file iteration IS the cost of a skipped record: ~1-2 us at 2.7 KB)
     fh = (gzip.open(src, "rb") if src.suffix == ".gz"
           else open(src, "rb", buffering=8 << 20))
-    sets, stats, meta, traits = out.sets, out.stats, out.meta, out.traits
+    stats, meta, traits = out.stats, out.meta, out.traits
     shapes = {"string": 0, "tree": 0, "neither": 0}
     core = SPECSTATS_CORE
     lines = parsed = skipped = 0
@@ -2563,19 +2410,8 @@ def gear_journal_pass(codes=None) -> GearJournalPass:
             parsed += 1
             key = _gear_key(rec.get("report_code"), rec.get("fight_id"),
                             rec.get("character"), rec.get("server"))
-            # ---- sets_from_gear_journal
             gear = rec.get("gear")
-            if isinstance(gear, list):
-                counts: dict[str, int] = {}
-                for item in gear:
-                    if not isinstance(item, dict):
-                        continue
-                    sid = item.get("set")
-                    if sid in (None, 0, "0", ""):
-                        continue
-                    counts[str(sid)] = counts.get(str(sid), 0) + 1
-                sets[key] = counts
-            else:
+            if not isinstance(gear, list):
                 gear = None                    # talents only: gear unknown
             tal = rec.get("talents")
             tal_ok = isinstance(tal, dict)
@@ -2984,8 +2820,7 @@ def build(name: str, cfg: dict) -> None:
     roles, role_arr = enc("role")
     run_ids = (df["report_code"].astype(str) + ":" + df["fight_id"].astype(str))
     run_arr = pd.factorize(run_ids)[0].tolist()
-    # The gear journal, walked ONCE for everything below (tier cohorts, the
-    # specstats block, the stats sidecar, specmeta, the builds sidecar and
+    # The gear journal, walked ONCE for everything below (the specstats block, the stats sidecar, specmeta, the builds sidecar and
     # the talents doc), prefiltered to the runs this payload samples: df is
     # already the sample_runs() output, so its report codes are exactly the
     # keys any consumer can look up (§7.4).
@@ -3008,7 +2843,6 @@ def build(name: str, cfg: dict) -> None:
     health(f"build.trait_union_records={tu.checkpoint.get('records', 0)}")
     health(f"build.trait_union_s={tu.wall_s:.1f}")
     traits = tu.complete(gj.traits)
-    tier = tier_pieces(df, name, journal=gj.sets)
 
     # character identity (name@server@region), for distinct-player counts
     char_ids = (df["character"].fillna("?").astype(str) + "@"
@@ -3037,7 +2871,7 @@ def build(name: str, cfg: dict) -> None:
     tmul, proj = tuning_multipliers(df, post)
     # per-spec secondary-stat quantiles and best-player meta aggregates for
     # the spec frame; each absent until the gear journal carries its inputs,
-    # feature-detected client-side like tier/rating. Both journals come from
+    # feature-detected client-side like rating. Both journals come from
     # the single pass above and are shared with the sidecars below.
     stats_journal = gj.stats
     specstats = spec_stats_block(df, started, timed, name,
@@ -3076,8 +2910,6 @@ def build(name: str, cfg: dict) -> None:
             "hr": hr.tolist(),
             "run": run_arr,
             "char": char_arr,
-            # season tier pieces: -1 = report carried no gear, else 0-5
-            "tier": tier.tolist(),
             **({"tmul": tmul} if tmul is not None else {}),
         },
         "charscore": charscore,
@@ -3229,7 +3061,7 @@ def inputs_fingerprint() -> str:
     for f in (ROOT / "data" / SEASON["csv"],
               ROOT / "data" / "tuning_patches.json",
               ROOT / "data" / "raw" / "abilities.jsonl",
-              # the gear journal feeds the tier cohorts and the specstats
+              # the gear journal feeds the specstats
               # block; live copy first, committed export as the cold-start
               # fallback, matching the read order in the builders above
               GEAR_JOURNAL, GEAR_EXPORT,

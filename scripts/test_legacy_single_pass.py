@@ -2,8 +2,8 @@
 
 gear_journal_pass() -- one walk over the gear journal, parsing each line
 once and feeding the four consumers, with a byte-level prefilter on the
-sampled report codes -- must produce the SAME sets/stats/meta dicts as the
-four original readers (sets_from_gear_journal, stats_from_gear_journal,
+sampled report codes -- must produce the SAME stats/meta dicts as the
+three original readers (stats_from_gear_journal,
 meta_from_gear_journal, _trait_journal_pass), and must parse at most as
 many lines as the sample has records.
 
@@ -12,10 +12,10 @@ Pinned here, on a journal written by the REAL collector (parse_summary):
   * with no prefilter, all four outputs are identical, key for key, value
     for value, including the trait material for an empty, a partial and a
     full `wanted`, and the modal specID tie-break;
-  * with the sample prefilter, sets/stats/meta equal the originals
+  * with the sample prefilter, stats/meta equal the originals
     restricted to the sampled codes; lines parsed <= sampled records;
     unsampled records are skipped WITHOUT parsing;
-  * every consumer that reads sets/stats/meta -- tier_pieces,
+  * every consumer that reads stats/meta --
     spec_stats_block, stats_sidecar, spec_meta_block, builds_sidecar --
     emits byte-identical output on the sampled payload from either source;
   * the prefilter is NOT exact for the trait material (entry union, modal
@@ -224,13 +224,12 @@ def quiet(fn, *a, **kw):
         return fn(*a, **kw)
 
 
-def consumers(df, sets, stats, meta, traits):
+def consumers(df, stats, meta, traits):
     """Every consumer's output from the given dicts (traits None = the
     original journal walk inside builds_sidecar / talents_doc)."""
     started = pd.to_datetime(pd.to_numeric(df["started_at"]), unit="ms")
     timed = df["medal"].map(bsd.MEDAL_TIMED).fillna(-1).astype(int)
     out = {}
-    out["tier"] = quiet(bsd.tier_pieces, df, "t", journal=sets).tolist()
     out["specstats"] = quiet(bsd.spec_stats_block, df, started, timed, "t", journal=stats)
     out["stats_sidecar"] = quiet(bsd.stats_sidecar, df, stats, "t")
     out["specmeta"] = quiet(bsd.spec_meta_block, df, started, timed, "t", journal=meta)
@@ -263,10 +262,9 @@ for gz in (False, True):
             bsd.GEAR_EXPORT = tp / "absent.jsonl.gz"
 
         # ---- the originals (oracle)
-        L_sets = bsd.sets_from_gear_journal()
         L_stats = bsd.stats_from_gear_journal()
         L_meta = quiet(bsd.meta_from_gear_journal)
-        assert L_sets and L_stats and L_meta
+        assert L_stats and L_meta
         all_builds: dict[str, set] = {}
         for (code, fid, ch, sv), m in L_meta.items():
             if m["build"]:
@@ -280,7 +278,6 @@ for gz in (False, True):
 
         # ---- 1. no prefilter: identical, key for key
         G = quiet(bsd.gear_journal_pass, None)
-        assert G.sets == L_sets, "sets differ without a prefilter"
         assert G.stats == L_stats, "stats differ without a prefilter"
         assert G.meta == L_meta, "meta differs without a prefilter"
         for w in wanteds:
@@ -302,7 +299,6 @@ for gz in (False, True):
         unclassifiable = {"", odd2["report_code"]}
         want = lambda d: {k: v for k, v in d.items()
                           if k[0] in codes or k[0] in unclassifiable}
-        assert S.sets == want(L_sets), "prefiltered sets != originals restricted to the sample"
         assert S.stats == want(L_stats), "prefiltered stats != originals restricted"
         assert S.meta == want(L_meta), "prefiltered meta != originals restricted"
         sampled_records = sum(1 for ln in lines if ln and json.loads(ln).get("report_code") in codes)
@@ -320,17 +316,16 @@ for gz in (False, True):
         # every key any consumer can look up is present and identical
         for _, r in df_s.iterrows():
             k = bsd._gear_key(r["report_code"], r["fight_id"], r["character"], r["server"])
-            assert S.sets.get(k) == L_sets.get(k) and S.stats.get(k) == L_stats.get(k) \
+            assert S.stats.get(k) == L_stats.get(k) \
                 and S.meta.get(k) == L_meta.get(k), k
 
         # ---- 3. every consumer, byte-identical from either source
-        legacy = consumers(df_s, L_sets, L_stats, L_meta, None)
-        single = consumers(df_s, S.sets, S.stats, S.meta, S.traits)
-        for key in ("tier", "specstats", "stats_sidecar", "specmeta", "builds"):
+        legacy = consumers(df_s, L_stats, L_meta, None)
+        single = consumers(df_s, S.stats, S.meta, S.traits)
+        for key in ("specstats", "stats_sidecar", "specmeta", "builds"):
             assert legacy[key] == single[key], f"{key} differs on the sampled payload"
         assert legacy["builds"] is not None and legacy["talents"] is not None
         assert legacy["specstats"] and legacy["specmeta"]
-        assert sum(1 for t in legacy["tier"] if t >= 0) > 0
         # the SAMPLED trait material, on its own: from the whole journal the
         # docs differ (entries allocated only by unsampled players -- which
         # is exactly why build() does not use it as is, see below); from a
@@ -342,8 +337,7 @@ for gz in (False, True):
         bsd.GEAR_JOURNAL, bsd.GEAR_EXPORT = j_s, tp / "absent2.jsonl.gz"
         L_meta_s = quiet(bsd.meta_from_gear_journal)
         assert L_meta_s == S.meta
-        legacy_s = consumers(df_s, bsd.sets_from_gear_journal(), bsd.stats_from_gear_journal(),
-                             L_meta_s, None)
+        legacy_s = consumers(df_s, bsd.stats_from_gear_journal(), L_meta_s, None)
         bsd.GEAR_JOURNAL, bsd.GEAR_EXPORT = keep_j, keep_e
         assert legacy_s["talents"] == single["talents"], \
             "talents doc != the original walk over the sampled records"
@@ -355,21 +349,21 @@ for gz in (False, True):
         bsd.TRAIT_UNION = tp / "union" / "trait_union.json.gz"
         TU = quiet(bsd.trait_union_update, S.src)
         assert TU.mode == "rebuild" and TU.reason == "no_state"
-        whole = consumers(df_s, S.sets, S.stats, S.meta, TU.complete(S.traits))
-        for key in ("talents", "builds", "usage", "tier", "specstats", "stats_sidecar", "specmeta"):
+        whole = consumers(df_s, S.stats, S.meta, TU.complete(S.traits))
+        for key in ("talents", "builds", "usage", "specstats", "stats_sidecar", "specmeta"):
             assert whole[key] == legacy[key], f"{key}: union-completed material != whole-journal walk"
         # ... and the union really is the only thing that can move: with the
         # sample = every run, the doc from the whole journal is identical too
         F = quiet(bsd.gear_journal_pass, set(df_all["report_code"].astype(str)))
-        full = consumers(df_all, F.sets, F.stats, F.meta, F.traits)
-        legacy_full = consumers(df_all, L_sets, L_stats, L_meta, None)
-        for key in ("tier", "specstats", "stats_sidecar", "specmeta", "builds", "talents", "usage"):
+        full = consumers(df_all, F.stats, F.meta, F.traits)
+        legacy_full = consumers(df_all, L_stats, L_meta, None)
+        for key in ("specstats", "stats_sidecar", "specmeta", "builds", "talents", "usage"):
             assert legacy_full[key] == full[key], f"{key} differs with every run sampled"
         # the escaped/null-code lines are not sampled keys, so F still prefiltered nothing real
         assert F.prefiltered == 0
         print(f"{'gz' if gz else 'jsonl'}: {G.lines} lines, {G.parsed} parsed unfiltered; "
               f"sample of {len(codes)}/{N_RUNS} codes -> {S.parsed} parsed, "
-              f"{S.prefiltered} skipped on the byte test; 6 consumers identical")
+              f"{S.prefiltered} skipped on the byte test; 5 consumers identical")
 
 # --- an empty / absent journal behaves as before -----------------------------
 with tempfile.TemporaryDirectory() as tmp:
@@ -377,12 +371,12 @@ with tempfile.TemporaryDirectory() as tmp:
     bsd.GEAR_JOURNAL = tp / "none.jsonl"
     bsd.GEAR_EXPORT = tp / "none.jsonl.gz"
     E = bsd.gear_journal_pass({"abc"})
-    assert E.sets == {} and E.stats == {} and E.meta == {} and E.traits == {} \
+    assert E.stats == {} and E.meta == {} and E.traits == {} \
         and E.lines == 0 and E.parsed == 0
     assert bsd._trait_journal_pass({}, E.traits) == bsd._trait_journal_pass({}) == {}
     (tp / "none.jsonl").write_text("")
     E = bsd.gear_journal_pass(None)
-    assert E.sets == bsd.sets_from_gear_journal() == {} and E.lines == 0
+    assert E.stats == {} and E.meta == {} and E.lines == 0
 print("absence : missing / empty journal -> empty dicts, zero counters, as before")
 
 # --- a line torn INSIDE a multibyte character -------------------------------
@@ -410,7 +404,7 @@ with tempfile.TemporaryDirectory() as tmp:
     for codes in (None, {whole["report_code"]}):
         T = bsd.gear_journal_pass(codes)
         assert T.lines == 2 and T.parsed == 1, (codes, T.lines, T.parsed)
-        assert list(T.sets) == [key], (list(T.sets), key)
+        assert list(T.meta) == [key], (list(T.meta), key)
 print("torn    : trailing line cut inside a 2-byte UTF-8 char -> skipped, 1 of 2 parsed, no raise")
 
 print("PASS")

@@ -237,3 +237,17 @@
     and its "Commit the export" step makes that step's `git push` non-fast-forward,
     which fails the run -- and a failed run does not chain. Do not push mid-run while
     a drain is in flight; batch pushes into the gap after a run's commit step.
+
+22. **The 4-piece feature is gone — standing (2026-09-07).** "get rid of the 4 pc feature
+    and all related code." Removed in one commit: the Set Bonus Gain section, the
+    Set-bonus-cohorts Lab card (t0/t2/t4 + tier hint), tierPass/setBucket and the
+    anyTier escape in rowPass, the tier fields in the Archon snapshot/presets/predicate,
+    every scope-line/period-note/pulse-note/strip-chip tier fragment, the Spec Frame's
+    4pc standing row, hasTier, and on the pipeline side tier_pieces, unpack_sets,
+    sets_from_gear_journal, SEASON_SET_MIN_SHARE, the journal pass's per-parse set
+    counts and the payload's `rows.tier` column. Kept deliberately: fetch_data.py's
+    gear_sets/pack_sets and the CSV's `set_counts` column, because project_tuning.py's
+    set-bonus scalars (the tuning-projection feature) read set counts, and they are raw
+    capture rather than the feature. An old client tab still reads a payload without
+    `rows.tier` cleanly (hasTier was feature-detected); the new client ignores a payload
+    that still has it. Do not reintroduce a tier filter outside the LAB manifest.

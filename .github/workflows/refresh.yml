@@ -436,8 +436,8 @@ jobs:
           # slot after the weekly reset. Losing it would cost the per-item
           # detail -- trinkets, gems, enchants, talents -- permanently, since
           # summaries cannot be refetched once a run leaves the leaderboard;
-          # the site itself would be unaffected, because the set counts the
-          # tier filters need travel in mythic_runs.csv.gz.
+          # the site's rankings would be unaffected, because they need
+          # only mythic_runs.csv.gz.
           if { [ "$(date -u +%u)" = "1" ] || [ -n "$FORCE" ]; } && [ -f data/gear.jsonl.gz ]; then
             if too_big data/gear.jsonl.gz; then
               echo "::warning::gear.jsonl.gz is $(du -h data/gear.jsonl.gz | cut -f1), over GitHub's 100 MB file limit; NOT committed (it has never fit -- Release assets are its home)"

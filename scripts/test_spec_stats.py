@@ -243,7 +243,7 @@ n_disc = len(frame[frame["spec"] == "Discipline"])
 assert n_disc == 4, n_disc                   # one row per stat, no variants
 print(f"llms csv  : {len(frame)} long-format rows, columns pinned")
 
-# --- absence cases: the block must vanish, exactly like hasTier/hasRating
+# --- absence cases: the block must vanish, exactly like hasRating
 assert run_block(rows, []) is None           # journal empty
 gearless = [dict(rc, talents=None) for rc in recs]
 assert run_block(rows, gearless) is None     # journal has no stats anywhere
