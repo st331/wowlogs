@@ -451,3 +451,7 @@
     wearer rows; EU 99.5, CN 99.6, KR 99.5, US 98.1), last reset 3.8 % (excluded by design),
     older 0. Fresh runs were paused 16:50-18:56 IST; the newest row moved 16:30 -> 18:30 IST
     in run 856 and the feed is current again.
+    Queue empty in run 858 (19:39 IST): +212, 0 failed, no stop reason -- this reset 99.5 %
+    (18,082 of 18,177; every region >= 99.3 %, 1 Sep 100 %). The ~95 rows without a record
+    match the ~125 fights WCL refused during the drain (failed permanently: report gone or
+    private); they are not retried.
