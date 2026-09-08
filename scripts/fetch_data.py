@@ -410,6 +410,43 @@ def load_fights(regions: set[str] | None) -> dict:
     return fights
 
 
+LEDGER_FILE = PROCESSED / "discovered.jsonl"
+
+
+def merge_ledger(fights: dict, regions: set[str] | None = None) -> dict:
+    """Union of the append-only discovery ledger and the current snapshot.
+
+    2026-09-08 (fleet finding F2): the sweep's pending set was 'current
+    snapshot minus done', and --resweep (every run) rebuilds the snapshot from
+    scratch. A run listed while collection was paused or broken, and scrolled
+    off its 20-page window by the time collection resumed, was gone for good
+    -- two outages lost ~22-25k runs that way. Every newly listed run is now
+    appended here once (with first_seen) and stays pending until it is
+    fetched or permanently failed, whatever the boards list today. The
+    snapshot's copy wins on shared keys (fresher score/medal/region).
+    """
+    known: dict = {}
+    for rec in _iter_journal(LEDGER_FILE):
+        k = f"{rec.get('code')}:{rec.get('fid')}"
+        known[k] = rec
+    new = [f for k, f in fights.items() if k not in known]
+    if new:
+        LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        stamp = int(time.time())
+        with LEDGER_FILE.open("a") as out:
+            for f in new:
+                out.write(json.dumps({**f, "first_seen": stamp}) + "\n")
+    out: dict = {}
+    for k, rec in known.items():
+        if regions and rec.get("region") and rec["region"] not in regions:
+            continue
+        out[k] = {kk: v for kk, v in rec.items() if kk != "first_seen"}
+    out.update(fights)
+    merge_ledger.added = len(new)
+    merge_ledger.ledger_only = sum(1 for k in out if k not in fights)
+    return out
+
+
 def load_done() -> set[str]:
     done = set()
     if SUMMARIES_DONE.exists():
@@ -669,6 +706,12 @@ def parse_summary(fight: dict, table: dict,
                 "report_code": fight["code"],
                 "fight_id": fight["fid"],
                 "started_at": fight["start_time"],
+                # the keystone clock as the leaderboard entry carried it, kept
+                # on the row itself (2026-09-08, fleet BR-1/F1-export: 21% of
+                # fights had lost it because the map was only rebuilt from a
+                # journal that --resweep wipes and a file committed once a day)
+                "keystone_s": (round(fight["rank_duration_ms"] / 1000, 1)
+                               if fight.get("rank_duration_ms") else None),
             })
     if not rows:
         raise ValueError("no players parsed")
@@ -759,7 +802,7 @@ def order_pending(pending: list[dict]) -> list[dict]:
 
 def backlog_size(regions: set[str] | None) -> int:
     """Discovered, deduped runs still waiting for a summary."""
-    fights = load_fights(regions)
+    fights = merge_ledger(load_fights(regions), regions)
     done = load_done()
     load_done.cache = done
     return sum(1 for k in dedupe_fights(fights) if k not in done)
@@ -883,7 +926,12 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     on the site every cycle no matter how deep the backlog is. Owner's
     priority: "minimize the time to seeing fresh runs -- now and over the day."
     """
-    fights = load_fights(regions)
+    fights = merge_ledger(load_fights(regions), regions)
+    print(f"[ledger] {merge_ledger.added:,} newly listed runs appended; "
+          f"{merge_ledger.ledger_only:,} runs no board lists any more stay pending "
+          f"until fetched", flush=True)
+    write_outputs(**{"sweep.ledger_new": merge_ledger.added,
+                     "sweep.ledger_only": merge_ledger.ledger_only})
     if release is not None:
         n_rel = release_failed(SUMMARIES_DONE, release)
         if n_rel:
@@ -1243,17 +1291,34 @@ def export() -> None:
     # combat duration already stored, and is what "% under timer" needs. WCL's
     # zone report list only goes back so far, so keep a persistent map that
     # accumulates across sweeps instead of losing older runs on every resweep.
-    ks_file = ROOT / "data" / "keystone_times.json"
-    ks = json.loads(ks_file.read_text()) if ks_file.exists() else {}
+    ks_file = ROOT / "data" / "keystone_times.json"          # committed daily
+    ks_cache = PROCESSED / "keystone_times.json"              # rides the journal cache every run
+    ks = {}
+    for src in (ks_file, ks_cache):
+        if src.exists():
+            try:
+                ks.update(json.loads(src.read_text()))
+            except ValueError:
+                print(f"[export] {src.name} unreadable; ignored", flush=True)
     for (c, f), fight in jmap.items():
         ms = fight.get("rank_duration_ms")
         if ms:
             ks[f"{c}:{f}"] = round(ms / 1000, 1)
-    tmp = ks_file.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(ks, separators=(",", ":")))
-    os.replace(tmp, ks_file)
+    # rows fetched since 2026-09-08 carry the clock themselves (parse_summary)
+    if "keystone_s" in df.columns:
+        own = pd.to_numeric(df["keystone_s"], errors="coerce")
+        for c, f, v in zip(df["report_code"][own.notna()], df["fight_id"][own.notna()], own[own.notna()]):
+            ks.setdefault(f"{c}:{f}", round(float(v), 1))
+    for dst in (ks_file, ks_cache):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(ks, separators=(",", ":")))
+        os.replace(tmp, dst)
     df["keystone_s"] = [ks.get(f"{c}:{f}", "")
                         for c, f in zip(df["report_code"], df["fight_id"])]
+    no_clock = int(sum(1 for v in df["keystone_s"] if v == ""))
+    write_outputs(**{"export.rows_no_clock": no_clock,
+                     "export.runs_no_clock": int(df.loc[df["keystone_s"] == "", ["report_code", "fight_id"]].drop_duplicates().shape[0])})
 
     # Several members of a group often upload the same fight, so one real run
     # appears under multiple report codes and gets counted repeatedly. Identify

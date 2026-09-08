@@ -358,6 +358,21 @@ jobs:
       # and mirror to the committed data/*.json via the daily commit below —
       # the gear-journal pattern. The cache PATH LIST above must not change.
       # --limit bounds any one run's fetching; the seed spreads across runs.
+      # Keystone clock backfill (2026-09-08, fleet BR-1): 21% of fights had no
+      # keystone clock, so Top Comps / Pulse / the Spec Frame mini table silently
+      # skipped them. New rows carry the clock from fetch; this tops up the
+      # older ones at ~1 point per report, newest first, under the STANDING
+      # 85% ceiling (the client stops at the ceiling), skipped inside a drain.
+      - name: Keystone clock backfill
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == '' && steps.drain.outputs.procs_drain != 'true'
+        env:
+          WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
+          WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
+          WCL_MAX_SLEEP_S: "30"
+        run: |
+          python -u scripts/backfill_keystone.py --max-reports 800 \
+            || echo "::warning::keystone clock backfill failed; building with what the map holds"
+
       - name: Resolve names
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         run: |

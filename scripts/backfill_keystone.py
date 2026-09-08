@@ -8,6 +8,7 @@ though, so fetch the fight lists directly and top up the persistent map that
 fetch_data's export reads.
 """
 import json
+import os
 import pathlib
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -25,15 +26,32 @@ def main():
     csv = ROOT / "data" / "mythic_runs.csv.gz"
     if not csv.exists():
         csv = csv.with_suffix("")
-    ks_file = ROOT / "data" / "keystone_times.json"
-    ks = json.loads(ks_file.read_text()) if ks_file.exists() else {}
+    ks_file = ROOT / "data" / "keystone_times.json"          # committed daily
+    ks_cache = ROOT / "data" / "processed" / "keystone_times.json"   # journal cache
+    ks = {}
+    for src in (ks_file, ks_cache):
+        if src.exists():
+            try:
+                ks.update(json.loads(src.read_text()))
+            except ValueError:
+                pass
+    # 2026-09-08: a standing low-budget step (refresh.yml) rather than a one-off:
+    # --max-reports caps one run's spend (~1 point per report); newest first so
+    # the current reset is whole before older weeks are topped up
+    max_reports = int(os.environ.get("KS_MAX_REPORTS", "0") or 0)
+    if "--max-reports" in sys.argv:
+        max_reports = int(sys.argv[sys.argv.index("--max-reports") + 1])
 
-    df = pd.read_csv(csv).drop_duplicates(["report_code", "fight_id"])
+    df = pd.read_csv(csv, usecols=["report_code", "fight_id", "started_at"]).drop_duplicates(["report_code", "fight_id"])
     missing = [(c, int(f)) for c, f in zip(df.report_code, df.fight_id)
                if f"{c}:{f}" not in ks]
-    codes = sorted({c for c, _ in missing})
+    newest = df.groupby("report_code")["started_at"].max()
+    codes = sorted({c for c, _ in missing}, key=lambda c: -float(newest.get(c, 0) or 0))
+    total_codes = len(codes)
+    if max_reports and len(codes) > max_reports:
+        codes = codes[:max_reports]
     print(f"{len(ks):,} known, {len(missing):,} runs missing across "
-          f"{len(codes):,} reports", flush=True)
+          f"{total_codes:,} reports; this run takes {len(codes):,}", flush=True)
     if not codes:
         return
 
@@ -67,11 +85,20 @@ def main():
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(fetch, chunks))
 
-    tmp = ks_file.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(ks, separators=(",", ":")))
-    tmp.replace(ks_file)
+    for dst in (ks_file, ks_cache):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(ks, separators=(",", ":")))
+        tmp.replace(dst)
     still = sum(1 for c, f in missing if f"{c}:{f}" not in ks)
     print(f"done: {len(ks):,} keystone times stored, {still:,} still missing")
+    # the build folds fetch_health into build_health; Fetch rewrote the file
+    # earlier in this run, so appending here is safe
+    try:
+        with (ROOT / "data" / "processed" / "fetch_health.txt").open("a") as fh:
+            fh.write(f"keystone.backfilled={len(missing) - still}\nkeystone.still_missing={still}\n")
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":
