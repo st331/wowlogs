@@ -1267,10 +1267,10 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
 .gtile .gfoot.beam b{color:var(--ink); font-weight:650}
 .gtile .gfoot.beam i,.gbeam i{font-style:normal; color:var(--ink3); margin-left:.35rem}
 .gbeam{font-size:.7rem; color:var(--ink3)} .gbeam b{color:var(--ink); font-weight:650}
-#light-sec .sec .labctl{margin-left:auto; align-self:center; font-size:.8rem; flex:0 0 auto}
-#light-sec .sec .labctl .hint{margin:0 0 0 .55rem}
-#light-sec .sec .t{white-space:nowrap}
-#light-sec .sec .s{min-width:0; flex:1 1 auto}
+.labpanel{border:1px dashed var(--line2); border-radius:var(--r2); padding:.8rem 1rem .7rem; margin:1rem 0 0}
+.labpanel .lphead{display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap}
+.labpanel .lpname{font-size:.86rem; font-weight:600; color:var(--ink)}
+.labpanel .lpsub{color:var(--ink3); font-size:.74rem; line-height:1.5; margin:.2rem 0 .5rem}
 .tblwrap.light{max-width:720px; margin-top:.2rem}
 table.beamtbl{width:100%; border-collapse:collapse; font-size:.8rem; margin-top:0}
 table.beamtbl th,table.beamtbl td{padding:.28rem .6rem; text-align:right; white-space:nowrap}
@@ -1432,13 +1432,14 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <div class="kpi-note" id="period-note"></div>
     <div id="archon-card" hidden></div>
 
-    <!-- ⚗ Lab: Lightspire Core · in the light. The FIRST section, in view on load
-         without scrolling; the whole wrapper stays hidden until procs.json.gz
-         decodes, so a gated-off feature renders nothing. The toggle lives in the
-         header (mounted by the LAB manifest), the per-spec table in the body. -->
-    <div id="light-sec" hidden>
-    <div class="sec" data-sec="light"><span class="mk"></span><span class="t">✨ Lightspire Core · in the light</span><span class="s" id="light-sub"></span><span id="light-ctl"></span></div>
-    <div class="secbody" id="sec-light"><div id="beamtbl"></div></div>
+    <!-- ⚗ Lab: Lightspire Core · in the light -- the display. A card in the main
+         column like #archon-card, under the KPIs and above the Overview: shown only
+         while the Lab toggle is on, gone otherwise. The toggle is the ⚗ Lab card in
+         the sidebar. Not a section: no header, no fold. -->
+    <div id="light-card" class="labpanel" hidden>
+      <div class="lphead"><span class="lpname">✨ Lightspire Core · in the light</span><span class="labstamp">⚗ LAB</span></div>
+      <div class="lpsub" id="light-sub"></div>
+      <div id="beamtbl"></div>
     </div>
 
     <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its Spec Frame — comps and stats in one place</span></div>
@@ -1730,7 +1731,7 @@ function initData(d,cfg){
   state.beam=false;
   try{ state.beam=localStorage.getItem(BEAM_LS)==="1" }catch(e){}
   hasBeam=false; BEAMC=null;
-  if($("light-sec")) $("light-sec").hidden=true;
+  if($("light-card")) $("light-card").hidden=true;
   loadProcsSidecar();   // tiny; its ⚗ control mounts itself when it lands (labMountLate)
   // ⚗ Lab manifest: render the entries whose gate() is true — a gated-off
   // feature renders NOTHING anywhere (feedback #3) — then wire what exists.
@@ -1848,10 +1849,7 @@ window.addEventListener("resize",()=>{
 // preference would otherwise keep opening every section forever, and the
 // owner's own browser is the one that has it.
 const SEC_KEY="wowlogs.collapsed.v2";
-// "light" too (2026-09-08): the ⚗ Lightspire section is one header line while
-// its toggle is off and the owner wants it in view, not folded ("completely
-// scrolled off screen" was the complaint about the sidebar card it replaced)
-const SEC_OPEN_FIRST=new Set(["overview","light"]);
+const SEC_OPEN_FIRST=new Set(["overview"]);
 function defaultCollapsed(){
   const s=new Set();
   document.querySelectorAll(".sec[data-sec]").forEach(h=>{
@@ -2529,11 +2527,11 @@ const LAB_FEATURES=[
      trinket tile (+ its fold-out row) and the cross-spec table in this card,
      both on the lens slice every screen section reads. */
   {id:"beam", name:"✨ Lightspire Core · in the light", badge:"LIGHT",
-   mount:"light-ctl", card:false, stamp:false,   // header of the #light-sec section, not the sidebar
+   mount:"labbox", card:true, stamp:false,   // the ⚗ Lab card, where every Lab toggle lives
    gate:()=>hasBeam,
    active:()=>hasBeam&&state.beam,
-   controlHTML:'<label class="small labctl" id="beambox">'
-     +'<input type="checkbox" id="beamcb"> Show'
+   controlHTML:'<label class="small" id="beambox">'
+     +'<input type="checkbox" id="beamcb"> Show time in the light'
      +'<span class="hint" id="beamhint"></span></label>',
    scopeBits:()=>state.beam
      ?"share of each Lightspire beam's 12 s its wearer spent standing in it — the "
@@ -2576,15 +2574,16 @@ function labMountLate(id){
   wireLabControls(); labScopeRefresh();
 }
 function wireLabControls(){
+  const setBeam=v=>{
+    state.beam=!!v;
+    try{ if(state.beam) localStorage.setItem(BEAM_LS,"1");
+         else localStorage.removeItem(BEAM_LS) }catch(e2){}
+    const el=$("beamcb"); if(el) el.checked=state.beam;
+    labScopeRefresh(); renderBeamTable(); renderFrame();
+    if(state.screen) renderScreen();
+  };
   const bc=$("beamcb");
-  if(bc){ bc.checked=state.beam;
-    bc.onchange=e=>{ state.beam=e.target.checked;
-      try{ if(state.beam) localStorage.setItem(BEAM_LS,"1");
-           else localStorage.removeItem(BEAM_LS) }catch(e2){}
-      labScopeRefresh(); renderBeamTable(); renderFrame();
-      if(state.screen) renderScreen(); }; }
-  const bb=$("beambox");
-  if(bb){ bb.onclick=e=>e.stopPropagation(); bb.onkeydown=e=>e.stopPropagation(); }
+  if(bc){ bc.checked=state.beam; bc.onchange=e=>setBeam(e.target.checked); }
   const bh=$("beamhint");
   if(bh&&BEAMC&&BEAMC.cov)
     bh.textContent="("+fmtInt(BEAMC.cov.measured)+" of "+fmtInt(BEAMC.cov.wearers)
@@ -3219,7 +3218,7 @@ function frameIdentityHTML(ctx){
       let v=beamInline(s);
       if(skill){
         const sB=beamStats(lensWindow(L.idx,state.pctlB).inWin);
-        const f=x=>x.n>=BEAM_MIN_N?'<b>'+beamPct(x.p50)+'</b>':'<span class="na">thin</span>';
+        const f=x=>'<b>'+beamPct(x.p50)+'</b>';
         v='in the light '+f(s)+' · '+f(sB)+' of beam time';
       }
       rows+=row('<span title="'+escA(beamTitle(s))+'">'+esc(BEAMC.name)+'</span>',
@@ -3636,7 +3635,8 @@ let __csCopy=[];                  // import strings behind the rendered copy but
    feature-detected; anything unexpected ⇒ null ⇒ the feature does not exist. */
 const BEAM_KEY="lscore";
 const BEAM_LS="wowlogs.lab.beam";     // localStorage: "1" = the toggle was left on
-const BEAM_MIN_N=10;                 // CS_THIN echo: below it "thin", never a number
+// no minimum-n floor (owner, 2026-09-08: "I don't want data hidden from me, even
+// if it is not statsig") -- every surface prints its percent with its n beside it
 function loadProcsSidecar(){
   (async()=>{
     if(typeof DecompressionStream!=="function") return;
@@ -3648,8 +3648,7 @@ function loadProcsSidecar(){
     if(!dec) return;
     BEAMC=dec; hasBeam=true;
     labMountLate("beam");
-    const ls=$("light-sec"); if(ls) ls.hidden=false;
-    renderBeamTable();                     // fills the header line in both states
+    renderBeamTable();                     // shows the card if the toggle was left on
     // a remembered ON toggle: the other surfaces render the moment the data
     // lands (renderFrame re-slices the whole screen itself when one is open)
     if(state.beam) renderFrame();
@@ -3718,25 +3717,18 @@ function beamTitle(s){
 // mistaken for the classic measure: "in the light 38% of beam time · n=143 of 312"
 function beamInline(s,wearers){
   const n='n='+fmtInt(s.n)+(wearers?' of '+fmtInt(wearers):'');
-  return s.n>=BEAM_MIN_N
-    ? 'in the light <b>'+beamPct(s.p50)+'</b> of beam time <i>'+n+'</i>'
-    : 'in the light <span class="na">thin · '+n+'</span>';
+  return 'in the light <b>'+beamPct(s.p50)+'</b> of beam time <i>'+n+'</i>';
 }
 /* the ⚗ card's cross-spec table: every spec with beam data, on the SAME slice
    the Spec Frame and the Character screen read — the usual knobs plus the
    lens window, per spec (lensSliceFor). Sorted, like every table. */
 function renderBeamTable(){
-  const host=$("beamtbl"), sub=$("light-sub"); if(!host) return;
-  if(!hasBeam||!D){ host.innerHTML=""; if(sub) sub.textContent=""; return; }
+  const host=$("beamtbl"), sub=$("light-sub"), card=$("light-card"); if(!host||!card) return;
+  if(!hasBeam||!D||!state.beam){ card.hidden=true; host.innerHTML=""; if(sub) sub.textContent=""; return; }
+  card.hidden=false;
   const T=BEAMC, covTxt=T.cov?" · "+fmtInt(T.cov.measured)+" of "+fmtInt(T.cov.wearers)
     +" wearer-parses measured so far":"";
-  if(!state.beam){
-    if(sub) sub.textContent="⚗ Lab · off — turn on to see, per spec, the share of each "
-      +T.name+" beam's "+T.window+" s its wearers spend standing in it"+covTxt;
-    host.innerHTML="";
-    return;
-  }
-  if(sub) sub.textContent="⚗ Lab · per spec, the share of each "+T.name+" beam's "
+  if(sub) sub.textContent="per spec, the share of each "+T.name+" beam's "
     +T.window+" s its wearers spent standing in it ("+T.buff+" active) · "
     +frameScope()+" · follows every filter and the lens"+covTxt;
   const keys=new Set();
@@ -3750,7 +3742,7 @@ function renderBeamTable(){
     const hero=state.merge?"":(D.heroes[k%200]||"");
     rows.push({k, cls, spec, hero:(hero&&hero!=="Unknown")?hero:"", s:st});
   }
-  const shown=rows.filter(r=>r.s.n>=BEAM_MIN_N), thin=rows.length-shown.length;
+  const shown=rows;                              // every spec with a measured parse
   const cols=[["spec","Spec","txt"],
     ["p50","In the light","","median of the per-parse share of beam time spent in the light, lens window"],
     ["iqr","p25 – p75","","the middle half of those parses"],
@@ -3761,8 +3753,7 @@ function renderBeamTable(){
     :c==="pool"?r.s.pooled:c==="n"?r.s.n:null;
   let h="";
   if(!shown.length){
-    h='<div class="hint">no spec has '+BEAM_MIN_N+'+ wearer-parses with beam data in '
-      +'the current filters'+(rows.length?' ('+rows.length+' below the floor)':'')+'</div>';
+    h='<div class="hint">no wearer-parse with beam data in the current filters</div>';
   }else{
     h='<div class="tblwrap light"><table class="beamtbl" data-sid="beam:tbl">'+sortHead(cols,st)+'<tbody>';
     for(const r of sortRows(shown,st,val))
@@ -3773,8 +3764,6 @@ function renderBeamTable(){
         +'<td><i>'+beamPct(r.s.p25)+' – '+beamPct(r.s.p75)+'</i></td>'
         +'<td>'+beamPct(r.s.pooled)+'</td><td>'+fmtInt(r.s.n)+'</td></tr>';
     h+='</tbody></table></div>';
-    if(thin) h+='<div class="hint">'+thin+' more spec'+(thin===1?"":"s")
-      +' below the n='+BEAM_MIN_N+' floor</div>';
   }
   h+='<div class="hint">In the light = of the seconds a '+esc(T.name)+' beam was available '
     +'to a wearer (12 s from each of their own beams, overlaps counted once), the share they '
