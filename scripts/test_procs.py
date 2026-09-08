@@ -358,6 +358,11 @@ assert '["lens","p"+state.pctl+" lens"' in tbl, "lens column"
 assert html.count("beamStatsWin(") >= 5 and "function beamStatsWin(win,all)" in html, "frame + character surfaces fall back to every parse"
 assert "Sampled payload:" in html and '"sample": dict(SAMPLE_INFO)' in (ROOT / "scripts" / "build_site_data.py").read_text(), "never a silent sample"
 assert 'id="coverage-note"' in html and "function renderCoverageNote" in html and "renderCoverageNote();" in html, "coverage note"
+# 2026-09-08 fleet S1-S5: what a sidecar rung withheld is printed, never silent
+assert 'id="frame-dead"' in html and "function windowNote(win,idx)" in html and "enchants not published" in html, "sidecar notices"
+assert "ratings rounded to steps of" in html and "not published in this build (size ladder)" in html, "stats scale / withheld labels"
+_b = (ROOT / "scripts" / "build_site_data.py").read_text()
+assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)' in _b and "def _window_cuts" in _b, "sidecar headers carry caps/window/stats_all"
 assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'write_outputs(**{"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build -> page"
 print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner; coverage note")
 

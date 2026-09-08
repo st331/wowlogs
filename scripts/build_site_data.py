@@ -592,8 +592,13 @@ SIDECAR_CORE = 7               # first 7 of SIDECAR_STATS; the tertiaries
 # 2026-09-06 21:43 IST: 4.97 MB after the catch-up, 30 KB under the target;
 # the next rung is lossless but its DEGRADED line would be noise while the
 # 3-reset window still excludes nothing. Room to stay whole-season a while.
-SIDECAR_GZ_TARGET = 5_500_000  # step down the ladder above this
-SIDECAR_GZ_CAP = 6_500_000     # never ship over this (builds.json.gz is 7.5)
+# 2026-09-08 (owner: every run published, nothing hidden): with 1.6x rows the
+# old 5.5/6.5 MB pair stepped the ladder to '7 stats /16, 3-reset window';
+# 10 stats whole season measured 10.91 MB gz that day. The document is lazy
+# (first frame open) and a degraded rung is now LABELLED on the page, but the
+# labelled default must be the complete one.
+SIDECAR_GZ_TARGET = 12_000_000  # step down the ladder above this
+SIDECAR_GZ_CAP = 14_000_000    # never ship over this (builds.json.gz is 13.0)
 # Rows older than this many weekly resets are dropped from the SPARSE
 # encoding's coverage, mirroring BUILDS_WINDOW_RESETS. It is a ladder rung,
 # not a default: the full document keeps the whole season, and the window is
@@ -602,7 +607,7 @@ SIDECAR_WINDOW_RESETS = 3
 
 
 def _sidecar_json(names, enc, n, vals, idx=None, scale=1,
-                  layout="row", idxdelta=False) -> str:
+                  layout="row", idxdelta=False, extra=None) -> str:
     """The sidecar document, exactly as published.
 
     data decodes to a little-endian Uint16Array of STORED values; a stored
@@ -632,7 +637,29 @@ def _sidecar_json(names, enc, n, vals, idx=None, scale=1,
             out = np.diff(np.concatenate([[0], out]))
             obj["idxdelta"] = True
         obj["idx"] = base64.b64encode(out.astype("<u4").tobytes()).decode()
+    if extra:
+        obj.update(extra)       # window / stats_all: what the page prints
     return json.dumps(obj, separators=(",", ":"))
+
+
+def _window_cuts(df, resets: int) -> dict | None:
+    """{region: ISO instant} a `resets`-reset window starts at, or None.
+
+    The same anchor rule as _sidecar_window (newest plausible row, never the
+    wall clock). Shipped in the sidecar headers so the page can print
+    'covers parses since 25 Aug (US) / 26 Aug (EU)' instead of letting the
+    window drop a week of a region silently (fleet finding S3, 2026-09-08).
+    """
+    if not resets:
+        return None
+    st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
+                        unit="ms", errors="coerce").dt.tz_localize("UTC")
+    now = pd.Timestamp.now("UTC")
+    plaus = st[st <= now]
+    anchor = min(plaus.max(), now) if len(plaus) else now
+    inst = reset_instants(anchor, sorted(df["region"].astype(str).unique()))
+    back = pd.Timedelta(days=7 * (resets - 1))
+    return {r: (t - back).strftime("%Y-%m-%dT%H:%M:%SZ") for r, t in inst.items()}
 
 
 def _sidecar_window(df, resets: int):
@@ -726,13 +753,15 @@ def stats_sidecar(df, journal, name: str, enc: str | None = None,
             q = (vals + scale // 2) // scale
             vals = np.where((q == 0) & (vals > 0), 1, q)
         vals = vals.astype("<u2")
+        hdr = {"window": {"resets": resets, "cut": _window_cuts(df, resets)},
+               "stats_all": list(SIDECAR_STATS)}
         sparse = _sidecar_json(names, "sparse", n, vals.T, idx,
-                               scale=scale, layout="col", idxdelta=True)
+                               scale=scale, layout="col", idxdelta=True, extra=hdr)
         if enc == "sparse":
             return sparse
         dense_m = np.zeros((n, cols), dtype="<u2")
         dense_m[idx] = vals
-        dense = _sidecar_json(names, "dense", n, dense_m, scale=scale)
+        dense = _sidecar_json(names, "dense", n, dense_m, scale=scale, extra=hdr)
         if enc == "dense":
             return dense
         gz_d = len(gzip.compress(dense.encode(), 6))
@@ -1148,8 +1177,13 @@ BUILDS_IUP_MIN_WEARERS = 20
 # went blank -- the third time. Target raised to sit under the unchanged
 # 7.5 cap; BUILDS_WINDOW_RESETS starts excluding rows on 2026-09-08 and is
 # the lever that actually bounds this.
-BUILDS_GZ_TARGET = 7_000_000
-BUILDS_GZ_CAP = 7_500_000
+# 2026-09-08: at 1.6x rows the full rung (caps 24/40, builds 40, en=y)
+# measured 10.26 MB and the LOWEST rung 7.57 MB -- over the old 7.5 MB cap,
+# so no builds sidecar shipped at all and the Character screen went dark
+# (fleet finding S2). Sized so the full rung ships; the window (3 resets)
+# bounds the document, so it grows with weekly volume, not with the season.
+BUILDS_GZ_TARGET = 11_500_000
+BUILDS_GZ_CAP = 13_000_000
 # Rows older than this many weekly resets are not covered by the sidecar. The
 # character screen answers "what are people wearing NOW"; a parse from three
 # resets ago is not that, and covering the whole season is what pushes the
@@ -1640,6 +1674,9 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         # a row with no start time, or a region with no rule, stays covered:
         # never drop data because a field is missing
         win = (_st >= _cut).fillna(True).to_numpy()
+        win_cuts = {r: (t - _back).strftime("%Y-%m-%dT%H:%M:%SZ") for r, t in _inst.items()}
+    else:
+        win_cuts = None
     rows_c = []
     gear_known = 0
     ench_hits: Counter = Counter()
@@ -1943,7 +1980,12 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                 return base64.b64encode(a.tobytes()).decode()
             obj: dict = {"v": 1, "n": n, "enc": enc,
                          "slots": list(BUILDS_SLOTS),
-                         "eslots": list(the_eslots)}
+                         "eslots": list(the_eslots),
+                         # what this rung withheld, for the page to print
+                         # (fleet findings S1/S3/S5, 2026-09-08)
+                         "caps": {"items": item_cap, "big": item_cap_big,
+                                  "builds": build_cap, "en": bool(with_en)},
+                         "window": {"resets": BUILDS_WINDOW_RESETS, "cut": win_cuts}}
             if enc == "sparse":
                 obj["idx"] = b64(idx_a)
             cols: dict = {"fl": b64(fl_c), "it": [b64(a) for a in it_c]}
