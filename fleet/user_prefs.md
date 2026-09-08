@@ -479,3 +479,43 @@
     a size cap is a UI-visible fact, never a silent thinning; the partitioned payload
     (fleet/blueprints/partitioned_payload.md) is the real answer when the full payload
     outgrows a page.
+
+33. **Hidden-data audit (owner, 2026-09-08: "spawn a fleet of agents to verify that this
+    kind of missing of data is not happening at other places") -- what the fleet confirmed
+    and what changed.** Eight lenses (fetch sweep, fetch summaries/export, build rows,
+    sidecars, client overview/comps, character screen, trajectory, cross-cutting), each
+    finding refuted by a skeptic and reproduced by a second agent. Confirmed and fixed or
+    labelled the same night: (a) the run cap (#32); (b) the Labs table's lens band (#32);
+    (c) with 1.6x rows the builds sidecar breached its cap and NO builds document shipped
+    -- the live Character screen went dark with a console warning only (S2); stats had
+    stepped to 7 stats /16 on a 3-reset window (S4); enchants had vanished (S1); the
+    3-reset window silently dropped the first US week from gear/stats (S3); item caps at
+    12/20 pooled ~600k observations into 'other' (S5) -> caps raised for the full payload
+    (builds 11.5/13 MB, stats 12/14 MB), both headers carry window/cuts, caps and the full
+    stat list, and the page prints every rung it is on (frame line when builds are
+    missing, empty-enchants notice, gear-pane caps + window + rows older than it, stats
+    footer step/withheld/window); (d) 21% of runs had no keystone clock and fell out of
+    Top Comps / Pulse presence / the Spec Frame mini table while the KPI counted them
+    (BR-1, F1-export) -> the clock now rides on every fetched row, the map has a cached
+    copy, a standing 800-report backfill step tops up the rest, and the comps sub-line
+    prints 'scored over X of Y runs (Z have no keystone clock)'; (e) the score-sorted
+    20-page window fills with timed runs, so no depleted run can enter it at saturated
+    brackets -- 0 untimed at <= +10 all season, none at <= +17 since 3 Sep -- and 'All
+    completed' equalled 'Timed only' there without a word (F1) -> a hint under the toggle
+    names the key levels with no untimed run in the newest 7 days; (f) two outages
+    (27 Aug-2 Sep parser bug, 3-6 Sep no refresh) lost ~22-25k runs that scrolled off the
+    boards before collection resumed, with nothing on any time axis (F2, F2') -> an
+    append-only discovery ledger keeps every listed run pending until fetched, and
+    data/collection_gaps.json shades the period note and the Trend caption; (g) 38.5% of
+    ranked entries are anonymous (no report to fetch) and the footer counted them as
+    collected (F3) -> footer + Coverage line carry the live fetchable share; (h) WCL files
+    Taiwanese realms under KR (F4) -> hover notes on the KR/TW chips. Open, needs the
+    owner: WCL's fightRankings lists at most ~1,000 entries per dungeon x key level and
+    omits completed public runs outright (7 of 9 probed at +19/+20; ~9% of a sampled hour's
+    completed public keys were in the export, 0 of 68 at +12..+18) -- a leaderboard sweep
+    can never be a census; the only route to 'all public runs' is a second discovery
+    source over reportData.reports(zoneID: 55), whose point cost is unmeasured and whose
+    row volume (3-5x) exceeds what the single-payload client can carry without the
+    partitioned payload. Standing rule from this night: a cap, window, sample, quantisation
+    or filter that changes what the reader sees is printed where the number is; the
+    ladders may still step down, never silently.
