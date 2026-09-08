@@ -1432,15 +1432,6 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <div class="kpi-note" id="period-note"></div>
     <div id="archon-card" hidden></div>
 
-    <!-- ⚗ Lab: Lightspire Core · in the light -- the display. A card in the main
-         column like #archon-card, under the KPIs and above the Overview: shown only
-         while the Lab toggle is on, gone otherwise. The toggle is the ⚗ Lab card in
-         the sidebar. Not a section: no header, no fold. -->
-    <div id="light-card" class="labpanel" hidden>
-      <div class="lphead"><span class="lpname">✨ Lightspire Core · in the light</span><span class="labstamp">⚗ LAB</span></div>
-      <div class="lpsub" id="light-sub"></div>
-      <div id="beamtbl"></div>
-    </div>
 
     <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its Spec Frame — comps and stats in one place</span></div>
     <div class="secbody" id="sec-overview">
@@ -1501,6 +1492,23 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     </div>
     <div id="trendbox"></div>
     <div class="caption" id="trend-caption"></div>
+    </div>
+
+    <!-- ⚗ Labs — the LAST top-level section (owner, 2026-09-08): every Lab
+         surface that needs room lives here, each behind its toggle in the
+         sidebar's ⚗ Lab card. The wrapper stays hidden until a Lab sidecar
+         decodes, so with no Lab data there is no section at all. Collapsed or
+         expanded like every section, remembered per browser. -->
+    <div id="labs-sec" hidden>
+    <div class="sec" data-sec="labs"><span class="mk"></span><span class="t">⚗ Labs</span><span class="s" id="labs-sub"></span></div>
+    <div class="secbody" id="sec-labs">
+      <div id="light-card" class="labpanel" hidden>
+        <div class="lphead"><span class="lpname">✨ Lightspire Core · in the light</span><span class="labstamp">⚗ LAB</span></div>
+        <div class="lpsub" id="light-sub"></div>
+        <div id="beamtbl"></div>
+      </div>
+      <div class="hint" id="labs-off" hidden></div>
+    </div>
     </div>
 
     <footer>
@@ -1732,6 +1740,7 @@ function initData(d,cfg){
   try{ state.beam=localStorage.getItem(BEAM_LS)==="1" }catch(e){}
   hasBeam=false; BEAMC=null;
   if($("light-card")) $("light-card").hidden=true;
+  if($("labs-sec")) $("labs-sec").hidden=true;
   loadProcsSidecar();   // tiny; its ⚗ control mounts itself when it lands (labMountLate)
   // ⚗ Lab manifest: render the entries whose gate() is true — a gated-off
   // feature renders NOTHING anywhere (feedback #3) — then wire what exists.
@@ -2581,6 +2590,10 @@ function wireLabControls(){
     const el=$("beamcb"); if(el) el.checked=state.beam;
     labScopeRefresh(); renderBeamTable(); renderFrame();
     if(state.screen) renderScreen();
+    // turning a Lab on unfolds the Labs section it renders into (a folded
+    // section would make the toggle look dead); turning it off leaves the
+    // section as the reader left it
+    if(state.beam&&!state.screen) openSection("labs");
   };
   const bc=$("beamcb");
   if(bc){ bc.checked=state.beam; bc.onchange=e=>setBeam(e.target.checked); }
@@ -3649,6 +3662,7 @@ function loadProcsSidecar(){
     if(!dec) return;
     BEAMC=dec; hasBeam=true;
     labMountLate("beam");
+    const lab=$("labs-sec"); if(lab) lab.hidden=false;   // the Labs section exists now
     renderBeamTable();                     // shows the card if the toggle was left on
     // a remembered ON toggle: the other surfaces render the moment the data
     // lands (renderFrame re-slices the whole screen itself when one is open)
@@ -3725,7 +3739,16 @@ function beamInline(s,wearers){
    lens window, per spec (lensSliceFor). Sorted, like every table. */
 function renderBeamTable(){
   const host=$("beamtbl"), sub=$("light-sub"), card=$("light-card"); if(!host||!card) return;
-  if(!hasBeam||!D||!state.beam){ card.hidden=true; host.innerHTML=""; if(sub) sub.textContent=""; return; }
+  const lsub=$("labs-sub"), loff=$("labs-off");
+  if(!hasBeam||!D){ card.hidden=true; host.innerHTML=""; if(sub) sub.textContent=""; return; }
+  if(lsub) lsub.textContent="experimental surfaces, each behind its toggle in the sidebar's ⚗ Lab card"
+    +" · Lightspire Core: "+(state.beam?"on":"off");
+  if(!state.beam){
+    card.hidden=true; host.innerHTML=""; if(sub) sub.textContent="";
+    if(loff){ loff.hidden=false; loff.textContent="✨ Lightspire Core · in the light is off — turn it on in the ⚗ Lab card in the sidebar to list, per spec, the share of each beam's 12 s its wearers spend standing in it."; }
+    return;
+  }
+  if(loff) loff.hidden=true;
   card.hidden=false;
   const T=BEAMC, covTxt=T.cov?" · "+fmtInt(T.cov.measured)+" of "+fmtInt(T.cov.wearers)
     +" wearer-parses measured so far":"";

@@ -320,12 +320,15 @@
     Character screen's identity line (the pooled trinket tiles show only the #1/#2
     trinket and on the default window Lightspire is neither for any of its big wearer
     specs), the trinket tile + its fold-out row when the item is present, and, while the toggle is on, a
-    per-spec table (median, p25-p75, time-weighted, n; every spec with a measured parse) in
-    `#light-card`, a card under the KPIs in the main column like the Archon card, with a
-    "measured so far" hint from the sidecar's cov block. Placement history, same day: the
-    table first lived in the sidebar's ⚗ card ("on the left, completely scrolled off
-    screen"), then briefly as a top-level section ("do not overcorrect!"); the toggle
-    itself stays in the sidebar's ⚗ Lab card ("its a labs feature").
+    per-spec table (median, p25-p75, time-weighted, n; every spec with a measured parse, gated
+    like the Overview) in `#light-card` inside the "⚗ Labs" top-level section -- the LAST
+    section, after Trajectory (owner, 2026-09-08: "put the lightspire table in a separate
+    'Labs' top level. put this top level at the bottom of the current ones"), hidden until a
+    Lab sidecar decodes, folded by default like every non-Overview section, unfolded
+    automatically when a Lab is switched on. Placement history, same day: the table first
+    lived in the sidebar's ⚗ card ("on the left, completely scrolled off screen"), then as
+    the first top-level section ("do not overcorrect!"), then as a card under the KPIs; the
+    toggle itself stays in the sidebar's ⚗ Lab card ("its a labs feature").
     Median of per-parse ratios is the headline; p25/p75/time-weighted (Σinside/Σavailable,
     the sidecar's b column is the INSIDE seconds) and the no-beam count ride the tooltip
     with the definition. Floor n=10 (CS_THIN echo): below it "thin", never a number.
@@ -405,3 +408,10 @@
     build_health.txt and the site's own labels. A UTC figure lifted from a log is converted
     before it is quoted. This had been the standing practice and slipped in the drain
     messages; it is a rule now, not a habit.
+
+29. **Top-level fold state is remembered across refreshes (owner, 2026-09-08).** It already
+    was: `localStorage["wowlogs.collapsed.v2"]` stores the folded set per browser on every
+    header click (guarded; a blocked store just opens the defaults), and the Labs section
+    joins that mechanism unchanged. Verified in headless Chromium on the mirror: Overview
+    folded + Top Comps unfolded survive a reload exactly. Not persisted by design: filters,
+    lens, period (queue.md's scrapped session persistence).
