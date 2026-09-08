@@ -323,5 +323,19 @@
     queue.md's scrapped session persistence, asked for by name; a remembered ON renders
     every surface the moment the sidecar lands. Deliberately not built (design panel
     2026-09-08): a Data Table column, A·B compare columns on the card, a per-row status
-    byte, an N-trinket decoder. Deferred: a weekly durability seed of the
-    procs journal (cache-only today; an eviction restarts the backfill at ~2 pts a fight).
+    byte, an N-trinket decoder.
+    DURABILITY, as audited 2026-09-08 (three lenses, each adversarially checked): the procs
+    journal is cache-only AND its work list is enumerated from gear.jsonl, which is also
+    cache-only with no working restore (gear.jsonl.gz was never committed; the Release-assets
+    home is unbuilt). So "an eviction restarts the backfill" is WRONG for a whole-cache loss:
+    gear goes too, the ~73.7k historical wearer-fights can never be enumerated again, and the
+    feature restarts from post-loss fights only (rankings survive via the daily CSV; the
+    Character screen self-disables). The cache holds ~24 entries of ~416 MB = ~7 h of history;
+    the documented loss mode is an empty/failed restore followed by a successful save of an
+    impoverished key (happened once, run 32625724812, 2026-08-23), and no guard checks
+    cache-matched-key or journal presence. A bands-stripped seed carrying v>=2 and
+    report_code/fight_id/character/server/key/actor/f/n/a/i/r would restore the SHIPPED
+    feature fully (the sidecar joins to CSV-seeded player rows): measured 54 B/record gz,
+    4.0 MB today, +1.6 MB/week, ~30 MB at season end; it must be its own git add in the daily
+    list (the panel's "Monday slot beside gear.jsonl.gz" is gated on a file that never exists
+    on the scheduled path). Not built; the owner has the numbers.

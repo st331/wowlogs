@@ -530,3 +530,28 @@ Verified after the grafts: test_procs.py (model, events parser, candidates, done
 run against a scripted client incl. v1 redo, rollover, systemic stop, sidecar with
 b == i and cov, static client checks) and scratchpad/verify_beam.py in headless Chromium
 against the live payload with a synthetic sidecar.
+
+## 15. Durability audit (2026-09-08, after §14; three lenses, each adversarially verified)
+
+* procs.jsonl cannot be re-collected without gear.jsonl: `fetch_procs.candidates()` walks
+  GEAR_FILE and yields an empty work list when it is absent. gear.jsonl has no working
+  off-cache copy (gear.jsonl.gz untracked, never committed, written only on
+  commit_export/regear dispatches; data/checkpoints/ does not exist; Release assets unbuilt).
+  Under a whole-cache loss the shipped feature therefore loses its entire history, not a
+  week; only post-loss wearer-fights ever appear again. §4's "an eviction restarts the
+  backfill" and the owner-first blueprint's "one week ≈ 30k pts" bound assumed gear survives.
+* Cache exposure: one journals entry is 436.7 MB; the 10 GB default retains ~22-24 entries,
+  ~7 h of history at the observed 3.3 runs/h. LRU and the 7-day rule cannot evict the newest
+  entry at this cadence; the real loss sequence is an empty/failed restore (actions/cache
+  warns and continues) followed by `Save (if: always())` of an impoverished key that every
+  later run restores. Precedent: run 32625724812 (2026-08-23, green). No guard exists.
+* Optimistic re-collection (gear intact): ~165k pts for 73.7k wearer-fights at 2.2 pts
+  (masterData for pre-actor-id records; ~1.1 pts once actor ids are journaled), ~4.7-5.6 days
+  gross / ~6-8 net at the observed ~80 runs/day; a season-end loss ~723k pts ≈ 22-25 days.
+* Seed, measured (not the ~2 MB the panel assumed): bands-stripped 219 B raw / 54 B gz per
+  record → 4.0 MB gz today, +1.6 MB/week, ~30 MB at season end; 17 weekly full-file commits
+  ≈ 288 MB of history (gzip blobs do not delta), append-only weekly shards ≈ 31.5 MB/season.
+  The daily CSV commit is ~50 MB per commit for comparison. A seed must carry `v` ≥ 2 or the
+  builder and the done-set ignore it, and it needs its own `git add` in the daily list.
+* Real per-run spend: Fetch ~1,950-2,010 pts + procs 412-430 (the 400 stop trips after the
+  crossing batch); ~5.3k pts/h of ceiling headroom remain.
