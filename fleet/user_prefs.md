@@ -339,3 +339,19 @@
     4.0 MB today, +1.6 MB/week, ~30 MB at season end; it must be its own git add in the daily
     list (the panel's "Monday slot beside gear.jsonl.gz" is gated on a file that never exists
     on the scheduled path). Not built; the owner has the numbers.
+
+25. **Journal guard (owner, 2026-09-08: "go ahead with the feature then").** Every
+    collection journal lives only in the Actions cache, and actions/cache/restore never
+    fails a job -- an empty restore used to be fetched over, built over and SAVED as the
+    newest key (run 32625724812, 2026-08-23). `scripts/journal_guard.sh` runs right after
+    the restore: matched key AND non-empty gear.jsonl + players.jsonl ⇒ `ok`; nothing
+    restored but `fresh_start=true` dispatched ⇒ `fresh`; otherwise `missing`. Fetch, the
+    trinket collector, names, traits, Build, Publish, Pages deploy, Raider.IO, Save and the
+    export commit are all gated on ok-or-fresh (fail-CLOSED: no verdict = shut); "Chain the
+    next run" is not, so a tripped run costs one 20-minute cycle and the successor retries
+    the restore. Persistent trips stop deploys, which the watchdog already reports as a
+    stalled build; only then, and only if the journals are truly gone, dispatch with
+    `fresh_start=true` (it seeds players from the committed CSV; gear and trinket history
+    cannot come back). A drain in flight ends on a tripped run (empty BACKLOG reads as
+    done) -- re-dispatch drain by hand if it mattered. The guard is unit-tested over all
+    eight key/files/fresh combinations plus the matched-key-but-empty-file case.

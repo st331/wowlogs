@@ -52,6 +52,10 @@ on:
         description: "Internal: predecessor run's start epoch, for 20-minute pacing"
         type: string
         default: ""
+      fresh_start:
+        description: "Proceed with NO restored journals (first run of a season, or after a deliberate cache reset). Otherwise a run whose restore comes back empty skips everything and keeps the newest good cache."
+        type: boolean
+        default: false
       # DRAIN MODE -- the owner's sanctioned relaxation of the 70% cap, for one
       # operation: "remove the cap and get the site updated asap" (2026-09-02,
       # after the five-day collection outage left ~57k runs to refetch). A
@@ -176,8 +180,11 @@ jobs:
       # run re-seeds from the daily CSV commit, losing everything collected
       # since. That happened once (run 32625724812: restore took 0s, fetch took
       # 9m instead of 30s, 70,246 runs -> 34,312). Anything new that needs to
-      # survive between runs goes *inside* data/processed.
+      # survive between runs goes *inside* data/processed. Since 2026-09-08 the
+      # Journal guard below turns an empty restore into a skipped run instead of
+      # a saved-back empty cache; a deliberate reset needs fresh_start=true.
       - name: Restore collection journals
+        id: restore
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -186,9 +193,22 @@ jobs:
           key: wowlogs-journals-${{ github.run_id }}
           restore-keys: wowlogs-journals-
 
+      # The restore above never fails the job: on a service error or a missing
+      # key it warns and leaves the tree empty. Every step from here to Save is
+      # gated on this verdict -- ok or fresh opens them, anything else (missing,
+      # or no verdict because the guard itself broke) keeps them shut -- so an
+      # empty restore can never be saved back as the newest cache (the
+      # 2026-08-23 loss). See scripts/journal_guard.sh.
+      - name: Journal guard
+        id: guard
+        env:
+          MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+          FRESH_START: ${{ inputs.fresh_start }}
+        run: bash scripts/journal_guard.sh
 
       - name: Fetch
         id: fetch
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
@@ -252,7 +272,7 @@ jobs:
       # build_health.txt carries the coverage line.
       - name: Trinket beam benefit
         # a gear-refetch run spends its whole window on summaries
-        if: inputs.regear_min_key == ''
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == ''
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
@@ -268,6 +288,7 @@ jobs:
       # the gear-journal pattern. The cache PATH LIST above must not change.
       # --limit bounds any one run's fetching; the seed spreads across runs.
       - name: Resolve names
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         run: |
           # names_bonus_emb2 is RETIRED but still copied IN for one
           # release: the CI copy holds v2's sticky nulls and the
@@ -291,6 +312,7 @@ jobs:
       # never clobber a newer committed geometry. Spell names are grow-only
       # and ride the cache like the other name caches.
       - name: Resolve talent spells
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         run: |
           if [ -f "data/processed/names_spells.json" ]; then
             cp "data/processed/names_spells.json" "data/names_spells.json"
@@ -299,6 +321,7 @@ jobs:
           cp "data/names_spells.json" "data/processed/names_spells.json" 2>/dev/null || true
 
       - name: Build site
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         run: |
           python -u scripts/build_site_data.py
           # Embellishment identity has now failed twice in
@@ -328,6 +351,7 @@ jobs:
       # afterwards so the daily-commit step below cannot sweep the UI into a
       # data commit built on an older base.
       - name: Publish the newest committed UI, not this checkout's
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         continue-on-error: true
         run: |
           git fetch --depth=1 origin "${{ github.ref_name }}" || exit 0
@@ -337,12 +361,15 @@ jobs:
           echo "UI synced to $(git rev-parse --short FETCH_HEAD) (run sha $(git rev-parse --short HEAD))"
 
       - uses: actions/configure-pages@v5
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
 
       - uses: actions/upload-pages-artifact@v3
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         with:
           path: site
 
       - id: deploy
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         uses: actions/deploy-pages@v4
 
       # Runs AFTER the deploy, deliberately. It spends no Warcraft Logs
@@ -356,7 +383,7 @@ jobs:
       # step, or the ratings it fetches never reach the cache.
 
       - name: Raider.IO player ratings
-        if: inputs.regear_min_key == ''
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == ''
         continue-on-error: true
         # Two minutes on a push, the full fifteen otherwise. The deploy no
         # longer waits on this step, but the job still holds the concurrency
@@ -374,7 +401,9 @@ jobs:
 
 
       - name: Save collection journals
-        if: always()
+        # always() so a failed Fetch still saves what it journaled -- but NEVER
+        # after a tripped guard, which is the whole point of the guard
+        if: always() && (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         uses: actions/cache/save@v4
         with:
           path: |
@@ -389,7 +418,7 @@ jobs:
       # (Aug 27) until it was noticed: the recovery seed sat at Aug 26 for a
       # week. The 02:00-02:29 window below still limits it to once a day.
       - name: Commit the export (daily)
-        if: github.event_name == 'schedule' || inputs.chain == 'true' || inputs.commit_export == true
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && (github.event_name == 'schedule' || inputs.chain == 'true' || inputs.commit_export == true)
         run: |
           # A manual dispatch that asks for it commits immediately and takes
           # the gear journal with it, whatever day it is. Without this the
@@ -486,6 +515,10 @@ jobs:
       # Failures deliberately do not chain -- the cron dead-man revives the
       # cadence within a tick instead of a tight failure loop. Manual and
       # push runs do not chain either, so a one-off dispatch stays one-off.
+      # Runs after a tripped journal guard too: the gated steps are SKIPPED,
+      # not failed, so success() holds and the cadence continues; the
+      # successor simply retries the restore. (A drain in flight ends on a
+      # tripped run, because the empty BACKLOG reads as "done".)
       - name: Chain the next run
         if: success() && (github.event_name == 'schedule' || inputs.chain == 'true' || inputs.drain == 'true')
         env:
