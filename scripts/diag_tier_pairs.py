@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
-"""Diagnostic: can set (tier) items in the gear journal be split by their
-inherited secondary-stat PAIR?
+"""Diagnostic v2: what partitions the wearers of one tier item?
 
-12.1's Catalyst keeps the source piece's secondary stats. The game encodes
-secondary stats as ItemBonus TYPE-2 rows (stat id, allocation) hung off bonus
-ids, and the collector keeps every item's bonus ids (compact_gear -> "bonus").
-This script streams the journal, decodes each SET item's bonus list against
-the live wago.tools ItemBonus table, and prints a compact report:
+v1 showed that set items carry NO ItemBonus type-2 stat rows, yet each
+tier item shows 600-1,150 distinct bonus tuples -- more than tracks x
+sockets x tertiaries. Something in the bonus list partitions wearers, and
+this run finds out what:
 
-  * coverage: share of set-item wears whose bonus list decodes to exactly
-    two secondaries (a pair), one, none, or three+;
-  * per item id (top 40 by wears): name, wears, distinct bonus tuples,
-    pair histogram;
-  * a few raw bonus tuples for the top three items, so the encoding is
-    visible rather than inferred;
-  * a sanity count of crafted items (no `set`), which must not be touched.
+  * the whole ItemBonus table is fetched once and every id seen on a set
+    item is decoded (type + values), with per-id wear counts;
+  * for the top 3 tier items: the frequency of every bonus id, and the
+    partition induced by the ids NOT explained as ilvl/track/socket/
+    tertiary/quality/display -- how many groups, how big;
+  * co-occurrence: for the top item, which id families are mutually
+    exclusive (one per wear, like a stat template would be).
 
-Read-only; no journal is written. Output stays short on purpose: the job-log
-API returns at most 5,000 lines and the interesting part is the last 150.
+Read-only. Output stays under ~200 lines.
 """
 import collections
 import csv
@@ -27,42 +24,35 @@ import json
 import pathlib
 import sys
 import time
-import urllib.parse
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 JOURNAL = ROOT / "data" / "processed" / "gear.jsonl"
 EXPORT = ROOT / "data" / "gear.jsonl.gz"
 NAMES = ROOT / "data" / "names_items.json"
-CRAFTED = ROOT / "data" / "crafted_ids.json"
-SEC = {32: "Crit", 36: "Haste", 40: "Vers", 49: "Mastery"}
-TER = {61: "Speed", 62: "Leech", 63: "Avoid"}
-UA = {"User-Agent": "wowlogs-diagnostic/1.0"}
+UA = {"User-Agent": "wowlogs-diagnostic/2.0"}
+TYPES = {1: "stat(legacy)", 2: "stat alloc", 3: "quality", 4: "name suffix",
+         5: "name desc", 6: "scaling", 7: "socket", 11: "ilvl offset",
+         13: "display", 14: "ilvl abs", 35: "limit cat"}
 
 
-def stat_table() -> dict[int, list[tuple[int, int]]]:
-    """bonus list id -> [(stat id, allocation)] from ItemBonus type-2 rows."""
-    url = ("https://wago.tools/db2/ItemBonus/csv?"
-           + urllib.parse.urlencode({"filter[Type]": "2"}))
-    raw = urllib.request.urlopen(urllib.request.Request(url, headers=UA),
-                                 timeout=120).read().decode("utf-8", "replace")
-    out: dict[int, list[tuple[int, int]]] = collections.defaultdict(list)
+def item_bonus() -> dict[int, list[tuple]]:
+    raw = urllib.request.urlopen(
+        urllib.request.Request("https://wago.tools/db2/ItemBonus/csv", headers=UA),
+        timeout=180).read().decode("utf-8", "replace")
+    out: dict[int, list[tuple]] = collections.defaultdict(list)
     for r in csv.DictReader(io.StringIO(raw)):
-        if r.get("Type") != "2":
-            continue
         out[int(r["ParentItemBonusListID"])].append(
-            (int(r["Value_0"]), int(r["Value_1"])))
+            (int(r["Type"]), r["Value_0"], r["Value_1"], r["Value_2"], r["Value_3"]))
     return out
 
 
-def decode(bonus, table) -> tuple[str, ...] | None:
-    """Sorted secondary-stat names a bonus list confers, or None if none."""
-    stats: dict[int, int] = {}
-    for b in bonus or []:
-        for sid, alloc in table.get(int(b), ()):
-            if sid in SEC:
-                stats[sid] = stats.get(sid, 0) + alloc
-    return tuple(sorted(SEC[s] for s in stats)) if stats else None
+def describe(bid: int, table) -> str:
+    rows = table.get(bid)
+    if not rows:
+        return "not in ItemBonus"
+    return "; ".join(f"T{t}{'('+TYPES[t]+')' if t in TYPES else ''} "
+                     f"v={v0},{v1},{v2},{v3}" for t, v0, v1, v2, v3 in rows)
 
 
 def main() -> None:
@@ -70,16 +60,13 @@ def main() -> None:
     if not src.exists():
         sys.exit(f"no gear journal at {JOURNAL} or {EXPORT}")
     t0 = time.time()
-    table = stat_table()
-    print(f"[diag] ItemBonus type-2: {len(table):,} bonus lists "
-          f"({time.time() - t0:.1f}s)")
+    table = item_bonus()
+    print(f"[diag] ItemBonus: {len(table):,} bonus lists ({time.time() - t0:.1f}s)")
     names = json.loads(NAMES.read_text()) if NAMES.exists() else {}
-    crafted = set(json.loads(CRAFTED.read_text())) if CRAFTED.exists() else set()
     opener = gzip.open if src.suffix == ".gz" else open
-    recs = items = set_items = crafted_items = crafted_with_set = 0
-    by_set_item: dict[int, dict] = {}
-    cov = collections.Counter()          # 0/1/2/3+ decoded secondaries
-    by_setid = collections.Counter()
+    wears_by_item = collections.Counter()
+    id_wears = collections.Counter()                     # bonus id -> set-item wears
+    per_item = {}                                        # iid -> {"ids": Counter, "tuples": Counter}
     with opener(src, "rt", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -89,56 +76,59 @@ def main() -> None:
                 rec = json.loads(line)
             except ValueError:
                 continue
-            recs += 1
             gear = rec.get("gear")
             if not isinstance(gear, list):
                 continue
             for it in gear:
-                if not isinstance(it, dict) or not it.get("id"):
+                if not isinstance(it, dict) or not it.get("id") or not it.get("set"):
                     continue
-                items += 1
                 iid = int(it["id"])
-                if iid in crafted:
-                    crafted_items += 1
-                    if it.get("set"):
-                        crafted_with_set += 1
-                if not it.get("set"):
-                    continue
-                set_items += 1
-                by_setid[str(it.get("set"))] += 1
-                pair = decode(it.get("bonus"), table)
-                cov[len(pair) if pair else 0] += 1
-                d = by_set_item.setdefault(iid, {"n": 0, "tuples": collections.Counter(),
-                                                  "pairs": collections.Counter(),
-                                                  "ilvl": collections.Counter()})
-                d["n"] += 1
-                d["tuples"][tuple(it.get("bonus") or [])] += 1
-                d["pairs"]["/".join(pair) if pair else "?"] += 1
+                wears_by_item[iid] += 1
+                bonus = tuple(int(b) for b in (it.get("bonus") or []))
+                d = per_item.setdefault(iid, {"ids": collections.Counter(),
+                                              "tuples": collections.Counter(),
+                                              "ilvl": collections.Counter()})
+                d["tuples"][tuple(sorted(bonus))] += 1
                 if it.get("ilvl"):
                     d["ilvl"][int(it["ilvl"])] += 1
-    print(f"[diag] {recs:,} records, {items:,} items, {set_items:,} set-item "
-          f"wears, {crafted_items:,} crafted wears ({crafted_with_set} crafted "
-          f"items carrying a set id) in {time.time() - t0:.0f}s")
-    tot = max(set_items, 1)
-    print("[diag] decoded secondaries per set-item wear: "
-          + ", ".join(f"{k}: {v:,} ({100 * v / tot:.1f}%)"
-                      for k, v in sorted(cov.items())))
-    print("[diag] set ids by wears: "
-          + ", ".join(f"{s}={c:,}" for s, c in by_setid.most_common(8)))
-    top = sorted(by_set_item.items(), key=lambda kv: -kv[1]["n"])[:40]
-    print("[diag] top set items -- id | name | wears | distinct bonus tuples | pairs")
-    for iid, d in top:
+                for b in bonus:
+                    id_wears[b] += 1
+                    d["ids"][b] += 1
+    print(f"[diag] {sum(wears_by_item.values()):,} set-item wears over "
+          f"{len(wears_by_item)} items in {time.time() - t0:.0f}s")
+    print("[diag] every bonus id seen on set items (id | wears | decode):")
+    for b, c in id_wears.most_common(60):
+        print(f"  {b:>6} | {c:>9,} | {describe(b, table)}")
+    top = [iid for iid, _ in wears_by_item.most_common(3)]
+    for iid in top:
+        d = per_item[iid]
         nm = (names.get(str(iid)) or {}).get("n") or "?"
-        pairs = ", ".join(f"{p} {100 * c / d['n']:.0f}%"
-                          for p, c in d["pairs"].most_common(6))
-        print(f"  {iid} | {nm[:40]:<40} | {d['n']:>6,} | {len(d['tuples']):>4} | {pairs}")
-    print("[diag] raw bonus tuples for the top three items (tuple -> wears, decoded):")
-    for iid, d in top[:3]:
-        nm = (names.get(str(iid)) or {}).get("n") or "?"
-        print(f"  {iid} {nm[:40]}")
-        for tup, c in d["tuples"].most_common(6):
-            pair = decode(list(tup), table)
-            print(f"     {list(tup)} -> {c:,} wears, decoded {'/'.join(pair) if pair else '?'}")
+        n = wears_by_item[iid]
+        print(f"\n[diag] {iid} {nm}: {n:,} wears, {len(d['tuples'])} distinct tuples, "
+              f"ilvls {sorted(d['ilvl'])[:3]}..{sorted(d['ilvl'])[-3:]}")
+        print("  per-id share:", ", ".join(f"{b}:{100 * c / n:.0f}%"
+                                          for b, c in d["ids"].most_common(24)))
+        # ids of unknown meaning: not in the table, or types outside the
+        # explained set; the partition they induce is the candidate identity
+        known_types = {3, 6, 7, 11, 13, 14, 35}
+        unexplained = [b for b in d["ids"]
+                       if not table.get(b) or any(t not in known_types
+                                                  for t, *_ in table[b])]
+        groups = collections.Counter()
+        for tup, c in d["tuples"].items():
+            groups[tuple(sorted(b for b in tup if b in unexplained))] += c
+        print(f"  unexplained ids: {len(unexplained)} -> {len(groups)} groups by their "
+              f"combination; top: "
+              + ", ".join(f"{list(g)}={100 * c / n:.0f}%" for g, c in groups.most_common(8)))
+        # mutual exclusivity among the most frequent unexplained ids
+        freq = [b for b, _ in d["ids"].most_common(40) if b in unexplained][:10]
+        excl = []
+        for i, a in enumerate(freq):
+            for b2 in freq[i + 1:]:
+                both = sum(c for tup, c in d["tuples"].items() if a in tup and b2 in tup)
+                if both == 0:
+                    excl.append(f"{a}x{b2}")
+        print(f"  mutually exclusive pairs among top unexplained ids: {excl[:24]}")
 
 
 if __name__ == "__main__":

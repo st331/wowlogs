@@ -425,7 +425,7 @@ jobs:
           else
             git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
           fi
-          git add data/names_items.json data/names_enchants.json data/crafted_ids.json data/emb_markers.json 2>/dev/null || true
+          git add data/names_items.json data/names_enchants.json data/crafted_ids.json data/emb_markers.json data/stat_bonus.json 2>/dev/null || true
           git add data/emb_identity.json data/emb_items.json data/emb_overrides.json 2>/dev/null || true
           git add data/names_icons.json data/names_spells.json data/trait_geometry.json 2>/dev/null || true
           # icon images sync_icons copied into site/ this run (grow-only, tiny)

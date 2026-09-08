@@ -91,6 +91,7 @@ NAMES_ITEMS = DATA / "names_items.json"
 NAMES_ENCHANTS = DATA / "names_enchants.json"
 CRAFTED_IDS = DATA / "crafted_ids.json"
 EMB_MARKERS = DATA / "emb_markers.json"
+STAT_BONUS = DATA / "stat_bonus.json"     # bonus id -> [[secondary stat id, allocation]]
 NAMES_BONUS_EMB2 = DATA / "names_bonus_emb2.json"   # RETIRED, migration only
 EMB_IDENTITY = DATA / "emb_identity.json"
 EMB_ITEMS = DATA / "emb_items.json"
@@ -295,6 +296,37 @@ def fetch_crafted() -> set[int] | object:
         v = _field(r, "CraftedItemID")
         if v and str(v).isdigit() and int(v) > 0:
             out.add(int(v))
+    return out
+
+
+# Secondary stats on modern items are carried by ItemBonus TYPE-2 rows
+# (stat id, allocation) hung off the item's bonus ids; measured on the live
+# table 2026-09-08: 1,790 rows over 1,023 bonus lists, 725 of them an exact
+# stat PAIR, 93 single-stat lists (a pair is then two bonus ids). 12.1's
+# Catalyst keeps the source piece's secondaries, so a tier item's bonus list
+# says which pair it inherited -- the builds sidecar splits set items by it.
+SECONDARY_STATS = (32, 36, 49, 40)     # Crit, Haste, Mastery, Vers
+
+
+def fetch_stat_bonus() -> dict[int, list[list[int]]] | object:
+    """Whole-table refresh: {bonus id: [[stat id, allocation], ...]} over
+    ItemBonus type-2 rows whose stat is a secondary. Authoritative each
+    run (one CSV fetch); _FAILED keeps the previous file untouched."""
+    rows = _get_csv("ItemBonus", {"filter[Type]": "exact:2"})
+    if rows is _FAILED:
+        return _FAILED
+    out: dict[int, list[list[int]]] = {}
+    for r in rows:
+        try:
+            if int(_field(r, "Type") or 0) != 2:
+                continue
+            sid = int(_field(r, "Value_0") or 0)
+            if sid not in SECONDARY_STATS:
+                continue
+            bl = int(_field(r, "ParentItemBonusListID") or 0)
+            out.setdefault(bl, []).append([sid, int(_field(r, "Value_1") or 0)])
+        except (TypeError, ValueError):
+            continue
     return out
 
 
@@ -631,6 +663,16 @@ def main(argv=None) -> int:
 
     got = {"items": 0, "enchants": 0, "emb": 0, "icons": 0, "images": 0,
            "failed": 0}
+
+    # whole-table refresh: the secondary-stat bonus table (authoritative;
+    # a failed fetch keeps the committed file)
+    sb = fetch_stat_bonus()
+    if sb is _FAILED:
+        got["failed"] += 1
+    else:
+        save_cache(STAT_BONUS, {str(k): v for k, v in sb.items()})
+        print(f"[names] stat-bonus table: {len(sb):,} bonus lists carry a "
+              f"secondary stat", flush=True)
 
     # whole-table refreshes: crafted set + embellishment markers (grow-only)
     crafted = fetch_crafted()
