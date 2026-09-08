@@ -3059,6 +3059,10 @@ def build(name: str, cfg: dict) -> None:
         # what the leaderboard sweep listed / could not list (see above);
         # {} until a fetch on or after 2026-09-08 has run
         "coverage": coverage,
+        # known collection outages, committed by hand when one is diagnosed
+        # (data/collection_gaps.json: [{from, to, note}]); the page shades any
+        # period that overlaps one (fleet finding F2, 2026-09-08)
+        "gaps": _load_json(ROOT / "data" / "collection_gaps.json", []),
         "season": cfg["season"],
         "epoch": str(EPOCH.date()),
         "tuning": ({"label": patch.get("label"), "date": patch.get("date"),

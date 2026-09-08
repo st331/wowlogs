@@ -1369,6 +1369,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <button data-t="0" class="on">All completed</button>
     <button data-t="1">⏱ Timed only</button>
   </div>
+  <div class="hint" id="timed-hint"></div>
 
   <div class="side-label">When + Baseline</div>
   <div class="chips" id="presetA" style="padding-top:2px"></div>
@@ -1717,6 +1718,56 @@ function loadSeason(){
    entries had no report to fetch, and how many boards were cut. Numbers
    come from the fetch via build_health (payload.coverage); the sentence
    stands without them. */
+/* Known collection outages (data/collection_gaps.json -> payload.gaps).
+   Runs that were listed while collection was down and had scrolled off the
+   boards by the time it resumed are gone for good (fleet finding F2,
+   2026-09-08); a period that overlaps one reads as a trough. Say so where the
+   period is described. Days are payload day indices (since D.epoch). */
+function gapsIn(dlo,dhi){
+  const g=(D&&Array.isArray(D.gaps))?D.gaps:[]; if(!g.length) return [];
+  const ep=Date.parse(D.epoch+"T00:00:00Z"); const out=[];
+  for(const x of g){
+    const a=Math.floor((Date.parse(x.from)-ep)/864e5), b=Math.floor((Date.parse(x.to)-ep)/864e5);
+    if(isNaN(a)||isNaN(b)) continue;
+    if(dhi<0||dlo>1e8||(b>=dlo&&a<=dhi)) out.push(x);
+  }
+  return out;
+}
+function gapText(x){
+  const f=t=>new Date(Date.parse(t)).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC";
+  return f(x.from)+" – "+f(x.to)+(x.note?" ("+x.note+")":"");
+}
+function gapsNote(dlo,dhi){
+  const g=gapsIn(dlo,dhi); if(!g.length) return "";
+  return ' <b class="delta down" style="font-size:.95em">⚠ Collection was down '+g.map(x=>esc(gapText(x))).join("; ")
+    +' — runs from those hours that left the leaderboards before it resumed were never collected, so this period is under-counted.</b>';
+}
+/* fleet finding F1 (2026-09-08): WCL lists a bracket by score and the sweep
+   reads its first 20 pages, so once a bracket's window is full of timed runs
+   no depleted (over-timer) run can enter it -- "All completed" then shows
+   exactly the "Timed only" set. Measured from the payload itself: key levels
+   with no untimed row in the newest 7 days of data. */
+const REGION_NOTE={
+  KR:"includes Taiwanese realms — Warcraft Logs files TW realms under KR",
+  TW:"Warcraft Logs files Taiwanese realms under KR; the few rows here carry a stray WCL 'TW' tag (mostly CN players)"};
+function keyRangeText(keys){
+  const out=[]; let a=null,b=null;
+  for(const k of keys){ if(a==null){a=b=k} else if(k===b+1){b=k} else {out.push(a===b?"+"+a:"+"+a+" to +"+b); a=b=k} }
+  if(a!=null) out.push(a===b?"+"+a:"+"+a+" to +"+b);
+  return out.join(", ");
+}
+function renderTimedHint(){
+  const el=$("timed-hint"); if(!el) return;
+  if(!hasTimed||!R.timed){ el.textContent=""; return; }
+  let maxDay=-1; for(let i=0;i<N;i++) if(R.day[i]>maxDay) maxDay=R.day[i];
+  const lo=maxDay-6, seen={}, unt={};
+  for(let i=0;i<N;i++){ if(R.day[i]<lo) continue; const k=R.key[i]; seen[k]=(seen[k]||0)+1; if(R.timed[i]===0) unt[k]=(unt[k]||0)+1; }
+  const none=Object.keys(seen).map(Number).filter(k=>k>=10&&!unt[k]).sort((a,b)=>a-b);
+  if(!none.length){ el.textContent=""; return; }
+  el.innerHTML='Untimed (over-timer) runs reach this site only while a leaderboard window is not saturated '
+    +'(see Coverage under the KPIs). In the newest 7 days of data none arrived at <b>'+keyRangeText(none)
+    +'</b> — there "All completed" shows the same runs as "Timed only".';
+}
 function renderCoverageNote(){
   const el=$("coverage-note"); if(!el) return;
   const c=(D&&D.coverage)||{};
@@ -1734,6 +1785,19 @@ function renderCoverageNote(){
       +(c.boards_capped>0?': at those key levels the site holds a <b>top-score slice</b> of the runs played, not all of them; above them, every run WCL ranks.':'.');
   }else h+=' Boards the 20-page cap truncates hold a top-score slice of the runs played, not all of them.';
   el.innerHTML=h;
+  // the footer's depth figure counts ranked ENTRIES; say how many carry a
+  // report the site can read (fleet finding F3, 2026-09-08)
+  const fs=$("foot-src");
+  if(fs){
+    const pub=n(c.public_runs), an=n(c.anonymous_entries);
+    const share=(typeof c.public_runs==="number"&&typeof c.anonymous_entries==="number"&&c.public_runs+c.anonymous_entries>0)
+      ? Math.round(100*c.public_runs/(c.public_runs+c.anonymous_entries)) : null;
+    fs.textContent="Data is the top ~1,000 ranked entries per dungeon × key level from Warcraft Logs fight "
+      +"rankings (~200 below +10, where the leaderboards are bottomless); "
+      +(share!=null?"this sweep, "+share+"% of entries ("+pub+") carried a public report the site can read and "+an+" were anonymous"
+                   :"roughly 60% of entries carry a public report the site can read, the rest are anonymous")
+      +" — read it as \"what strong runs pull\", not a population census.";
+  }
 }
 function initData(d,cfg){
   D=d; R=d.rows; N=R.dps.length;
@@ -1752,7 +1816,6 @@ function initData(d,cfg){
   }
   buildRuns();
   computeResetBuckets();
-  renderCoverageNote();
   // Raider.IO season score per character, indexed by the same char id the rows
   // carry. Enrichment is a slow background sweep, so partial coverage is the
   // normal state and the metric appears as soon as anyone is rated.
@@ -1791,6 +1854,7 @@ function initData(d,cfg){
   hasTimed=false;
   if(R.timed) for(let i=0;i<N;i++) if(R.timed[i]>=0){hasTimed=true; break}
   $("timedseg").style.display=hasTimed?"":"none";
+  renderTimedHint();
   state.timedOnly=hasTimed;
   $("timedseg").querySelectorAll("button").forEach(x=>
     x.classList.toggle("on",(x.dataset.t==="1")===state.timedOnly));
@@ -1838,6 +1902,7 @@ function initData(d,cfg){
   $("archon-chip").title=archonTitle();
   $("hero-sub").textContent=cfg.sub;
   $("foot-src").textContent=cfg.foot;
+  renderCoverageNote();   // after the static footer text: it rewrites #foot-src with the live fetchable share
   document.title="Mythic+ Performance — "+(d.season||"Midnight");
   $("loading").style.display="none";
   $("app").style.display=""; $("side").style.display="";
@@ -2150,6 +2215,11 @@ function buildControls(){
   chipGroup($("f-dun"),D.dungeons,state.dun);
   chipGroup($("f-role"),["DPS","Healer","Tank"],state.role);
   chipGroup($("f-reg"),D.regions,state.reg);
+  // fleet finding F4 (2026-09-08): WCL files Taiwanese realms under KR; the
+  // 'TW' chip holds only a handful of WCL-mis-tagged rows. Say so on hover.
+  for(const b of $("f-reg").querySelectorAll(".chip")){
+    const n=REGION_NOTE[b.textContent.trim()]; if(n) b.title=n;
+  }
 
   // Top Comps "With spec" select — full class×spec roster in stable positions
   // (clickables never move). Values are cls*100+spec, the same key
@@ -6681,7 +6751,8 @@ function render(){
     : "Period: "+describePeriod(state.weeksA))
     +(skill?" <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
       +state.pctlB+" of the same parses (distribution metrics: percentile DPS and deaths).":"")
-    +labNoteBadges();
+    +labNoteBadges()
+    +gapsNote(A.dmin,A.dmax);
 
   renderArchonCard();
   renderComps(A);          // also publishes the qualifying-comp presence set
@@ -6927,7 +6998,7 @@ function pulseVerdict(e){
   if(e.delta!=null) parts.push((e.delta>=0?"+":"")+e.delta.toFixed(1)+"% vs last reset");
   parts.push((e.rp!=null?"#"+e.rp:"#–")+"→#"+e.rn);
   if(window.__compPresence&&__compPresence.den)
-    parts.push("in "+e.pres+" of "+__compPresence.den+" comps");
+    parts.push("in "+e.pres+" of "+__compPresence.den+" comps"+(COMPS_NO_CLOCK?" (clock-scored runs)":""));
   return parts.join(" · ");
 }
 function pulseSpark(pts,color){
@@ -7119,6 +7190,14 @@ const COMPS_MAX=25;
 // re-run renderComps alone from this stash (the exact precedent of column
 // sorts), so every number is always the one single computation's.
 let COMPS_A=null;
+let COMPS_NO_CLOCK=0, COMPS_CLOCKED=0;
+function compsClockNote(){
+  if(!COMPS_NO_CLOCK) return "";
+  return ' <span class="na" title="A run is margin-scored only when its keystone clock is known (kdur); '
+    +fmtInt(COMPS_NO_CLOCK)+' runs in these filters have none and are counted in the KPIs but not here.">'
+    +'· scored over '+fmtInt(COMPS_CLOCKED)+' of '+fmtInt(COMPS_CLOCKED+COMPS_NO_CLOCK)
+    +' runs in these filters ('+fmtInt(COMPS_NO_CLOCK)+' have no keystone clock)</span>';
+}
 function renderComps(A){
   // Strength answers "how well did this comp play, for the difficulty it
   // played at", then deliberately rewards difficulty on top.
@@ -7135,12 +7214,17 @@ function renderComps(A){
   COMPS_A=A;
   syncCompSpecUI();
   const K=5;
-  const qual=[];
+  const qual=[]; let noClock=0;
   for(let r=0;r<runCount;r++){
     if(!A.runSeen[r]) continue;
     const o=RUNS[r];
-    if(o&&o.pct!==null) qual.push(o);
+    if(o&&o.pct!==null) qual.push(o); else noClock++;
   }
+  // fleet finding BR-1 (2026-09-08): runs without a keystone clock (kdur=0,
+  // 21% season-wide) cannot be margin-scored and silently fell out of this
+  // table, Pulse's "in X of Y comps" and the Spec Frame mini table while the
+  // KPI counted them. Say so wherever the table's sub-line prints.
+  COMPS_NO_CLOCK=noClock; COMPS_CLOCKED=qual.length;
   let n=0,sx=0,sy=0,sxx=0,sxy=0;
   for(const o of qual){n++; sx+=o.key; sy+=o.pct; sxx+=o.key*o.key; sxy+=o.key*o.pct}
   const den=n*sxx-sx*sx;
@@ -7196,7 +7280,7 @@ function renderComps(A){
     t.innerHTML="";
     $("comps-sub").innerHTML=esc(all.length
       ? "no comp has "+state.compMin+"+ runs under these filters"
-      : "no timed-clock runs match the current filters")+labStamp("comps");
+      : "no timed-clock runs match the current filters")+labStamp("comps")+compsClockNote();
     $("comps-caption").textContent="";
     return;
   }
@@ -7229,7 +7313,7 @@ function renderComps(A){
       t.innerHTML="";
       $("comps-sub").innerHTML='<b style="color:'+specColor+'">'+esc(specName)
         +'</b>: '+esc("no comps under the current filters field it"+perANote+heroNote)
-        +labStamp("comps");
+        +labStamp("comps")+compsClockNote();
       $("comps-caption").textContent="";
       return;
     }
@@ -7274,7 +7358,7 @@ function renderComps(A){
       +(rows.length===1?" comp with ":" comps with ")
       +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
       +" distinct — ranked by strength, click a column to sort"+perANote)
-      +labStamp("comps");
+      +labStamp("comps")+compsClockNote();
   }else{
     // K here === __compPresence.map.get(csKey), Q === rows.length — the same
     // pass Pulse prints; the live compMin is echoed so the gate never reads stale
@@ -7288,7 +7372,7 @@ function renderComps(A){
         +(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin+"+ runs) · "+fmtInt(inSpec.length)
         +" distinct field it — most-run first, click a column to sort"
         +perANote+heroNote))
-      +labStamp("comps");
+      +labStamp("comps")+compsClockNote();
   }
   $("comps-caption").textContent="Strength scores each run against what is "
     +"typical at its key level, then credits higher keys: margin under the "
@@ -7538,6 +7622,8 @@ function renderTrend(){
     +" plotted points, "+(keyAxis?"so the specs that hold up best as keys rise come"
       +" first and the fastest drop-offs last":"steepest riser first")+".";
   if(hasTune&&state.postTune) extraCap+=" Range truncated by the post-tuning filter.";
+  { const g=gapsIn(-1,1e9); if(g.length) extraCap+=" Collection was down "+g.map(gapText).join("; ")
+      +" — those buckets are under-counted."; }
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv,
                     keyAxis?(pt=>"at "+bLabel(pt.b)):(()=>"latest"));
