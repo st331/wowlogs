@@ -27,11 +27,16 @@ Nothing existing was edited for this document.
   `build_site_data.py:2315 procs_sidecar()` → `site/procs.json.gz` (cols `idx r a b p`, r u8
   percent with 255 = no beam, a/b u16 seconds), written/unlinked at :3069-3083;
   `refresh.yml:246-261` step (never fails the run); `scripts/test_procs.py`.
-- **In flight (uncommitted, another implementer)**: `site/index.html` *wt* — `state.beam`
-  :1616, `hasBeam/BEAMC` :1626, `loadProcsSidecar()` from `initData` :1712, manifest entry
-  `id:"beam"` :2498-2517 with `stamp:false` honoured at :2590/:2601, loader/decoder/
-  `beamStats`/`renderBeamTable` :3566-3712, fold-out sub-line `csBeamSub` :4483, tile foot in
-  `poolTile` :4747-4758, `renderBeamTable()` called from `render()` :6401.
+- **Client landed in 2d2053f** (06:06 UTC; live via deploy-site): `site/index.html` —
+  `state.beam` :1619, `hasBeam/BEAMC` :1628, manifest `id:"beam"` :2508 (`stamp:false`),
+  `BEAM_KEY="lscore"` :3584, `BEAM_MIN_N=10` :3585, `loadProcsSidecar` :3586,
+  `decodeProcsSidecar` :3600 (v1 shape, `r===255` = no beam), `beamStats` :3631,
+  `beamTitle` :3646, `beamInline` :3658, `renderBeamTable` :3666; surfaces: identity band
+  `csBeamBandHTML` inside `csBandHTML` :4204 (**primary** — the pooled tiles show only the
+  #1/#2 trinket and Lightspire is neither on the default window), fold-out `csBeamSub`
+  :4516, tile foot in `poolTile` :4782-4788, card table. `renderBeamTable()` runs at the END
+  of `render()` :6642, after `FRAME_A=A; FRAME_B=B;` :6438 — correct for the elite branch.
+  Contract recorded in `fleet/checklist.md` §S 158-163 and `fleet/user_prefs.md` #24.
 - **Sizing** (diag part 1 + fetch_procs docstring): ~73k wearer-fights on 2026-09-08 =
   **7.6 % of gear-known parses**, growing ~30k/week; ≈36.7k wearer rows inside the payload's
   482,935 gear-known rows.
@@ -104,8 +109,11 @@ unchanged).
 
 ## 3. Sidecar contract v2 — `site/procs.json.gz` (builder `procs_sidecar`, :2315)
 
-Ship it **before** the client commit (nothing live reads v1; the in-flight client must read
-v2 only — one decoder, no shim).
+The live client (2d2053f) reads v1, so v2 is **additive**: every v1 key keeps its name and
+meaning (`r` u8 percent, 255 = no beam, as prefs #24 records; `p`; `a`/`b` present), and the
+new keys ride beside them. Sequence: the client learns v2 FIRST (tolerating v1), the builder
+switches second (§10). If the order slipped, a v1 client reading v2 would only over-count
+"no beam" in its tooltip (pending rows carry `r=255`) — never a wrong ratio.
 
 ```jsonc
 {"kind":"procs","v":2,"n":<payload rows>,"enc":"sparse","idxdelta":true,
@@ -115,9 +123,11 @@ v2 only — one decoder, no shim).
                 "unavail":14,"dmin":"2026-08-19","dmax":"2026-09-08"}}],
  "cols":{"lscore":{
    "idx":"<b64 LE u32, delta-coded — EVERY wearer row of this item, payload order>",
-   "st":"<u8: 0 pending · 1 measured · 2 unavailable>",
-   "a":"<LE u16 deciseconds available (union of windows)>",
-   "i":"<LE u16 deciseconds inside ∩ available>",
+   "st":"<u8: 0 pending · 1 measured · 2 unavailable>            NEW",
+   "r":"<u8 percent, 255 when st≠1 or no beam>                    v1, kept",
+   "a":"<LE u16 DECIseconds available (v1: seconds)>",
+   "b":"<LE u16 deciseconds raw buff time>                         v1, diagnostic",
+   "i":"<LE u16 deciseconds inside ∩ available>                    NEW — the numerator",
    "p":"<u8 beams>"}}}
 ```
 
@@ -129,10 +139,15 @@ v2 only — one decoder, no shim).
   not), `st=1` otherwise. This is what makes "n measured of n wearers" exact under any knob
   and "pending" distinguishable from "no beam" — v1 cannot tell a wearer awaiting fetch from
   a non-wearer.
-- **`i` replaces `b`** (v1 ships raw buff seconds; a band past the window makes Σb/Σa > 100 %;
-  `i` is capped by construction). **`r` dropped**: the client derives `i/a` from deciseconds
-  (error ≤ 0.05/12 = 0.4 % on a single-beam parse; whole seconds would be ±8 %). u16 ds caps
-  at 6,553 s > p90 fight 1,722 s; clamp and count anyway.
+- **`i` beside `b`**: v1's pooled figure is Σb/Σa with `b` = raw buff time, which a band past
+  the window can push over 100 %; `i` is capped by construction and is the only numerator a
+  v2 reader uses. `r` stays for the v1 reader; the v2 reader derives `i/a` from deciseconds
+  (error ≤ 0.05/12 = 0.4 % on a single-beam parse; whole seconds would be ±8 %). The unit
+  change on `a`/`b` is invisible to v1, which uses them unit-free (Σb/Σa). u16 ds caps at
+  6,553 s > p90 fight 1,722 s; clamp and count anyway.
+- **Model version in the journal**: records carry `"mv":2`; on start the collector re-derives
+  any record without it from its stored bands (`--rederive`, atomic `.tmp` + `os.replace`,
+  no API) — this is what journaling the bands was for (fetch_procs.py:36-38).
 - **N trinkets**: one `cols[key]` per `TRACKED` entry with its own idx; a row wearing two
   tracked trinkets appears in both. `model` is carried so a future trinket whose window is a
   cast (not a band start) is one dispatch branch in the collector, not a fork.
@@ -146,11 +161,13 @@ v2 only — one decoder, no shim).
 
 ## 4. Client — one decoder, one aggregator, one slice pass
 
-- `decodeProcsSidecar` (*wt* :3583): require `v===2`, `n>>>0===N`, and for EVERY `trk`
-  entry `cols[key].{idx,st,a,i,p}` of consistent length (any short column ⇒ `null` ⇒
-  `hasBeam=false`). Result `BEAMC={list:[{key,item,name,buff,window,cov,map,st,a,i,p}],
-  byItem:Map(item→entry)}`. Drop the `BEAM_KEY="lscore"` constant; surfaces resolve by
-  `BEAMC.byItem.get(+e.id)`.
+- `decodeProcsSidecar` (:3600): accept v1 AND v2 — `n>>>0===N`; for EVERY `trk` entry
+  `cols[key].{idx,r,a,p}` of consistent length, plus `st`/`i` when present (`v>=2`); any
+  short column ⇒ `null` ⇒ `hasBeam=false`. Per entry synthesise what is missing: no `st` ⇒
+  `st=1` for every covered row (v1 covers measured rows only), no `i` ⇒ `i=b`. Result
+  `BEAMC={list:[{key,item,name,buff,window,cov,map,st,a,i,p,ds}], byItem:Map(item→entry)}`.
+  Drop the `BEAM_KEY="lscore"` constant (:3584, :3602, :3607, :3621); surfaces resolve by
+  `BEAMC.byItem.get(+e.id)`; the identity line and the card iterate `BEAMC.list`.
 - `beamStats(T, rows)` — the ONLY arithmetic: per row `k=T.map[i]`; `k<0` ⇒ not a wearer;
   `st===0` ⇒ `pending++`; `st===2` ⇒ `unavail++`; `st===1 && a===0` ⇒ `noBeam++`; else
   `sa+=a; si+=i; if(a>=BEAM_MIN_A) v.push(i/a)`. Returns `{wearers, measured, pending,
@@ -163,11 +180,11 @@ v2 only — one decoder, no shim).
   (*wt* :3305) — key range, dungeon, region, role, timed-only, period, projection through
   `liveIdxFor` :3082 (`rowPass`/`periodPass`/`projSkip`), merge-hero through `groupKey`, the
   percentile lens through `inWin`, **Archon replica through the elite branch** :3086-3100.
-- **BUG to fix**: `render()` calls `renderBeamTable()` at *wt* :6401, before `FRAME_A=A;
-  FRAME_B=B;` at :6407. The elite branch reads `FRAME_A.groups.get(key).floorK`, so under
-  the replica the card table is one render stale and empty on the first render after
-  toggling. Move the call to the end of `render()`, immediately before `renderFrame()`
-  (:6610), where FRAME_A/B are current.
+- **Ordering invariant** (was wrong in the pre-commit diff, right in 2d2053f): the elite
+  branch reads `FRAME_A.groups.get(key).floorK`, so `renderBeamTable()` must run AFTER
+  `FRAME_A=A; FRAME_B=B;` (:6438) — it does, at :6642, last in `render()`. Pin it with the
+  static test in §8 so a refactor cannot move it back above and leave the Archon table one
+  render stale (empty on the first render after toggling).
 - **Cost**: `renderBeamTable` runs `lensSliceFor(k)` per spec with wearers (≈40 keys) — 40
   full N-row passes per render, on every slider tick while the card is on. Refactor
   `liveIdxFor` into a predicate + loop and add `liveIdxByKeys(keys, weeks)` (ONE pass
@@ -208,14 +225,18 @@ SimulationCraft assumes 50 %."* With a second `TRACKED` entry the name becomes
 
 ## 6. Surfaces and exact strings (population = lens window everywhere)
 
-1. **Character screen, pooled Trinket tile** (`poolTile` *wt* :4747): when the tile's item is
+0. **Character screen identity band** (`csBeamBandHTML`, :4204 block — primary, always when
+   the spec has covered wearers in the window): `✨ Lightspire Core: beam benefit <b>41%</b>
+   <i>n=143</i>`; the same pending/thin/unavailable forms as the tile below; one line per
+   tracked trinket with wearers, none when there are none.
+1. **Character screen, pooled Trinket tile** (`poolTile` :4782): when the tile's item is
    tracked and the Lab is on, one `.gfoot.beam` line:
    `beam benefit <b>41%</b> <i>n=143</i>`; with pending: `<i>n=143 · 12 pending</i>`;
    thin: `beam benefit <span class="na">thin · n=4</span>`; nothing measured:
    `beam benefit <span class="na">pending · 12 wearers</span>` /
    `<span class="na">reports unavailable</span>`; wearers = 0 ⇒ no line. Tile `title` carries
    the definition + `p25 … · p75 … · time-weighted … · 41 min of light · K no beam`.
-2. **Fold-out row** (`csBeamSub` :4483): the same `beamInline` string in the row's `.fsub`.
+2. **Fold-out row** (`csBeamSub` :4516): the same `beamInline` string in the row's `.fsub`.
 3. **Lab card table** (`renderBeamTable`): columns `Spec | Benefit | n` (+ `B | Δ` under
    compare, header `p50 | p85 | Δ` under skill compare, `A | B | Δ` under time compare), all
    sortable via `sortState/sortHead/sortRows/wireSort` :6341-6373; row `title` = definition;
@@ -261,18 +282,21 @@ aid, abilityID: 1263768)` (+~1 pt, ≤ 20 pts/run); journal `c` = cast count; he
 `casts>bands in 3.1% of sampled fights` (hidden overlapping spawns) and `casts<bands in
 0.0%` (foreign blessings). Either above 5 % reopens §1.
 
-## 10. Rollout (never breaks the live site)
+## 10. Rollout (never breaks the live site — the client is already live on v1)
 
-1. **Pipeline commit**: collector hardening (§1, §2 fixes), sidecar v2 (§3), tests, health
-   lines. Inert: the live client ignores the file. Verify `build_health.txt` after one run.
-2. **Ops commit**: `.gitignore`, `deploy-site.yml` keep-list, `refresh.yml` (`if:`, `--export`,
-   Monday `git add data/procs_seed.jsonl.gz`). Inert.
-3. **Client commit** (the in-flight diff, amended to v2 + §4/§5/§6). `deploy-site.yml`
-   overlays the UI on the latest refresh artifact, which already carries v2 ⇒ `n` matches.
-   Verify: card present; toggle; Archon on ⇒ table populated on the FIRST render; time and
-   skill compare columns; simulated 404 ⇒ no card; `docs/`/`site/` show no tracked procs file.
+1. **Client commit** (§4-§6): dual-shape decoder, statuses, N trinkets, one-pass slices,
+   compare columns, strings. Deploys in ~30 s over the latest artifact's v1 doc, which it
+   still reads. Verify: card, toggle, Archon on ⇒ table populated on the FIRST render, both
+   compares, simulated 404 ⇒ no card.
+2. **Pipeline commit** (§1-§3, §8, §9): model v2 + `--rederive`, quota fixes, additive
+   sidecar v2 over all wearer rows, health lines. Live at the next refresh (≤ 30 min); the
+   deployed client reads `st`/`i` from then on. Amend `checklist.md` §S 158/161/162 and the
+   "255 in the sidecar" sentence of prefs #24 (still true; add `st`).
+3. **Ops commit**: `.gitignore`, `deploy-site.yml` keep-list, `refresh.yml` (`if:`,
+   `--export`, Monday `git add data/procs_seed.jsonl.gz`). Inert to users.
 4. **v1.1**: sampled cast-count tripwire after a week of data.
-Each step reverts alone; the gate guarantees a missing later step renders nothing.
+Each step reverts alone; the gate guarantees a missing later step renders nothing; the
+only mis-ordering symptom (2 before 1) is an over-counted "no beam" tooltip figure.
 
 ## 11. Open questions
 
