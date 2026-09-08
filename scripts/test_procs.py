@@ -285,6 +285,24 @@ s9 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path
 got = sorted(json.loads(l)["report_code"] for l in bigp.read_text().splitlines())
 assert got == ["R000", "R001", "R010", "R011", "R020"] and s9["older"] == 25, (got, s9)
 print("since_reset : per-region instants with a 6 h grace; regionless -> earliest instant; 5 in, 25 left alone")
+# fight_times: fights the sweep forgot are dated (and regioned) by the players journal
+pl = tmp / "players.jsonl"
+rows_pl = []
+for i in range(30):
+    rows_pl.append(json.dumps({"character": f"W{i}", "server": "Realm", "region": "EU" if i % 2 else "US",
+        "class": "Mage", "spec": "Arcane", "dps": 1, "report_code": f"R{i:03d}", "fight_id": 1,
+        "started_at": int(EU + 60_000) if i < 6 else int(EU - 9 * 3600_000)}))
+rows_pl.append(json.dumps({"character": "Dup", "server": "Realm", "region": "US", "report_code": "R000", "fight_id": 1, "started_at": int(EU + 120_000)}))
+pl.write_text("\n".join(rows_pl) + "\n")
+ft = fp.fight_times(pl)
+assert len(ft) == 30 and ft["R000:1"] == {"start_time": int(EU + 120_000), "region": "US"} and ft["R001:1"]["region"] == "EU", ft["R000:1"]
+bigp.unlink(missing_ok=True); bigf.write_text("")
+s10 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
+             procs_path=bigp, failed_path=bigf, client=SafeClient(), workers=2,
+             since_reset=True, fights={}, players_path=pl, instants={"US": US, "EU": EU})["lscore"]
+got = sorted(json.loads(l)["report_code"] for l in bigp.read_text().splitlines())
+assert got == [f"R{i:03d}" for i in range(6)] and s10["older"] == 24, (got, s10)
+print("fight_times : the players journal dates fights the sweep no longer lists; 6 in, 24 before the reset")
 
 # --- the sidecar -------------------------------------------------------------------
 procs.write_text("\n".join(json.dumps(x) for x in [

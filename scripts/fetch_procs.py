@@ -67,8 +67,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from wcl_client import WCLClient, QuotaDeadline          # noqa: E402
-from fetch_data import (PROCESSED, GEAR_FILE, _iter_journal,   # noqa: E402
-                        _repair_tail, load_fights, alias_error_map)
+from fetch_data import (PROCESSED, GEAR_FILE, PLAYERS_FILE,   # noqa: E402
+                        _iter_journal, _repair_tail, load_fights,
+                        alias_error_map)
+import re                                                      # noqa: E402
 
 from procs_spec import TRACKED                                 # noqa: E402
 
@@ -230,6 +232,46 @@ def _done_has(done: set, key: tuple) -> bool:
     # the failed file cannot carry a server (tabs and colons in names are
     # rarer than a null server); match it on the first three fields
     return key in done or (key[0], key[1], key[2], "") in done
+
+
+_RC = re.compile(rb'"report_code": "([^"]+)"')
+_FID = re.compile(rb'"fight_id": (\d+)')
+_ST = re.compile(rb'"started_at": (\d+)')
+_REG = re.compile(rb'"region": "([A-Za-z]*)"')
+
+
+def fight_times(players_path=PLAYERS_FILE) -> dict[str, dict]:
+    """{"code:fid": {start_time, region}} from the PLAYERS journal.
+
+    The sweep's rankings journal (load_fights) only lists fights still on a
+    top-N leaderboard, so a fight pushed off by better runs loses its start
+    time and read as "undated = old" -- on 2026-09-08 that left 44 % of this
+    reset's Lightspire wearer rows outside the collector's window while it
+    reported nothing pending. Every fetched fight has a players row with its
+    own started_at (the payload's date), so that is the authority; the
+    rankings entry only fills a region the players row lacks. Byte-level
+    regexes, not a JSON parse per line: ~1.2M lines in a few seconds."""
+    out: dict[str, dict] = {}
+    path = pathlib.Path(players_path)
+    if not path.exists():
+        return out
+    with path.open("rb") as fh:
+        for raw in fh:
+            m = _RC.search(raw)
+            if not m:
+                continue
+            f = _FID.search(raw)
+            st = _ST.search(raw)
+            if not f or not st:
+                continue
+            key = f"{m.group(1).decode()}:{f.group(1).decode()}"
+            reg = _REG.search(raw)
+            t = int(st.group(1))
+            cur = out.get(key)
+            if cur is None or t > cur["start_time"]:
+                out[key] = {"start_time": t,
+                            "region": (reg.group(1).decode().upper() if reg else "")}
+    return out
 
 
 RESET_GRACE_H = 6.0      # hours before a reset instant still counted as this
@@ -409,7 +451,7 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
         failed_path=PROCS_FAILED, client: WCLClient | None = None,
         workers: int = PROC_WORKERS, since_days: float | None = None,
         fights: dict | None = None, since_reset: bool = False,
-        instants: dict | None = None) -> dict:
+        instants: dict | None = None, players_path=PLAYERS_FILE) -> dict:
     """since_days: only fights that started within the last N days are
     collected; since_reset: only fights since their region's most recent
     reset instant (less RESET_GRACE_H) -- "this reset", the site's own
@@ -422,6 +464,21 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
     done = load_done(procs_path, failed_path)
     if fights is None:
         fights = load_fights(None)
+    if since_reset or since_days:
+        # the players journal dates EVERY fetched fight; the sweep's entry
+        # (region, start) wins where it exists, the players row fills the rest
+        n_before = len(fights)
+        for k, v in fight_times(players_path).items():
+            cur = fights.get(k)
+            if cur is None:
+                fights[k] = dict(v)
+            else:
+                if not cur.get("start_time"):
+                    cur["start_time"] = v["start_time"]
+                if not cur.get("region"):
+                    cur["region"] = v["region"]
+        print(f"[procs] fight dates: {n_before:,} from the sweep, "
+              f"{len(fights):,} with the players journal", flush=True)
     pathlib.Path(procs_path).parent.mkdir(parents=True, exist_ok=True)
     _repair_tail(pathlib.Path(procs_path))
     summary: dict = {}
