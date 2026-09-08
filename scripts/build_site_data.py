@@ -2303,6 +2303,93 @@ def _emb_health(name, embc, markers, crafted, EMB, labels, cfgs, tallies,
            f"{flips} of them differ from the un-split identity (doll tiles "
            f"that move)")
 
+# --- trinket beam benefit sidecar (site/procs.json.gz) ----------------------
+# Per-parse output of fetch_procs.py: for a wearer of a tracked trinket, the
+# share of the beam's available time the player spent inside it. Row-aligned
+# with the payload like the other sidecars; tiny (tens of KB), so it has no
+# ladder -- it ships whole or not at all. A Lab feature's data source: the
+# client feature-detects the file and shows nothing without it.
+PROCS_JOURNAL = ROOT / "data" / "processed" / "procs.jsonl"
+
+
+def procs_sidecar(df, procs_path, meta, name: str) -> str | None:
+    """{"kind":"procs","n":N,"enc":"sparse","idxdelta":true,
+        "trk":[{key,item,name,buff,buff_name,window_ms}, ...],
+        "cols":{<key>:{"idx":<u32 delta-coded payload row indices>,
+                        "r":<u8 benefit percent 0..100, 255 = no beam spawned>,
+                        "a":<u16 available s>, "b":<u16 buff s>,
+                        "p":<u8 beams>}}}
+    all little-endian base64. Rows are payload rows (df order) joined on
+    _gear_key, exactly as the stats sidecar joins. Coverage is reported
+    against the payload's WEARER rows (meta gear lists the item), which is
+    what the collector still owes. None when there is nothing to ship.
+    """
+    from procs_spec import TRACKED
+    path = pathlib.Path(procs_path)
+    if not path.exists():
+        health(f"[{name}] procs sidecar: no {path.name} journal; not shipped")
+        return None
+    by_key: dict[str, dict[tuple, dict]] = {}
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue                        # torn trailing line
+            try:
+                k = _gear_key(rec["report_code"], rec["fight_id"],
+                              rec["character"], rec.get("server"))
+            except (KeyError, TypeError, ValueError):
+                continue
+            by_key.setdefault(rec.get("key"), {})[k] = rec
+    keys_df = [_gear_key(c, f, ch, sv) for c, f, ch, sv in zip(
+        df["report_code"], df["fight_id"], df["character"], df["server"])]
+
+    def b64(arr, dt):
+        return base64.b64encode(np.asarray(arr, dtype=dt).tobytes()).decode()
+
+    cols, trk = {}, []
+    for t in TRACKED:
+        recs = by_key.get(t["key"]) or {}
+        wear = 0
+        idx, r, a, b, pn = [], [], [], [], []
+        for i, k in enumerate(keys_df):
+            m = meta.get(k) if meta else None
+            if m is not None and any(isinstance(it, dict) and it.get("id") == t["item"]
+                                     for it in (m.get("gear") or [])):
+                wear += 1
+            rec = recs.get(k)
+            if rec is None:
+                continue
+            idx.append(i)
+            rr = rec.get("r")
+            r.append(255 if rr is None else min(100, max(0, int(round(100 * float(rr))))))
+            a.append(min(0xFFFF, int(round((rec.get("a") or 0) / 1000))))
+            b.append(min(0xFFFF, int(round((rec.get("b") or 0) / 1000))))
+            pn.append(min(255, int(rec.get("n") or 0)))
+        if not idx:
+            health(f"[{name}] procs sidecar: {t['name']} -- 0 of {wear:,} wearer "
+                   f"rows covered; column not shipped")
+            continue
+        nob = sum(1 for x in r if x == 255)
+        health(f"[{name}] procs sidecar: {t['name']} -- {len(idx):,} of {wear:,} "
+               f"wearer rows covered ({100 * len(idx) / max(1, wear):.0f}%), "
+               f"{nob:,} with no beam")
+        cols[t["key"]] = {
+            "idx": b64(np.diff(np.concatenate([[0], np.asarray(idx, dtype="<u8")])), "<u4"),
+            "r": b64(r, "u1"), "a": b64(a, "<u2"), "b": b64(b, "<u2"), "p": b64(pn, "u1")}
+        trk.append({k2: t[k2] for k2 in ("key", "item", "name", "buff", "buff_name",
+                                        "window_ms")})
+    if not cols:
+        return None
+    return json.dumps({"kind": "procs", "n": len(df), "enc": "sparse",
+                       "idxdelta": True, "trk": trk, "cols": cols},
+                      separators=(",", ":"))
+
+
 
 # --- the single gear-journal walk (blueprint partitioned_payload.md §7.4) --
 # The three readers above (stats/meta/_trait_journal_pass) each walked the
@@ -2978,6 +3065,22 @@ def build(name: str, cfg: dict) -> None:
         sz = (SITE_DIRS[0] / "builds.json.gz").stat().st_size
         print(f"[{name}] builds sidecar -> builds.json.gz "
               f"({sz / 1e6:.2f} MB gz, {len(builds) / 1e6:.1f} MB raw)")
+    # trinket beam benefit sidecar (Lab), same rewritten-or-unlinked discipline
+    procs = procs_sidecar(df, PROCS_JOURNAL, meta_journal, name)
+    for d in SITE_DIRS:
+        out = d / "procs.json.gz"
+        if procs is None:
+            out.unlink(missing_ok=True)
+        else:
+            with gzip.open(out, "wt", encoding="utf-8",
+                           compresslevel=9) as fh:
+                fh.write(procs)
+    if procs is not None:
+        sz = (SITE_DIRS[0] / "procs.json.gz").stat().st_size
+        print(f"[{name}] procs sidecar -> procs.json.gz "
+              f"({sz / 1e3:.0f} KB gz, {len(procs) / 1e3:.0f} KB raw)")
+    else:
+        health(f"[{name}] procs.json.gz not shipped (no journal or no covered rows)")
     # lazy talent-tree document, same rewritten-or-unlinked discipline; the
     # trait material is the whole-journal union, never a re-walk
     talents = talents_doc(name, usage=getattr(builds_sidecar, "usage", None),

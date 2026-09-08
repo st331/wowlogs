@@ -635,6 +635,12 @@ def parse_summary(fight: dict, table: dict,
                     "report_code": fight["code"], "fight_id": fight["fid"],
                     "character": p.get("name"), "server": p.get("server"),
                     "class": p.get("type"), "spec": spec,
+                    # the report-local actor id (2026-09-08): any later
+                    # per-player query against this fight -- the trinket
+                    # proc collector's buff bands and casts -- needs it, and
+                    # resolving it afterwards costs a masterData request per
+                    # report. Records written before this date lack it.
+                    "actor": p.get("id"),
                     "gear": gear, "talents": talents,
                     "flask": compact_flask(ci),
                 })

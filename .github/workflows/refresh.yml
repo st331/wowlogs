@@ -243,6 +243,22 @@ jobs:
           [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
           python -u scripts/fetch_data.py $SWEEP $REGEAR $FRESH_ARGS
 
+      # Trinket beam benefit (Lab feature, 2026-09-08): one Buffs-table
+      # sub-query per wearer-fight of a tracked trinket, newest first, at most
+      # 400 points and 4 minutes a run under the client's STANDING 70%
+      # ceiling -- never the drain fraction. Journals to
+      # data/processed/procs.jsonl, which rides the cache like every journal.
+      # Never fails the run: the site builds with whatever is journaled, and
+      # build_health.txt carries the coverage line.
+      - name: Trinket beam benefit
+        env:
+          WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
+          WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
+          WCL_MAX_SLEEP_S: "30"
+          WCL_BUDGET_MARGIN: "400"
+        run: |
+          python -u scripts/fetch_procs.py --budget-pts 400 --budget-s 240 \
+            || echo "::warning::trinket beam collector failed; building with the existing journal"
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.
       # Caches live in data/processed (rides the journal cache between runs)
