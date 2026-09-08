@@ -307,6 +307,17 @@ class WCLClient:
                 if r.status_code == 429:
                     retry_after = float(r.headers.get("Retry-After", 0) or 0)
                     wait = retry_after if retry_after > 0 else max(self.reset_in, 60) + 20
+                    # the same clock the ceiling path honours: a caller on a CI
+                    # slot must not sleep to the next hour on a 429 either
+                    # (2026-09-08: a drain run at the 100% ceiling drew a 429
+                    # with the reset 35 min away and sat idle until it, holding
+                    # the concurrency group and the chain with it)
+                    cap = float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
+                    if cap and wait > cap:
+                        self._log(f"HTTP 429 with the reset {wait:.0f}s away, over the "
+                                  f"{cap:.0f}s cap; stopping so the next run can use a "
+                                  f"fresh window")
+                        raise QuotaDeadline(f"HTTP 429, reset {wait:.0f}s away, cap {cap:.0f}s")
                     self._log(f"HTTP 429; sleeping {wait:.0f}s")
                     time.sleep(wait)
                     continue
