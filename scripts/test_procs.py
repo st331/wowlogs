@@ -291,7 +291,7 @@ rows_pl = []
 for i in range(30):
     rows_pl.append(json.dumps({"character": f"W{i}", "server": "Realm", "region": "EU" if i % 2 else "US",
         "class": "Mage", "spec": "Arcane", "dps": 1, "report_code": f"R{i:03d}", "fight_id": 1,
-        "started_at": int(EU + 60_000) if i < 6 else int(EU - 9 * 3600_000)}))
+        "started_at": int(EU + 60_000) if i < 6 else int(US - 20 * 3600_000)}))   # old rows predate BOTH windows (US cutoff = US - 6 h)
 rows_pl.append(json.dumps({"character": "Dup", "server": "Realm", "region": "US", "report_code": "R000", "fight_id": 1, "started_at": int(EU + 120_000)}))
 pl.write_text("\n".join(rows_pl) + "\n")
 ft = fp.fight_times(pl)
