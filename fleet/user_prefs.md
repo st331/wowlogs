@@ -415,3 +415,27 @@
     joins that mechanism unchanged. Verified in headless Chromium on the mirror: Overview
     folded + Top Comps unfolded survive a reload exactly. Not persisted by design: filters,
     lens, period (queue.md's scrapped session persistence).
+
+30. **Standing WCL cap is 85 %, permanently (owner, 2026-09-08: "this time make the 70% limit
+    be 85% instead. permanently change the 70% limit to 85%").** DEFAULT_QUOTA_FRACTION 0.85
+    in wcl_client.py, the refresh workflow's quota_fraction default and every fallback
+    ('0.85'), the backfill mode's fraction (was 0.80, below the old cap; now the cap), the
+    Drain-mode step's off-window fraction, diagnose.yml, test_quota_ceiling. The ceiling is
+    15,300 pts/h; the remaining 15 % stays free for anything else on the account. Every
+    earlier note that says 70 % describes the cap as it was on its date. The per-operation
+    relaxation rule (#21) is unchanged: 100 % only when the owner asks, and only for the
+    operation named.
+
+31. **Trinket scope after the drain (owner, 2026-09-08): "once this drain is over, finish
+    draining the trinket data for this entire reset. don't need data from the previous reset.
+    after this reset's data is backfilled for the trinket, resume the regular refreshes."**
+    The collector now runs with `--since-reset`: only fights since each region's most recent
+    weekly reset instant (build_site_data.reset_instants, the same rule the site buckets
+    "this reset" with) minus a 6-hour grace for runs played in the old week's last hour and
+    swept after the rollover; regionless fights (~1/3 of the sweep) take the earliest
+    region's instant. Sequence: the drain window finishes the enumerated backlog and ends
+    itself (marker), regular refreshes resume, and because Fetch is what discovers new
+    wearer-fights, "this reset's" remainder is collected by the standing collector (1,500
+    pts / 8 min under 85 %) within a run or two of each fight being fetched -- newest first,
+    so the current reset is always the most complete. At the rollover the window follows the
+    site's "this reset"; the grace covers the boundary.

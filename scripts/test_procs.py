@@ -266,6 +266,25 @@ s8 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path
 assert s8["ok"] == 5 and s8["older"] == 25 and s8["pending"] == 5, s8
 assert "procs.lscore.older=25" in (tmp / "fetch_health.txt").read_text()
 print("since_days  : 5 fights inside the window fetched, 25 older left alone and reported")
+# since_reset: per-region instants (injected); grace admits the hour before the reset;
+# a regionless fight takes the EARLIEST instant; an undated fight is old
+US, EU = now_ms - 10 * 3600_000, now_ms - 2 * 3600_000          # US reset 10 h ago, EU 2 h ago
+fr = {}
+for i in range(30):
+    reg = "US" if i < 10 else ("EU" if i < 20 else "")
+    st = {0: US + 3600_000, 1: US - 3 * 3600_000, 2: US - 12 * 3600_000,     # US: in, in (grace), out
+          10: EU + 60_000, 11: EU - 5 * 3600_000, 12: EU - 7 * 3600_000,   # EU: in, in (grace), out
+          20: US - 1 * 3600_000, 21: US - 9 * 3600_000}.get(i, US - 48 * 3600_000)   # no region: earliest (US) rule
+    fr[f"R{i:03d}:1"] = {"start_time": st, "region": reg}
+cut = fp.reset_cutoffs(fr, [(f"R{i:03d}", 1, f"W{i}", "Realm") for i in range(30)], now_ms=now_ms, instants={"US": US, "EU": EU})
+assert cut[("R000", 1, "W0", "Realm")] == US - 6 * 3600_000 and cut[("R010", 1, "W10", "Realm")] == EU - 6 * 3600_000 and cut[("R020", 1, "W20", "Realm")] == US - 6 * 3600_000
+bigp.unlink(missing_ok=True); bigf.write_text("")
+s9 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
+            procs_path=bigp, failed_path=bigf, client=SafeClient(), workers=2,
+            since_reset=True, fights=fr, instants={"US": US, "EU": EU})["lscore"]
+got = sorted(json.loads(l)["report_code"] for l in bigp.read_text().splitlines())
+assert got == ["R000", "R001", "R010", "R011", "R020"] and s9["older"] == 25, (got, s9)
+print("since_reset : per-region instants with a 6 h grace; regionless -> earliest instant; 5 in, 25 left alone")
 
 # --- the sidecar -------------------------------------------------------------------
 procs.write_text("\n".join(json.dumps(x) for x in [

@@ -1,9 +1,9 @@
-"""Drive the real WCLClient against a fake API; assert the 70% ceiling holds."""
+"""Drive the real WCLClient against a fake API; assert the standing ceiling holds."""
 import os, sys, threading
 sys.path.insert(0, 'scripts')
 os.environ['WCL_TOKEN'] = 'fake'
 os.environ['WCL_MAX_SLEEP_S'] = '1'      # refuse to sleep; stop instead
-FRACTION = float(os.environ.setdefault('WCL_QUOTA_FRACTION', '0.70'))
+FRACTION = float(os.environ.setdefault('WCL_QUOTA_FRACTION', '0.85'))
 import wcl_client as W
 
 LIMIT, COST = 18000.0, 40.0

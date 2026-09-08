@@ -41,9 +41,11 @@ it. Measured on run 829 (first events run): 192 wearer-fights for 430 points
 actor id; those cost one masterData sub-query per REPORT on top, memoised
 per run. The journal held ~73k wearer-fights on 2026-09-08 (7.6 % of
 gear-known parses) and grows ~30k a week. Every run spends at most
---budget-pts points and --budget-s seconds, under the client's standing 70 %
+--budget-pts points and --budget-s seconds, under the client's standing 85 %
 ceiling, newest fights first, journals what it got and stops; the next run
-continues.
+continues. --since-reset limits the work to each region's current reset
+(owner, 2026-09-08: "finish draining the trinket data for this entire reset.
+don't need data from the previous reset").
 
 FILES (data/processed -- they ride the journal cache between runs):
   procs.jsonl       one line per wearer-fight per tracked trinket: the bands
@@ -230,6 +232,36 @@ def _done_has(done: set, key: tuple) -> bool:
     return key in done or (key[0], key[1], key[2], "") in done
 
 
+RESET_GRACE_H = 6.0      # hours before a reset instant still counted as this
+                         # reset: a run played in the old week's last hour is
+                         # uploaded and swept after the rollover
+
+
+def reset_cutoffs(fights: dict, keys, now_ms: float | None = None,
+                  instants: dict | None = None, grace_h: float = RESET_GRACE_H):
+    """{wearer key: cutoff ms} -- the fight's region's most recent weekly reset
+    instant minus the grace, from build_site_data.reset_instants (the same
+    rule the site buckets "this reset" with). A fight without a region (the
+    sweep tags ~1/3) gets the EARLIEST region instant, the widest window.
+    `instants` maps region -> epoch ms for tests."""
+    now_ms = time.time() * 1000 if now_ms is None else now_ms
+    if instants is None:
+        import pandas as pd                                  # noqa: WPS433
+        from build_site_data import reset_instants          # noqa: WPS433
+        regions = sorted({(fights.get(f"{k[0]}:{k[1]}") or {}).get("region") or ""
+                          for k in keys} - {""})
+        now = pd.Timestamp(now_ms, unit="ms", tz="UTC")
+        instants = {r: int(t.value // 10**6) for r, t in reset_instants(now, regions).items()}
+    earliest = min(instants.values()) if instants else None
+    grace = grace_h * 3600_000
+    out = {}
+    for k in keys:
+        f = fights.get(f"{k[0]}:{k[1]}") or {}
+        inst = instants.get(f.get("region") or "", earliest)
+        out[k] = None if inst is None else inst - grace
+    return out
+
+
 def order_pending(keys, fights: dict) -> list[tuple]:
     """Newest fight first; fights the sweep no longer lists go last."""
     def st(k):
@@ -376,11 +408,14 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
         tracked=TRACKED, gear_path=GEAR_FILE, procs_path=PROCS_FILE,
         failed_path=PROCS_FAILED, client: WCLClient | None = None,
         workers: int = PROC_WORKERS, since_days: float | None = None,
-        fights: dict | None = None) -> dict:
+        fights: dict | None = None, since_reset: bool = False,
+        instants: dict | None = None) -> dict:
     """since_days: only fights that started within the last N days are
-    collected (owner, 2026-09-08: "just 1 reset of data is enough"); older
-    wearer-fights stay in the gear journal but are never fetched. Fights the
-    sweep no longer lists (no start time) count as old."""
+    collected; since_reset: only fights since their region's most recent
+    reset instant (less RESET_GRACE_H) -- "this reset", the site's own
+    bucket (owner, 2026-09-08). Older wearer-fights stay in the gear journal
+    but are never fetched. Fights the sweep no longer lists (no start time)
+    count as old. `instants` injects region -> epoch ms for tests."""
     t_start = time.monotonic()
     deadline = t_start + budget_s
     cands = candidates(tracked, gear_path)
@@ -398,18 +433,27 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
             dn = done.get(t["key"], set())
             pending = order_pending([k for k in allk if not _done_has(dn, k)], fights)
             older = 0
-            if since_days:
+            scope = ""
+            if since_reset:
+                cut = reset_cutoffs(fights, pending, instants=instants)
+                keep = [k for k in pending
+                        if cut.get(k) is not None
+                        and ((fights.get(f"{k[0]}:{k[1]}") or {}).get("start_time") or 0)
+                        >= cut[k]]
+                older = len(pending) - len(keep)
+                pending = keep
+                scope = f", {older:,} before this reset left alone"
+            elif since_days:
                 cutoff_ms = (time.time() - since_days * 86400) * 1000
                 keep = [k for k in pending
                         if ((fights.get(f"{k[0]}:{k[1]}") or {}).get("start_time") or 0)
                         >= cutoff_ms]
                 older = len(pending) - len(keep)
                 pending = keep
+                scope = f", {older:,} older than {since_days:g} days left alone"
             print(f"[procs] {t['name']}: {len(allk):,} wearer-fights in the gear "
                   f"journal, {len(allk) - len(pending) - older:,} done, "
-                  f"{len(pending):,} pending"
-                  + (f", {older:,} older than {since_days:g} days left alone"
-                     if since_days else ""), flush=True)
+                  f"{len(pending):,} pending{scope}", flush=True)
             if limit:
                 pending = pending[:limit]
             s = summary[t["key"]] = {"total": len(allk), "pending": len(pending),
@@ -587,6 +631,9 @@ def main(argv=None) -> int:
     ap.add_argument("--since-days", type=float, default=None,
                     help="collect only fights started within the last N days "
                          "(older ones are never fetched)")
+    ap.add_argument("--since-reset", action="store_true",
+                    help="collect only fights since each region's most recent "
+                         "weekly reset (this reset); wins over --since-days")
     ap.add_argument("--limit", type=int, default=None,
                     help="at most this many wearer-fights (tests)")
     ap.add_argument("--status", action="store_true", help="report and exit")
@@ -595,7 +642,7 @@ def main(argv=None) -> int:
         status()
         return 0
     run(args.budget_pts, args.budget_s, args.limit, workers=args.workers,
-        since_days=args.since_days)
+        since_days=args.since_days, since_reset=args.since_reset)
     return 0
 
 

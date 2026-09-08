@@ -3,7 +3,8 @@
 
 Design goals:
   * Never spend more than WCL_QUOTA_FRACTION of the hourly budget (default
-    0.70). The rest of the hour belongs to whatever else the account is doing.
+    0.85 -- the owner's standing cap since 2026-09-08, 0.70 before). The rest
+    of the hour belongs to whatever else the account is doing.
   * Within that ceiling, spend without artificial pacing, then stop cleanly
     and sleep until the window resets.
   * Every query piggybacks `rateLimitData` so we always know the live spend
@@ -48,7 +49,7 @@ RATE_FIELD = "rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn }"
 # fraction of whatever limitPerHour the API reports. Overridable per-run with
 # WCL_QUOTA_FRACTION, and clamped to 1.0 so it can never authorise more than
 # the account actually has.
-DEFAULT_QUOTA_FRACTION = 0.70
+DEFAULT_QUOTA_FRACTION = 0.85
 
 
 def quota_fraction() -> float:

@@ -41,9 +41,9 @@ on:
         type: boolean
         default: false
       quota_fraction:
-        description: "Share of the hourly API budget this run may spend. The standing cap is 0.70; raise it only for a deliberate one-off."
+        description: "Share of the hourly API budget this run may spend. The standing cap is 0.85 (owner, 2026-09-08; it was 0.70); raise it only for a deliberate one-off."
         type: string
-        default: "0.70"
+        default: "0.85"
       chain:
         description: "Internal: set by the previous run's self-chain dispatch"
         type: string
@@ -56,17 +56,17 @@ on:
         description: "Proceed with NO restored journals (first run of a season, or after a deliberate cache reset). Otherwise a run whose restore comes back empty skips everything and keeps the newest good cache."
         type: boolean
         default: false
-      # DRAIN MODE -- the owner's sanctioned relaxation of the 70% cap, for one
+      # DRAIN MODE -- the owner's sanctioned relaxation of the standing cap, for one
       # operation: "remove the cap and get the site updated asap" (2026-09-02,
       # after the five-day collection outage left ~57k runs to refetch). A
       # drain run spends the WHOLE hourly account budget, stops cleanly at the
       # ceiling, exports, builds and deploys, then chains a successor timed to
       # the quota window's reset. Each successor re-reads the backlog and
       # keeps draining only while it is real; the moment it is gone the chain
-      # continues as an ordinary 70%, 20-minute-paced run. The scheduled path
+      # continues as an ordinary standing-cap, 20-minute-paced run. The scheduled path
       # never sets this, so the standing cap stands.
       drain:
-        description: "One-off: spend the full hourly budget per run and chain at the window reset until the backlog is gone, then revert to the 70% cadence"
+        description: "One-off: spend the full hourly budget per run and chain at the window reset until the backlog is gone, then revert to the standing-cap cadence"
         type: string
         default: ""
       prev_reset_at:
@@ -82,7 +82,7 @@ on:
       #   backfill -- the rest, newest first, capped at 80% of the hourly
       #               budget so the fresh run that follows in the same window
       #               always has points left to spend.
-      # Empty = the ordinary run: everything pending, newest first, 70%.
+      # Empty = the ordinary run: everything pending, newest first, the standing cap.
       mode:
         description: "Internal: 'fresh' or 'backfill' while draining a backlog; empty for an ordinary run"
         type: string
@@ -211,7 +211,7 @@ jobs:
       # data/procs_drain.json carries an `until` epoch; while the clock is
       # before it, Fetch is skipped and the collector runs at the whole hourly
       # budget. The file is inert afterwards -- nothing to revert by hand, and
-      # the standing 70% cap is back the moment the window closes. Every run
+      # the standing 85% cap is back the moment the window closes. Every run
       # re-reads it, so a chained successor needs no input to inherit it.
       - name: Drain mode
         id: drain
@@ -237,7 +237,7 @@ jobs:
               on = False
           out = {"until": cfg.get("until", 0),
                  "procs_drain": "true" if on else "false",
-                 "fraction": cfg.get("fraction", 1.0) if on else "0.70",
+                 "fraction": cfg.get("fraction", 1.0) if on else "0.85",
                  "margin": cfg.get("margin", 20) if on else "400",
                  "budget_pts": cfg.get("budget_pts", 18000) if on else "1500",
                  "budget_s": cfg.get("budget_s", 1200) if on else "480",
@@ -264,13 +264,13 @@ jobs:
           # for anything else using the same credentials. The client refuses to
           # send a request that would cross it and stops cleanly instead.
           # Raise ONLY on an explicit request; the client clamps it to 1.0.
-          # Standing cap is 0.70. A manual dispatch may raise it for a single
+          # Standing cap is 0.85 (owner, 2026-09-08). A manual dispatch may raise it for a single
           # run -- a gear refetch, say -- but the scheduled path never does:
-          # `inputs` is empty on a schedule, so this falls back to 0.70.
+          # `inputs` is empty on a schedule, so this falls back to 0.85.
           # Drain mode (see the input) is the one path that spends the whole
           # budget; it is only ever set by an explicit dispatch or by a drain
           # run's own successor while a backlog remains.
-          WCL_QUOTA_FRACTION: ${{ inputs.mode == 'backfill' && '0.80' || (inputs.drain == 'true' || inputs.mode == 'fresh') && '1.0' || inputs.quota_fraction || '0.70' }}
+          WCL_QUOTA_FRACTION: ${{ inputs.mode == 'backfill' && '0.85' || (inputs.drain == 'true' || inputs.mode == 'fresh') && '1.0' || inputs.quota_fraction || '0.85' }}
           # the fresh slice: only runs from the last 12 hours, so the run is
           # small and the deploy is minutes away; everything older waits for
           # the backfill run that follows
@@ -304,7 +304,7 @@ jobs:
           REGEAR=""
           if [ -n "${{ inputs.regear_min_key }}" ]; then
             REGEAR="--regear-min-key ${{ inputs.regear_min_key }} --regear-days ${{ inputs.regear_days || '3' }}"
-            echo "::notice::gear refetch: $REGEAR at quota fraction ${{ inputs.quota_fraction || '0.70' }}"
+            echo "::notice::gear refetch: $REGEAR at quota fraction ${{ inputs.quota_fraction || '0.85' }}"
           fi
           SWEEP="--resweep"
           [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
@@ -313,13 +313,16 @@ jobs:
       # Trinket beam benefit (Lab feature, 2026-09-08): one buff-events
       # sub-query per wearer-fight of a tracked trinket, newest first, four
       # concurrent requests, at most 1,500 points and 8 minutes a run under
-      # the client's STANDING 70% ceiling -- never the drain fraction. The
+      # the client's STANDING 85% ceiling -- never the drain fraction. The
       # budget is a cap, not a spend: once the backlog is gone a run costs
       # ~60 points. Sized so three runs an hour (Fetch ~2k + this) stay
       # under the 12.6k ceiling with room to spare (owner, 2026-09-08:
-      # "backfill the runs first"; and "just 1 reset of data is enough", so
-      # --since-days 8 = one reset plus a margin, newest first -- older
-      # wearer-fights are never fetched). Journals to data/processed/procs.jsonl,
+      # "backfill the runs first"; "just 1 reset of data is enough"; then
+      # "finish draining the trinket data for this entire reset. don't need
+      # data from the previous reset": --since-reset = fights since each
+      # region's most recent reset instant (a short grace before it for late
+      # uploads), newest first -- older wearer-fights are never fetched).
+      # Journals to data/processed/procs.jsonl,
       # which rides the cache like every journal. Never fails the run: the
       # site builds with whatever is journaled, and build_health.txt carries
       # the coverage line.
@@ -330,12 +333,12 @@ jobs:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
           WCL_MAX_SLEEP_S: "30"
-          # standing: 0.70 / 400; inside a drain window (data/procs_drain.json)
+          # standing: 0.85 / 400; inside a drain window (data/procs_drain.json)
           # the whole hourly budget with a 20-point margin
           WCL_QUOTA_FRACTION: ${{ steps.drain.outputs.fraction }}
           WCL_BUDGET_MARGIN: ${{ steps.drain.outputs.margin }}
         run: |
-          python -u scripts/fetch_procs.py --budget-pts ${{ steps.drain.outputs.budget_pts }} --budget-s ${{ steps.drain.outputs.budget_s }} --since-days 8 \
+          python -u scripts/fetch_procs.py --budget-pts ${{ steps.drain.outputs.budget_pts }} --budget-s ${{ steps.drain.outputs.budget_s }} --since-reset \
             || echo "::warning::trinket beam collector failed; building with the existing journal"
           # Inside a drain window: when the collector stopped because it ran OUT
           # OF WORK (no "stopped=" reason in its last fetch_health block), the
@@ -567,7 +570,7 @@ jobs:
           # landing mid-run is routine -- and a plain push is then rejected as
           # non-fast-forward, which fails the run, and a failed run does not
           # chain (2026-09-06: that ended a drain, and the watchdog revived it
-          # as a plain 70% run). The export touches only data files that no
+          # as a plain standing-cap run). The export touches only data files that no
           # code commit edits, so replaying it onto the new tip is safe; if
           # the rebase somehow conflicts, give up on THIS commit loudly and
           # let the 20-hour seed rule retry next run rather than fail the run.
@@ -595,7 +598,7 @@ jobs:
         run: |
           # Keep draining only while there is a backlog worth a full-budget
           # run; below the floor the successor is an ordinary chained run and
-          # the standing 70% cap is back in force without anyone touching it.
+          # the standing 85% cap is back in force without anyone touching it.
           NEXT_DRAIN=""; NEXT_MODE=""
           DRAINING=""
           { [ "${{ inputs.drain }}" = "true" ] || [ -n "${{ inputs.mode }}" ]; } && DRAINING=1
@@ -617,7 +620,7 @@ jobs:
             # fresh for the same reason
             echo "drain: ${BACKLOG} runs still pending -> successor is a fresh run, starting immediately"
           elif [ -n "$DRAINING" ]; then
-            echo "drain: backlog ${BACKLOG:-0} -> done; successor returns to the 70% cadence"
+            echo "drain: backlog ${BACKLOG:-0} -> done; successor returns to the standing-cap cadence"
           fi
           curl -sf -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
