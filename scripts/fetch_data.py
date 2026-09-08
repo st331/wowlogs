@@ -922,6 +922,13 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
           f"({load_fights.anon_skipped} anonymous entries skipped), "
           f"{len(done)} already fetched, {len(pending)} to go "
           f"({len(known)} region-tagged, {len(unknown)} untagged)", flush=True)
+    # Coverage facts for the page (2026-09-08, owner: "I don't want data hidden
+    # from me"): what the leaderboards listed this sweep and what they could
+    # not give us. Anonymous entries carry no report code and can never be
+    # fetched; they are a property of WCL's privacy settings, not of this
+    # collector, and the reader must be able to see their share.
+    write_outputs(**{"sweep.public_runs": len(fights),
+                     "sweep.anonymous_entries": load_fights.anon_skipped})
 
     PROCESSED.mkdir(parents=True, exist_ok=True)
     _repair_tail(SUMMARIES_DONE)
@@ -1412,6 +1419,18 @@ def main() -> None:
     try:
         if args.stage in ("all", "sweep"):
             sweep(client, brackets)
+            # Which leaderboards the API's page cap truncated: a board that
+            # still had more pages at page_cap() holds runs the sweep can
+            # never reach (ranks past the top 1,000 by score, 200 below
+            # +10). The page tells the reader those key levels are a
+            # top-score slice, not every run played.
+            st = load_sweep_state()
+            capped = sorted((enc, br) for (enc, br), cur in st.items()
+                            if cur["more"] and cur["last_page"] >= page_cap(br))
+            keys_capped = sorted({bracket_to_key(br) for _, br in capped})
+            write_outputs(**{"sweep.boards": len(st), "sweep.boards_capped": len(capped),
+                             "sweep.pages": sum(c["last_page"] for c in st.values()),
+                             "sweep.keys_capped": "|".join(str(k) for k in keys_capped)})
         if args.stage in ("all", "summaries") and not STOP:
             regear = ((args.regear_min_key, args.regear_days)
                       if args.regear_min_key is not None else None)

@@ -2915,10 +2915,25 @@ def build(name: str, cfg: dict) -> None:
     if future_n:
         health(f"future_dated_rows={future_n}")
     fh_path = ROOT / "data" / "processed" / "fetch_health.txt"
+    # the sweep's coverage facts ride into the payload (payload["coverage"])
+    # so the page can say what the leaderboards listed and what they could
+    # not give: public runs, anonymous entries (unfetchable), boards the API's
+    # page cap truncated and at which key levels (a top-score slice there)
+    coverage = {}
     if fh_path.exists():
         for line in fh_path.read_text().splitlines():
             if line.strip():
                 health(f"fetch.{line.strip()}")
+            if line.startswith("sweep.") and "=" in line:
+                k, v = line.strip().split("=", 1)
+                k = k[len("sweep."):]
+                if k == "keys_capped":
+                    coverage[k] = [int(x) for x in v.split("|") if x.strip().isdigit()]
+                else:
+                    try:
+                        coverage[k] = int(float(v))
+                    except ValueError:
+                        coverage[k] = v
 
     def enc(col):
         cats = sorted(df[col].unique())
@@ -2999,6 +3014,9 @@ def build(name: str, cfg: dict) -> None:
         # runs collected vs published on this build; equal unless a MAX_RUNS
         # cap is back, in which case the client shows it (never a silent sample)
         "sample": dict(SAMPLE_INFO),
+        # what the leaderboard sweep listed / could not list (see above);
+        # {} until a fetch on or after 2026-09-08 has run
+        "coverage": coverage,
         "season": cfg["season"],
         "epoch": str(EPOCH.date()),
         "tuning": ({"label": patch.get("label"), "date": patch.get("date"),

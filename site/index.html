@@ -1430,6 +1430,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
       <div class="kpi"><div class="l">Run dates</div><div class="v" id="k-dates">–</div></div>
     </div>
     <div class="kpi-note" id="period-note"></div>
+    <div class="hint" id="coverage-note" title="What the collection can and cannot see. Runs enter this site only through Warcraft Logs' dungeon leaderboards, and only public logs carry a report to fetch."></div>
     <div id="archon-card" hidden></div>
 
 
@@ -1707,6 +1708,32 @@ function loadSeason(){
   });
 }
 
+/* Coverage: what the leaderboard sweep listed and what it could not give.
+   Owner, 2026-09-08: "I don't want data hidden from me" -- the page says,
+   where the KPIs are, that runs come from WCL's dungeon leaderboards (a
+   top-score slice at the key levels whose boards the API's 20-page cap
+   truncates; every ranked public run above that), how many anonymous
+   entries had no report to fetch, and how many boards were cut. Numbers
+   come from the fetch via build_health (payload.coverage); the sentence
+   stands without them. */
+function renderCoverageNote(){
+  const el=$("coverage-note"); if(!el) return;
+  const c=(D&&D.coverage)||{};
+  const n=v=>typeof v==="number"?fmtInt(v):null;
+  let h='<b>Coverage.</b> Runs enter this site through Warcraft Logs\' dungeon leaderboards, '
+    +'re-swept every 30 minutes: the top 1,000 entries by score per dungeon and key level '
+    +'(200 below +10), public logs only, one entry per team as WCL ranks them.';
+  if(n(c.public_runs)!=null)
+    h+=' This sweep listed <b>'+n(c.public_runs)+'</b> public runs and skipped <b>'+(n(c.anonymous_entries)||"0")
+      +'</b> anonymous entries (no report to fetch).';
+  if(n(c.boards_capped)!=null){
+    const ks=Array.isArray(c.keys_capped)&&c.keys_capped.length?c.keys_capped:null;
+    h+=' <b>'+n(c.boards_capped)+' of '+n(c.boards)+'</b> boards were cut by the API\'s 20-page cap'
+      +(ks?' (keys +'+Math.min(...ks)+' to +'+Math.max(...ks)+')':'')
+      +(c.boards_capped>0?': at those key levels the site holds a <b>top-score slice</b> of the runs played, not all of them; above them, every run WCL ranks.':'.');
+  }else h+=' Boards the 20-page cap truncates hold a top-score slice of the runs played, not all of them.';
+  el.innerHTML=h;
+}
 function initData(d,cfg){
   D=d; R=d.rows; N=R.dps.length;
   runCount=0;
@@ -1724,6 +1751,7 @@ function initData(d,cfg){
   }
   buildRuns();
   computeResetBuckets();
+  renderCoverageNote();
   // Raider.IO season score per character, indexed by the same char id the rows
   // carry. Enrichment is a slow background sweep, so partial coverage is the
   // normal state and the metric appears as soon as anyone is rated.

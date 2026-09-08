@@ -357,6 +357,8 @@ assert "const st=beamStats(idx);" in tbl and "const ln=beamStats(lensWindow(idx)
 assert '["lens","p"+state.pctl+" lens"' in tbl, "lens column"
 assert html.count("beamStatsWin(") >= 5 and "function beamStatsWin(win,all)" in html, "frame + character surfaces fall back to every parse"
 assert "Sampled payload:" in html and '"sample": dict(SAMPLE_INFO)' in (ROOT / "scripts" / "build_site_data.py").read_text(), "never a silent sample"
-print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner")
+assert 'id="coverage-note"' in html and "function renderCoverageNote" in html and "renderCoverageNote();" in html, "coverage note"
+assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'write_outputs(**{"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build -> page"
+print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner; coverage note")
 
 print("\nPASS")
