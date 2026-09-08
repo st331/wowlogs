@@ -25,14 +25,19 @@ against classic uptimes of 8.2 % and 8.7 %. Overlapping beams merge in the
 union, which is what "time the trinket was active" means.
 
 COST: ONE buff-EVENTS sub-query per wearer-fight (applybuff/refreshbuff/
-removebuff of the aura on the wearer, any source), PROC_BATCH of them per
-request. Events, not the Buffs table: the table with sourceID AND targetID
-set returns no bands at all (run 827, 2026-09-08: 240 of 240 wearer-fights
-"no beam"), and the events carry the source of every application, which is
-what tells the wearer's own beams from a teammate's -- a spawn is an
+removebuff of the aura on the wearer, any source) plus the fight clock,
+PROC_BATCH of them per request. Events, not the Buffs table. THE RECORD,
+corrected 2026-09-08: run 827 (be9ab78) asked table(dataType: Buffs,
+abilityID, targetID) -- the very shape diag pass 1 read 23/27 bands with --
+and journaled 240 of 240 wearer-fights with zero bands; the difference was
+this file's table parser keeping only auras whose guid == 1263768, and an
+abilityID-filtered Buffs table does not key its entries by that guid. The
+sourceID+targetID variant blamed at the time never ran in CI. Events
+sidestep the table entirely and carry the source of every application,
+which is what tells the wearer's own beams from a teammate's: a spawn is an
 apply/refresh whose source is the wearer; the buff band counts whoever cast
-it. Events also cost a fraction of a table's points (diag pass 2: 8 event
-sub-queries for 1 point). Gear records written before 2026-09-08 carry no
+it. Measured on run 829 (first events run): 192 wearer-fights for 430 points
+-- 2.2 pts each blended with the masterData look-ups the old records need. Gear records written before 2026-09-08 carry no
 actor id; those cost one masterData sub-query per REPORT on top, memoised
 per run. The journal held ~73k wearer-fights on 2026-09-08 (7.6 % of
 gear-known parses) and grows ~30k a week. Every run spends at most
@@ -66,6 +71,8 @@ from procs_spec import TRACKED                                 # noqa: E402
 PROCS_FILE = PROCESSED / "procs.jsonl"
 PROCS_FAILED = PROCESSED / "procs_failed.txt"
 PROC_BATCH = 12          # aliased buff-events sub-queries per request
+SYSTEMIC_MIN = 20        # results held back before the systemic check
+SYSTEMIC_SHARE = 0.5     # no-beam share at or above which the run is broken
 ACTOR_BATCH = 10         # aliased masterData sub-queries per request
 RECORD_V = 2             # journal record version; older records are redone
 EVENT_LIMIT = 5000       # events per page; a 30-min fight has ~100
@@ -149,24 +156,6 @@ def bands_from_events(events, aid: int, t0: int, t1: int):
     if open_t is not None:
         bands.append([max(0, open_t - t0), max(0, t1 - t0)])
     return bands, sorted(spawns), foreign
-
-
-def bands_from_table(table: dict, buff: int):
-    """(bands relative to fight start, fight_ms) from a Buffs table filtered
-    to one ability and one target; ([], fight_ms) when the aura never
-    appeared. Raises ValueError when the table is not a table."""
-    d = table.get("data") if isinstance(table, dict) else None
-    if not isinstance(d, dict) or "startTime" not in d or "endTime" not in d:
-        raise ValueError("no buffs table")
-    t0, t1 = int(d["startTime"]), int(d["endTime"])
-    out = []
-    for a in d.get("auras") or []:
-        if not isinstance(a, dict) or int(a.get("guid") or 0) != buff:
-            continue
-        for bd in a.get("bands") or []:
-            s, e = int(bd.get("startTime", t0)), int(bd.get("endTime", t1))
-            out.append([max(0, s - t0), max(0, min(e, t1) - t0)])
-    return out, max(0, t1 - t0)
 
 
 # --- the work list -----------------------------------------------------------
@@ -345,14 +334,32 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
                 continue
             if client is None:
                 client = WCLClient(verbose=True)
-            spent0 = client.spent
+            # points USED this run, rollover-safe: client.spent is the hour's
+            # running total and drops to ~0 when the window rolls over
+            # mid-run, so spent - spent0 would go negative and the point
+            # budget would never stop the loop. Only positive deltas count.
+            used, last = 0.0, client.spent
+
+            def tick():
+                nonlocal used, last
+                used += max(0.0, client.spent - last)
+                last = client.spent
+
+            # systemic stop: a broken query (run 827's table parser) journals
+            # "no beam" for everyone and burns the budget doing it. The first
+            # SYSTEMIC_MIN results are held back; if half or more of them
+            # have no beam, nothing is journaled, the run warns and stops,
+            # and the fights stay pending for a fixed collector.
+            held: list[str] = []
+            fetched = zero = 0
+            systemic = False
             amaps: dict[str, dict] = {}
             i = 0
             while i < len(pending):
                 if time.monotonic() >= deadline:
                     s["stopped"] = f"time budget {budget_s:.0f}s"
                     break
-                if client.spent - spent0 >= budget_pts:
+                if used >= budget_pts:
                     s["stopped"] = f"point budget {budget_pts:.0f}"
                     break
                 chunk = pending[i:i + PROC_BATCH]
@@ -362,6 +369,7 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
                                    if not allk[k].get("actor") and k[0] not in amaps})
                     if need:
                         amaps.update(resolve_actors(client, need))
+                        tick()
                     batch = []
                     for k in chunk:
                         aid = allk[k].get("actor") or actor_of(amaps.get(k[0], {}), k)
@@ -374,6 +382,7 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
                     if not batch:
                         continue
                     rd, errs = fetch_batch(client, t, batch)
+                    tick()
                 except QuotaDeadline as e:
                     s["stopped"] = f"quota: {e}"
                     break
@@ -413,11 +422,42 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
                            "key": t["key"], "actor": aid, "f": fight_ms,
                            "bands": bands, "sp": spawns, "x": foreign}
                     rec.update(benefit(bands, t["window_ms"], fight_ms, spawns))
-                    out_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                    fetched += 1
+                    if not spawns:
+                        zero += 1
+                    line = json.dumps(rec, ensure_ascii=False) + "\n"
+                    if held is not None:
+                        held.append(line)
+                    else:
+                        out_fh.write(line)
                     s["ok"] += 1
+                if held is not None and fetched >= SYSTEMIC_MIN:
+                    if zero >= SYSTEMIC_SHARE * fetched:
+                        systemic = True
+                        s["ok"] -= len(held)
+                        held = None
+                        s["stopped"] = (f"systemic: {zero} of {fetched} fetched had "
+                                        f"no beam -- nothing journaled")
+                        print(f"::warning::trinket beam collector: {s['stopped']}; "
+                              f"the query or the actor ids are wrong, not the "
+                              f"players", flush=True)
+                        break
+                    out_fh.writelines(held)
+                    held = None
                 out_fh.flush()
                 fail_fh.flush()
-            s["points"] = round(client.spent - spent0)
+            if held:                       # fewer than SYSTEMIC_MIN this run
+                if fetched and zero >= SYSTEMIC_SHARE * fetched and fetched >= 4:
+                    s["ok"] -= len(held)
+                    s["stopped"] = (f"systemic: {zero} of {fetched} fetched had no "
+                                    f"beam -- nothing journaled")
+                    print(f"::warning::trinket beam collector: {s['stopped']}",
+                          flush=True)
+                else:
+                    out_fh.writelines(held)
+                out_fh.flush()
+            s["points"] = round(used)
+            s["nobeam"] = zero
             print(f"[procs] {t['name']}: +{s['ok']:,} journaled, {s['failed']:,} "
                   f"failed permanently, {s['transient']:,} left for the next run, "
                   f"{s['points']:,} points, {time.monotonic() - t_start:.0f}s"
@@ -426,6 +466,17 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
     finally:
         out_fh.close()
         fail_fh.close()
+    # the run's story for build_health.txt: the build folds fetch_health.txt
+    # in with a "fetch." prefix, so these read fetch.procs.lscore.ok=192
+    try:
+        with (pathlib.Path(procs_path).parent / "fetch_health.txt").open("a") as fh:
+            for key, sm in summary.items():
+                for f in ("total", "pending", "ok", "failed", "transient", "nobeam",
+                          "points", "stopped"):
+                    if f in sm and sm[f] != "":
+                        fh.write(f"procs.{key}.{f}={sm[f]}\n")
+    except OSError:
+        pass
     return summary
 
 

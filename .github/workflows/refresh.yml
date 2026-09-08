@@ -251,6 +251,8 @@ jobs:
       # Never fails the run: the site builds with whatever is journaled, and
       # build_health.txt carries the coverage line.
       - name: Trinket beam benefit
+        # a gear-refetch run spends its whole window on summaries
+        if: inputs.regear_min_key == ''
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}

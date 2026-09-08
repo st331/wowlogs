@@ -501,3 +501,32 @@ remembered ⚗ toggle (§13 Q1); ROBUST's t0-band exclusion.
    ~3-9 days to clear 73.6k (this reset fills first, newest-first). Nothing changes unless you
    want a one-off drain for this; a persistent actor cache (R4) is the cheaper lever if the
    masterData share turns out to dominate.
+
+## 14. As shipped — reconciliation against HEAD (2026-09-08, after the panel)
+
+Adopted from this synthesis, in the commit that follows it: the record correction (§1)
+in fetch_procs.py's docstring, user_prefs #24 and checklist 159, with `bands_from_table`
+and its test deleted; C1 (the sidecar's `b` is the record's `i`, inside seconds); the
+`trk[].cov` block and the card's "measured so far" hint; rollover-safe point accounting
+(only positive `client.spent` deltas); the in-run systemic stop (first 20+ results held
+back, ≥50 % no own spawn ⇒ nothing journaled, `::warning::`, stop); `if:
+inputs.regear_min_key == ''` on the step; `procs.json.gz` in `.gitignore` and in
+deploy-site.yml's keep-list; `fetch.procs.lscore.*` folded into build_health.txt via
+fetch_health.txt; pooled/median in the sidecar health line and a `::warning::` at ≥50 %
+no-beam; the relabel to "in the light **38%** of beam time · n=143 of 312" (card "✨
+Lightspire Core · in the light", badge LIGHT, checkbox "Show time in the light",
+"uptime" only inside "Not classic uptime."); the Spec Frame Overview row as the primary
+surface with skill compare via `lensWindow(idx, pctl)`; population alignment (identity
+line, tile, fold-out read `d.win`) so the frame row and the screen print one figure; the
+toggle also re-renders the frame; static tests for render order and the strings.
+
+Kept as shipped, per the panel's own MINIMAL grafts: the card's per-spec table as the
+cross-spec surface (the Data Table column is dropped); no A·B compare columns; no
+deciseconds; no N-trinket decoder; no per-row status byte (deferred until pending rows
+persist past the backfill). Not built: the remembered toggle (queue.md's scrapped
+session persistence — put to the owner, not done). Deferred: the weekly durability seed.
+
+Verified after the grafts: test_procs.py (model, events parser, candidates, done/order,
+run against a scripted client incl. v1 redo, rollover, systemic stop, sidecar with
+b == i and cov, static client checks) and scratchpad/verify_beam.py in headless Chromium
+against the live payload with a synthetic sidecar.

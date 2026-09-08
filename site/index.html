@@ -1261,7 +1261,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
   aside{position:static; height:auto}
   #strip{top:0}
 }
-/* ⚗ beam — Lightspire Core beam benefit */
+/* ⚗ beam — Lightspire Core, time in the light */
 #cs-band .csbeam{color:var(--ink3); font-size:.8rem}
 #cs-band .csbeam b{color:var(--ink); font-weight:650} #cs-band .csbeam i{font-style:normal; margin-left:.35rem}
 .gtile .gfoot.beam b{color:var(--ink); font-weight:650}
@@ -1616,7 +1616,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
 
              postTune:true,    // default: only runs after the latest tuning
              proj:false,       // re-score every parse under the upcoming tuning
-             beam:false,       // ⚗ Lab: Lightspire Core beam benefit surfaces
+             beam:false,       // ⚗ Lab: Lightspire Core time in the light surfaces
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"grid", timedOnly:true,
              pctl:50, elite:false,
@@ -1625,7 +1625,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              trendNorm:"dps", trajSort:"metric", trendAxis:"time",
              trustPrev:null};
 let hasTimed=false, hasTune=false, hasProj=false;
-let hasBeam=false, BEAMC=null;   // ⚗ procs sidecar: Lightspire Core beam benefit
+let hasBeam=false, BEAMC=null;   // ⚗ procs sidecar: Lightspire Core time in the light
 let hasRating=false, CHARSCORE=[];
 let archonPrev=null;   // Archon-mode's "what you had before" snapshot
 // elite = the Archon-replica statistic path is active. Only the mode toggle
@@ -2497,7 +2497,7 @@ const LAB_FEATURES=[
      +'<input type="checkbox" id="posttune"> Since latest tuning'
      +'<span class="hint" id="tunehint"></span></label>',
    scopeBits:()=>""},
-  /* Lightspire Core beam benefit (owner, 2026-09-08): "of the time that the
+  /* Lightspire Core time in the light (owner, 2026-09-08): "of the time that the
      trinket was active, what percentage of time did the player stay in the
      buff" — NOT classic uptime. Data: procs.json.gz (fetch_procs.py). The
      entry exists only while that sidecar decoded; off, it adds nothing
@@ -2505,17 +2505,18 @@ const LAB_FEATURES=[
      badges the scope lines. Surfaces: the Character screen's Lightspire
      trinket tile (+ its fold-out row) and the cross-spec table in this card,
      both on the lens slice every screen section reads. */
-  {id:"beam", name:"✨ Lightspire Core · beam benefit", badge:"BEAM",
+  {id:"beam", name:"✨ Lightspire Core · in the light", badge:"LIGHT",
    mount:"labbox", card:true, stamp:false,
    gate:()=>hasBeam,
    active:()=>hasBeam&&state.beam,
    controlHTML:'<label class="small" id="beambox">'
-     +'<input type="checkbox" id="beamcb"> Show beam benefit</label>'
+     +'<input type="checkbox" id="beamcb"> Show time in the light'
+     +'<span class="hint" id="beamhint"></span></label>'
      +'<div id="beamtbl"></div>',
    scopeBits:()=>state.beam
-     ?"share of each Lightspire beam's 12 s its wearer spent inside it — on the "
-      +"Character screen (identity line, trinket tile, fold-out row) and per spec "
-      +"below; follows every filter and the lens"
+     ?"share of each Lightspire beam's 12 s its wearer spent standing in it — the "
+      +"Spec Frame's Overview row, the Character screen (identity line, trinket "
+      +"tile, fold-out row) and per spec below; follows every filter and the lens"
      :"off — nothing added anywhere"},
 ];
 function labHas(id){return LAB_FEATURES.some(f=>f.id===id)}
@@ -2556,7 +2557,11 @@ function wireLabControls(){
   const bc=$("beamcb");
   if(bc){ bc.checked=state.beam;
     bc.onchange=e=>{ state.beam=e.target.checked; labScopeRefresh();
-      renderBeamTable(); if(state.screen) renderScreen(); }; }
+      renderBeamTable(); renderFrame(); if(state.screen) renderScreen(); }; }
+  const bh=$("beamhint");
+  if(bh&&BEAMC&&BEAMC.cov)
+    bh.textContent="("+fmtInt(BEAMC.cov.measured)+" of "+fmtInt(BEAMC.cov.wearers)
+      +" wearer-parses measured so far)";
   const pt=$("posttune");
   if(pt) pt.onchange=e=>{state.postTune=e.target.checked; render()};
   const pc=$("projcb");
@@ -3176,6 +3181,27 @@ function frameIdentityHTML(ctx){
     rows+=row("Deathless",ab(g.deathless,b?b.deathless:null,v=>v.toFixed(1)+"%",true));
   else rows+=row("Deathless",g.deathless.toFixed(1)+"%"
     +(skill?' <span class="fnote">(skill compare does not apply)</span>':""));
+  /* ⚗ beam — the primary surface: one click from every bar, a key/value
+     ledger row (sort-rule exempt), hidden with the rest of the frame while
+     the Character screen is open so two readings never show at once. Same
+     lens window as the Character screen's identity line. Under skill compare
+     the second figure is the vs-percentile window of the same rows. */
+  if(hasBeam&&state.beam){
+    const L=frameLensSlice(), s=beamStats(L.inWin);
+    if(s.n+s.nb>0){
+      let v=beamInline(s);
+      if(skill){
+        const sB=beamStats(lensWindow(L.idx,state.pctlB).inWin);
+        const f=x=>x.n>=BEAM_MIN_N?'<b>'+beamPct(x.p50)+'</b>':'<span class="na">thin</span>';
+        v='in the light '+f(s)+' · '+f(sB)+' of beam time';
+      }
+      rows+=row('<span title="'+escA(beamTitle(s))+'">'+esc(BEAMC.name)+'</span>',
+        v+'<div class="fnote">median · n='+fmtInt(s.n)+' around p'+state.pctl
+        +(skill?' · p'+state.pctlB:'')+' (lens ±10)'
+        +(s.nb?' · '+fmtInt(s.nb)+' got no beam':'')
+        +(state.compare?' · period A':'')+'</div>');
+    }
+  }
   if(hasRating&&g.rn)
     rows+=row("Med player rating",
       fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated</span>");
@@ -3320,9 +3346,9 @@ const fmtDps=v=>v>=1e4?Math.round(v/1e3)+"k":fmtInt(v);
    frameLiveIdx's elite branch already feeds the slice. ---- */
 function frameLensSlice(){return lensSliceFor(state.frameKey)}
 function lensSliceFor(key){return lensWindow(liveIdxFor(key))}
-function lensWindow(idx){
-  const Y=idx.length;
-  const lo=Math.max(0,state.pctl-10), hi=Math.min(100,state.pctl+10);
+function lensWindow(idx,pctl){
+  const Y=idx.length, P=pctl==null?state.pctl:pctl;
+  const lo=Math.max(0,P-10), hi=Math.min(100,P+10);
   if(!Y) return {idx, Y, lo, hi, sdps:[], inWin:new Set()};
   // per-parse DPS percentile WITHIN this filtered view — ranks, not raw dps
   const order=[...idx].sort((a,b)=>dpsAt(a)-dpsAt(b));
@@ -3570,8 +3596,8 @@ let __screenRemapPres=null;       // merge-toggle remap request (class*100+spec 
 let __csCopy=[];                  // import strings behind the rendered copy buttons
                                   // (hash-identified builds never enter it)
 
-/* ---- procs sidecar (procs.json.gz) — ⚗ Lab "beam": Lightspire Core beam
-   benefit per parse, ROW-ALIGNED with the payload like stats.json.gz. Tens of
+/* ---- procs sidecar (procs.json.gz) — ⚗ Lab "beam": Lightspire Core time in
+   the light per parse, ROW-ALIGNED with the payload like stats.json.gz. Tens of
    KB, so it is fetched at boot rather than lazily; while absent the Lab card
    does not exist and no surface changes. Shape (build_site_data.procs_sidecar):
    {kind:"procs", n, enc:"sparse", idxdelta:true,
@@ -3622,7 +3648,8 @@ function decodeProcsSidecar(j){
     return {map, r, p:pb, a:new Uint16Array(ab.buffer,0,M), b:new Uint16Array(bb.buffer,0,M),
       M, item:+trk.item||0, name:trk.name||"Lightspire Core",
       buff:trk.buff_name||"Light's Blessing",
-      window:Math.round((+trk.window_ms||12000)/1000)};
+      window:Math.round((+trk.window_ms||12000)/1000),
+      cov:(trk.cov&&typeof trk.cov==="object")?trk.cov:null};
   }catch(e){ return null }
 }
 // per-parse benefit percentages over a set of payload rows → one summary.
@@ -3645,20 +3672,23 @@ const beamPct=x=>x==null?"–":Math.round(x)+"%";
 // the definition, ONCE, behind every place the number appears
 function beamTitle(s){
   const T=BEAMC;
-  return "Beam benefit: of the seconds a "+T.name+" beam was up for these wearers, the "
-    +"share they spent standing in it ("+T.buff+" active). A beam lasts "+T.window
-    +" s from where it spawns; overlapping beams count once. Median over "
-    +fmtInt(s.n)+" wearer-parses in this window with beam data"
+  return "In the light: of the seconds a "+T.name+" beam was available to these "
+    +"wearers, the share they spent standing in it ("+T.buff+" active). A beam "
+    +"lasts "+T.window+" s from where it spawns; overlapping beams count once; only "
+    +"the wearer's own beams count as available. Median over "+fmtInt(s.n)
+    +" wearer-parses in this window with beam data"
     +(s.n?" (p25 "+beamPct(s.p25)+" · p75 "+beamPct(s.p75)
       +" · time-weighted "+beamPct(s.pooled)+")":"")
     +(s.nb?"; "+fmtInt(s.nb)+" more got no beam that run and are not counted":"")
     +". Not classic uptime.";
 }
-// the compact reading: "beam benefit 38% n=143", or the thin form below the floor
-function beamInline(s){
+// the compact reading — the denominator rides in the words so it can never be
+// mistaken for the classic measure: "in the light 38% of beam time · n=143 of 312"
+function beamInline(s,wearers){
+  const n='n='+fmtInt(s.n)+(wearers?' of '+fmtInt(wearers):'');
   return s.n>=BEAM_MIN_N
-    ? 'beam benefit <b>'+beamPct(s.p50)+'</b> <i>n='+fmtInt(s.n)+'</i>'
-    : 'beam benefit <span class="na">thin · n='+fmtInt(s.n)+'</span>';
+    ? 'in the light <b>'+beamPct(s.p50)+'</b> of beam time <i>'+n+'</i>'
+    : 'in the light <span class="na">thin · '+n+'</span>';
 }
 /* the ⚗ card's cross-spec table: every spec with beam data, on the SAME slice
    the Spec Frame and the Character screen read — the usual knobs plus the
@@ -3679,7 +3709,7 @@ function renderBeamTable(){
   }
   const shown=rows.filter(r=>r.s.n>=BEAM_MIN_N), thin=rows.length-shown.length;
   const cols=[["spec","Spec","txt"],
-    ["p50","Benefit","","median of the per-parse beam benefit in the lens window"],
+    ["p50","Benefit","","median of the per-parse time in the light in the lens window"],
     ["n","n","","wearer-parses with beam data in the lens window"]];
   const st=sortState("beam:tbl","p50",cols);
   const val=(r,c)=>c==="spec"?r.spec+" "+r.hero:c==="p50"?r.s.p50:c==="n"?r.s.n:null;
@@ -4244,7 +4274,7 @@ function csBandHTML(ctx,d){
    item is present. Nothing renders without covered wearers in the window. */
 function csBeamBandHTML(d){
   if(!(hasBeam&&state.beam&&d)) return "";
-  const s=beamStats(d.gearIdx);
+  const s=beamStats(d.win);   // the lens window: the Spec Frame row prints the same figure
   if(!s.n&&!s.nb) return "";
   return '<span class="csbeam" title="'+escA(beamTitle(s))+'">✨ '+esc(BEAMC.name)+': '
     +beamInline(s)+'</span>';
@@ -4515,7 +4545,7 @@ function csFoldHTML(d,fid,M){
 // ⚗ beam: the tracked trinket's fold-out row carries the same reading as its tile
 function csBeamSub(e,d){
   if(!(hasBeam&&state.beam&&e&&+e.id===BEAMC.item)) return {};
-  const s=beamStats(d.gearIdx);
+  const s=beamStats(d.win);
   return {sub:' <span class="gbeam" title="'+escA(beamTitle(s))+'">'+beamInline(s)+'</span>'};
 }
 function csPoolFoldHTML(d,p,M){
@@ -4779,13 +4809,14 @@ function csGearPaneHTML(ctx,d){
   const poolTile=(p,rank)=>{
     const M=poolOf(p), x=M.ent[rank-1]||null, lab=CS_POOL_LABEL[p];
     const e=x?x.e:null, c=x?x.c:0, share=100*c/(M.n||1);
-    // ⚗ beam: the tracked trinket's tile carries its wearers' beam benefit,
-    // over the same gear-known window every tile counts (covered rows are
-    // wearers by construction); the definition rides the tile's tooltip
+    // ⚗ beam: the tracked trinket's tile carries its wearers' time in the
+    // light over the lens window (covered rows are wearers by construction),
+    // with ONE n — "n=143 of 312" against the tile's own wearer count; the
+    // definition rides the tile's tooltip
     let bfoot="", btitle="";
     if(hasBeam&&state.beam&&e&&+e.id===BEAMC.item){
-      const s=beamStats(d.gearIdx);
-      bfoot='<div class="gfoot beam">'+beamInline(s)+'</div>';
+      const s=beamStats(d.win);
+      bfoot='<div class="gfoot beam">'+beamInline(s,c)+'</div>';
       btitle=" — "+escA(beamTitle(s));
     }
     return cell({fid:p, foot:bfoot,

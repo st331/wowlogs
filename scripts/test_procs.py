@@ -8,8 +8,7 @@ Pinned:
     beams is None (no evidence), and the two reference fights' arithmetic.
   * bands_from_events(): apply/refresh/remove -> bands (any source), the
     wearer's own spawns (source = wearer, a refresh is a new beam), the
-    foreign count, an open band closing at the fight end; and the legacy
-    bands_from_table() shape for completeness.
+    foreign count, an open band closing at the fight end.
   * candidates(): byte prefilter + exact id check over a gear journal (a gem
     or bonus id that merely CONTAINS the digits must not match), last record
     wins, actor id carried when present.
@@ -94,24 +93,6 @@ assert spawns == [10_000, 20_000, 28_000, T1 - T0 - 2000], spawns
 assert foreign == 1, foreign
 assert fp.bands_from_events([], 9, T0, T1) == ([], [], 0)
 print("events      : bands any-source, own spawns incl. refresh, foreign count, open band closes at fight end")
-
-# --- the table shape the API returns --------------------------------------------
-table = {"data": {"startTime": 3_223_104, "endTime": 4_283_125, "totalTime": 1_060_021,
-                  "auras": [{"guid": 999, "name": "Other", "bands": [{"startTime": 3_300_000, "endTime": 3_310_000}]},
-                            {"guid": T["buff"], "name": T["buff_name"], "totalUptime": 87_400,
-                             "bands": [{"startTime": 3_340_789, "endTime": 3_341_015},
-                                       {"startTime": 4_280_000, "endTime": 4_290_000}]}]}}
-bands, fight_ms = fp.bands_from_table(table, T["buff"])
-assert fight_ms == 1_060_021, fight_ms
-assert bands == [[117_685, 117_911], [1_056_896, 1_060_021]], bands   # 2nd clipped to the fight
-assert fp.bands_from_table({"data": {"startTime": 0, "endTime": 5, "auras": []}}, T["buff"]) == ([], 5)
-for bad in (None, {}, {"data": None}, {"data": {"auras": []}}):
-    try:
-        fp.bands_from_table(bad, T["buff"])
-        raise AssertionError(f"accepted {bad!r}")
-    except ValueError:
-        pass
-print("table       : aura filter, ms from fight start, clip, non-table rejected")
 
 # --- journals ----------------------------------------------------------------------
 tmp = pathlib.Path(tempfile.mkdtemp())
@@ -223,10 +204,48 @@ s3 = fp.run(budget_pts=0, budget_s=60, limit=None, tracked=TRACKED, gear_path=ge
 assert s3["ok"] == 0 and s3["stopped"].startswith("point budget"), s3
 print("run         : actor resolution, journal lines, alias error -> failed, budget stop, idempotent")
 
+# --- rollover-safe budget and the systemic stop -------------------------------------
+# 30 wearers with actor ids, all pending
+big = tmp / "gear_big.jsonl"; bigp = tmp / "procs_big.jsonl"; bigf = tmp / "failed_big.txt"
+big.write_text("\n".join(grec(f"R{i:03d}", 1, f"W{i}", "Realm", [item], actor=100 + i) for i in range(30)) + "\n")
+class RolloverClient(FakeClient):
+    """the hour rolls over after the 2nd request: spent drops to 0.3"""
+    def query(self, gql, est_cost=1.0):
+        out = super().query(gql, est_cost)
+        if len(self.queries) == 2: self.spent = 0.3
+        return out
+rc = RolloverClient()
+s5 = fp.run(budget_pts=2.5, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
+            procs_path=bigp, failed_path=bigf, client=rc)["lscore"]
+# 12 aliases x 0.5 = 6 pts per request; the first request alone exceeds 2.5 ->
+# stops after ONE batch even though spent was reset to 0.3 by the rollover
+assert s5["ok"] == 12 and s5["stopped"].startswith("point budget"), s5
+assert len(bigp.read_text().splitlines()) == 12
+print("rollover    : only positive spend deltas count; the window rollover cannot unbound the budget")
+class BrokenClient(FakeClient):
+    """events come back, but never with the wearer as source: a broken actor id path"""
+    def query(self, gql, est_cost=1.0):
+        out = super().query(gql, est_cost)
+        for k, v in (out.get("reportData") or {}).items():
+            if v and "ev" in v:
+                for e in v["ev"]["data"]: e["sourceID"] = 555
+        return out
+bigp.unlink(); bigf.write_text("")
+bc = BrokenClient()
+s6 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
+            procs_path=bigp, failed_path=bigf, client=bc)["lscore"]
+assert s6["ok"] == 0 and s6["stopped"].startswith("systemic"), s6
+assert not bigp.exists() or bigp.read_text() == "", "a systemic run must journal nothing"
+assert len(bc.queries) == 2, "held back 24 results, stopped at the first check past 20"
+hl = (tmp / "fetch_health.txt").read_text()
+assert "procs.lscore.stopped=systemic" in hl and "procs.lscore.ok=0" in hl, hl
+print("systemic    : 24 of 24 without an own spawn -> nothing journaled, warning, stop, fetch_health says so")
+
 # --- the sidecar -------------------------------------------------------------------
 procs.write_text("\n".join(json.dumps(x) for x in [
+    # b (any-source buff) 9 s, i (inside own windows) 6 s: the sidecar ships i
     {"v": 2, "report_code": "AAA", "fight_id": 1, "character": "Wearer", "server": "Realm", "key": "lscore",
-     "actor": 9, "f": 600_000, "bands": [[0, 6000]], "sp": [0], "x": 0, "n": 1, "a": 12_000, "b": 6000, "i": 6000, "r": 0.5},
+     "actor": 9, "f": 600_000, "bands": [[0, 6000], [50_000, 53_000]], "sp": [0], "x": 1, "n": 1, "a": 12_000, "b": 9000, "i": 6000, "r": 0.5},
     {"v": 2, "report_code": "BBB", "fight_id": 2, "character": "Old", "server": None, "key": "lscore",
      "actor": 42, "f": 600_000, "bands": [], "sp": [], "x": 0, "n": 0, "a": 0, "b": 0, "i": 0, "r": None},
     {"report_code": "ZZZ", "fight_id": 9, "character": "NotInPayload", "server": "R", "key": "lscore",
@@ -251,11 +270,22 @@ b64 = lambda s, dt: np.frombuffer(base64.b64decode(s), dtype=dt)
 idx = np.cumsum(b64(col["idx"], "<u4"))
 assert idx.tolist() == [0, 1], idx            # payload rows 0 (BBB) and 1 (AAA); row 2 uncovered
 assert b64(col["r"], "u1").tolist() == [255, 50], b64(col["r"], "u1")
-assert b64(col["a"], "<u2").tolist() == [0, 12] and b64(col["b"], "<u2").tolist() == [0, 6]
+assert b64(col["a"], "<u2").tolist() == [0, 12] and b64(col["b"], "<u2").tolist() == [0, 6], "b must be the inside seconds (i), never the any-source buff"
+assert doc["trk"][0]["cov"] == {"wearers": 2, "measured": 1, "nobeam": 1}, doc["trk"][0]
 assert b64(col["p"], "u1").tolist() == [0, 1]
 line = [h for h in bsd._HEALTH if "procs sidecar" in h]
-assert line and "2 of 2 wearer rows" in line[0] and "1 with no beam" in line[0], line
+assert line and "2 of 2 wearer rows" in line[0] and "1 with no beam" in line[0] and "median 50%" in line[0] and "time-weighted 50%" in line[0], line
 assert bsd.procs_sidecar(df, tmp / "missing.jsonl", meta, "t") is None
 print("sidecar     : _gear_key join (NaN server), delta idx, r/a/b/p columns, 255 = no beam, v1 skipped, health")
+
+# --- static client contract -------------------------------------------------------
+html = (ROOT / "site" / "index.html").read_text()
+rb = html.index("function render(){")
+body = html[rb:html.index("\n}\n", rb)]
+assert body.index("FRAME_A=A") < body.index("renderBeamTable()"), "the beam table must run after FRAME_A is set"
+assert "in the light" in html and "beam benefit" not in html.replace("beam benefit (owner", ""), "relabel: 'in the light', never 'beam benefit'"
+beam_code = html[html.index("const BEAM_KEY"):html.index("/* ---- builds sidecar")]
+assert beam_code.lower().count("uptime") == beam_code.count("Not classic uptime"), "the word uptime survives only inside the definition"
+print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition")
 
 print("\nPASS")

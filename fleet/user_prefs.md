@@ -272,7 +272,7 @@
     profile API, current gear only, own credentials and quota) could answer it; that
     is the owner's call, not a default.
 
-24. **⚗ Lightspire Core beam benefit (2026-09-08) — a Lab feature, off by default.**
+24. **⚗ Lightspire Core "in the light" (2026-09-08) — a Lab feature, off by default.**
     Owner's metric, verbatim: "of the time that the trinket was active, what percentage
     of time did the player stay in the buff to get its effect ... the uptime of the buff
     on the player as a percentage of when the buff was actually available." NOT classic
@@ -288,20 +288,37 @@
     35.9 % against classic uptimes of 8.2 % / 8.7 %. Zero beams in a run = no evidence
     (255 in the sidecar), counted separately, never 0 %.
     Pipeline: fetch_procs.py after Fetch, ONE buff-events sub-query per wearer-fight
-    (the aura's apply/refresh/remove on the wearer, any source; run 827 proved the Buffs
-    table with sourceID+targetID returns no bands, and events cost a fraction of a
-    table's points), newest first, ≤400 pts and ≤4 min a run under the STANDING 70 % ceiling
+    (the aura's apply/refresh/remove on the wearer, any source) plus the fight clock,
+    newest first, ≤400 pts and ≤4 min a run under the STANDING 70 % ceiling. The record,
+    corrected: run 827 asked the Buffs table with abilityID+targetID -- the shape the
+    diagnostic read 23/27 bands with -- and got 240 of 240 empty because the collector's
+    table parser kept only auras with guid == 1263768, which an abilityID-filtered table
+    does not key by; the sourceID+targetID variant blamed at the time never ran. Events
+    sidestep the table. Measured on run 829 (first events run): 192 wearer-fights, 430
+    points (2.2 each blended with masterData look-ups for pre-actor-id records), "126 of
+    46,678 wearer rows covered, 0 with no beam". The point budget counts only positive
+    spend deltas (rollover-safe); a run whose first 20+ results are ≥50 % no-beam
+    journals nothing, warns and stops (systemic stop); regear runs skip the step
     (never the drain fraction); ~73k wearer-fights in the journal, ~30k/week new (7.6 %
     of gear-known parses). Journal data/processed/procs.jsonl keeps the bands; the
     sidecar site/procs.json.gz is row-aligned, tens of KB, no ladder; procs_spec.py is
     the one tracked-trinket table (adding a trinket = one entry, after its log signature
     is established the same way). Gear rows now carry the actor id.
-    Client: the LAB entry "beam" exists only while the sidecar decoded; stamp:false — it
-    adds numbers and changes none, so it never badges scope lines. Surfaces, all on the
-    lens slice every screen section reads: the Character screen's identity line
-    ("✨ Lightspire Core: beam benefit 37 % n=89" — the primary surface, because the
-    pooled trinket tiles show only the #1/#2 trinket and on the default window Lightspire
-    is neither for any of its big wearer specs), the trinket tile + its fold-out row when
-    the item is present, and the ⚗ card's sortable per-spec table. Median of per-parse
-    ratios is the headline; p25/p75/time-weighted and the no-beam count ride the tooltip
+    Client: the LAB entry "beam" (card "✨ Lightspire Core · in the light", badge LIGHT)
+    exists only while the sidecar decoded; stamp:false — it adds numbers and changes none,
+    so it never badges scope lines. The words carry the denominator so it can never be
+    read as classic uptime: "in the light 38 % of beam time · n=143 of 312". Surfaces, all
+    on the lens window (liveIdxMulti → lensWindow), so the same figure prints everywhere:
+    PRIMARY the Spec Frame's Overview row (one click from every bar; skill compare shows
+    "38 % · 51 %"; hidden with the frame while the Character screen is open), the
+    Character screen's identity line (the pooled trinket tiles show only the #1/#2
+    trinket and on the default window Lightspire is neither for any of its big wearer
+    specs), the trinket tile + its fold-out row when the item is present, and the ⚗ card's
+    sortable per-spec table with a "measured so far" hint from the sidecar's cov block.
+    Median of per-parse ratios is the headline; p25/p75/time-weighted (Σinside/Σavailable,
+    the sidecar's b column is the INSIDE seconds) and the no-beam count ride the tooltip
     with the definition. Floor n=10 (CS_THIN echo): below it "thin", never a number.
+    Deliberately not built (design panel 2026-09-08): a Data Table column, A·B compare
+    columns on the card, a remembered toggle (queue.md's scrapped session persistence),
+    a per-row status byte, an N-trinket decoder. Deferred: a weekly durability seed of the
+    procs journal (cache-only today; an eviction restarts the backfill at ~2 pts a fight).

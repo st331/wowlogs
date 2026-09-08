@@ -90,7 +90,7 @@ jobs:
           if [ -n "$live_built" ] && [ -n "$art_built" ] \
              && [ "$art_built" \< "$live_built" ]; then
             echo "::warning::artifact data (${art_built}) is OLDER than live (${live_built}); keeping the live data files"
-            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz; do
+            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz procs.json.gz; do
               curl -sfL -o "/tmp/out/$f" "https://st331.github.io/wowlogs/$f" \
                 && echo "  kept live $f" || rm -f "/tmp/out/$f"
             done

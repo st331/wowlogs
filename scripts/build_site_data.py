@@ -2317,8 +2317,11 @@ def procs_sidecar(df, procs_path, meta, name: str) -> str | None:
         "trk":[{key,item,name,buff,buff_name,window_ms}, ...],
         "cols":{<key>:{"idx":<u32 delta-coded payload row indices>,
                         "r":<u8 benefit percent 0..100, 255 = no beam spawned>,
-                        "a":<u16 available s>, "b":<u16 buff s>,
+                        "a":<u16 available s>,
+                        "b":<u16 buff s INSIDE the available windows (the
+                             record's i, so pooled b/a can never top 100 %)>,
                         "p":<u8 beams>}}}
+    trk[k].cov = {wearers, measured, nobeam} over the payload rows.
     all little-endian base64. Rows are payload rows (df order) joined on
     _gear_key, exactly as the stats sidecar joins. Coverage is reported
     against the payload's WEARER rows (meta gear lists the item), which is
@@ -2370,21 +2373,31 @@ def procs_sidecar(df, procs_path, meta, name: str) -> str | None:
             rr = rec.get("r")
             r.append(255 if rr is None else min(100, max(0, int(round(100 * float(rr))))))
             a.append(min(0xFFFF, int(round((rec.get("a") or 0) / 1000))))
-            b.append(min(0xFFFF, int(round((rec.get("b") or 0) / 1000))))
+            inside = rec.get("i") if rec.get("i") is not None else rec.get("b")
+            b.append(min(0xFFFF, int(round((inside or 0) / 1000))))
             pn.append(min(255, int(rec.get("n") or 0)))
         if not idx:
             health(f"[{name}] procs sidecar: {t['name']} -- 0 of {wear:,} wearer "
                    f"rows covered; column not shipped")
             continue
         nob = sum(1 for x in r if x == 255)
+        meas = [x for x in r if x != 255]
+        sa, sb = sum(a), sum(b)
         health(f"[{name}] procs sidecar: {t['name']} -- {len(idx):,} of {wear:,} "
                f"wearer rows covered ({100 * len(idx) / max(1, wear):.0f}%), "
-               f"{nob:,} with no beam")
+               f"{nob:,} with no beam; median {sorted(meas)[len(meas) // 2] if meas else '-'}%, "
+               f"time-weighted {100 * sb / sa if sa else 0:.0f}%")
+        if len(idx) and nob >= 0.5 * len(idx):
+            print(f"::warning::procs sidecar: {nob:,} of {len(idx):,} covered "
+                  f"{t['name']} wearer rows have no beam -- the collector's query "
+                  f"or actor ids are suspect", flush=True)
         cols[t["key"]] = {
             "idx": b64(np.diff(np.concatenate([[0], np.asarray(idx, dtype="<u8")])), "<u4"),
             "r": b64(r, "u1"), "a": b64(a, "<u2"), "b": b64(b, "<u2"), "p": b64(pn, "u1")}
-        trk.append({k2: t[k2] for k2 in ("key", "item", "name", "buff", "buff_name",
-                                        "window_ms")})
+        entry = {k2: t[k2] for k2 in ("key", "item", "name", "buff", "buff_name",
+                                     "window_ms")}
+        entry["cov"] = {"wearers": wear, "measured": len(meas), "nobeam": nob}
+        trk.append(entry)
     if not cols:
         return None
     return json.dumps({"kind": "procs", "n": len(df), "enc": "sparse",
