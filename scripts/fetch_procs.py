@@ -233,8 +233,14 @@ def fetch_batch(client: WCLClient, t: dict, batch: list[tuple[tuple, int]]):
     """[(wearer key, actor id)] -> (reportData, alias error map)."""
     parts = []
     for i, (k, aid) in enumerate(batch):
+        # source AND target = the wearer: only the wearer's OWN beams count.
+        # The blessing's source is the beam's owner (verified 2026-09-08:
+        # applybuff sourceID == targetID on every event), so a teammate's
+        # beam blessing this player is excluded from both numerator and
+        # denominator -- the metric is about this wearer's trinket.
         parts.append(f'a{i}: report(code: "{k[0]}") {{ table(fightIDs: [{k[1]}], '
-                     f'dataType: Buffs, abilityID: {t["buff"]}, targetID: {aid}) }}')
+                     f'dataType: Buffs, abilityID: {t["buff"]}, sourceID: {aid}, '
+                     f'targetID: {aid}) }}')
     data = client.query("{ reportData { " + " ".join(parts) + " } }",
                         est_cost=1.0 * len(parts))
     return data.get("reportData") or {}, alias_error_map(data.get("_errors"))

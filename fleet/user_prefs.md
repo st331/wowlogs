@@ -271,3 +271,33 @@
     and diag_raw_gear.py stay as the evidence. Only a second data source (Blizzard's
     profile API, current gear only, own credentials and quota) could answer it; that
     is the owner's call, not a default.
+
+24. **⚗ Lightspire Core beam benefit (2026-09-08) — a Lab feature, off by default.**
+    Owner's metric, verbatim: "of the time that the trinket was active, what percentage
+    of time did the player stay in the buff to get its effect ... the uptime of the buff
+    on the player as a percentage of when the buff was actually available." NOT classic
+    uptime. What the log records (two read-only diagnostics, 50 procs): the area-trigger
+    spell 1263762 is never logged; 1263768 "Light's Blessing" is applied to the wearer
+    the instant a beam spawns (cast and applybuff coincide to the ms, 50/50) and drops
+    when they step out or at the 12 s expiry (bands 0.1–12.0 s, capped). So a band's
+    START is a spawn, the beam is available 12 s from there, and per wearer-fight
+    benefit = |bands ∩ ∪[start, start+12 s]| / |∪[start, start+12 s]|, overlapping beams
+    merged, the wearer's OWN beams only (source = target = wearer). Reference: 41.4 % and
+    35.9 % against classic uptimes of 8.2 % / 8.7 %. Zero beams in a run = no evidence
+    (255 in the sidecar), counted separately, never 0 %.
+    Pipeline: fetch_procs.py after Fetch, ONE Buffs-table sub-query per wearer-fight
+    (~1 pt), newest first, ≤400 pts and ≤4 min a run under the STANDING 70 % ceiling
+    (never the drain fraction); ~73k wearer-fights in the journal, ~30k/week new (7.6 %
+    of gear-known parses). Journal data/processed/procs.jsonl keeps the bands; the
+    sidecar site/procs.json.gz is row-aligned, tens of KB, no ladder; procs_spec.py is
+    the one tracked-trinket table (adding a trinket = one entry, after its log signature
+    is established the same way). Gear rows now carry the actor id.
+    Client: the LAB entry "beam" exists only while the sidecar decoded; stamp:false — it
+    adds numbers and changes none, so it never badges scope lines. Surfaces, all on the
+    lens slice every screen section reads: the Character screen's identity line
+    ("✨ Lightspire Core: beam benefit 37 % n=89" — the primary surface, because the
+    pooled trinket tiles show only the #1/#2 trinket and on the default window Lightspire
+    is neither for any of its big wearer specs), the trinket tile + its fold-out row when
+    the item is present, and the ⚗ card's sortable per-spec table. Median of per-parse
+    ratios is the headline; p25/p75/time-weighted and the no-beam count ride the tooltip
+    with the definition. Floor n=10 (CS_THIN echo): below it "thin", never a number.
