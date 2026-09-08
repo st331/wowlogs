@@ -216,8 +216,11 @@ jobs:
       - name: Drain mode
         id: drain
         run: |
-          python3 - <<'EOF' | tee -a "$GITHUB_OUTPUT"
-          import json, pathlib, time
+          # outputs go to $GITHUB_OUTPUT (key=value ONLY -- a workflow command
+          # in that file is an "Invalid format" error that fails the step, as
+          # run 34207028988 found); the notice goes to stdout
+          python3 - <<'EOF'
+          import json, os, pathlib, time
           p = pathlib.Path("data/procs_drain.json")
           cfg, on = {}, False
           if p.exists():
@@ -225,14 +228,18 @@ jobs:
                   cfg = json.loads(p.read_text()); on = time.time() < float(cfg.get("until", 0))
               except (ValueError, TypeError):
                   cfg, on = {}, False
-          print(f"procs_drain={'true' if on else 'false'}")
-          print(f"fraction={cfg.get('fraction', 1.0) if on else '0.70'}")
-          print(f"margin={cfg.get('margin', 20) if on else '400'}")
-          print(f"budget_pts={cfg.get('budget_pts', 18000) if on else '1500'}")
-          print(f"budget_s={cfg.get('budget_s', 1200) if on else '480'}")
-          print(f"pause_fetch={'true' if on and cfg.get('pause_fetch', True) else 'false'}")
+          out = {"procs_drain": "true" if on else "false",
+                 "fraction": cfg.get("fraction", 1.0) if on else "0.70",
+                 "margin": cfg.get("margin", 20) if on else "400",
+                 "budget_pts": cfg.get("budget_pts", 18000) if on else "1500",
+                 "budget_s": cfg.get("budget_s", 1200) if on else "480",
+                 "pause_fetch": "true" if on and cfg.get("pause_fetch", True) else "false"}
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              for k, v in out.items():
+                  fh.write(f"{k}={v}\n")
+          print(" ".join(f"{k}={v}" for k, v in out.items()))
           if on:
-              left = (float(cfg['until']) - time.time()) / 60
+              left = (float(cfg["until"]) - time.time()) / 60
               print(f"::notice::trinket drain window active for another {left:.0f} min: fresh runs paused, collector at the full hourly budget")
           EOF
 
