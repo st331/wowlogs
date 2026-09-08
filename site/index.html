@@ -3017,6 +3017,7 @@ function jumpToComps(k){
    anywhere); #frame-x is reached only by the user's own Tab. Zero hover
    behavior — the 450ms #tip owns hover, untouched. */
 let FRAME_A=null, FRAME_B=null, CHART_KEYS=[];
+let GATED_KEYS=new Set();   // every group past the minimum-characters gate this render
 
 /* ---- live-stats sidecar (stats.json.gz) — per-parse stat ratings, ROW-ALIGNED
    with the payload's rows arrays. Fetched lazily on the FIRST frame open, once
@@ -3730,9 +3731,12 @@ function renderBeamTable(){
     +" wearer-parses measured so far":"";
   if(sub) sub.textContent="per spec, the share of each "+T.name+" beam's "
     +T.window+" s its wearers spent standing in it ("+T.buff+" active) · "
-    +frameScope()+" · follows every filter and the lens"+covTxt;
+    +frameScope()+" · follows every filter and the lens · specs past the "
+    +"minimum-characters gate, as in the Overview"+covTxt;
+  // only groups the trust gate lets through (GATED_KEYS, set by render());
+  // no minimum on n itself -- a listed spec shows whatever it has
   const keys=new Set();
-  for(let i=0;i<N;i++) if(BEAMC.map[i]>=0) keys.add(groupKey(i));
+  for(let i=0;i<N;i++) if(BEAMC.map[i]>=0){ const k=groupKey(i); if(GATED_KEYS.has(k)) keys.add(k); }
   const rows=[];
   for(const [k,idx] of liveIdxMulti(keys)){     // ONE pass for every spec
     const st=beamStats(lensWindow(idx).inWin);
@@ -3753,7 +3757,7 @@ function renderBeamTable(){
     :c==="pool"?r.s.pooled:c==="n"?r.s.n:null;
   let h="";
   if(!shown.length){
-    h='<div class="hint">no wearer-parse with beam data in the current filters</div>';
+    h='<div class="hint">no spec past the minimum-characters gate has beam data in the current filters</div>';
   }else{
     h='<div class="tblwrap light"><table class="beamtbl" data-sid="beam:tbl">'+sortHead(cols,st)+'<tbody>';
     for(const r of sortRows(shown,st,val))
@@ -3767,7 +3771,8 @@ function renderBeamTable(){
   }
   h+='<div class="hint">In the light = of the seconds a '+esc(T.name)+' beam was available '
     +'to a wearer (12 s from each of their own beams, overlaps counted once), the share they '
-    +'spent standing in it. One value per parse; the table shows the median. '
+    +'spent standing in it. One value per parse; the table shows the median at any n. '
+    +'Specs are the ones the minimum-characters gate lists in the Overview. '
     +'Not classic uptime. The same reading sits on the Spec Frame\'s Overview and on the '
     +'Character screen.</div>';
   host.innerHTML=h;
@@ -6590,6 +6595,11 @@ function render(){
   else if(state.sort==="gain") view=[...view].sort((x,y)=>(pct(y)??-1e9)-(pct(x)??-1e9));
   else if(state.sort==="loss") view=[...view].sort((x,y)=>(pct(x)??1e9)-(pct(y)??1e9));
   CHART_KEYS=view.map(r=>r.key);   // Spec Frame arrow-stepping walks chart order
+  // the gate, not the chart's top-N cap: the ⚗ Lightspire table lists exactly
+  // the groups the trust gate lets through (owner, 2026-09-08: "if a spec
+  // doesn't have enough minimum characters to match, it shouldn't show up in
+  // the trinket uptime list either"); lowering the gate widens both together
+  GATED_KEYS=new Set(ranked.map(r=>r.key));
 
   // shared x-scale
   let lo=0, hi=1;

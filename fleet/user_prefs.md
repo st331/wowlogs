@@ -391,7 +391,12 @@
     hidden from me, even if it is not statsig."** BEAM_MIN_N is gone: every spec with at
     least one measured wearer-parse is listed, and every tile/line/row prints its percent
     with its n beside it at any n. The reader judges significance from n; the page never
-    withholds a number.
+    withholds a number. One gate does apply, the same one the Overview uses (owner, same
+    day): "do have the shown specs adhere to the minimum characters gate. if a spec doesn't
+    have enough minimum characters to match, it shouldn't show up in the trinket uptime list
+    either." The table lists exactly the groups past the trust gate (GATED_KEYS, every group
+    in the gated ranking -- the gate, not the chart's top-N cap); raising the slider shrinks
+    both together, the "show every group" override widens both.
 
 28. **Times to the owner in IST, always (owner, 2026-09-08: "when communicating with me,
     don't use UTC. Use IST. Only for communicating with me -- internally use whatever time
