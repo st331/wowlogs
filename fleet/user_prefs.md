@@ -251,3 +251,23 @@
     capture rather than the feature. An old client tab still reads a payload without
     `rows.tier` cleanly (hasTier was feature-detected); the new client ignores a payload
     that still has it. Do not reintroduce a tier filter outside the LAB manifest.
+
+23. **Tier pieces cannot be split by inherited stat pair — the data does not exist
+    (2026-09-08).** Asked for: group each tier item by the secondary pair it inherited
+    through the 12.1 Catalyst ("go ahead with just tier items. crafted gear shouldn't be
+    separated by missives"). Established with three read-only diagnostics against the
+    4 GB gear journal and one live API call: of 3,663,022 set-item wears over 265 items,
+    zero carry an ItemBonus type-2 secondary-stat allocation; every bonus id a tier
+    piece carries decodes to upgrade track (128xx), item-level delta (15xx), drop-context
+    tag (13440 Mythic+, 13334 Heroic, 13333/13439), the Catalyst slot marker (type-38
+    ids 13690-13694, one per slot), a tertiary (40-43) or a socket; and the raw
+    Summary-table gear entry has exactly these keys -- id, slot, quality, icon, name,
+    itemLevel, bonusIDs, gems, permanent/temporary/onUse enchant (+Name), setID -- no
+    modifiers, no per-item stats. The combat log's COMBATANT_INFO item tuple is
+    (id, ilvl, enchants, bonusIDs, gems); the inherited pair is an item modifier and is
+    never logged, so Warcraft Logs cannot expose it. Crafted missives are the same
+    mechanism, which is why they were never decodable either. The stat-bonus table
+    refresh added on 2026-09-08 for this was removed the same day; diag_tier_pairs.py
+    and diag_raw_gear.py stay as the evidence. Only a second data source (Blizzard's
+    profile API, current gear only, own credentials and quota) could answer it; that
+    is the owner's call, not a default.
