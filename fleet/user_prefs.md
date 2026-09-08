@@ -439,3 +439,15 @@
     pts / 8 min under 85 %) within a run or two of each fight being fetched -- newest first,
     so the current reset is always the most complete. At the rollover the window follows the
     site's "this reset"; the grace covers the boundary.
+    Outcome (2026-09-08, IST): the first drain runs dated fights from the sweep's rankings
+    journal alone, so fights that had dropped off the leaderboards were undated, counted as
+    older than the reset, and the window reported "0 pending" at 56 % of this reset's payload
+    wearer rows. Fix: `fight_times()` dates (and regions) every fight from players.jsonl
+    (240,097 dated vs 54,592 from the sweep). Re-armed 16:52 IST (until 18:52 IST): 12,434
+    pending appeared; runs 849/851 took 4,438 + 6,800 (each the whole WCL hour), runs
+    852-854 drew HTTP 429 in ~17 s each and stopped (see checklist 167), the `until` passed
+    during run 856's pace step, Fetch resumed there at 85 % and the standing collector
+    finished the tail (702, 606, ...). Live 19:20 IST: this reset 99.2 % (17,993 of 18,147
+    wearer rows; EU 99.5, CN 99.6, KR 99.5, US 98.1), last reset 3.8 % (excluded by design),
+    older 0. Fresh runs were paused 16:50-18:56 IST; the newest row moved 16:30 -> 18:30 IST
+    in run 856 and the feed is current again.

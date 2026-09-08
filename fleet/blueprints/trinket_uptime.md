@@ -555,3 +555,18 @@ against the live payload with a synthetic sidecar.
   builder and the done-set ignore it, and it needs its own `git add` in the daily list.
 * Real per-run spend: Fetch ~1,950-2,010 pts + procs 412-430 (the 400 stop trips after the
   crossing batch); ~5.3k pts/h of ceiling headroom remain.
+
+## 16. Drain outcome and the two facts it taught (2026-09-08)
+
+* The one-reset backfill is complete: 99.2 % of this reset's payload wearer rows carry a
+  beam record (17,993 of 18,147 at 19:20 IST), every region >= 98 %, the standing collector
+  (1,500 pts / run at 85 %) finishing the last few hundred and then keeping pace with Fetch.
+* Fact 1 -- date the window from players.jsonl, never from the rankings journal alone: the
+  sweep dates only fights still on a leaderboard; the rest were "older" and the drain ended
+  itself at 56 %. `fight_times()` fixed it (checklist 168).
+* Fact 2 -- WCL's hour is rolling from the first spend after expiry (checklist 167); a
+  100 % drain run therefore buys one full window and then ~45 min of 429s for everyone in
+  the concurrency group. Budget the NEXT drain as "one window per ~75 min", not per clock
+  hour; the 429 path's `WCL_MAX_SLEEP_S` cap is what keeps those runs short.
+* Journal `done` (29k) is not site coverage (18.6k): ~10k records belong to fights the
+  payload filters out. Read `cov.measured` / the health line, or scratchpad/cov_live.py.
