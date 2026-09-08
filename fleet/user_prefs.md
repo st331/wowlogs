@@ -289,7 +289,10 @@
     (255 in the sidecar), counted separately, never 0 %.
     Pipeline: fetch_procs.py after Fetch, ONE buff-events sub-query per wearer-fight
     (the aura's apply/refresh/remove on the wearer, any source) plus the fight clock,
-    newest first, ≤400 pts and ≤4 min a run under the STANDING 70 % ceiling. The record,
+    newest first, four concurrent requests, ≤1,500 pts and ≤8 min a run under the STANDING
+    70 % ceiling (raised from 400/4 min on 2026-09-08, "backfill the runs first": three runs
+    an hour at Fetch ~2k + 1.5k stay under the 12.6k ceiling; the ~73k backlog clears in
+    about a day instead of a week, and once it is gone a run costs ~60 pts). The record,
     corrected: run 827 asked the Buffs table with abilityID+targetID -- the shape the
     diagnostic read 23/27 bands with -- and got 240 of 240 empty because the collector's
     table parser kept only auras with guid == 1263768, which an abilityID-filtered table

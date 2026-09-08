@@ -216,7 +216,7 @@ class RolloverClient(FakeClient):
         return out
 rc = RolloverClient()
 s5 = fp.run(budget_pts=2.5, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
-            procs_path=bigp, failed_path=bigf, client=rc)["lscore"]
+            procs_path=bigp, failed_path=bigf, client=rc, workers=1)["lscore"]
 # 12 aliases x 0.5 = 6 pts per request; the first request alone exceeds 2.5 ->
 # stops after ONE batch even though spent was reset to 0.3 by the rollover
 assert s5["ok"] == 12 and s5["stopped"].startswith("point budget"), s5
@@ -233,13 +233,28 @@ class BrokenClient(FakeClient):
 bigp.unlink(); bigf.write_text("")
 bc = BrokenClient()
 s6 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
-            procs_path=bigp, failed_path=bigf, client=bc)["lscore"]
+            procs_path=bigp, failed_path=bigf, client=bc, workers=1)["lscore"]
 assert s6["ok"] == 0 and s6["stopped"].startswith("systemic"), s6
 assert not bigp.exists() or bigp.read_text() == "", "a systemic run must journal nothing"
 assert len(bc.queries) == 2, "held back 24 results, stopped at the first check past 20"
 hl = (tmp / "fetch_health.txt").read_text()
 assert "procs.lscore.stopped=systemic" in hl and "procs.lscore.ok=0" in hl, hl
 print("systemic    : 24 of 24 without an own spawn -> nothing journaled, warning, stop, fetch_health says so")
+# concurrency: 3 workers over the same 30 wearers, all journaled exactly once, v2
+import threading
+class SafeClient(FakeClient):
+    lock = threading.Lock()
+    def query(self, gql, est_cost=1.0):
+        with self.lock: return super().query(gql, est_cost)
+bigp.unlink(missing_ok=True); bigf.write_text("")
+sc = SafeClient()
+s7 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
+            procs_path=bigp, failed_path=bigf, client=sc, workers=3)["lscore"]
+recs7 = [json.loads(l) for l in bigp.read_text().splitlines()]
+assert s7["ok"] == 30 and len(recs7) == 30 and all(r["v"] == 2 for r in recs7), (s7, len(recs7))
+assert len({(r["report_code"], r["fight_id"], r["character"]) for r in recs7}) == 30
+assert fp.load_done(bigp, bigf)["lscore"] and s7["stopped"] == "", s7
+print("workers     : 3 concurrent workers journal each of 30 wearer-fights exactly once")
 
 # --- the sidecar -------------------------------------------------------------------
 procs.write_text("\n".join(json.dumps(x) for x in [

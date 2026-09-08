@@ -59,7 +59,9 @@ import argparse
 import json
 import pathlib
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from wcl_client import WCLClient, QuotaDeadline          # noqa: E402
@@ -71,6 +73,9 @@ from procs_spec import TRACKED                                 # noqa: E402
 PROCS_FILE = PROCESSED / "procs.jsonl"
 PROCS_FAILED = PROCESSED / "procs_failed.txt"
 PROC_BATCH = 12          # aliased buff-events sub-queries per request
+PROC_WORKERS = 4         # concurrent requests: server latency (~2 s each), not
+                         # quota, bounds a run -- the point budget is checked
+                         # between batches on the main thread
 SYSTEMIC_MIN = 20        # results held back before the systemic check
 SYSTEMIC_SHARE = 0.5     # no-beam share at or above which the run is broken
 ACTOR_BATCH = 10         # aliased masterData sub-queries per request
@@ -304,9 +309,73 @@ def parse_node(node, aid: int, buff: int):
     return t0, t1, data, ev.get("nextPageTimestamp")
 
 
+_tls = threading.local()
+
+
+def _client_for(shared):
+    """One client per worker thread (the quota governor is process-wide, so
+    they share the ceiling); a caller-supplied client (tests) is used as is."""
+    if shared is not None:
+        return shared
+    if not hasattr(_tls, "client"):
+        _tls.client = WCLClient(verbose=False)
+    return _tls.client
+
+
+def _work(t: dict, chunk: list, allk: dict, amaps: dict, alock, shared_client):
+    """One chunk on a worker thread: resolve the actors it still needs, fetch
+    the buff events, follow any extra pages. Journal writes stay on the main
+    thread. Returns {chunk, batch, noactor, results, err}; results are
+    (key, actor, t0, t1, events, alias error message) with t0 None on a
+    per-alias failure (message set = permanent, None = transient)."""
+    out = {"chunk": chunk, "batch": [], "noactor": [], "results": [], "err": None}
+    try:
+        client = _client_for(shared_client)
+        with alock:
+            need = sorted({k[0] for k in chunk
+                           if not allk[k].get("actor") and k[0] not in amaps})
+        if need:
+            got = resolve_actors(client, need)
+            with alock:
+                amaps.update(got)
+        with alock:
+            snap = {k[0]: dict(amaps.get(k[0], {})) for k in chunk}
+        for k in chunk:
+            aid = allk[k].get("actor") or actor_of(snap.get(k[0], {}), k)
+            if aid is None:
+                out["noactor"].append(k)
+                continue
+            out["batch"].append((k, int(aid)))
+        if not out["batch"]:
+            return out
+        rd, errs = fetch_batch(client, t, out["batch"])
+        for j, (k, aid) in enumerate(out["batch"]):
+            node = rd.get(f"a{j}")
+            try:
+                t0, t1, events, nxt = parse_node(node, aid, t["buff"])
+                pages = 0
+                while nxt and pages < 3:      # the rare fight past one page
+                    pages += 1
+                    rd2, _e2 = fetch_batch(client, t, [(k, aid)], {k: nxt})
+                    _a, _b, more, nxt = parse_node(rd2.get("a0"), aid, t["buff"])
+                    events = events + more
+                out["results"].append((k, aid, t0, t1, events, None))
+            except ValueError:
+                out["results"].append((k, aid, None, None, None,
+                                       errs.get(f"a{j}", "") or None))
+            except (QuotaDeadline, RuntimeError):
+                out["results"].append((k, aid, None, None, None, None))
+    except QuotaDeadline as e:
+        out["err"] = ("quota", str(e))
+    except RuntimeError as e:
+        out["err"] = ("runtime", str(e))
+    return out
+
+
 def run(budget_pts: float, budget_s: float, limit: int | None,
         tracked=TRACKED, gear_path=GEAR_FILE, procs_path=PROCS_FILE,
-        failed_path=PROCS_FAILED, client: WCLClient | None = None) -> dict:
+        failed_path=PROCS_FAILED, client: WCLClient | None = None,
+        workers: int = PROC_WORKERS) -> dict:
     t_start = time.monotonic()
     deadline = t_start + budget_s
     cands = candidates(tracked, gear_path)
@@ -333,11 +402,12 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
             if not pending:
                 continue
             if client is None:
-                client = WCLClient(verbose=True)
+                client = WCLClient(verbose=True)    # probes the quota once
             # points USED this run, rollover-safe: client.spent is the hour's
-            # running total and drops to ~0 when the window rolls over
-            # mid-run, so spent - spent0 would go negative and the point
-            # budget would never stop the loop. Only positive deltas count.
+            # running total (process-wide governor) and drops to ~0 when the
+            # window rolls over mid-run, so spent - spent0 would go negative
+            # and the point budget would never stop the loop. Only positive
+            # deltas count, ticked on the main thread as requests complete.
             used, last = 0.0, client.spent
 
             def tick():
@@ -354,98 +424,96 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
             fetched = zero = 0
             systemic = False
             amaps: dict[str, dict] = {}
-            i = 0
-            while i < len(pending):
+            alock = threading.Lock()
+            chunks = [pending[i:i + PROC_BATCH]
+                      for i in range(0, len(pending), PROC_BATCH)]
+            it = iter(chunks)
+            shared = client if workers == 1 or client.__class__ is not WCLClient else None
+
+            def may_submit():
                 if time.monotonic() >= deadline:
-                    s["stopped"] = f"time budget {budget_s:.0f}s"
-                    break
+                    s["stopped"] = s["stopped"] or f"time budget {budget_s:.0f}s"
+                    return False
                 if used >= budget_pts:
-                    s["stopped"] = f"point budget {budget_pts:.0f}"
-                    break
-                chunk = pending[i:i + PROC_BATCH]
-                i += PROC_BATCH
-                try:
-                    need = sorted({k[0] for k in chunk
-                                   if not allk[k].get("actor") and k[0] not in amaps})
-                    if need:
-                        amaps.update(resolve_actors(client, need))
-                        tick()
-                    batch = []
-                    for k in chunk:
-                        aid = allk[k].get("actor") or actor_of(amaps.get(k[0], {}), k)
-                        if aid is None:
+                    s["stopped"] = s["stopped"] or f"point budget {budget_pts:.0f}"
+                    return False
+                return True
+
+            with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+                futures = set()
+                for _ in range(max(1, workers)):
+                    c = next(it, None)
+                    if c is None or not may_submit():
+                        break
+                    futures.add(pool.submit(_work, t, c, allk, amaps, alock, shared))
+                while futures:
+                    fut = next(as_completed(futures))
+                    futures.remove(fut)
+                    r = fut.result()
+                    tick()
+                    if r["err"] is not None:
+                        kind, msg = r["err"]
+                        if kind == "quota":
+                            s["stopped"] = s["stopped"] or f"quota: {msg}"
+                            break            # in-flight results are dropped
+                        print(f"[procs] request failed, left for the next run: {msg}",
+                              flush=True)
+                        s["transient"] += len(r["chunk"])
+                    else:
+                        for k in r["noactor"]:
                             fail_fh.write(f"{k[0]}:{k[1]}:{k[2]}\t{t['key']}\t"
                                           f"actor not resolved\n")
                             s["failed"] += 1
-                            continue
-                        batch.append((k, int(aid)))
-                    if not batch:
-                        continue
-                    rd, errs = fetch_batch(client, t, batch)
-                    tick()
-                except QuotaDeadline as e:
-                    s["stopped"] = f"quota: {e}"
-                    break
-                except RuntimeError as e:
-                    print(f"[procs] request failed, left for the next run: {e}",
-                          flush=True)
-                    s["transient"] += len(chunk)
-                    continue
-                for j, (k, aid) in enumerate(batch):
-                    node = rd.get(f"a{j}")
-                    try:
-                        t0, t1, events, nxt = parse_node(node, aid, t["buff"])
-                        # the rare fight with more events than one page:
-                        # follow the cursor, at most three more pages
-                        pages = 0
-                        while nxt and pages < 3:
-                            pages += 1
-                            rd2, _e2 = fetch_batch(client, t, [(k, aid)], {k: nxt})
-                            _t0, _t1, more, nxt = parse_node(rd2.get("a0"), aid, t["buff"])
-                            events = events + more
-                    except ValueError:
-                        msg = errs.get(f"a{j}", "")
-                        if msg:
-                            fail_fh.write(f"{k[0]}:{k[1]}:{k[2]}\t{t['key']}\t"
-                                          f"{msg[:100]}\n")
-                            s["failed"] += 1
-                        else:
-                            s["transient"] += 1
-                        continue
-                    except (QuotaDeadline, RuntimeError):
-                        s["transient"] += 1
-                        continue
-                    bands, spawns, foreign = bands_from_events(events, aid, t0, t1)
-                    fight_ms = t1 - t0
-                    rec = {"v": RECORD_V, "report_code": k[0], "fight_id": k[1],
-                           "character": k[2], "server": k[3] or None,
-                           "key": t["key"], "actor": aid, "f": fight_ms,
-                           "bands": bands, "sp": spawns, "x": foreign}
-                    rec.update(benefit(bands, t["window_ms"], fight_ms, spawns))
-                    fetched += 1
-                    if not spawns:
-                        zero += 1
-                    line = json.dumps(rec, ensure_ascii=False) + "\n"
-                    if held is not None:
-                        held.append(line)
-                    else:
-                        out_fh.write(line)
-                    s["ok"] += 1
-                if held is not None and fetched >= SYSTEMIC_MIN:
-                    if zero >= SYSTEMIC_SHARE * fetched:
-                        systemic = True
-                        s["ok"] -= len(held)
-                        held = None
-                        s["stopped"] = (f"systemic: {zero} of {fetched} fetched had "
-                                        f"no beam -- nothing journaled")
-                        print(f"::warning::trinket beam collector: {s['stopped']}; "
-                              f"the query or the actor ids are wrong, not the "
-                              f"players", flush=True)
-                        break
-                    out_fh.writelines(held)
-                    held = None
-                out_fh.flush()
-                fail_fh.flush()
+                        for k, aid, t0, t1, events, msg in r["results"]:
+                            if t0 is None:
+                                if msg:
+                                    fail_fh.write(f"{k[0]}:{k[1]}:{k[2]}\t{t['key']}\t"
+                                                  f"{msg[:100]}\n")
+                                    s["failed"] += 1
+                                else:
+                                    s["transient"] += 1
+                                continue
+                            bands, spawns, foreign = bands_from_events(events, aid, t0, t1)
+                            fight_ms = t1 - t0
+                            rec = {"v": RECORD_V, "report_code": k[0], "fight_id": k[1],
+                                   "character": k[2], "server": k[3] or None,
+                                   "key": t["key"], "actor": aid, "f": fight_ms,
+                                   "bands": bands, "sp": spawns, "x": foreign}
+                            rec.update(benefit(bands, t["window_ms"], fight_ms, spawns))
+                            fetched += 1
+                            if not spawns:
+                                zero += 1
+                            line = json.dumps(rec, ensure_ascii=False) + "\n"
+                            if held is not None:
+                                held.append(line)
+                            else:
+                                out_fh.write(line)
+                            s["ok"] += 1
+                        if held is not None and fetched >= SYSTEMIC_MIN:
+                            if zero >= SYSTEMIC_SHARE * fetched:
+                                systemic = True
+                                s["ok"] -= len(held)
+                                held = None
+                                s["stopped"] = (f"systemic: {zero} of {fetched} fetched "
+                                                f"had no beam -- nothing journaled")
+                                print(f"::warning::trinket beam collector: {s['stopped']}; "
+                                      f"the query or the actor ids are wrong, not the "
+                                      f"players", flush=True)
+                                break
+                            out_fh.writelines(held)
+                            held = None
+                        out_fh.flush()
+                        fail_fh.flush()
+                    if may_submit():
+                        c = next(it, None)
+                        if c is not None:
+                            futures.add(pool.submit(_work, t, c, allk, amaps, alock, shared))
+                # a stop leaves in-flight requests to finish on the pool's exit;
+                # their results are deliberately not journaled after a systemic
+                # or quota stop, and simply lost (re-collected next run) after a
+                # budget stop -- at most `workers` batches
+                for f in futures:
+                    f.cancel()
             if held:                       # fewer than SYSTEMIC_MIN this run
                 if fetched and zero >= SYSTEMIC_SHARE * fetched and fetched >= 4:
                     s["ok"] -= len(held)
@@ -460,7 +528,8 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
             s["nobeam"] = zero
             print(f"[procs] {t['name']}: +{s['ok']:,} journaled, {s['failed']:,} "
                   f"failed permanently, {s['transient']:,} left for the next run, "
-                  f"{s['points']:,} points, {time.monotonic() - t_start:.0f}s"
+                  f"{s['points']:,} points, {time.monotonic() - t_start:.0f}s, "
+                  f"{max(1, workers)} workers"
                   + (f"; stopped: {s['stopped']}" if s["stopped"] else ""),
                   flush=True)
     finally:
@@ -497,6 +566,8 @@ def main(argv=None) -> int:
                     help="points this run may spend (default 400)")
     ap.add_argument("--budget-s", type=float, default=240,
                     help="wall-clock seconds this run may spend (default 240)")
+    ap.add_argument("--workers", type=int, default=PROC_WORKERS,
+                    help=f"concurrent requests (default {PROC_WORKERS})")
     ap.add_argument("--limit", type=int, default=None,
                     help="at most this many wearer-fights (tests)")
     ap.add_argument("--status", action="store_true", help="report and exit")
@@ -504,7 +575,7 @@ def main(argv=None) -> int:
     if args.status:
         status()
         return 0
-    run(args.budget_pts, args.budget_s, args.limit)
+    run(args.budget_pts, args.budget_s, args.limit, workers=args.workers)
     return 0
 
 

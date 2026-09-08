@@ -263,13 +263,17 @@ jobs:
           [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
           python -u scripts/fetch_data.py $SWEEP $REGEAR $FRESH_ARGS
 
-      # Trinket beam benefit (Lab feature, 2026-09-08): one Buffs-table
-      # sub-query per wearer-fight of a tracked trinket, newest first, at most
-      # 400 points and 4 minutes a run under the client's STANDING 70%
-      # ceiling -- never the drain fraction. Journals to
-      # data/processed/procs.jsonl, which rides the cache like every journal.
-      # Never fails the run: the site builds with whatever is journaled, and
-      # build_health.txt carries the coverage line.
+      # Trinket beam benefit (Lab feature, 2026-09-08): one buff-events
+      # sub-query per wearer-fight of a tracked trinket, newest first, four
+      # concurrent requests, at most 1,500 points and 8 minutes a run under
+      # the client's STANDING 70% ceiling -- never the drain fraction. The
+      # budget is a cap, not a spend: once the backlog is gone a run costs
+      # ~60 points. Sized so three runs an hour (Fetch ~2k + this) stay
+      # under the 12.6k ceiling with room to spare (owner, 2026-09-08:
+      # "backfill the runs first"). Journals to data/processed/procs.jsonl,
+      # which rides the cache like every journal. Never fails the run: the
+      # site builds with whatever is journaled, and build_health.txt carries
+      # the coverage line.
       - name: Trinket beam benefit
         # a gear-refetch run spends its whole window on summaries
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == ''
@@ -279,7 +283,7 @@ jobs:
           WCL_MAX_SLEEP_S: "30"
           WCL_BUDGET_MARGIN: "400"
         run: |
-          python -u scripts/fetch_procs.py --budget-pts 400 --budget-s 240 \
+          python -u scripts/fetch_procs.py --budget-pts 1500 --budget-s 480 \
             || echo "::warning::trinket beam collector failed; building with the existing journal"
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.
