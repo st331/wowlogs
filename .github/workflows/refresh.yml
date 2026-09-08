@@ -206,9 +206,39 @@ jobs:
           FRESH_START: ${{ inputs.fresh_start }}
         run: bash scripts/journal_guard.sh
 
+      # Trinket drain window (owner, 2026-09-08 08:38 UTC: "pause fresh runs,
+      # remove all limits and drain as much as you can over the next 3 hours").
+      # data/procs_drain.json carries an `until` epoch; while the clock is
+      # before it, Fetch is skipped and the collector runs at the whole hourly
+      # budget. The file is inert afterwards -- nothing to revert by hand, and
+      # the standing 70% cap is back the moment the window closes. Every run
+      # re-reads it, so a chained successor needs no input to inherit it.
+      - name: Drain mode
+        id: drain
+        run: |
+          python3 - <<'EOF' | tee -a "$GITHUB_OUTPUT"
+          import json, pathlib, time
+          p = pathlib.Path("data/procs_drain.json")
+          cfg, on = {}, False
+          if p.exists():
+              try:
+                  cfg = json.loads(p.read_text()); on = time.time() < float(cfg.get("until", 0))
+              except (ValueError, TypeError):
+                  cfg, on = {}, False
+          print(f"procs_drain={'true' if on else 'false'}")
+          print(f"fraction={cfg.get('fraction', 1.0) if on else '0.70'}")
+          print(f"margin={cfg.get('margin', 20) if on else '400'}")
+          print(f"budget_pts={cfg.get('budget_pts', 18000) if on else '1500'}")
+          print(f"budget_s={cfg.get('budget_s', 1200) if on else '480'}")
+          print(f"pause_fetch={'true' if on and cfg.get('pause_fetch', True) else 'false'}")
+          if on:
+              left = (float(cfg['until']) - time.time()) / 60
+              print(f"::notice::trinket drain window active for another {left:.0f} min: fresh runs paused, collector at the full hourly budget")
+          EOF
+
       - name: Fetch
         id: fetch
-        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && steps.drain.outputs.pause_fetch != 'true'
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
@@ -283,9 +313,12 @@ jobs:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
           WCL_MAX_SLEEP_S: "30"
-          WCL_BUDGET_MARGIN: "400"
+          # standing: 0.70 / 400; inside a drain window (data/procs_drain.json)
+          # the whole hourly budget with a 20-point margin
+          WCL_QUOTA_FRACTION: ${{ steps.drain.outputs.fraction }}
+          WCL_BUDGET_MARGIN: ${{ steps.drain.outputs.margin }}
         run: |
-          python -u scripts/fetch_procs.py --budget-pts 1500 --budget-s 480 --since-days 8 \
+          python -u scripts/fetch_procs.py --budget-pts ${{ steps.drain.outputs.budget_pts }} --budget-s ${{ steps.drain.outputs.budget_s }} --since-days 8 \
             || echo "::warning::trinket beam collector failed; building with the existing journal"
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.

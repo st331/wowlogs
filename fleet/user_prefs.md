@@ -361,3 +361,21 @@
     cannot come back). A drain in flight ends on a tripped run (empty BACKLOG reads as
     done) -- re-dispatch drain by hand if it mattered. The guard is unit-tested over all
     eight key/files/fresh combinations plus the matched-key-but-empty-file case.
+
+26. **Trinket drain window (owner, 2026-09-08 08:38 UTC): "pause fresh runs, remove all
+    limits and drain as much as you can over the next 3 hours. keep backfilling as the
+    data keeps landing."** The per-operation relaxation the standing 70 % cap allows,
+    scoped by a clock: `data/procs_drain.json` carries `until` = 2026-09-08 11:38:05 UTC
+    (17:08 IST). While the clock is before it, every refresh run skips Fetch (fresh runs
+    paused), and the collector runs with WCL_QUOTA_FRACTION 1.0, margin 20, up to 18,000
+    pts / 20 min a run -- i.e. whatever the hour has left -- newest first inside the
+    one-reset window. The file is inert once `until` passes: Fetch resumes and the
+    collector returns to 1,500 pts / 8 min under 70 % on its own, with the backfill
+    continuing at that pace ("keep backfilling"). Nothing to revert by hand; the watchdog's
+    6-hour data-staleness rule is not reached by a 3-hour pause.
+
+27. **No minimum-n floor on the Lightspire surfaces (owner, 2026-09-08): "I don't want data
+    hidden from me, even if it is not statsig."** BEAM_MIN_N is gone: every spec with at
+    least one measured wearer-parse is listed, and every tile/line/row prints its percent
+    with its n beside it at any n. The reader judges significance from n; the page never
+    withholds a number.
