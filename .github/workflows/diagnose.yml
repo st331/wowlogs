@@ -39,6 +39,12 @@ jobs:
           key: wowlogs-diagnose-never-matches
           restore-keys: wowlogs-journals-
       - name: Run the diagnostic
+        # WCL credentials are passed so a diagnostic MAY make a request or two
+        # against the live API (diag_raw_gear needs three Summary tables).
+        # The client's default 0.70 ceiling applies; nothing here overrides it.
+        env:
+          WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
+          WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
         run: |
           ls -la data/processed/gear.jsonl 2>/dev/null || echo "no gear journal restored"
           python -u "scripts/${{ inputs.script }}.py"
