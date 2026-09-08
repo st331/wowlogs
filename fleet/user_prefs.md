@@ -377,7 +377,15 @@
     one-reset window. The file is inert once `until` passes: Fetch resumes and the
     collector returns to 1,500 pts / 8 min under 70 % on its own, with the backfill
     continuing at that pace ("keep backfilling"). Nothing to revert by hand; the watchdog's
-    6-hour data-staleness rule is not reached by a 3-hour pause.
+    6-hour data-staleness rule is not reached by a 3-hour pause. Ends EARLY on its own: when
+    a drain run's collector stops for lack of work (no `stopped=` reason in its last
+    fetch_health block), the run leaves `data/processed/procs_drain_done` carrying the
+    window's `until`, and the next run's Drain mode treats the window as over -- fresh runs
+    resume rather than staying paused for nothing (Fetch is what discovers NEW wearer-fights,
+    so a paused drain with an empty backlog collects nothing). First drain run, 14:28-14:45
+    IST: 6,585 wearer-fights in 17 min for 17,958 pts (the whole hour), live at 14:47 IST as
+    12 % of payload wearer rows, median 34 %; the one-reset window held ~17.7k wearer-fights
+    in total (56k older ones left alone).
 
 27. **No minimum-n floor on the Lightspire surfaces (owner, 2026-09-08): "I don't want data
     hidden from me, even if it is not statsig."** BEAM_MIN_N is gone: every spec with at

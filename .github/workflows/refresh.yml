@@ -228,7 +228,15 @@ jobs:
                   cfg = json.loads(p.read_text()); on = time.time() < float(cfg.get("until", 0))
               except (ValueError, TypeError):
                   cfg, on = {}, False
-          out = {"procs_drain": "true" if on else "false",
+          # ended early: the collector drained the whole window in an earlier
+          # run of THIS drain (marker carries the window's `until`), so pausing
+          # fresh runs any longer would collect nothing -- fetching resumes
+          marker = pathlib.Path("data/processed/procs_drain_done")
+          ended = on and marker.exists() and marker.read_text().strip() == str(cfg.get("until"))
+          if ended:
+              on = False
+          out = {"until": cfg.get("until", 0),
+                 "procs_drain": "true" if on else "false",
                  "fraction": cfg.get("fraction", 1.0) if on else "0.70",
                  "margin": cfg.get("margin", 20) if on else "400",
                  "budget_pts": cfg.get("budget_pts", 18000) if on else "1500",
@@ -241,6 +249,8 @@ jobs:
           if on:
               left = (float(cfg["until"]) - time.time()) / 60
               print(f"::notice::trinket drain window active for another {left:.0f} min: fresh runs paused, collector at the full hourly budget")
+          elif ended:
+              print("::notice::trinket drain ended early: the window was fully collected in an earlier run; fresh runs resumed")
           EOF
 
       - name: Fetch
@@ -327,6 +337,18 @@ jobs:
         run: |
           python -u scripts/fetch_procs.py --budget-pts ${{ steps.drain.outputs.budget_pts }} --budget-s ${{ steps.drain.outputs.budget_s }} --since-days 8 \
             || echo "::warning::trinket beam collector failed; building with the existing journal"
+          # Inside a drain window: when the collector stopped because it ran OUT
+          # OF WORK (no "stopped=" reason in its last fetch_health block), the
+          # window is drained -- leave a marker so the next run's Drain mode
+          # ends the drain and fresh runs resume, instead of pausing them for
+          # nothing until the clock runs out.
+          if [ "${{ steps.drain.outputs.procs_drain }}" = "true" ] && [ -f data/processed/fetch_health.txt ]; then
+            LAST=$(awk '/^procs\.lscore\.total=/{blk=""} {blk=blk $0 "\n"} END{printf "%s", blk}' data/processed/fetch_health.txt)
+            if echo "$LAST" | grep -q "^procs\.lscore\.ok=" && ! echo "$LAST" | grep -q "^procs\.lscore\.stopped="; then
+              echo "${{ steps.drain.outputs.until }}" > data/processed/procs_drain_done
+              echo "::notice::drain: the one-reset window is fully collected; the drain ends here and fresh runs resume on the next run"
+            fi
+          fi
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.
       # Caches live in data/processed (rides the journal cache between runs)
