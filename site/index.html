@@ -3073,33 +3073,48 @@ function decodeStatsSidecar(j){
 // dedicated pass instead, reusing the group's published key floor.
 function frameLiveIdx(){return liveIdxFor(state.frameKey)}
 function liveIdxFor(key){
-  const out=[];
-  if(key==null) return out;
+  return key==null?[]:(liveIdxMulti(new Set([key])).get(key)||[]);
+}
+/* the live row set of SEVERAL groups in ONE pass over the rows — the ⚗ beam
+   table asks for every spec with beam data at once, and a per-key pass would
+   cost keys × N on every render. Semantics are exactly the old single-key
+   walk's: elite mode needs the group's own floorK (a group missing from
+   FRAME_A yields nothing), standard mode is rowPass + periodPass + projSkip. */
+function liveIdxMulti(keys){
+  const out=new Map();
+  for(const k of keys) out.set(k,[]);
+  if(!out.size) return out;
   const m=baseMasks();
   if(state.elite){
-    const g=FRAME_A?FRAME_A.groups.get(key):null;
-    if(!g||!(g.floorK>=0)) return out;
+    const floor=new Map();
+    for(const k of keys){
+      const g=FRAME_A?FRAME_A.groups.get(k):null;
+      if(g&&g.floorK>=0) floor.set(k,g.floorK);
+    }
+    if(!floor.size) return out;
     let maxDay=curMaxDay;
     if(maxDay<0){maxDay=-1; for(let i=0;i<R.day.length;i++) if(R.day[i]>maxDay) maxDay=R.day[i];}
     const dayLo=maxDay-(ELITE_DAYS-1);
     for(let i=0;i<N;i++){
-      if(groupKey(i)!==key) continue;
-      if(R.day[i]<dayLo||R.key[i]<g.floorK) continue;
+      const k=groupKey(i), fk=floor.get(k);
+      if(fk===undefined) continue;
+      if(R.day[i]<dayLo||R.key[i]<fk) continue;
       if(projSkip(i)) continue;
       if(m.dun&&!m.dun.has(R.dun[i])) continue;
       if(m.role&&!m.role.has(R.role[i])) continue;
       if(m.atk&&R.atk[i]!==m.atk) continue;
       if(m.reg&&!m.reg.has(R.reg[i])) continue;
-      out.push(i);
+      out.get(k).push(i);
     }
   }else{
     const cut=periodCut(state.weeksA);
     for(let i=0;i<N;i++){
-      if(groupKey(i)!==key) continue;
+      const arr=out.get(groupKey(i));
+      if(!arr) continue;
       if(!rowPass(i,m)) continue;
       if(!periodPass(i,state.weeksA,cut)) continue;
       if(projSkip(i)) continue;
-      out.push(i);
+      arr.push(i);
     }
   }
   return out;
@@ -3304,8 +3319,9 @@ const fmtDps=v=>v>=1e4?Math.round(v/1e3)+"k":fmtInt(v);
    fall out of a p99 lens). Elite/Archon mode needs zero extra code:
    frameLiveIdx's elite branch already feeds the slice. ---- */
 function frameLensSlice(){return lensSliceFor(state.frameKey)}
-function lensSliceFor(key){
-  const idx=liveIdxFor(key), Y=idx.length;
+function lensSliceFor(key){return lensWindow(liveIdxFor(key))}
+function lensWindow(idx){
+  const Y=idx.length;
   const lo=Math.max(0,state.pctl-10), hi=Math.min(100,state.pctl+10);
   if(!Y) return {idx, Y, lo, hi, sdps:[], inWin:new Set()};
   // per-parse DPS percentile WITHIN this filtered view — ranks, not raw dps
@@ -3653,8 +3669,8 @@ function renderBeamTable(){
   const keys=new Set();
   for(let i=0;i<N;i++) if(BEAMC.map[i]>=0) keys.add(groupKey(i));
   const rows=[];
-  for(const k of keys){
-    const s=beamStats(lensSliceFor(k).inWin);
+  for(const [k,idx] of liveIdxMulti(keys)){     // ONE pass for every spec
+    const s=beamStats(lensWindow(idx).inWin);
     if(!s.n) continue;
     const pk=state.merge?k:Math.floor(k/200);
     const cls=D.classes[Math.floor(pk/100)], spec=D.specs[pk%100];
@@ -6414,7 +6430,6 @@ function render(){
     }
   }
   syncLensUI(); syncAxisUI(); labScopeRefresh();
-  renderBeamTable();
   const tab=TABS.find(t=>t.id===state.tab)||TABS.find(t=>t.id==="med");
   const A=aggregate(state.weeksA);
   const skill=skillOn();
@@ -6624,6 +6639,7 @@ function render(){
   renderTable(rows,tab);
   renderStrip(rows,A);
   renderFrame();   // last: every control refresh reaches an open frame through this one path
+  renderBeamTable();   // ⚗ beam's per-spec table follows every knob; reads FRAME_A in elite mode
 }
 
 /* -------- context strip: compressed KPIs · shown-count · scope chips -------- */
