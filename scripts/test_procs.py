@@ -349,6 +349,14 @@ assert body.index("FRAME_A=A") < body.index("renderBeamTable()"), "the beam tabl
 assert "in the light" in html and "beam benefit" not in html.replace("beam benefit (owner", ""), "relabel: 'in the light', never 'beam benefit'"
 beam_code = html[html.index("const BEAM_KEY"):html.index("/* ---- builds sidecar")]
 assert beam_code.lower().count("uptime") == beam_code.count("Not classic uptime"), "the word uptime survives only inside the definition"
-print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition")
+# 2026-09-08: the table counts EVERY wearer-parse in the filters (the lens band is a
+# column and may be empty); the frame/character surfaces fall back to every parse when
+# the band holds none -- a thin band must never hide a measured spec
+tbl = html[html.index("function renderBeamTable"):html.index("function renderBeamTable") + 6000]
+assert "const st=beamStats(idx);" in tbl and "const ln=beamStats(lensWindow(idx).inWin);" in tbl, "table must read every parse in the filters, lens as a column"
+assert '["lens","p"+state.pctl+" lens"' in tbl, "lens column"
+assert html.count("beamStatsWin(") >= 5 and "function beamStatsWin(win,all)" in html, "frame + character surfaces fall back to every parse"
+assert "Sampled payload:" in html and '"sample": dict(SAMPLE_INFO)' in (ROOT / "scripts" / "build_site_data.py").read_text(), "never a silent sample"
+print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner")
 
 print("\nPASS")

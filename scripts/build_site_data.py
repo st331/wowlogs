@@ -245,9 +245,16 @@ def tuning_multipliers(df, post):
 
 
 # The browser gets every parse as a row, so the payload scales with the run
-# count. Collecting the whole population (~10x a leaderboard sweep, and still
-# growing) would put data.json past 70 MB, which no page should ask for.
-MAX_RUNS = 150_000
+# count (2026-09-08: 1.19M rows raw ~73 MB JSON, ~12 MB gz, inflated in the
+# browser). 0 = publish every collected run. Was 150_000 from 2026-08 (a uniform hash
+# sample of whole runs, a payload-size cap) until 2026-09-08, when the owner
+# found +19/+20 runs missing from the site: "you are missing runs ... I don't
+# want data hidden from me". A silent sample is a correctness bug on a site
+# whose point is completeness; if a cap is ever needed again it must be raised
+# here AND surfaced (payload["sample"], the client's banner), never silent.
+MAX_RUNS = 0
+# what sample_runs() did on this build, for the payload and build_health.txt
+SAMPLE_INFO = {"collected": 0, "published": 0}
 
 
 def use_keystone_clock(df: pd.DataFrame, name: str) -> pd.DataFrame:
@@ -290,15 +297,17 @@ def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
     which is the entire reason for collecting it in full: the local dataset
     stays complete for analysis, only the payload is thinned.
     """
-    if MAX_RUNS <= 0:
-        return df
     ids = df["report_code"].astype(str) + ":" + df["fight_id"].astype(str)
-    total = ids.nunique()
-    if total <= MAX_RUNS:
+    total = int(ids.nunique())
+    SAMPLE_INFO.update(collected=total, published=total)
+    if MAX_RUNS <= 0 or total <= MAX_RUNS:
+        print(f"[{name}] {total:,} runs collected, every one published "
+              f"({len(df):,} rows)", flush=True)
         return df
     cut = int((MAX_RUNS / total) * (1 << 32))
     keep = ids.map(lambda r: int(hashlib.md5(r.encode()).hexdigest()[:8], 16) < cut)
     out = df[keep]
+    SAMPLE_INFO.update(published=int(ids[keep].nunique()))
     # ids[keep], not out.report_code: one report can hold several keys, so
     # counting report codes understates the runs published by about half
     print(f"[{name}] {total:,} runs collected -> {ids[keep].nunique():,} "
@@ -2900,6 +2909,8 @@ def build(name: str, cfg: dict) -> None:
     future_n = int((started > now_utc.tz_localize(None)).sum())
     health(f"built={now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     health(f"rows={len(df)}")
+    health(f"runs_collected={SAMPLE_INFO['collected']}")
+    health(f"runs_published={SAMPLE_INFO['published']}")
     health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")
     if future_n:
         health(f"future_dated_rows={future_n}")
@@ -2985,6 +2996,9 @@ def build(name: str, cfg: dict) -> None:
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
+        # runs collected vs published on this build; equal unless a MAX_RUNS
+        # cap is back, in which case the client shows it (never a silent sample)
+        "sample": dict(SAMPLE_INFO),
         "season": cfg["season"],
         "epoch": str(EPOCH.date()),
         "tuning": ({"label": patch.get("label"), "date": patch.get("date"),

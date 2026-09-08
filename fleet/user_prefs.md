@@ -455,3 +455,27 @@
     (18,082 of 18,177; every region >= 99.3 %, 1 Sep 100 %). The ~95 rows without a record
     match the ~125 fights WCL refused during the drain (failed permanently: report gone or
     private); they are not retried.
+
+32. **Every collected run is published; nothing is sampled, capped or hidden silently
+    (owner, 2026-09-08: "you are missing runs ... figure out what you are doing wrong and
+    fix it").** What was wrong, in order of damage: (1) `MAX_RUNS = 150_000` in the builder
+    published a uniform hash SAMPLE of whole runs -- 150,307 of 241,067 (62 %) on 8 Sep --
+    so 38 % of every spec's runs were absent from every surface, including one of the
+    owner's four example +19 hunter logs (pTcwhgPD2Zxz1J46 f24). Now `MAX_RUNS = 0`;
+    the payload carries `sample: {collected, published}` and build_health.txt
+    `runs_collected=`/`runs_published=`; the client shows "⚠ Sampled payload: X of Y" in
+    the period note whenever the two differ, so a cap can never again be silent. Cost:
+    data.json.gz 7.5 -> 11.8 MB (1.19M rows), build +~40 s, browser heap ~1.6x. (2) The ⚗
+    Lightspire table computed each spec over the LENS BAND (p±10 by DPS) and dropped the
+    spec when no measured parse fell inside it -- a spec with eleven +20 parses has three in
+    the band. Now the table counts every wearer-parse in the current filters, with the
+    lens band as its own column ("–" when empty), and the Spec Frame row / Character
+    screen surfaces fall back to every parse (labelled) when the band holds none.
+    (3) Not a bug, but the owner's +20 example (pTcwhgPD2Zxz1J46 f35) was OVER the timer
+    (keystone clock 32:22 on a 30:00 timer; WCL medal none) and the dashboard's default
+    "⏱ Timed only" excludes untimed runs; "All completed" shows it (41 %, n=1). (4) A
+    fourth example (QqKhJgCN3d2wHfb4 f2) never reached the journals at all -- fetch-level;
+    scripts/diag_missing_fights.py via diagnose.yml tells the sweep's side. Standing rule:
+    a size cap is a UI-visible fact, never a silent thinning; the partitioned payload
+    (fleet/blueprints/partitioned_payload.md) is the real answer when the full payload
+    outgrows a page.

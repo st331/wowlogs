@@ -35,7 +35,7 @@ blocker it closes; section numbers are unchanged.
 
 - 751k rows, +75k/day; ~13M rows by the end of a 23-week season.
 - Legacy payload `data.json.gz` 7.2 MB (≈9.5 B/row gz), 2.4 s to first paint, 109 MB JS
-  heap, all linear in rows. **`MAX_RUNS = 150_000` (B:249) is binding as of this week**:
+  heap, all linear in rows. **`MAX_RUNS = 150_000` (B:249) was binding as of that week -- RETIRED 2026-09-08 (`MAX_RUNS = 0`, every run published; user_prefs #32) after the owner found runs missing; the size pressure below is now live, not deferred**:
   the legacy payload will not grow past ~750k rows; by season end it is a 6% uniform sample
   of runs that changes every build (the hash cut shrinks as `total` grows, B:296). Every
   "equivalence with legacy" statement below therefore means equivalence with a legacy build

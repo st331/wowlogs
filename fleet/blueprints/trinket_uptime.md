@@ -570,3 +570,16 @@ against the live payload with a synthetic sidecar.
   hour; the 429 path's `WCL_MAX_SLEEP_S` cap is what keeps those runs short.
 * Journal `done` (29k) is not site coverage (18.6k): ~10k records belong to fights the
   payload filters out. Read `cov.measured` / the health line, or scratchpad/cov_live.py.
+
+## 17. "You are missing runs" (2026-09-08) -- what was wrong and what changed
+
+* The payload was a 62 % sample (`MAX_RUNS = 150_000`, builder). Every surface, not just
+  this Lab, was missing 38 % of runs. Retired; `sample` metadata + client banner guard it.
+* The table read the LENS BAND per spec and dropped specs with no measured parse in it.
+  Now: every wearer-parse in the filters is the row; the band is a column. The frame row
+  and the Character-screen line/tile/fold-out fall back to every parse, labelled.
+* Verified (scratchpad/verify_fix.py, live payload + live sidecars): keys +20-21, gate 1,
+  "All completed": BeastMastery row 41 % · n=1 · lens "–" at p10/p50/p90 (its one parse
+  ranks p29 of eight); with "Timed only" the row is absent, correctly (the run was over the
+  timer). Full uncapped payload: 1,192,973 rows, 11.8 MB gz, first render measured in the
+  harness, zero console errors; banner appears iff `D.sample.published < collected`.

@@ -3227,17 +3227,18 @@ function frameIdentityHTML(ctx){
      lens window as the Character screen's identity line. Under skill compare
      the second figure is the vs-percentile window of the same rows. */
   if(hasBeam&&state.beam){
-    const L=frameLensSlice(), s=beamStats(L.inWin);
+    const L=frameLensSlice(), s=beamStatsWin(L.inWin,L.idx);
     if(s.n+s.nb>0){
       let v=beamInline(s);
       if(skill){
-        const sB=beamStats(lensWindow(L.idx,state.pctlB).inWin);
+        const sB=beamStatsWin(lensWindow(L.idx,state.pctlB).inWin,L.idx);
         const f=x=>'<b>'+beamPct(x.p50)+'</b>';
         v='in the light '+f(s)+' · '+f(sB)+' of beam time';
       }
       rows+=row('<span title="'+escA(beamTitle(s))+'">'+esc(BEAMC.name)+'</span>',
-        v+'<div class="fnote">median · n='+fmtInt(s.n)+' around p'+state.pctl
-        +(skill?' · p'+state.pctlB:'')+' (lens ±10)'
+        v+'<div class="fnote">median · n='+fmtInt(s.n)
+        +(s.all?' · every parse in the filters (none with beam data around p'+state.pctl+', lens ±10)'
+               :' around p'+state.pctl+(skill?' · p'+state.pctlB:'')+' (lens ±10)')
         +(s.nb?' · '+fmtInt(s.nb)+' got no beam':'')
         +(state.compare?' · period A':'')+'</div>');
     }
@@ -3712,7 +3713,17 @@ function beamStats(rows){
   const q=p=>{ if(!v.length) return null;
     const t=p*(v.length-1), lo=Math.floor(t), hi=Math.ceil(t);
     return v[lo]+(v[hi]-v[lo])*(t-lo); };
-  return {n:v.length, nb, p50:q(.5), p25:q(.25), p75:q(.75), pooled:sa?100*sb/sa:null};
+  return {n:v.length, nb, p50:q(.5), p25:q(.25), p75:q(.75), pooled:sa?100*sb/sa:null, all:false};
+}
+/* stats over the lens window; when that band holds no wearer-parse with beam
+   data, over EVERY parse in the current filters instead, flagged `all` so the
+   label says so. A thin band (a spec with eleven +20 parses has three in a
+   ±10 band) must never make a measured spec vanish -- owner, 2026-09-08:
+   "when I filter to +20s and above, the hunters disappear from the list". */
+function beamStatsWin(win,all){
+  const s=beamStats(win);
+  if(!s.n&&!s.nb&&all){ const a=beamStats(all); if(a.n||a.nb){ a.all=true; return a; } }
+  return s;
 }
 const beamPct=x=>x==null?"–":Math.round(x)+"%";
 // the definition, ONCE, behind every place the number appears
@@ -3726,12 +3737,13 @@ function beamTitle(s){
     +(s.n?" (p25 "+beamPct(s.p25)+" · p75 "+beamPct(s.p75)
       +" · time-weighted "+beamPct(s.pooled)+")":"")
     +(s.nb?"; "+fmtInt(s.nb)+" more got no beam that run and are not counted":"")
+    +(s.all?". The p"+state.pctl+" lens band held none, so this is every parse in the current filters":"")
     +". Not classic uptime.";
 }
 // the compact reading — the denominator rides in the words so it can never be
 // mistaken for the classic measure: "in the light 38% of beam time · n=143 of 312"
 function beamInline(s,wearers){
-  const n='n='+fmtInt(s.n)+(wearers?' of '+fmtInt(wearers):'');
+  const n='n='+fmtInt(s.n)+(wearers?' of '+fmtInt(wearers):'')+(s.all?' · all parses in filters':'');
   return 'in the light <b>'+beamPct(s.p50)+'</b> of beam time <i>'+n+'</i>';
 }
 /* the ⚗ card's cross-spec table: every spec with beam data, on the SAME slice
@@ -3754,7 +3766,8 @@ function renderBeamTable(){
     +" wearer-parses measured so far":"";
   if(sub) sub.textContent="per spec, the share of each "+T.name+" beam's "
     +T.window+" s its wearers spent standing in it ("+T.buff+" active) · "
-    +frameScope()+" · follows every filter and the lens · specs past the "
+    +frameScope()+" · every wearer-parse in the current filters (the lens column is the "
+    +"p"+state.pctl+" ±10 band the Spec Frame reads) · specs past the "
     +"minimum-characters gate, as in the Overview"+covTxt;
   // only groups the trust gate lets through (GATED_KEYS, set by render());
   // no minimum on n itself -- a listed spec shows whatever it has
@@ -3762,22 +3775,26 @@ function renderBeamTable(){
   for(let i=0;i<N;i++) if(BEAMC.map[i]>=0){ const k=groupKey(i); if(GATED_KEYS.has(k)) keys.add(k); }
   const rows=[];
   for(const [k,idx] of liveIdxMulti(keys)){     // ONE pass for every spec
-    const st=beamStats(lensWindow(idx).inWin);
+    // every wearer-parse in the filters is the row; the lens band (what the
+    // Spec Frame reads) rides beside it and may legitimately be empty
+    const st=beamStats(idx);
     if(!st.n) continue;
+    const ln=beamStats(lensWindow(idx).inWin);
     const pk=state.merge?k:Math.floor(k/200);
     const cls=D.classes[Math.floor(pk/100)], spec=D.specs[pk%100];
     const hero=state.merge?"":(D.heroes[k%200]||"");
-    rows.push({k, cls, spec, hero:(hero&&hero!=="Unknown")?hero:"", s:st});
+    rows.push({k, cls, spec, hero:(hero&&hero!=="Unknown")?hero:"", s:st, l:ln});
   }
   const shown=rows;                              // every spec with a measured parse
   const cols=[["spec","Spec","txt"],
-    ["p50","In the light","","median of the per-parse share of beam time spent in the light, lens window"],
+    ["p50","In the light","","median of the per-parse share of beam time spent in the light, every wearer-parse in the current filters"],
     ["iqr","p25 – p75","","the middle half of those parses"],
-    ["pool","Time-weighted","","all seconds in the light ÷ all seconds a beam was available, lens window"],
-    ["n","n","","wearer-parses with beam data in the lens window"]];
+    ["pool","Time-weighted","","all seconds in the light ÷ all seconds a beam was available, every parse in the filters"],
+    ["n","n","","wearer-parses with beam data in the current filters"],
+    ["lens","p"+state.pctl+" lens","","the same median over only the parses in the Spec Frame's lens band (p"+state.pctl+" ±10 by DPS), with its own n; – when the band holds none"]];
   const st=sortState("beam:tbl","p50",cols);
   const val=(r,c)=>c==="spec"?r.spec+" "+r.hero:c==="p50"?r.s.p50:c==="iqr"?r.s.p25
-    :c==="pool"?r.s.pooled:c==="n"?r.s.n:null;
+    :c==="pool"?r.s.pooled:c==="n"?r.s.n:c==="lens"?(r.l.p50==null?-1:r.l.p50):null;
   let h="";
   if(!shown.length){
     h='<div class="hint">no spec past the minimum-characters gate has beam data in the current filters</div>';
@@ -3789,12 +3806,15 @@ function renderBeamTable(){
         +(r.hero?' <i>'+esc(r.hero)+'</i>':'')+'</td>'
         +'<td><b>'+beamPct(r.s.p50)+'</b></td>'
         +'<td><i>'+beamPct(r.s.p25)+' – '+beamPct(r.s.p75)+'</i></td>'
-        +'<td>'+beamPct(r.s.pooled)+'</td><td>'+fmtInt(r.s.n)+'</td></tr>';
+        +'<td>'+beamPct(r.s.pooled)+'</td><td>'+fmtInt(r.s.n)+'</td>'
+        +'<td>'+beamPct(r.l.p50)+(r.l.n?' <i>n='+fmtInt(r.l.n)+'</i>':'')+'</td></tr>';
     h+='</tbody></table></div>';
   }
   h+='<div class="hint">In the light = of the seconds a '+esc(T.name)+' beam was available '
     +'to a wearer (12 s from each of their own beams, overlaps counted once), the share they '
-    +'spent standing in it. One value per parse; the table shows the median at any n. '
+    +'spent standing in it. One value per parse; the table shows the median over every '
+    +'wearer-parse in the current filters, at any n; the lens column repeats the Spec Frame\'s '
+    +'p'+state.pctl+' ±10 band and is – when that band holds no measured parse. '
     +'Specs are the ones the minimum-characters gate lists in the Overview. '
     +'Not classic uptime. The same reading sits on the Spec Frame\'s Overview and on the '
     +'Character screen.</div>';
@@ -4344,7 +4364,7 @@ function csBandHTML(ctx,d){
    item is present. Nothing renders without covered wearers in the window. */
 function csBeamBandHTML(d){
   if(!(hasBeam&&state.beam&&d)) return "";
-  const s=beamStats(d.win);   // the lens window: the Spec Frame row prints the same figure
+  const s=beamStatsWin(d.win,d.L?d.L.idx:null);   // the lens window, every parse when it is empty: the Spec Frame row prints the same figure
   if(!s.n&&!s.nb) return "";
   return '<span class="csbeam" title="'+escA(beamTitle(s))+'">✨ '+esc(BEAMC.name)+': '
     +beamInline(s)+'</span>';
@@ -4615,7 +4635,7 @@ function csFoldHTML(d,fid,M){
 // ⚗ beam: the tracked trinket's fold-out row carries the same reading as its tile
 function csBeamSub(e,d){
   if(!(hasBeam&&state.beam&&e&&+e.id===BEAMC.item)) return {};
-  const s=beamStats(d.win);
+  const s=beamStatsWin(d.win,d.L?d.L.idx:null);
   return {sub:' <span class="gbeam" title="'+escA(beamTitle(s))+'">'+beamInline(s)+'</span>'};
 }
 function csPoolFoldHTML(d,p,M){
@@ -4885,7 +4905,7 @@ function csGearPaneHTML(ctx,d){
     // definition rides the tile's tooltip
     let bfoot="", btitle="";
     if(hasBeam&&state.beam&&e&&+e.id===BEAMC.item){
-      const s=beamStats(d.win);
+      const s=beamStatsWin(d.win,d.L?d.L.idx:null);
       bfoot='<div class="gfoot beam">'+beamInline(s,c)+'</div>';
       btitle=" — "+escA(beamTitle(s));
     }
@@ -6574,7 +6594,12 @@ function render(){
   $("k-parses").textContent=fmtInt(A.parses);
   $("k-groups").textContent=fmtInt(rows.length);
   $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
-  $("period-note").innerHTML = (state.proj&&D.projection
+  const smp=D.sample||null;
+  $("period-note").innerHTML = (smp&&smp.collected>smp.published
+      ? '<b class="delta down" style="font-size:.95em">⚠ Sampled payload: '+fmtInt(smp.published)
+        +' of '+fmtInt(smp.collected)+' collected runs are published.</b> '
+      : "")
+    +(state.proj&&D.projection
       ? '<b class="delta up" style="font-size:.95em">🔮 Projected: '
         +esc(D.projection.label)+'.</b> Every DPS figure is that parse\'s own '
         +'ability breakdown re-scored under the announced changes, so the '
