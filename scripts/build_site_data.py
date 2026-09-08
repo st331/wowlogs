@@ -2339,6 +2339,8 @@ def procs_sidecar(df, procs_path, meta, name: str) -> str | None:
                 rec = json.loads(line)
             except ValueError:
                 continue                        # torn trailing line
+            if int(rec.get("v") or 1) < 2:
+                continue        # v1 (table query) records are empty; redone
             try:
                 k = _gear_key(rec["report_code"], rec["fight_id"],
                               rec["character"], rec.get("server"))

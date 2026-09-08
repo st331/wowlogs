@@ -24,18 +24,28 @@ Reference fights: 41.4 % (Marksmanship, 23 beams) and 35.9 % (Arcane, 27)
 against classic uptimes of 8.2 % and 8.7 %. Overlapping beams merge in the
 union, which is what "time the trinket was active" means.
 
-COST: ONE Buffs-table sub-query per wearer-fight (~1 point), PROC_BATCH of
-them per request. Gear records written before 2026-09-08 carry no actor id;
-those cost one masterData sub-query per REPORT on top, memoised per run. The
-journal held ~73k wearer-fights on 2026-09-08 (7.6 % of gear-known parses)
-and grows ~30k a week. Every run spends at most --budget-pts points and
---budget-s seconds, under the client's standing 70 % ceiling, newest fights
-first, journals what it got and stops; the next run continues.
+COST: ONE buff-EVENTS sub-query per wearer-fight (applybuff/refreshbuff/
+removebuff of the aura on the wearer, any source), PROC_BATCH of them per
+request. Events, not the Buffs table: the table with sourceID AND targetID
+set returns no bands at all (run 827, 2026-09-08: 240 of 240 wearer-fights
+"no beam"), and the events carry the source of every application, which is
+what tells the wearer's own beams from a teammate's -- a spawn is an
+apply/refresh whose source is the wearer; the buff band counts whoever cast
+it. Events also cost a fraction of a table's points (diag pass 2: 8 event
+sub-queries for 1 point). Gear records written before 2026-09-08 carry no
+actor id; those cost one masterData sub-query per REPORT on top, memoised
+per run. The journal held ~73k wearer-fights on 2026-09-08 (7.6 % of
+gear-known parses) and grows ~30k a week. Every run spends at most
+--budget-pts points and --budget-s seconds, under the client's standing 70 %
+ceiling, newest fights first, journals what it got and stops; the next run
+continues.
 
 FILES (data/processed -- they ride the journal cache between runs):
   procs.jsonl       one line per wearer-fight per tracked trinket: the bands
-                    themselves (ms from fight start) plus the derived numbers,
-                    so a model change re-derives without refetching
+                    and the own-beam spawn times (ms from fight start) plus
+                    the derived numbers, so a model change re-derives without
+                    refetching. "v" is the record version: v1 (the table
+                    query, always empty) is NOT done and is re-collected.
   procs_failed.txt  "code:fid:character\\tkey\\treason" -- never retried
 """
 from __future__ import annotations
@@ -55,8 +65,10 @@ from procs_spec import TRACKED                                 # noqa: E402
 
 PROCS_FILE = PROCESSED / "procs.jsonl"
 PROCS_FAILED = PROCESSED / "procs_failed.txt"
-PROC_BATCH = 12          # aliased Buffs-table sub-queries per request
+PROC_BATCH = 12          # aliased buff-events sub-queries per request
 ACTOR_BATCH = 10         # aliased masterData sub-queries per request
+RECORD_V = 2             # journal record version; older records are redone
+EVENT_LIMIT = 5000       # events per page; a 30-min fight has ~100
 
 
 # --- the model ---------------------------------------------------------------
@@ -87,22 +99,56 @@ def inter_len(a, b) -> int:
     return tot
 
 
-def benefit(bands, window_ms: int, fight_ms: int) -> dict:
+def benefit(bands, window_ms: int, fight_ms: int, spawns=None) -> dict:
     """The derived numbers for one wearer-fight.
 
-    bands: [[start, end], ...] in ms from fight start. Returns n (beams),
-    a (available ms), b (buff ms), i (buff inside available ms) and r
-    (i / a, 4 dp) -- r is None when no beam ever spawned, which is "no
-    evidence", never 0 %.
+    bands: [[start, end], ...] in ms from fight start -- the buff on the
+    wearer, whoever's beam applied it. spawns: the wearer's OWN beam spawn
+    times (an apply or refresh of the aura whose source is the wearer); when
+    None, every band start is taken as a spawn (the pre-events model, kept
+    for callers that only have bands). Returns n (beams), a (available ms),
+    b (buff ms), i (buff inside available ms) and r (i / a, 4 dp) -- r is
+    None when no beam ever spawned, which is "no evidence", never 0 %.
     """
     bb = union([[max(0, s), min(e, fight_ms)] for s, e in bands])
-    starts = sorted(int(s) for s, _ in bands)
+    starts = sorted(int(s) for s in (spawns if spawns is not None
+                                     else [s for s, _ in bands]))
     avail = union([[max(0, s), min(s + window_ms, fight_ms)] for s in starts])
     a = sum(e - s for s, e in avail)
     b = sum(e - s for s, e in bb)
     i = inter_len(bb, avail)
     return {"n": len(starts), "a": a, "b": b, "i": i,
             "r": (round(i / a, 4) if a else None)}
+
+
+def bands_from_events(events, aid: int, t0: int, t1: int):
+    """(bands, spawns, foreign) from the aura's buff events on the wearer.
+
+    bands: [[s, e], ...] ms from fight start, any source -- an apply opens,
+    a refresh keeps it open, a remove closes; a band still open at the end
+    closes at the fight end. spawns: apply/refresh timestamps whose source
+    is the wearer (their own beams). foreign: apply/refresh events from any
+    other source (a teammate's beam), kept as a count for the record.
+    """
+    bands, spawns, foreign = [], [], 0
+    open_t = None
+    for e in sorted((e for e in events if isinstance(e, dict)),
+                    key=lambda e: e.get("timestamp") or 0):
+        ty = e.get("type")
+        ts = int(e.get("timestamp") or 0)
+        if ty in ("applybuff", "refreshbuff", "applybuffstack"):
+            if int(e.get("sourceID") or -1) == aid:
+                spawns.append(max(0, min(ts, t1) - t0))
+            else:
+                foreign += 1
+            if open_t is None:
+                open_t = ts
+        elif ty in ("removebuff",) and open_t is not None:
+            bands.append([max(0, open_t - t0), max(0, min(ts, t1) - t0)])
+            open_t = None
+    if open_t is not None:
+        bands.append([max(0, open_t - t0), max(0, t1 - t0)])
+    return bands, sorted(spawns), foreign
 
 
 def bands_from_table(table: dict, buff: int):
@@ -163,6 +209,8 @@ def load_done(procs_path=PROCS_FILE, failed_path=PROCS_FAILED) -> dict[str, set]
     """{tracked key: set of wearer keys} already journaled or failed."""
     done: dict[str, set] = {}
     for rec in _iter_journal(pathlib.Path(procs_path)):
+        if int(rec.get("v") or 1) < RECORD_V:
+            continue                    # an older model's record: redo it
         done.setdefault(rec.get("key"), set()).add(wearer_key(rec))
     p = pathlib.Path(failed_path)
     if p.exists():
@@ -229,21 +277,42 @@ def actor_of(amap: dict, key: tuple):
     return amap.get((key[2], key[3])) or amap.get(key[2])
 
 
-def fetch_batch(client: WCLClient, t: dict, batch: list[tuple[tuple, int]]):
-    """[(wearer key, actor id)] -> (reportData, alias error map)."""
+def fetch_batch(client: WCLClient, t: dict, batch: list[tuple[tuple, int]],
+                after: dict | None = None):
+    """[(wearer key, actor id)] -> (reportData, alias error map).
+
+    Per wearer-fight: the fight's clock and the aura's buff events ON the
+    wearer from any source (the source is on each event). `after` maps a
+    wearer key to a page cursor for the rare fight with more than
+    EVENT_LIMIT events."""
     parts = []
     for i, (k, aid) in enumerate(batch):
-        # source AND target = the wearer: only the wearer's OWN beams count.
-        # The blessing's source is the beam's owner (verified 2026-09-08:
-        # applybuff sourceID == targetID on every event), so a teammate's
-        # beam blessing this player is excluded from both numerator and
-        # denominator -- the metric is about this wearer's trinket.
-        parts.append(f'a{i}: report(code: "{k[0]}") {{ table(fightIDs: [{k[1]}], '
-                     f'dataType: Buffs, abilityID: {t["buff"]}, sourceID: {aid}, '
-                     f'targetID: {aid}) }}')
+        st = f', startTime: {after[k]}' if after and k in after else ""
+        parts.append(f'a{i}: report(code: "{k[0]}") {{ '
+                     f'fights(fightIDs: [{k[1]}]) {{ startTime endTime }} '
+                     f'ev: events(fightIDs: [{k[1]}], dataType: Buffs, '
+                     f'abilityID: {t["buff"]}, targetID: {aid}, '
+                     f'limit: {EVENT_LIMIT}{st}) {{ data nextPageTimestamp }} }}')
     data = client.query("{ reportData { " + " ".join(parts) + " } }",
-                        est_cost=1.0 * len(parts))
+                        est_cost=0.5 * len(parts))
     return data.get("reportData") or {}, alias_error_map(data.get("_errors"))
+
+
+def parse_node(node, aid: int, buff: int):
+    """(t0, t1, events, next page) from one alias; ValueError when unusable."""
+    if not isinstance(node, dict):
+        raise ValueError("no node")
+    fights = node.get("fights") or []
+    ev = node.get("ev")
+    if not fights or not isinstance(fights[0], dict) or not isinstance(ev, dict):
+        raise ValueError("no fight or events")
+    t0, t1 = int(fights[0].get("startTime") or 0), int(fights[0].get("endTime") or 0)
+    if t1 <= t0:
+        raise ValueError("no fight clock")
+    data = ev.get("data")
+    if not isinstance(data, list):
+        raise ValueError("no events data")
+    return t0, t1, data, ev.get("nextPageTimestamp")
 
 
 def run(budget_pts: float, budget_s: float, limit: int | None,
@@ -314,9 +383,17 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
                     s["transient"] += len(chunk)
                     continue
                 for j, (k, aid) in enumerate(batch):
-                    node = rd.get(f"a{j}") or {}
+                    node = rd.get(f"a{j}")
                     try:
-                        bands, fight_ms = bands_from_table(node.get("table"), t["buff"])
+                        t0, t1, events, nxt = parse_node(node, aid, t["buff"])
+                        # the rare fight with more events than one page:
+                        # follow the cursor, at most three more pages
+                        pages = 0
+                        while nxt and pages < 3:
+                            pages += 1
+                            rd2, _e2 = fetch_batch(client, t, [(k, aid)], {k: nxt})
+                            _t0, _t1, more, nxt = parse_node(rd2.get("a0"), aid, t["buff"])
+                            events = events + more
                     except ValueError:
                         msg = errs.get(f"a{j}", "")
                         if msg:
@@ -326,10 +403,16 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
                         else:
                             s["transient"] += 1
                         continue
-                    rec = {"report_code": k[0], "fight_id": k[1], "character": k[2],
-                           "server": k[3] or None, "key": t["key"], "actor": aid,
-                           "f": fight_ms, "bands": bands}
-                    rec.update(benefit(bands, t["window_ms"], fight_ms))
+                    except (QuotaDeadline, RuntimeError):
+                        s["transient"] += 1
+                        continue
+                    bands, spawns, foreign = bands_from_events(events, aid, t0, t1)
+                    fight_ms = t1 - t0
+                    rec = {"v": RECORD_V, "report_code": k[0], "fight_id": k[1],
+                           "character": k[2], "server": k[3] or None,
+                           "key": t["key"], "actor": aid, "f": fight_ms,
+                           "bands": bands, "sp": spawns, "x": foreign}
+                    rec.update(benefit(bands, t["window_ms"], fight_ms, spawns))
                     out_fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
                     s["ok"] += 1
                 out_fh.flush()

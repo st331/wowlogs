@@ -282,11 +282,15 @@
     when they step out or at the 12 s expiry (bands 0.1–12.0 s, capped). So a band's
     START is a spawn, the beam is available 12 s from there, and per wearer-fight
     benefit = |bands ∩ ∪[start, start+12 s]| / |∪[start, start+12 s]|, overlapping beams
-    merged, the wearer's OWN beams only (source = target = wearer). Reference: 41.4 % and
+    merged; a spawn is an apply/refresh whose source is the wearer (own beams only in the
+    denominator; a teammate's beam counts as buff time only inside those windows).
+    Journal records carry "v": 2 -- v1 (table-era) records are redone. Reference: 41.4 % and
     35.9 % against classic uptimes of 8.2 % / 8.7 %. Zero beams in a run = no evidence
     (255 in the sidecar), counted separately, never 0 %.
-    Pipeline: fetch_procs.py after Fetch, ONE Buffs-table sub-query per wearer-fight
-    (~1 pt), newest first, ≤400 pts and ≤4 min a run under the STANDING 70 % ceiling
+    Pipeline: fetch_procs.py after Fetch, ONE buff-events sub-query per wearer-fight
+    (the aura's apply/refresh/remove on the wearer, any source; run 827 proved the Buffs
+    table with sourceID+targetID returns no bands, and events cost a fraction of a
+    table's points), newest first, ≤400 pts and ≤4 min a run under the STANDING 70 % ceiling
     (never the drain fraction); ~73k wearer-fights in the journal, ~30k/week new (7.6 %
     of gear-known parses). Journal data/processed/procs.jsonl keeps the bands; the
     sidecar site/procs.json.gz is row-aligned, tens of KB, no ladder; procs_spec.py is
