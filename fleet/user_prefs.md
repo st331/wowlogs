@@ -384,3 +384,11 @@
     least one measured wearer-parse is listed, and every tile/line/row prints its percent
     with its n beside it at any n. The reader judges significance from n; the page never
     withholds a number.
+
+28. **Times to the owner in IST, always (owner, 2026-09-08: "when communicating with me,
+    don't use UTC. Use IST. Only for communicating with me -- internally use whatever time
+    zone makes the most engineering sense").** Every time in a message to the owner is IST
+    (UTC+5:30), written as e.g. "14:28 IST"; UTC stays in code, workflows, journals,
+    build_health.txt and the site's own labels. A UTC figure lifted from a log is converted
+    before it is quoted. This had been the standing practice and slipped in the drain
+    messages; it is a rule now, not a habit.
