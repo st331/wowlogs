@@ -255,6 +255,17 @@ assert s7["ok"] == 30 and len(recs7) == 30 and all(r["v"] == 2 for r in recs7), 
 assert len({(r["report_code"], r["fight_id"], r["character"]) for r in recs7}) == 30
 assert fp.load_done(bigp, bigf)["lscore"] and s7["stopped"] == "", s7
 print("workers     : 3 concurrent workers journal each of 30 wearer-fights exactly once")
+# since_days: only fights the sweep dates inside the window are fetched
+import time as _time
+now_ms = _time.time() * 1000
+fx = {f"R{i:03d}:1": {"start_time": now_ms - (2 if i < 5 else 20) * 86400_000} for i in range(30)}
+bigp.unlink(missing_ok=True); bigf.write_text("")
+s8 = fp.run(budget_pts=1000, budget_s=60, limit=None, tracked=TRACKED, gear_path=big,
+            procs_path=bigp, failed_path=bigf, client=SafeClient(), workers=2,
+            since_days=8, fights=fx)["lscore"]
+assert s8["ok"] == 5 and s8["older"] == 25 and s8["pending"] == 5, s8
+assert "procs.lscore.older=25" in (tmp / "fetch_health.txt").read_text()
+print("since_days  : 5 fights inside the window fetched, 25 older left alone and reported")
 
 # --- the sidecar -------------------------------------------------------------------
 procs.write_text("\n".join(json.dumps(x) for x in [

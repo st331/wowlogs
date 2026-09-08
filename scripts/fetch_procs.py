@@ -375,12 +375,18 @@ def _work(t: dict, chunk: list, allk: dict, amaps: dict, alock, shared_client):
 def run(budget_pts: float, budget_s: float, limit: int | None,
         tracked=TRACKED, gear_path=GEAR_FILE, procs_path=PROCS_FILE,
         failed_path=PROCS_FAILED, client: WCLClient | None = None,
-        workers: int = PROC_WORKERS) -> dict:
+        workers: int = PROC_WORKERS, since_days: float | None = None,
+        fights: dict | None = None) -> dict:
+    """since_days: only fights that started within the last N days are
+    collected (owner, 2026-09-08: "just 1 reset of data is enough"); older
+    wearer-fights stay in the gear journal but are never fetched. Fights the
+    sweep no longer lists (no start time) count as old."""
     t_start = time.monotonic()
     deadline = t_start + budget_s
     cands = candidates(tracked, gear_path)
     done = load_done(procs_path, failed_path)
-    fights = load_fights(None)
+    if fights is None:
+        fights = load_fights(None)
     pathlib.Path(procs_path).parent.mkdir(parents=True, exist_ok=True)
     _repair_tail(pathlib.Path(procs_path))
     summary: dict = {}
@@ -391,14 +397,24 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
             allk = cands[t["key"]]
             dn = done.get(t["key"], set())
             pending = order_pending([k for k in allk if not _done_has(dn, k)], fights)
+            older = 0
+            if since_days:
+                cutoff_ms = (time.time() - since_days * 86400) * 1000
+                keep = [k for k in pending
+                        if ((fights.get(f"{k[0]}:{k[1]}") or {}).get("start_time") or 0)
+                        >= cutoff_ms]
+                older = len(pending) - len(keep)
+                pending = keep
             print(f"[procs] {t['name']}: {len(allk):,} wearer-fights in the gear "
-                  f"journal, {len(allk) - len(pending):,} done, "
-                  f"{len(pending):,} pending", flush=True)
+                  f"journal, {len(allk) - len(pending) - older:,} done, "
+                  f"{len(pending):,} pending"
+                  + (f", {older:,} older than {since_days:g} days left alone"
+                     if since_days else ""), flush=True)
             if limit:
                 pending = pending[:limit]
             s = summary[t["key"]] = {"total": len(allk), "pending": len(pending),
-                                     "ok": 0, "failed": 0, "transient": 0,
-                                     "stopped": ""}
+                                     "older": older, "ok": 0, "failed": 0,
+                                     "transient": 0, "stopped": ""}
             if not pending:
                 continue
             if client is None:
@@ -540,8 +556,8 @@ def run(budget_pts: float, budget_s: float, limit: int | None,
     try:
         with (pathlib.Path(procs_path).parent / "fetch_health.txt").open("a") as fh:
             for key, sm in summary.items():
-                for f in ("total", "pending", "ok", "failed", "transient", "nobeam",
-                          "points", "stopped"):
+                for f in ("total", "pending", "older", "ok", "failed", "transient",
+                          "nobeam", "points", "stopped"):
                     if f in sm and sm[f] != "":
                         fh.write(f"procs.{key}.{f}={sm[f]}\n")
     except OSError:
@@ -568,6 +584,9 @@ def main(argv=None) -> int:
                     help="wall-clock seconds this run may spend (default 240)")
     ap.add_argument("--workers", type=int, default=PROC_WORKERS,
                     help=f"concurrent requests (default {PROC_WORKERS})")
+    ap.add_argument("--since-days", type=float, default=None,
+                    help="collect only fights started within the last N days "
+                         "(older ones are never fetched)")
     ap.add_argument("--limit", type=int, default=None,
                     help="at most this many wearer-fights (tests)")
     ap.add_argument("--status", action="store_true", help="report and exit")
@@ -575,7 +594,8 @@ def main(argv=None) -> int:
     if args.status:
         status()
         return 0
-    run(args.budget_pts, args.budget_s, args.limit, workers=args.workers)
+    run(args.budget_pts, args.budget_s, args.limit, workers=args.workers,
+        since_days=args.since_days)
     return 0
 
 

@@ -270,7 +270,9 @@ jobs:
       # budget is a cap, not a spend: once the backlog is gone a run costs
       # ~60 points. Sized so three runs an hour (Fetch ~2k + this) stay
       # under the 12.6k ceiling with room to spare (owner, 2026-09-08:
-      # "backfill the runs first"). Journals to data/processed/procs.jsonl,
+      # "backfill the runs first"; and "just 1 reset of data is enough", so
+      # --since-days 8 = one reset plus a margin, newest first -- older
+      # wearer-fights are never fetched). Journals to data/processed/procs.jsonl,
       # which rides the cache like every journal. Never fails the run: the
       # site builds with whatever is journaled, and build_health.txt carries
       # the coverage line.
@@ -283,7 +285,7 @@ jobs:
           WCL_MAX_SLEEP_S: "30"
           WCL_BUDGET_MARGIN: "400"
         run: |
-          python -u scripts/fetch_procs.py --budget-pts 1500 --budget-s 480 \
+          python -u scripts/fetch_procs.py --budget-pts 1500 --budget-s 480 --since-days 8 \
             || echo "::warning::trinket beam collector failed; building with the existing journal"
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.

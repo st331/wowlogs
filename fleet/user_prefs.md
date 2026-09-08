@@ -292,7 +292,10 @@
     newest first, four concurrent requests, ≤1,500 pts and ≤8 min a run under the STANDING
     70 % ceiling (raised from 400/4 min on 2026-09-08, "backfill the runs first": three runs
     an hour at Fetch ~2k + 1.5k stay under the 12.6k ceiling; the ~73k backlog clears in
-    about a day instead of a week, and once it is gone a run costs ~60 pts). The record,
+    about a day instead of a week, and once it is gone a run costs ~60 pts). Scope: `--since-days 8`
+    (owner, 2026-09-08: "just 1 reset of data is enough") -- one reset plus a margin, newest
+    first; the ~40k older wearer-fights stay in the gear journal and are never fetched, so one
+    reset (~30k wearer-fights, ~66k pts) is collected in ~12-15 h at the standing cap. The record,
     corrected: run 827 asked the Buffs table with abilityID+targetID -- the shape the
     diagnostic read 23/27 bands with -- and got 240 of 240 empty because the collector's
     table parser kept only auras with guid == 1263768, which an abilityID-filtered table
