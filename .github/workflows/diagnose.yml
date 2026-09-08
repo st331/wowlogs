@@ -1,0 +1,44 @@
+name: Diagnose (read-only journal scan)
+
+# One-off diagnostics that need the collection journals, which live only in
+# the Actions cache. Restores that cache READ-ONLY (never saves it back),
+# runs the named script, and prints its report to the job log. Its own
+# concurrency group, so it can never queue behind or cancel a refresh run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "scripts/<name>.py to run against the restored journals"
+        type: string
+        default: "diag_tier_pairs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wowlogs-diagnose
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests pandas numpy
+      - name: Restore collection journals (read-only)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            data/raw
+            data/processed
+          key: wowlogs-diagnose-never-matches
+          restore-keys: wowlogs-journals-
+      - name: Run the diagnostic
+        run: |
+          ls -la data/processed/gear.jsonl 2>/dev/null || echo "no gear journal restored"
+          python -u "scripts/${{ inputs.script }}.py"
