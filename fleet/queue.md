@@ -14,6 +14,11 @@ Design was stopped before any spec or code was written; nothing was implemented,
 side effect of another change. A refresh continues to open on payload defaults, and the
 character screen's `#cs=` URL hash remains the ONLY thing that survives a reload.
 
+**One owner-requested exception (2026-09-08): "Keep the toggle remembered across reload."**
+The ⚗ Lightspire "in the light" Lab toggle persists in `localStorage["wowlogs.lab.beam"]`
+(guarded like the collapsed sections and `wowlogs.lens.me`). It is a Lab control, not a
+filter, and it was asked for by name; the rule above still holds for everything else.
+
 If it is ever revived, the trap that made it worth thinking hard about is worth
 re-reading: the key-level range default is data-driven (a six-wide band anchored to the
 top key anyone has logged), so faithfully restoring a stored range would silently freeze

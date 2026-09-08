@@ -318,7 +318,10 @@
     Median of per-parse ratios is the headline; p25/p75/time-weighted (Σinside/Σavailable,
     the sidecar's b column is the INSIDE seconds) and the no-beam count ride the tooltip
     with the definition. Floor n=10 (CS_THIN echo): below it "thin", never a number.
-    Deliberately not built (design panel 2026-09-08): a Data Table column, A·B compare
-    columns on the card, a remembered toggle (queue.md's scrapped session persistence),
-    a per-row status byte, an N-trinket decoder. Deferred: a weekly durability seed of the
+    The toggle IS remembered across reloads (owner, 2026-09-08: "Keep the toggle
+    remembered across reload") in localStorage "wowlogs.lab.beam" -- the one exception to
+    queue.md's scrapped session persistence, asked for by name; a remembered ON renders
+    every surface the moment the sidecar lands. Deliberately not built (design panel
+    2026-09-08): a Data Table column, A·B compare columns on the card, a per-row status
+    byte, an N-trinket decoder. Deferred: a weekly durability seed of the
     procs journal (cache-only today; an eviction restarts the backfill at ~2 pts a fight).

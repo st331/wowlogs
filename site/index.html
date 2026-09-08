@@ -1710,7 +1710,12 @@ function initData(d,cfg){
   state.postTune=hasTune;
   hasProj=!!(D.projection&&R.tmul);
   if(!hasProj) state.proj=false;
-  state.beam=false; hasBeam=false; BEAMC=null;
+  // remembered across reloads at the owner's request (2026-09-08: "Keep the
+  // toggle remembered across reload") -- the one Lab control that persists,
+  // guarded like the collapsed sections and the lens; absent storage = off
+  state.beam=false;
+  try{ state.beam=localStorage.getItem(BEAM_LS)==="1" }catch(e){}
+  hasBeam=false; BEAMC=null;
   loadProcsSidecar();   // tiny; its ⚗ card mounts itself when it lands (labMountLate)
   // ⚗ Lab manifest: render the entries whose gate() is true — a gated-off
   // feature renders NOTHING anywhere (feedback #3) — then wire what exists.
@@ -2556,8 +2561,11 @@ function labMountLate(id){
 function wireLabControls(){
   const bc=$("beamcb");
   if(bc){ bc.checked=state.beam;
-    bc.onchange=e=>{ state.beam=e.target.checked; labScopeRefresh();
-      renderBeamTable(); renderFrame(); if(state.screen) renderScreen(); }; }
+    bc.onchange=e=>{ state.beam=e.target.checked;
+      try{ if(state.beam) localStorage.setItem(BEAM_LS,"1");
+           else localStorage.removeItem(BEAM_LS) }catch(e2){}
+      labScopeRefresh(); renderBeamTable(); renderFrame();
+      if(state.screen) renderScreen(); }; }
   const bh=$("beamhint");
   if(bh&&BEAMC&&BEAMC.cov)
     bh.textContent="("+fmtInt(BEAMC.cov.measured)+" of "+fmtInt(BEAMC.cov.wearers)
@@ -3608,6 +3616,7 @@ let __csCopy=[];                  // import strings behind the rendered copy but
    separately). a/b: u16 seconds available / inside. p: u8 beams. Everything is
    feature-detected; anything unexpected ⇒ null ⇒ the feature does not exist. */
 const BEAM_KEY="lscore";
+const BEAM_LS="wowlogs.lab.beam";     // localStorage: "1" = the toggle was left on
 const BEAM_MIN_N=10;                 // CS_THIN echo: below it "thin", never a number
 function loadProcsSidecar(){
   (async()=>{
@@ -3620,7 +3629,9 @@ function loadProcsSidecar(){
     if(!dec) return;
     BEAMC=dec; hasBeam=true;
     labMountLate("beam");
-    if(state.screen) renderScreen();
+    // a remembered ON toggle: the surfaces render the moment the data lands
+    // (renderFrame re-slices the whole screen itself when one is open)
+    if(state.beam){ renderBeamTable(); renderFrame(); }
   })().catch(()=>{});
 }
 function decodeProcsSidecar(j){
