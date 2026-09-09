@@ -529,3 +529,13 @@
     lens band (CC-2 argues for the beamStatsWin fallback there too), the talent-build cap
     of 24, the mixed DPS denominator on clock-less rows (±0.17%), and the dead
     hero-talent recovery path (3.1% Unknown).
+
+34. **Upgrade lean is slot based (owner, 2026-09-09: "upgrade lean should be slot based,
+    not item based").** Each piece used to be its own baseline, so the Character screen's
+    lean ranking averaged answers to different questions and a slot whose players were all
+    a track ahead in different pieces read zero. The baseline is now the slot's modal item
+    level, taken over the slot's whole tally so the size ladder cannot restate it, shipped
+    as `ibase` and named on every surface that prints a lean. The wearer floor fell from 20
+    to 3 because a count against a shared line is exact rather than an estimate. Full
+    reasoning in fleet/blueprints/upgrade_surface.md §4; the rest of that blueprint is the
+    superseded rule and says so.

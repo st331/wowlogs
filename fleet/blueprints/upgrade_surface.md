@@ -445,3 +445,58 @@ Written into that file by this change.
    the Lean cell repeats the wash; colour is never load-bearing alone. **`–` sorting as
    text** — the trap Part 3.2.3 prevents; worth one unit test per converted table's
    accessors.
+
+## 4. Slot baseline (2026-09-09) — the metric this file describes has changed
+
+Owner: *"upgrade lean should be slot based, not item based."* Everything above
+describes the ORIGINAL rule, where each piece was its own baseline. Read it as
+history; the definition in force is here.
+
+**What moved.** One line: the baseline `iup` is measured against.
+
+| | until 2026-09-09 | now |
+|---|---|---|
+| Baseline | the entry's own modal item level | the **slot's** modal item level |
+| `iup` | share of the entry's wearers above *its* mode | share of the entry's wearers above *the slot's* mode |
+| Wearer floor | 20 | 3 (`CS_ENTRY_MIN`) |
+| Shipped baseline | — | `specs[sk].ibase[k]`, parallel to `BUILDS_SLOTS` |
+
+**Why it is the right unit.** The client's aggregate never changed:
+
+```
+lean = Σ(live wearers_e × iup_e) / Σ(live wearers_e)
+```
+
+With a *shared* baseline that sum is not an average of per-item answers, it is
+**exactly** the share of the filtered wearers of that slot carrying it above the
+level most wearers of the slot carry. With a per-item baseline every term
+answered a different question, and the failure was not subtle: a slot where 8 of
+20 players sat a full track above the other 12 read **0** lean, because each
+piece was at its own mode. `scripts/test_builds_sidecar.py` (b2) is that exact
+fixture and asserts both the new numbers and the absence of the old ones.
+
+**Two invariants worth keeping.**
+
+* The baseline is taken over the slot's **full tally**, never the capped
+  vocabulary. The size ladder moved caps 24/40 → 12/20 inside one hour on
+  2026-09-08; a baseline that moved with it would silently restate every lean.
+  Test (b3) pins this.
+* The 20-wearer floor was protecting an *estimate*. Against a shared line a
+  three-wearer entry is an exact count, so the floor now only guards the
+  per-item column in the fold-out and matches the client's own display floor.
+  Coverage rises from ~66 % of shipped entries toward all of them, which raises
+  `W/den` and therefore the honesty of the cell floors above.
+
+**Surfaces that state it** (all verified headless, `scratchpad/chk_lean.py`):
+the pane footnote (`CS_LEAN_FOOT`), the Lean % column title
+(`CS_LEAN_TITLE`), each lean row's slot cell (`title="measured against item
+level 312, the level most wearers of this slot carry"`), and both fold-outs'
+per-item tooltips via `csIbaseTxt(d, sis)` — which prints both levels for a
+pooled pair whose two physical columns disagree, because their two leans then
+do too.
+
+**Diagnostics.** `bsd._SLOT_BASELINE = False` restores the old rule for
+comparison only; `scripts/diag_lean_baseline.py` (diagnose.yml) rebuilds the
+sidecar both ways from the restored journal and prints old vs new per spec and
+slot. A test guards that the flag really flips the rule, so the diagnostic
+cannot quietly compare a thing with itself.
