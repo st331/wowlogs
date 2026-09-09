@@ -27,6 +27,17 @@ import time
 import numpy as np
 import pandas as pd
 
+try:                               # 2026-09-09: gear_journal_pass parses every
+    import orjson                  # record (1.05M, 199 s of a 450 s build);
+                                   # orjson halves the parse. json.dumps writes
+    def _loads(b):                 # NaN/Infinity literals that orjson refuses,
+        try:                       # so those lines fall back to json and the
+            return orjson.loads(b)         # result is the same either way
+        except ValueError:
+            return json.loads(b)
+except ImportError:                # pip line without orjson: same results, slower
+    _loads = json.loads
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -2623,7 +2634,7 @@ def gear_journal_pass(codes=None) -> GearJournalPass:
             if not line:
                 continue
             try:
-                rec = json.loads(line)
+                rec = _loads(line)
             except ValueError:
                 continue                       # tolerate a torn trailing line
             parsed += 1
@@ -2784,7 +2795,7 @@ class TraitUnion:
         if not line:
             return False
         try:
-            rec = json.loads(line)
+            rec = _loads(line)
         except ValueError:                     # a torn line, a garbage join
             return False
         self.parsed += 1

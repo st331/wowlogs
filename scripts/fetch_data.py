@@ -489,7 +489,11 @@ def merge_ledger(fights: dict, regions: set[str] | None = None) -> dict:
         out[k] = {kk: v for kk, v in rec.items() if kk != "first_seen"}
     out.update(fights)
     merge_ledger.added = len(new)
-    merge_ledger.ledger_only = sum(1 for k in out if k not in fights)
+    # listed by the ledger only (no board lists them this sweep), fetched or
+    # not -- NOT a backlog count; fetch_summaries reports the unfetched share
+    # as sweep.ledger_pending once the done set is loaded
+    merge_ledger.only_keys = {k for k in out if k not in fights}
+    merge_ledger.ledger_only = len(merge_ledger.only_keys)
     return out
 
 
@@ -974,8 +978,8 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     """
     fights = merge_ledger(load_fights(regions), regions)
     print(f"[ledger] {merge_ledger.added:,} newly listed runs appended; "
-          f"{merge_ledger.ledger_only:,} runs no board lists any more stay pending "
-          f"until fetched", flush=True)
+          f"{merge_ledger.ledger_only:,} runs are listed by the ledger only "
+          f"(no board lists them now; most are long fetched)", flush=True)
     write_outputs(**{"sweep.ledger_new": merge_ledger.added,
                      "sweep.ledger_only": merge_ledger.ledger_only})
     if release is not None:
@@ -1001,6 +1005,15 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
               f"{100 * dedupe_fights.dropped / raw_n:.0f}% of the spend saved)",
               flush=True)
     pending = order_pending([f for k, f in fights.items() if k not in done])
+    # the backlog as the workflow should see it (2026-09-09: the keystone
+    # throttle keyed on ledger_only, which counts fetched runs too and never
+    # falls -- 48k that morning against 316 actually pending)
+    pending_total = len(pending)
+    ledger_pending = sum(1 for k in merge_ledger.only_keys if k not in done)
+    print(f"[ledger] {ledger_pending:,} of the ledger-only runs still to fetch",
+          flush=True)
+    write_outputs(**{"sweep.ledger_pending": ledger_pending,
+                     "summaries.pending": pending_total})
     if fresh_hours is not None:
         cutoff_ms = (time.time() - fresh_hours * 3600) * 1000
         older = sum(1 for f in pending if (f.get("start_time") or 0) < cutoff_ms)
@@ -1123,6 +1136,10 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     parsed = n_ok + n_parse
     print(f"[summaries] outcome: {n_ok:,} journaled, {n_parse:,} failed to "
           f"parse, {n_perm:,} permanently unavailable", flush=True)
+    # what the next run still has to fetch (parse failures carry a FAILED
+    # marker until released, so they leave the pending set too)
+    write_outputs(**{"summaries.left":
+                     max(0, pending_total - n_ok - n_parse - n_perm)})
     if parsed >= SYSTEMIC_MIN and n_parse / parsed >= SYSTEMIC_SHARE:
         fetch_summaries.systemic = (
             f"{n_parse:,} of {parsed:,} reports failed to parse this run -- "

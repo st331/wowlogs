@@ -74,14 +74,27 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import hashlib
 import io
 import json
+import os
 import pathlib
 import re
 import sys
 import time
 
 import requests
+
+try:                               # the journal scan parses a million records;
+    import orjson                  # orjson halves the parse. json.dumps writes
+
+    def _loads(b):                 # NaN/Infinity literals that orjson refuses,
+        try:                       # so those lines fall back to json and no
+            return orjson.loads(b)         # record is lost either way
+        except ValueError:
+            return json.loads(b)
+except ImportError:                # pip line without orjson: same results, slower
+    _loads = json.loads
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -97,6 +110,16 @@ EMB_ITEMS = DATA / "emb_items.json"
 EMB_OVERRIDES = DATA / "emb_overrides.json"
 NAMES_ICONS = DATA / "names_icons.json"
 ICONS_DIR = DATA / "processed" / "icons"
+# The journal scan's checkpoint (2026-09-09): the live journal is append-only
+# (fetch_data appends, never rewrites; a reseed changes the head or the bytes
+# before the offset and is caught below), so the ids already seen are kept
+# here with the byte offset they cover and only the appended lines are read.
+# 4.4 GB / 80 s a run before; a few hundred lines after. Same discipline as
+# build_site_data's TraitUnion (partitioned_payload.md section 7.4). Rides the
+# journal cache (data/processed), not committed.
+SCAN_STATE = DATA / "processed" / "names_scan.json"
+SCAN_V = 1
+SCAN_HEAD = 65536                  # bytes hashed at the head / before the offset
 
 WAGO = "https://wago.tools/db2"
 WOWHEAD_XML = "https://www.wowhead.com/item={iid}&xml"
@@ -227,39 +250,126 @@ def save_cache(path: pathlib.Path, obj) -> None:
     tmp.replace(path)
 
 
+def _sha_range(path: pathlib.Path, start: int, length: int) -> str:
+    with open(path, "rb") as fh:
+        fh.seek(start)
+        return hashlib.sha1(fh.read(length)).hexdigest()[:16]
+
+
+def _scan_mismatch(cp: dict, src: pathlib.Path, size: int) -> str:
+    """Why the checkpoint no longer describes `src`; "" when it does."""
+    if cp.get("v") != SCAN_V:
+        return "state_version"
+    if cp.get("src") != src.name:
+        return "source_changed"
+    off, head_len = cp.get("offset"), cp.get("head_len")
+    if not isinstance(off, int) or off < 0 or not isinstance(head_len, int):
+        return "corrupt_state"
+    if size < off:
+        return "journal_shorter"
+    if head_len != min(SCAN_HEAD, off) or \
+            _sha_range(src, 0, head_len) != cp.get("head_sha"):
+        return "head_changed"
+    # a reseed that kept the head but rewrote the body almost surely changed
+    # the bytes just before the offset
+    if _sha_range(src, off - head_len, head_len) != cp.get("tail_sha"):
+        return "body_changed"
+    return ""
+
+
+def _scan_line(raw: bytes, items: set, enchs: set) -> None:
+    line = raw.strip()
+    if not line:
+        return
+    try:
+        rec = _loads(line)
+    except ValueError:
+        return                             # tolerate a torn trailing line
+    gear = rec.get("gear") if isinstance(rec, dict) else None
+    if not isinstance(gear, list):
+        return
+    for it in gear:
+        if not isinstance(it, dict):
+            continue
+        if isinstance(it.get("id"), int) and it["id"]:
+            items.add(it["id"])
+        if isinstance(it.get("ench"), int) and it["ench"]:
+            enchs.add(it["ench"])
+
+
 def scan_journal():
-    """(item ids, enchant ids, distinct bonus-id tuples) from the journal."""
+    """(item ids, enchant ids) seen anywhere in the gear journal.
+
+    Incremental over the live journal: the ids from the bytes already walked
+    are restored from SCAN_STATE and only the lines appended since are
+    parsed, so the result equals a whole walk exactly (the journal is
+    append-only; a checkpoint that no longer describes the file triggers one
+    whole rebuild). A torn trailing line counts for this run's result but
+    not for the checkpoint, which never moves past bytes still being
+    written. The committed .gz export (cold start only) is walked whole.
+    """
     src = GEAR_FILE if GEAR_FILE.exists() else GEAR_CSV
     items: set[int] = set()
     enchs: set[int] = set()
-    bonus: set[tuple] = set()
     if not src.exists():
         print("[names] no gear journal found; table refreshes only")
-        return items, enchs, bonus
-    opener = gzip.open if src.suffix == ".gz" else open
-    with opener(src, "rt", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
+        return items, enchs
+    t0 = time.perf_counter()
+    if src.suffix == ".gz":
+        with gzip.open(src, "rb") as fh:
+            for raw in fh:
+                _scan_line(raw, items, enchs)
+        print(f"[names] journal scan: whole {src.name} "
+              f"({time.perf_counter() - t0:.1f}s)", flush=True)
+        return items, enchs
+    size = src.stat().st_size
+    cp = load_json(SCAN_STATE, None)
+    start, reason = 0, "no_state"
+    if isinstance(cp, dict):
+        reason = _scan_mismatch(cp, src, size)
+        if not reason:
             try:
-                rec = json.loads(line)
-            except ValueError:
-                continue                       # tolerate a torn trailing line
-            gear = rec.get("gear")
-            if not isinstance(gear, list):
-                continue
-            for it in gear:
-                if not isinstance(it, dict):
-                    continue
-                if isinstance(it.get("id"), int) and it["id"]:
-                    items.add(it["id"])
-                if isinstance(it.get("ench"), int) and it["ench"]:
-                    enchs.add(it["ench"])
-                b = it.get("bonus")
-                if isinstance(b, list) and b:
-                    bonus.add(tuple(x for x in b if isinstance(x, int)))
-    return items, enchs, bonus
+                items = {int(x) for x in cp.get("items", ())}
+                enchs = {int(x) for x in cp.get("enchs", ())}
+                start = cp["offset"]
+            except (TypeError, ValueError):
+                items, enchs, start, reason = set(), set(), 0, "corrupt_state"
+    lines, off, tail = 0, start, None
+    with open(src, "rb", buffering=8 << 20) as fh:
+        fh.seek(start)
+        pos = start
+        for raw in fh:
+            pos += len(raw)
+            if not raw.endswith(b"\n"):
+                tail = raw                     # by construction the last chunk
+                break
+            lines += 1
+            off = pos
+            _scan_line(raw, items, enchs)
+    head_len = min(SCAN_HEAD, off)
+    state = {"v": SCAN_V, "src": src.name, "offset": off, "size": size,
+             "head_len": head_len, "head_sha": _sha_range(src, 0, head_len),
+             "tail_sha": _sha_range(src, off - head_len, head_len),
+             "lines": (int(cp.get("lines", 0)) if not reason else 0) + lines,
+             "items": sorted(items), "enchs": sorted(enchs)}
+    SCAN_STATE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = SCAN_STATE.with_name(SCAN_STATE.name + ".tmp")
+    tmp.write_text(json.dumps(state, separators=(",", ":")))
+    os.replace(tmp, SCAN_STATE)
+    if tail is not None:
+        # this run sees what a whole walk over the current bytes sees; the
+        # checkpoint (already saved) does not
+        _scan_line(tail, items, enchs)
+    dt = time.perf_counter() - t0
+    if reason:
+        print(f"[names] journal scan REBUILT from the whole {src.name} "
+              f"({reason}): {lines:,} lines, {len(items):,} item ids, "
+              f"{len(enchs):,} enchant ids ({dt:.1f}s)", flush=True)
+    else:
+        print(f"[names] journal scan incremental: {lines:,} new lines since "
+              f"byte {start:,}, {len(items):,} item ids, {len(enchs):,} "
+              f"enchant ids ({dt:.1f}s)", flush=True)
+    return items, enchs
 
 
 def fetch_item(iid: int):
@@ -620,7 +730,7 @@ def main(argv=None) -> int:
     crafted_c = set(load_json(CRAFTED_IDS, []))
     icons_c = load_json(NAMES_ICONS, {})
 
-    item_ids, ench_ids, _bonus_tuples = scan_journal()
+    item_ids, ench_ids = scan_journal()
     budget = [args.limit if args.limit > 0 else float("inf")]
 
     def spend() -> bool:

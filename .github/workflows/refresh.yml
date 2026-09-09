@@ -168,7 +168,7 @@ jobs:
           cache: pip
 
 
-      - run: pip install requests pandas
+      - run: pip install requests pandas orjson
 
 
       # Journals are gitignored, so they ride in the cache. The key rotates
@@ -363,13 +363,15 @@ jobs:
           }
           launch trinket "WCL_QUOTA_FRACTION=$TRINKET_FRACTION WCL_BUDGET_MARGIN=$TRINKET_MARGIN python -u scripts/fetch_procs.py --budget-pts $TRINKET_PTS --budget-s $TRINKET_S --since-reset"
           if [ "$IN_DRAIN" != "true" ]; then
-            # The clock backfill yields to the summaries backlog: while the
-            # discovery ledger holds thousands of listed-but-unfetched runs
-            # (the logged-only sweep surfaced ~30k on 2026-09-09) the fresh
-            # data matters more than old fights' clocks.
-            LO=$(grep '^sweep.ledger_only=' data/processed/fetch_health.txt 2>/dev/null | cut -d= -f2)
-            KS=400; [ "${LO:-0}" -gt 5000 ] 2>/dev/null && KS=150
-            echo "keystone backfill: $KS reports this run (ledger_only=${LO:-?})"
+            # The clock backfill yields to the summaries backlog: while
+            # thousands of listed runs are still unfetched after this run's
+            # Fetch (summaries.left -- NOT sweep.ledger_only, which counts
+            # runs long fetched and sat at 48k on 2026-09-09 against 316
+            # actually pending) the fresh data matters more than old
+            # fights' clocks.
+            LEFT=$(grep '^summaries.left=' data/processed/fetch_health.txt 2>/dev/null | cut -d= -f2)
+            KS=400; [ "${LEFT:-0}" -gt 5000 ] 2>/dev/null && KS=150
+            echo "keystone backfill: $KS reports this run (summaries still to fetch after this Fetch: ${LEFT:-?})"
             launch keystone python -u scripts/backfill_keystone.py --max-reports $KS
           fi
           RIO=180; [ "$IN_DRAIN" = "true" ] && RIO=60
