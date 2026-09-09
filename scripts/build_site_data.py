@@ -1142,9 +1142,27 @@ BUILDS_ENCH_CAP, BUILDS_BUILD_CAP = 15, 40       # 15 = nibble-bound
 BUILDS_ESLOT_MIN_SHARE = 0.01   # a slot ships an enchant column when >=1%
                                 # of gear-known records carry an ench there
 # §1.8: an item vocab entry ships "iup" only at this many DISTINCT
-# (character, server) wearers. A share of a dozen people is noise wearing
-# a percent sign; absent means unknown and the client renders nothing.
-BUILDS_IUP_MIN_WEARERS = 20
+# (character, server) wearers. Was 20 while iup measured an entry against ITS
+# OWN modal item level, where a dozen people made a percent sign meaningless.
+# Since 2026-09-09 the baseline is the SLOT's modal item level (owner:
+# "upgrade lean should be slot based, not item based"), so an entry's iup is
+# an exact count of its wearers above a line the whole slot shares -- small
+# entries are honest contributions, not estimates, and excluding them would
+# bias the slot aggregate rather than protect it. The floor is now only about
+# the PER-ITEM column in the fold-out, so it matches the client's own display
+# floor (CS_ENTRY_MIN = 3): an entry too small to be listed by name needs no
+# percentage beside it.
+BUILDS_IUP_MIN_WEARERS = 3
+# DIAGNOSTICS ONLY (scripts/diag_lean_baseline.py). False restores the
+# pre-2026-09-09 rule -- each piece its own baseline -- so a diagnostic can
+# print both numbers side by side on the real journal. Production never
+# touches it; the slot baseline is the definition the page states.
+_SLOT_BASELINE = True
+# set by builds_sidecar() when WOWLOGS_DEBUG_TALLIES is in the environment:
+# {(spec key, slot index): {(item id, emb): distinct wearers}}, which is the
+# weight the client applies to each entry's iup. Off by default so a normal
+# build keeps nothing alive after the call.
+_DEBUG_TALLIES = None
 # Sizing (§1.4). The 3.0 MB target was UNREACHABLE: the lowest non-refusing
 # rung measured 3.29 MB gz at level 6, so the ladder bottomed out on every run
 # and shipped the most degraded document it can build — halved item caps AND no
@@ -1780,6 +1798,12 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     # emitter refuses to write iup AT ALL -- it does not warn only, and it
     # does not fail the build.
     #
+    # 2026-09-09: the SLOT-baseline change makes the split harmless to the
+    # AGGREGATE -- a weighted mean of two halves against one common line is
+    # the whole -- but the fold-out still prints iup per item, and there a
+    # split piece would show two different numbers for what the reader reads
+    # as one piece. The gate stays, for that column.
+    #
     # The partition key is (item id, EMITTED emb display value), not the raw
     # identity id. Two reasons, both load-bearing:
     #  * (spec, slot, id) alone is NOT the invariant. Embellishment identity
@@ -1837,6 +1861,10 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                   f"expected only for string-identified builds")
 
     iup_stats: dict = {}
+    if os.environ.get("WOWLOGS_DEBUG_TALLIES"):
+        global _DEBUG_TALLIES
+        _DEBUG_TALLIES = {(sk, k): dict(tallies[sk]["it"][k])
+                          for sk in tallies for k in range(len(BUILDS_SLOTS))}
 
     def make_doc(item_cap: int, item_cap_big: int, build_cap: int,
                  with_en: bool) -> str:
@@ -1850,11 +1878,43 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
         for sk in sorted(tallies):
             t = tallies[sk]
             items_v, it_lk = [], []
+            ibase: list = []
             for k, s in enumerate(BUILDS_SLOTS):
                 capk = item_cap_big if s in BUILDS_BIG_SLOTS else item_cap
                 ranked = sorted(t["it"][k].items(),
                                 key=lambda kv: (-kv[1], kv[0][0],
                                                 kv[0][1] or 0))[:capk]
+                # ---- §1.8 the SLOT's own baseline (2026-09-09) ----
+                # Every entry's iup is measured against the modal item level
+                # of the WHOLE slot, so the client's existing weighted mean
+                #     lean = sum(live wearers_e * iup_e) / sum(live wearers_e)
+                # is EXACTLY the share of the filtered wearers of this slot
+                # carrying it above that level. With a per-entry baseline that
+                # sum answered a different question for every item in the mix,
+                # and a slot whose wearers were all high but each at their own
+                # piece's mode scored zero.
+                #
+                # The baseline is taken over the slot's FULL tally, not the
+                # capped vocabulary: the size ladder moves capk between builds
+                # (24/40 -> 12/20 in one hour on 2026-09-08), and a baseline
+                # that moved with it would silently restate every lean. The
+                # population is each entry's per-character observations, the
+                # same multiset the shares are computed over.
+                slot_ilvls: list = []
+                for _obs in t["ilvl"][k].values():
+                    slot_ilvls.extend(_obs.values())
+                slot_ilvls = [v for v in slot_ilvls if v is not None]
+                if not _SLOT_BASELINE:
+                    slot_ilvls = []          # diagnostics: per-piece baseline
+                if slot_ilvls:
+                    _c = Counter(slot_ilvls)
+                    _top = max(_c.values())
+                    # ties to the HIGHER level: the lower of two tied modes
+                    # leaves more mass strictly above it and tilts every lean up
+                    slot_mode = max(v for v, n in _c.items() if n == _top)
+                else:
+                    slot_mode = None
+                ibase.append(slot_mode)
                 it_lk.append({ident: j + 1
                               for j, (ident, _) in enumerate(ranked)})
                 col = []
@@ -1874,18 +1934,19 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                     iup_stats["dedup_wearers"] += len(ilvls)
                     if _cnt > len(ilvls):
                         iup_stats["dedup_moved"] += 1
-                    if len(ilvls) < BUILDS_IUP_MIN_WEARERS:
+                    base = slot_mode
+                    if not _SLOT_BASELINE and ilvls:   # diagnostics only
+                        _c2 = Counter(ilvls)
+                        _t2 = max(_c2.values())
+                        base = max(v for v, c in _c2.items() if c == _t2)
+                    if len(ilvls) < BUILDS_IUP_MIN_WEARERS or base is None:
                         iup_stats["below"] += 1
                     elif iup_ok:
-                        # mode over DISTINCT wearers; ties resolve to the
-                        # HIGHER item level, because the lower of two tied
-                        # modes leaves more mass strictly above it and would
-                        # bias every lean upward.
-                        cnts = Counter(ilvls)
-                        top = max(cnts.values())
-                        mode = max(v for v, c in cnts.items() if c == top)
+                        # share of THIS entry's distinct wearers carrying it
+                        # above the SLOT's modal item level (slot_mode above)
                         iup = int(round(100.0 * sum(1 for v in ilvls
-                                                    if v > mode) / len(ilvls)))
+                                                    if v > base)
+                                        / len(ilvls)))
                         e["iup"] = iup
                         iup_stats["emitted"] += 1
                         iup_stats["vals"].append(iup)
@@ -1930,6 +1991,10 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                 entry["bkind"] = ("hash" if all(s.startswith("t:")
                                                 for s, _ in b_ranked)
                                   else "string")
+            # the level every lean in this spec is measured against, per slot
+            # (parallel to BUILDS_SLOTS; null where no item level is known)
+            if any(v is not None for v in ibase):
+                entry["ibase"] = ibase
             specs_out[sk] = entry
             lookups[sk] = {"it": it_lk, "en": en_lk,
                            "bld": {s: j + 1
@@ -2136,9 +2201,10 @@ def _iup_health(name, ok, st, gz, shipped, doc, target, cap) -> None:
         return vals[min(len(vals) - 1, int(f * len(vals)))]
     parses, wearers = st.get("dedup_parses", 0), st.get("dedup_wearers", 0)
     health(f"[{name}] [iup] emitted on {em:,}/{ent:,} shipped vocab entries "
-           f"({em / max(ent, 1):.1%}), floor >={BUILDS_IUP_MIN_WEARERS} "
-           f"distinct (character,server) wearers | {st.get('below', 0):,} "
-           f"entries below the floor")
+           f"({em / max(ent, 1):.1%}), baseline = the SLOT's modal item level, "
+           f"floor >={BUILDS_IUP_MIN_WEARERS} distinct (character,server) "
+           f"wearers | {st.get('below', 0):,} entries below the floor or in a "
+           f"slot with no known item level")
     health(f"[{name}] [iup] distribution: p10/p50/p90 = {q(.10)}/{q(.50)}/"
            f"{q(.90)} | at 0: {sum(1 for v in vals if v == 0):,} entries "
            f"| at 100: {sum(1 for v in vals if v == 100):,} "

@@ -269,25 +269,31 @@ assert doc["eslots"] == [0, 15], doc["eslots"]     # measured, >=1% rule
 spec = doc["specs"]["Paladin|Retribution"]
 
 # vocab construction: order by count, names from cache, null fallback,
-# median ilvl, crafted flag, embellishment splits
+# median ilvl, crafted flag, embellishment splits. "iup" has its own block
+# further down and rides on entries here too (its floor is 3 wearers since
+# 2026-09-09), so these shape assertions read the entry without it.
+noiup = lambda e: {k: v for k, v in e.items() if k != "iup"}
 head = spec["items"][0]
-assert head[0] == {"id": 111, "n": "Crown of Testing", "ilvl": 720,
-                   "ic": "inv_helm_test"}, head[0]      # §1.6 icon widening
-assert head[1] == {"id": 112, "n": None, "ilvl": 720}, head[1]  # never asked
+assert noiup(head[0]) == {"id": 111, "n": "Crown of Testing", "ilvl": 720,
+                          "ic": "inv_helm_test"}, head[0]   # §1.6 icon widening
+assert noiup(head[1]) == {"id": 112, "n": None, "ilvl": 720}, head[1]  # never asked
 wrist = spec["items"][doc["slots"].index(8)]
 # plain 9 (i 11-12 missive-only + 14-20) > "Radiant Hem" 6 > generic 5
-assert wrist[0] == {"id": 222, "n": None, "ilvl": 720, "cr": 1}, wrist[0]
-assert wrist[1] == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
-                    "emb": "Radiant Hem"}, wrist[1]
-assert wrist[2] == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
-                    "emb": "embellished"}, wrist[2]   # generic bucket, no id
+assert noiup(wrist[0]) == {"id": 222, "n": None, "ilvl": 720, "cr": 1}, wrist[0]
+assert noiup(wrist[1]) == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
+                           "emb": "Radiant Hem"}, wrist[1]
+assert noiup(wrist[2]) == {"id": 222, "n": None, "ilvl": 720, "cr": 1,
+                           "emb": "embellished"}, wrist[2]  # generic bucket, no id
 assert len(wrist) == 3, wrist          # THREE entries: the missive (6652),
 # the unnamed identity id (14001) and the conflict all fall into ONE generic
 # bucket. v1 split this column five ways by stat combo.
 hands = spec["items"][doc["slots"].index(9)]
-assert hands[0] == {"id": 409, "n": None, "ilvl": 720}, hands[0]
-assert hands[1] == {"id": 777, "n": None, "ilvl": 720,
-                    "emb": "embellished"}, hands[1]   # intrinsic, no bonus
+assert noiup(hands[0]) == {"id": 409, "n": None, "ilvl": 720}, hands[0]
+assert noiup(hands[1]) == {"id": 777, "n": None, "ilvl": 720,
+                           "emb": "embellished"}, hands[1]  # intrinsic, no bonus
+# the slot baseline every one of those iups is measured against ships too
+assert isinstance(spec["ibase"], list) and len(spec["ibase"]) == 16, spec.get("ibase")
+assert spec["ibase"][0] == 720, spec["ibase"]
 assert spec["ench"][0] == [{"id": 7100, "n": None}], spec["ench"]
 assert spec["ench"][1] == [{"id": 7008, "n": "Rune of Tests"}], spec["ench"]
 assert spec["builds"] == [{"s": "BUILD_X", "n": 13}, {"s": "BUILD_Y", "n": 5},
@@ -426,16 +432,19 @@ print("ladder    : full caps -> en dropped (eslots []) -> items 24->18 -> "
 
 # --------------------------------------------------------------------------
 # §1.8 per-entry upgrade lean ("iup"). The metric is a share of a piece's
-# DISTINCT wearers carrying it strictly above that piece's own modal item
-# level, emitted at >=20 wearers, suppressed wholesale when the vocabulary's
+# DISTINCT wearers carrying it strictly above the SLOT's modal item level
+# (owner 2026-09-09: "upgrade lean should be slot based, not item based";
+# each piece was its own baseline until then), emitted at >=3 wearers with
+# the slot baseline shipped beside it as specs[sk].ibase, suppressed
+# wholesale when the vocabulary's
 # (spec, slot, id, emb) partition is ambiguous. Each assertion below is
 # written so that the obvious wrong implementation fails it, not merely so
 # that the right one passes: parse-weighted instead of wearer-deduped, the
 # lower tie instead of the higher, a floor off by one, a gate keyed on the
 # bare item id.
-def iup_gear(head_ilvl, wrist_bonus="none", wrist_ilvl=720):
+def iup_gear(head_ilvl, wrist_bonus="none", wrist_ilvl=720, head_id=111):
     """head (slot 0) at a chosen ilvl; wrist (slot 8) optional + crafted."""
-    g = [gear_item(111, ilvl=head_ilvl)] + [{"id": 0}] * 7
+    g = [gear_item(head_id, ilvl=head_ilvl)] + [{"id": 0}] * 7
     g += [{"id": 0} if wrist_bonus == "none"
           else gear_item(222, ilvl=wrist_ilvl,
                          bonus=(None if wrist_bonus == "plain"
@@ -447,9 +456,11 @@ def iup_rows(chars, caches=CACHES, **kw):
     """chars = [(character, head ilvl, wrist bonus), ...]; one parse each
     unless the same character name repeats, which is the whole point."""
     r, c = [], []
-    for j, (ch, ilvl, wb) in enumerate(chars):
+    for j, spec in enumerate(chars):
+        ch, ilvl, wb = spec[:3]
+        hid = spec[3] if len(spec) > 3 else 111
         rw, rc = make_parse(f"IUP{j}", ch, "Priest", "Shadow",
-                            gear=iup_gear(ilvl, wb))
+                            gear=iup_gear(ilvl, wb, head_id=hid))
         r.append(rw)
         if rc is not None:
             c.append(rc)
@@ -470,12 +481,65 @@ assert _e["iup"] == 25, _e
 assert _e["ilvl"] == 720 and _e["id"] == 111, _e     # ilvl untouched in shape
 assert isinstance(_e["iup"], int) and 0 <= _e["iup"] <= 100
 
-# (b) the floor is a floor, not a suggestion: 19 wearers carry nothing,
-#     20 carry the field. Absent means unknown, never a zero.
-_, _d19 = iup_rows([(f"W{i}", 720 if i else 730, "none") for i in range(19)])
-assert "iup" not in head_entry(_d19), head_entry(_d19)
-_, _d20 = iup_rows([(f"W{i}", 720 if i else 730, "none") for i in range(20)])
-assert head_entry(_d20)["iup"] == 5, head_entry(_d20)   # round(100*1/20)
+# (b) the floor is a floor, not a suggestion: at BUILDS_IUP_MIN_WEARERS-1
+#     wearers the entry carries nothing, at the floor it carries the field.
+#     Absent means unknown, never a zero. The floor is small now (3) because
+#     with ONE baseline per slot a two-wearer entry is an exact count against
+#     a shared line, not an estimate -- it guards the per-item column only.
+assert bsd.BUILDS_IUP_MIN_WEARERS == 3, bsd.BUILDS_IUP_MIN_WEARERS
+_, _dlo = iup_rows([(f"W{i}", 720 if i else 730, "none")
+                    for i in range(bsd.BUILDS_IUP_MIN_WEARERS - 1)])
+assert "iup" not in head_entry(_dlo), head_entry(_dlo)
+_, _dhi = iup_rows([(f"W{i}", 720 if i else 730, "none")
+                    for i in range(bsd.BUILDS_IUP_MIN_WEARERS)])
+assert head_entry(_dhi)["iup"] == 33, head_entry(_dhi)   # round(100*1/3)
+
+# (b2) THE SLOT BASELINE, the whole point of the 2026-09-09 change. One slot,
+#     two pieces: 12 wearers of item 111 at 720 and 8 of item 112 a full track
+#     up at 730. The slot's modal level is 720, so 111 leans 0 and 112 leans
+#     100 -- and the client's weighted mean over the live mix,
+#     sum(c*iup)/sum(c) = (12*0 + 8*100)/20, is 40%: the true share of this
+#     slot's wearers carrying it above the slot's level. Under the old
+#     per-piece baseline BOTH entries scored 0 (each was at its own mode) and
+#     the slot read 0 lean while 8 of 20 players sat a track above the rest.
+_two = ([(f"L{i}", 720, "none", 111) for i in range(12)] +
+        [(f"H{i}", 730, "none", 112) for i in range(8)])
+_, _d2 = iup_rows(_two)
+_head2 = _d2["specs"]["Priest|Shadow"]["items"][0]
+_by = {e["id"]: e for e in _head2}
+assert _by[111]["iup"] == 0 and _by[112]["iup"] == 100, _head2
+assert _d2["specs"]["Priest|Shadow"]["ibase"][0] == 720, _d2["specs"]["Priest|Shadow"]["ibase"]
+_num = 12 * _by[111]["iup"] + 8 * _by[112]["iup"]
+assert round(_num / 20) == 40, _num
+# the same numbers under the OLD rule would be 0 and 0 -- assert the
+# discriminator explicitly so a revert cannot pass this file
+assert not (_by[111]["iup"] == 0 and _by[112]["iup"] == 0), "per-piece baseline is back"
+# and the diagnostics-only flag really does restore the old rule, so
+# scripts/diag_lean_baseline.py compares two different things
+_sb = bsd._SLOT_BASELINE
+try:
+    bsd._SLOT_BASELINE = False
+    _, _dold = iup_rows(_two)
+finally:
+    bsd._SLOT_BASELINE = _sb
+_byo = {e["id"]: e for e in _dold["specs"]["Priest|Shadow"]["items"][0]}
+assert _byo[111]["iup"] == 0 and _byo[112]["iup"] == 0, _byo   # each at its own mode
+
+# (b3) the baseline is taken over the WHOLE slot, not the capped vocabulary:
+#     the size ladder moves the cap between builds and a baseline that moved
+#     with it would silently restate every lean. Cap the head slot to one
+#     entry and the shipped entry's iup must not move.
+_caps = (bsd.BUILDS_ITEM_CAP, bsd.BUILDS_ITEM_CAP_BIG)
+try:
+    bsd.BUILDS_ITEM_CAP, bsd.BUILDS_ITEM_CAP_BIG = 1, 1
+    _, _d2cap = iup_rows(_two)
+finally:
+    bsd.BUILDS_ITEM_CAP, bsd.BUILDS_ITEM_CAP_BIG = _caps
+_h2c = _d2cap["specs"]["Priest|Shadow"]["items"][0]
+assert len(_h2c) == 1 and _h2c[0]["id"] == 111, _h2c
+assert _h2c[0]["iup"] == 0, _h2c          # unmoved: item 112 still sets no baseline
+assert _d2cap["specs"]["Priest|Shadow"]["ibase"][0] == 720, \
+    _d2cap["specs"]["Priest|Shadow"]["ibase"]
 
 # (c) mode ties resolve to the HIGHER item level. 10 at 720, 10 at 723:
 #     the higher tie gives mode 723 and iup 0; the lower tie would give
@@ -562,23 +626,29 @@ ref_decode(_doff, len(_df))
 #     reading between lines, and must look obviously wrong when the field is
 #     present but degenerate.
 bsd._HEALTH.clear()
-# the split fixture: head clears the floor (24 wearers, 9 of them above the
-# 720 mode -> 38), the three wrist entries do not -- so the coverage line
-# has a real numerator AND a real denominator, and a build that emitted
-# nothing would read "0/4" rather than merely omitting a line.
+# the split fixture: 24 head wearers, 9 of them above the slot's 720 mode
+# -> 38; the three wrist entries hold 24 wearers all AT 720, so each reads a
+# true 0 against the shared baseline. Every entry clears the 3-wearer floor,
+# so the line reads 4/4 -- a build that emitted nothing would read "0/4"
+# rather than merely omitting a line.
 _, _dh = iup_rows(_split)
 assert head_entry(_dh)["iup"] == 38, head_entry(_dh)
+_wr = _dh["specs"]["Priest|Shadow"]["items"][_dh["slots"].index(8)]
+assert [w["iup"] for w in _wr] == [0, 0, 0], _wr
+assert _dh["specs"]["Priest|Shadow"]["ibase"][_dh["slots"].index(8)] == 720, \
+    _dh["specs"]["Priest|Shadow"]["ibase"]
 _H = "\n".join(bsd._HEALTH)
 assert "[iup] gate: 0 (spec,slot,id,emb) collisions" in _H and "WRITTEN" in _H
 assert "eslots [], iup on" in _H              # the one-line sidecar summary
 _lines = [ln for ln in bsd._HEALTH if "[iup] emitted on" in ln]
 assert _lines, "build_health.txt must always say whether iup shipped"
 _line = _lines[-1]
-assert "emitted on 1/4 shipped vocab entries (25.0%)" in _line, _line
-assert "3 entries below the floor" in _line, _line
-assert "floor >=20 distinct (character,server) wearers" in _line, _line
+assert "emitted on 4/4 shipped vocab entries (100.0%)" in _line, _line
+assert "0 entries below the floor" in _line, _line
+assert "baseline = the SLOT's modal item level" in _line, _line
+assert "floor >=3 distinct (character,server) wearers" in _line, _line
 assert [ln for ln in bsd._HEALTH
-        if "[iup] distribution: p10/p50/p90 = 38/38/38" in ln], bsd._HEALTH
+        if "[iup] distribution: p10/p50/p90 = 0/0/38" in ln], bsd._HEALTH
 assert [ln for ln in bsd._HEALTH if "[iup] dedupe:" in ln]
 assert [ln for ln in bsd._HEALTH if "[iup] size: shipped rung" in ln]
 bsd._HEALTH.clear()
@@ -587,7 +657,7 @@ _H2 = "\n".join(bsd._HEALTH)
 assert "-> iup SUPPRESSED, no entry carries it" in _H2, _H2
 assert "iup OFF" in _H2 and "[iup] emitted on 0 entries" in _H2, _H2
 bsd._HEALTH.clear()
-print("iup       : 20-wearer floor; wearer dedupe (not parses); mode ties "
+print("iup       : SLOT baseline + ibase, ladder-invariant; 3-wearer floor; wearer dedupe (not parses); mode ties "
       "resolve HIGH; gate ignores legitimate emb splits and fires on a name "
       "collision; absence leaves columns byte-identical; health proves it")
 

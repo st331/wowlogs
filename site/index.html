@@ -4243,15 +4243,18 @@ const CS_EMB_CAP=10;                    // named embellishment rows before the t
 const CS_LEAN_MIN_W=40;                 // cell floor: live covered wearers
 const CS_LEAN_MIN_COV=.50;              // cell floor: coverage of the slot
 const CS_LEAN_MIN_CELLS=6;              // mode floor (b): cells clearing the above
-const CS_LEAN_FOOT="Lean = the share of a piece's wearers carrying it above "
-  +"that piece's own most common item level. The piece is its own baseline, so "
-  +"a generous loot table cannot inflate it. Above its own baseline means an "
-  +"upgrade spent here \u2014 or a luckier drop source; the log records no "
-  +"upgrade track, so we do not claim which. It measures disagreement: a piece "
-  +"every one of its wearers carries high scores LOW. Slide the percentile lens "
-  +"to see whether the top decile leans differently than the field.";
-const CS_LEAN_TITLE="share of this item's wearers carrying it above the item "
-  +"level most of its wearers carry";
+const CS_LEAN_FOOT="Lean = the share of this spec's players carrying THIS SLOT "
+  +"above the item level most of them carry in it. The slot is the baseline, not "
+  +"the piece: the question is which slot this spec has pushed ahead, so a player "
+  +"in a rarer piece at the same level as everyone else does not count as ahead. "
+  +"Above the slot's own level means an upgrade spent here \u2014 or a luckier "
+  +"drop source; the log records no upgrade track, so we do not claim which. A "
+  +"slot whose wearers all sit at one level scores LOW however high that level "
+  +"is. Slide the percentile lens to see whether the top decile leans differently "
+  +"than the field. Until 2026-09-09 each piece was its own baseline, which asked "
+  +"a different question of every item in the mix.";
+const CS_LEAN_TITLE="share of this slot's wearers carrying it above the item "
+  +"level most wearers of this slot carry";
 const fmtDpsM=v=>v>=1e6?(v/1e6).toFixed(2)+"M":fmtDps(v);
 
 /* ---- URL persistence (owner, 2026-08-30): "I don't want the character
@@ -4574,11 +4577,15 @@ function csGearModel(d){
                CARRIES iup — the lean denominator.
          den = every v>0 wearer, resolvable or not — the coverage denominator.
        "other / none" (v===0), entries outside the shipped vocabulary and
-       entries below the pipeline's 20-wearer floor are excluded from the
+       entries below the pipeline's wearer floor are excluded from the
        numerator AND from W; they are never counted as zero lean, which would
-       drag a sparse slot toward calm when it is merely unknown. The per-item
-       rates are season-wide constants; the mix `c` weighting them is 100%
-       live, so this re-slices under every filter with zero new wiring. */
+       drag a sparse slot toward calm when it is merely unknown. Every entry's
+       rate is measured against the SAME line -- the slot's modal item level
+       (builder §1.8, 2026-09-09) -- so num/W is not an average of per-item
+       answers but EXACTLY the share of these live wearers carrying this slot
+       above that level. The rates are season-wide constants; the mix `c`
+       weighting them is 100% live, so this re-slices under every filter with
+       zero new wiring. */
     let W=0,num=0,den=0;
     for(const [v,c] of cnt){
       if(v>0&&V[v-1]&&c>wn){ wn=c; wv=v }          // top NAMED entry
@@ -4767,7 +4774,7 @@ const csFoldVal=(r,k)=>r.pin?null
   :k==="lean"?((r.e&&r.e.iup!=null)?r.e.iup:null)
   :k==="field"?r.field
   :null;
-function csFoldTable(list,pinned){
+function csFoldTable(list,pinned,baseTxt){
   const cols=csFoldCols();
   // ONE registry id shared by the per-slot and the pooled panel — only one is
   // ever open, so the chosen column survives walking the doll with the arrows
@@ -4776,11 +4783,12 @@ function csFoldTable(list,pinned){
   const extra=r=>{
     if(!lean) return "";
     const iu=(r.e&&r.e.iup!=null)?r.e.iup:null;
-    // the ONE place item level survives: as the baseline the percentage is
-    // measured against, inside the surface that states the percentage
+    // the baseline is the SLOT's most common item level (2026-09-09), one line
+    // shared by every row here, so the column is comparable top to bottom
     let x='<td'+(iu==null?' class="na"':'')
-      +((iu!=null&&r.e.ilvl)?' title="'+escA("season-wide: "+iu+"% of this "
-        +"piece's wearers carry it above its usual item level of "+r.e.ilvl)+'"':'')
+      +(iu!=null?' title="'+escA("season-wide: "+iu+"% of this piece's wearers "
+        +"carry it above "+(baseTxt?"item level "+baseTxt+", ":"")
+        +"the item level most wearers of this slot carry")+'"':'')
       +'>'+(iu==null?"–":iu+"%")+'</td>';
     x+='<td'+(r.field==null?' class="na"':' title="'+escA("median across the "
         +r.fieldN+" other specs that list this piece")+'"')
@@ -4812,6 +4820,15 @@ function csBeamSub(e,d){
   if(!(hasBeam&&state.beam&&e&&+e.id===BEAMC.item)) return {};
   const s=beamStatsWin(d.win,d.L?d.L.idx:null);
   return {sub:' <span class="gbeam" title="'+escA(beamTitle(s))+'">'+beamInline(s)+'</span>'};
+}
+/* the item level a slot's lean is measured against, straight from the sidecar
+   (specs[sk].ibase, parallel to BUILDS_SLOTS). A pooled pair prints both when
+   its two physical columns disagree, because their two leans then do too. */
+function csIbaseTxt(d,sis){
+  const ib=(d.vocab&&Array.isArray(d.vocab.ibase))?d.vocab.ibase:null;
+  if(!ib) return "";
+  const v=[...new Set(sis.map(si=>ib[si]).filter(x=>x!=null))];
+  return v.length?v.join(" / "):"";
 }
 function csPoolFoldHTML(d,p,M){
   const total=M.n||1, lab=CS_POOL_LABEL[p], lc=lab.toLowerCase();
@@ -4868,7 +4885,7 @@ function csPoolFoldHTML(d,p,M){
       +". \u201cother / none\u201d is players carrying an unlisted "+lc
       +" or one worn by fewer than "+CS_ENTRY_MIN+" people.")
     +'</div>'
-    +csFoldTable(list,pinned)+'</div>';
+    +csFoldTable(list,pinned,csIbaseTxt(d,sis))+'</div>';
 }
 function csSlotFoldHTML(d,si){
   const slot=BUILDSC.slots[si];
@@ -4904,7 +4921,7 @@ function csSlotFoldHTML(d,si){
     nm:'<span class="na">other / none</span>'});
   return '<div id="cs-fold"><span class="caret"></span>'
     +'<div class="fh">'+CS_SLOT_LABEL[slot]+' — distribution in window</div>'
-    +csFoldTable(list,pinned)+'</div>';
+    +csFoldTable(list,pinned,csIbaseTxt(d,[si]))+'</div>';
 }
 /* ---- upgrade lean, the ranking's row model (2.6). ONE ROW PER DISTINCT FOLD
    ID, in doll order — not one per socket. CS_DOLL yields 16 tiles but only 14
@@ -4931,6 +4948,7 @@ function csLeanRows(d,cells,per,poolOf){
       e=x.winner>0?((d.vocab.items[c.si]||[])[x.winner-1]||null):null;
     }
     rows.push({fid:c.fid, lab:c.lab, e, W, cov:den?W/den:0,
+      base:csIbaseTxt(d,c.p?[c.sa,c.sb]:[c.si]),
       lean:(W>=CS_LEAN_MIN_W&&den&&W/den>=CS_LEAN_MIN_COV)?num/W:null});
     // the coverage average counts PHYSICAL COLUMNS, not rendered cells: a
     // pooled row's W is the sum over both of its columns, so counting it once
@@ -4942,7 +4960,7 @@ function csLeanRows(d,cells,per,poolOf){
      NOT a share of players — a reader will assume it is, so this comment
      exists. It is the only denominator under which the complement decomposes
      exactly into the two reasons the scope line names: v===0 or unresolvable
-     ("outside the item vocabulary") and e.iup==null ("below the 20-wearer
+     ("outside the item vocabulary") and e.iup==null ("below the wearer
      floor"). */
   const cov=(nc&&d.gearIdx.length)?sumW/(nc*d.gearIdx.length):0;
   return {rows, cov:Math.max(0,Math.min(1,cov))};
@@ -4966,7 +4984,10 @@ function csLeanTableHTML(LR){
     const wash=' style="background:linear-gradient(90deg,rgba(217,168,63,'
       +(.05+.30*t).toFixed(3)+') 0%,rgba(217,168,63,'+(.012+.075*t).toFixed(3)
       +') 62%, transparent)"';
-    body+='<tr><td class="txt lsl">'+esc(r.lab)+'</td>'
+    body+='<tr><td class="txt lsl"'
+      +(r.base?' title="'+escA("measured against item level "+r.base
+        +", the level most wearers of this slot carry")+'"':'')
+      +'>'+esc(r.lab)+'</td>'
       // pref #11: the ICON is the sole wowhead surface, the name is inert text
       +'<td class="txt lit">'+csIcoHTML(r.e,csFoldPh(r.e),"xs")
       +' <span class="lnm">'+itemNameHTML(r.e)+'</span></td>'
@@ -5144,7 +5165,7 @@ function csGearPaneHTML(ctx,d){
     ? "upgrade lean · per-item rates are season-wide, the mix weighting them "
       +"is your current lens · covers "+covPct+"% of "+fmtInt(total)
       +" gear-known in window — "+(100-covPct)+"% fall outside the item "
-      +"vocabulary or below the 20-wearer floor"
+      +"vocabulary or below the wearer floor"
     : scope0;
   // "Upgrade" is the owner's own word and may label the control; it never
   // sits attached to a number. The column is LEAN %.
