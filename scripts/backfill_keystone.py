@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wcl_client import WCLClient
+from wcl_client import QuotaDeadline, WCLClient
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BATCH = 15
@@ -57,8 +57,11 @@ def main():
 
     lock = __import__("threading").Lock()
     done = [0]
+    stopped = [None]          # the quota ceiling: stop launching, keep what is fetched
 
     def fetch(chunk):
+        if stopped[0]:
+            return
         client = WCLClient(verbose=False)
         parts = [f'a{i}: report(code: "{c}") '
                  f'{{ fights(killType: Kills) {{ id keystoneTime }} }}'
@@ -66,6 +69,14 @@ def main():
         try:
             data = client.query("{ reportData { " + " ".join(parts) + " } }",
                                 est_cost=float(len(chunk)))
+        except QuotaDeadline as e:
+            # 2026-09-09: this escaped as an uncaught exception, the map was
+            # never written and the run's fetched clocks were lost. The
+            # ceiling is a normal end here, not a failure.
+            if not stopped[0]:
+                stopped[0] = str(e)
+                print(f"  stopping at the quota ceiling: {e}", flush=True)
+            return
         except RuntimeError as e:
             print(f"  batch failed: {e}", flush=True)
             return
@@ -91,12 +102,14 @@ def main():
         tmp.write_text(json.dumps(ks, separators=(",", ":")))
         tmp.replace(dst)
     still = sum(1 for c, f in missing if f"{c}:{f}" not in ks)
-    print(f"done: {len(ks):,} keystone times stored, {still:,} still missing")
+    print(f"done: {len(ks):,} keystone times stored, {still:,} still missing"
+          + (f" (stopped: {stopped[0]})" if stopped[0] else ""))
     # the build folds fetch_health into build_health; Fetch rewrote the file
     # earlier in this run, so appending here is safe
     try:
         with (ROOT / "data" / "processed" / "fetch_health.txt").open("a") as fh:
-            fh.write(f"keystone.backfilled={len(missing) - still}\nkeystone.still_missing={still}\n")
+            fh.write(f"keystone.backfilled={len(missing) - still}\nkeystone.still_missing={still}\n"
+                     + (f"keystone.stopped={stopped[0]}\n" if stopped[0] else ""))
     except OSError:
         pass
 

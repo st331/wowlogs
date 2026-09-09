@@ -363,7 +363,14 @@ jobs:
           }
           launch trinket "WCL_QUOTA_FRACTION=$TRINKET_FRACTION WCL_BUDGET_MARGIN=$TRINKET_MARGIN python -u scripts/fetch_procs.py --budget-pts $TRINKET_PTS --budget-s $TRINKET_S --since-reset"
           if [ "$IN_DRAIN" != "true" ]; then
-            launch keystone python -u scripts/backfill_keystone.py --max-reports 400
+            # The clock backfill yields to the summaries backlog: while the
+            # discovery ledger holds thousands of listed-but-unfetched runs
+            # (the logged-only sweep surfaced ~30k on 2026-09-09) the fresh
+            # data matters more than old fights' clocks.
+            LO=$(grep '^sweep.ledger_only=' data/processed/fetch_health.txt 2>/dev/null | cut -d= -f2)
+            KS=400; [ "${LO:-0}" -gt 5000 ] 2>/dev/null && KS=150
+            echo "keystone backfill: $KS reports this run (ledger_only=${LO:-?})"
+            launch keystone python -u scripts/backfill_keystone.py --max-reports $KS
           fi
           RIO=180; [ "$IN_DRAIN" = "true" ] && RIO=60
           launch rio python -u scripts/fetch_rio.py --budget-s "$RIO"
