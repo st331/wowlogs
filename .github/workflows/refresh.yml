@@ -151,13 +151,14 @@ jobs:
               if [ "$WAIT" -gt 0 ]; then echo "drain: waiting ${WAIT}s for the quota window"; sleep "$WAIT"; fi
             fi
           elif [ "${{ inputs.chain }}" = "true" ] && [ -n "$PREV" ]; then
-            # 20 minutes between run STARTS (owner, 2026-09-02: worst-case
-            # freshness ~40 -> ~30 min; budget is not the constraint at ~2.5k
-            # points per run against 12.6k). The daily-commit window below
-            # is sized to this cadence -- change both together.
-            NOW=$(date +%s); WAIT=$(( 1200 - (NOW - PREV) ))
-            [ "$WAIT" -gt 1000 ] && WAIT=1000
-            if [ "$WAIT" -gt 0 ]; then echo "pacing: sleeping ${WAIT}s"; sleep "$WAIT"; fi
+            # No pacing (owner, 2026-09-09: "minimum time, maximum
+            # frequency"). Was 20 minutes between run starts (2026-09-02);
+            # the cadence is now the run's own length, ~12 min, and the
+            # budget holds because the sweep is shallow four runs in five
+            # (see the Sweep depth step) and the collectors run in the
+            # background of the build. The daily commit no longer depends
+            # on a clock window -- it commits when the seed is 20 h old.
+            echo "chained: starting immediately ($(( $(date +%s) - PREV ))s after the previous start)"
           fi
 
 
@@ -253,12 +254,29 @@ jobs:
               print("::notice::trinket drain ended early: the window was fully collected in an earlier run; fresh runs resumed")
           EOF
 
+      # Sweep depth (owner, 2026-09-09). Deep = every board to its cap, the
+      # sweep the Coverage line describes, ~1,900 points; shallow = only where
+      # a new run can appear (page 1 of a max-score board, the whole board
+      # where score still varies), ~800. Deep at least every 50 minutes, and
+      # always inside a drain, so nothing a shallow sweep skips waits longer
+      # than the next deep one; the discovery ledger holds it meanwhile.
+      - name: Sweep depth
+        id: depth
+        run: |
+          D=shallow
+          if [ "${{ inputs.drain }}" = "true" ] || [ -n "${{ inputs.mode }}" ]; then D=deep; fi
+          S=data/processed/last_deep_sweep
+          if [ ! -f "$S" ] || [ $(( $(date +%s) - $(cat "$S" 2>/dev/null || echo 0) )) -gt 3000 ]; then D=deep; fi
+          echo "depth=$D" >> "$GITHUB_OUTPUT"
+          echo "sweep depth: $D (last deep: $( [ -f "$S" ] && date -u -d @"$(cat "$S")" +%H:%MZ || echo never ))"
+
       - name: Fetch
         id: fetch
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && steps.drain.outputs.pause_fetch != 'true'
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
+          SWEEP_DEPTH: ${{ steps.depth.outputs.depth }}
           # Hard ceiling on the share of the hourly API budget this run may
           # spend. The budget is per ACCOUNT, so the remaining 30% stays free
           # for anything else using the same credentials. The client refuses to
@@ -310,69 +328,51 @@ jobs:
           [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
           python -u scripts/fetch_data.py $SWEEP $REGEAR $FRESH_ARGS
 
-      # Trinket beam benefit (Lab feature, 2026-09-08): one buff-events
-      # sub-query per wearer-fight of a tracked trinket, newest first, four
-      # concurrent requests, at most 1,500 points and 8 minutes a run under
-      # the client's STANDING 85% ceiling -- never the drain fraction. The
-      # budget is a cap, not a spend: once the backlog is gone a run costs
-      # ~60 points. Sized so three runs an hour (Fetch ~2k + this) stay
-      # under the 12.6k ceiling with room to spare (owner, 2026-09-08:
-      # "backfill the runs first"; "just 1 reset of data is enough"; then
-      # "finish draining the trinket data for this entire reset. don't need
-      # data from the previous reset": --since-reset = fights since each
-      # region's most recent reset instant (a short grace before it for late
-      # uploads), newest first -- older wearer-fights are never fetched).
-      # Journals to data/processed/procs.jsonl,
-      # which rides the cache like every journal. Never fails the run: the
-      # site builds with whatever is journaled, and build_health.txt carries
-      # the coverage line.
-      - name: Trinket beam benefit
-        # a gear-refetch run spends its whole window on summaries
+      # Background collectors (owner, 2026-09-09: "minimum time, maximum
+      # frequency"). The trinket beam collector, the keystone clock backfill
+      # and the Raider.IO ratings sweep used to run one after another in the
+      # foreground -- fifteen minutes of Raider.IO alone -- and the chain
+      # waited on all of it. None of them feeds THIS run's build: the build
+      # reads the procs journal (its reader tolerates a torn tail), the clock
+      # map is consumed by the NEXT run's export, and Raider.IO replaces its
+      # file atomically. So they start here, run under the name resolution
+      # and the build, and the job only waits for them before the cache save.
+      # Budgets: trinket 1,500 pts / 8 min standing (the drain window's
+      # fraction inside a drain), keystone 400 reports, Raider.IO 180 s
+      # (96.4% of characters are rated; five runs an hour keep it there).
+      - name: Start background collectors
+        id: bg
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == ''
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
           WCL_MAX_SLEEP_S: "30"
           # standing: 0.85 / 400; inside a drain window (data/procs_drain.json)
-          # the whole hourly budget with a 20-point margin
-          WCL_QUOTA_FRACTION: ${{ steps.drain.outputs.fraction }}
-          WCL_BUDGET_MARGIN: ${{ steps.drain.outputs.margin }}
+          # the whole hourly budget with a 20-point margin -- trinket only
+          TRINKET_FRACTION: ${{ steps.drain.outputs.fraction }}
+          TRINKET_MARGIN: ${{ steps.drain.outputs.margin }}
+          TRINKET_PTS: ${{ steps.drain.outputs.budget_pts }}
+          TRINKET_S: ${{ steps.drain.outputs.budget_s }}
+          IN_DRAIN: ${{ steps.drain.outputs.procs_drain }}
         run: |
-          python -u scripts/fetch_procs.py --budget-pts ${{ steps.drain.outputs.budget_pts }} --budget-s ${{ steps.drain.outputs.budget_s }} --since-reset \
-            || echo "::warning::trinket beam collector failed; building with the existing journal"
-          # Inside a drain window: when the collector stopped because it ran OUT
-          # OF WORK (no "stopped=" reason in its last fetch_health block), the
-          # window is drained -- leave a marker so the next run's Drain mode
-          # ends the drain and fresh runs resume, instead of pausing them for
-          # nothing until the clock runs out.
-          if [ "${{ steps.drain.outputs.procs_drain }}" = "true" ] && [ -f data/processed/fetch_health.txt ]; then
-            LAST=$(awk '/^procs\.lscore\.total=/{blk=""} {blk=blk $0 "\n"} END{printf "%s", blk}' data/processed/fetch_health.txt)
-            if echo "$LAST" | grep -q "^procs\.lscore\.ok=" && ! echo "$LAST" | grep -q "^procs\.lscore\.stopped="; then
-              echo "${{ steps.drain.outputs.until }}" > data/processed/procs_drain_done
-              echo "::notice::drain: the one-reset window is fully collected; the drain ends here and fresh runs resume on the next run"
-            fi
+          BG="$RUNNER_TEMP/bg"; mkdir -p "$BG"; echo "dir=$BG" >> "$GITHUB_OUTPUT"
+          launch() {   # launch <name> <cmd...>: detached, log + exit code in $BG
+            local n="$1"; shift
+            setsid nohup bash -c "( $* ); echo \$? > '$BG/$n.rc'" > "$BG/$n.log" 2>&1 < /dev/null &
+            echo "started $n (pid $!)"
+          }
+          launch trinket "WCL_QUOTA_FRACTION=$TRINKET_FRACTION WCL_BUDGET_MARGIN=$TRINKET_MARGIN python -u scripts/fetch_procs.py --budget-pts $TRINKET_PTS --budget-s $TRINKET_S --since-reset"
+          if [ "$IN_DRAIN" != "true" ]; then
+            launch keystone python -u scripts/backfill_keystone.py --max-reports 400
           fi
+          RIO=180; [ "$IN_DRAIN" = "true" ] && RIO=60
+          launch rio python -u scripts/fetch_rio.py --budget-s "$RIO"
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.
       # Caches live in data/processed (rides the journal cache between runs)
       # and mirror to the committed data/*.json via the daily commit below —
       # the gear-journal pattern. The cache PATH LIST above must not change.
       # --limit bounds any one run's fetching; the seed spreads across runs.
-      # Keystone clock backfill (2026-09-08, fleet BR-1): 21% of fights had no
-      # keystone clock, so Top Comps / Pulse / the Spec Frame mini table silently
-      # skipped them. New rows carry the clock from fetch; this tops up the
-      # older ones at ~1 point per report, newest first, under the STANDING
-      # 85% ceiling (the client stops at the ceiling), skipped inside a drain.
-      - name: Keystone clock backfill
-        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == '' && steps.drain.outputs.procs_drain != 'true'
-        env:
-          WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
-          WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
-          WCL_MAX_SLEEP_S: "30"
-        run: |
-          python -u scripts/backfill_keystone.py --max-reports 800 \
-            || echo "::warning::keystone clock backfill failed; building with what the map holds"
-
       - name: Resolve names
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         run: |
@@ -468,23 +468,34 @@ jobs:
       # second of its budget. Save collection journals MUST stay after this
       # step, or the ratings it fetches never reach the cache.
 
-      - name: Raider.IO player ratings
-        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == ''
-        continue-on-error: true
-        # Two minutes on a push, the full fifteen otherwise. The deploy no
-        # longer waits on this step, but the job still holds the concurrency
-        # lock while it runs, so a fifteen-minute tail made every follow-up
-        # push queue behind it. The forty-eight scheduled runs a day do the real
-        # backfill; a push chipping in two minutes costs it almost nothing.
+      # Wait for the background collectors before anything reads or saves
+      # their journals. Normally they finished under the build; inside a
+      # drain window the trinket collector may hold the full 20 minutes.
+      - name: Wait for background collectors
+        if: always() && steps.bg.outcome == 'success'
+        env:
+          IN_DRAIN: ${{ steps.drain.outputs.procs_drain }}
+          UNTIL: ${{ steps.drain.outputs.until }}
         run: |
-          BUDGET=900
-          [ "${{ github.event_name }}" = "push" ] && BUDGET=120
-          # a drain run's minutes belong to the summaries backlog; ratings
-          # catch up once the cadence is back to normal
-          [ "${{ inputs.drain }}" = "true" ] && BUDGET=60
-          echo "Raider.IO budget: ${BUDGET}s (${{ github.event_name }})"
-          python -u scripts/fetch_rio.py --budget-s "$BUDGET"
-
+          BG="${{ steps.bg.outputs.dir }}"; T0=$(date +%s)
+          for n in trinket keystone rio; do
+            [ -f "$BG/$n.log" ] || continue
+            while [ ! -f "$BG/$n.rc" ] && [ $(( $(date +%s) - T0 )) -lt 1500 ]; do sleep 3; done
+            RC=$(cat "$BG/$n.rc" 2>/dev/null || echo "still running after 25 min")
+            echo "::group::$n (exit $RC, waited $(( $(date +%s) - T0 ))s)"; tail -n 40 "$BG/$n.log"; echo "::endgroup::"
+            [ "$RC" = "0" ] || echo "::warning::background collector $n ended with '$RC'; building with the existing journal"
+          done
+          # Inside a drain window: when the trinket collector stopped because it
+          # ran OUT OF WORK (no "stopped=" reason in its last fetch_health
+          # block), the window is drained -- leave a marker so the next run's
+          # Drain mode ends the drain and fresh runs resume.
+          if [ "$IN_DRAIN" = "true" ] && [ -f data/processed/fetch_health.txt ]; then
+            LAST=$(awk '/^procs\.lscore\.total=/{blk=""} {blk=blk $0 "\n"} END{printf "%s", blk}' data/processed/fetch_health.txt)
+            if echo "$LAST" | grep -q "^procs\.lscore\.ok=" && ! echo "$LAST" | grep -q "^procs\.lscore\.stopped="; then
+              echo "$UNTIL" > data/processed/procs_drain_done
+              echo "::notice::drain: the one-reset window is fully collected; the drain ends here and fresh runs resume on the next run"
+            fi
+          fi
 
       - name: Save collection journals
         # always() so a failed Fetch still saves what it journaled -- but NEVER
@@ -534,14 +545,16 @@ jobs:
             SEED_AGE_H=-1
             if [ -n "$SEED_TS" ]; then SEED_AGE_H=$(( ( $(date -u +%s) - $(date -u -d "$SEED_TS" +%s) ) / 3600 )); fi
             echo "committed seed age: ${SEED_AGE_H} h (${SEED_TS:-unknown})"
-            case "$(date -u +%H%M)" in
-              020*|021*) ;;
-              *) if [ "$SEED_AGE_H" -ge 20 ] 2>/dev/null; then
-                   echo "seed older than 20 h -> committing outside the slot"
-                 else
-                   echo "not the daily slot; skipping"; exit 0
-                 fi ;;
-            esac
+            # 2026-09-09: the clock slot is gone with the pacing (runs are
+            # ~12 min apart, so a 20-minute slot would admit two). The seed
+            # commits exactly when the committed copy is 20 h old; an
+            # unknown age (API hiccup) waits for the next run rather than
+            # committing every run.
+            if [ "$SEED_AGE_H" -ge 20 ] 2>/dev/null; then
+              echo "seed older than 20 h -> committing"
+            else
+              echo "seed is ${SEED_AGE_H} h old (or unknown); skipping"; exit 0
+            fi
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

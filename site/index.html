@@ -1783,8 +1783,10 @@ function renderCoverageNote(){
     +'re-swept every 30 minutes: the top 1,000 entries by score per dungeon and key level '
     +'(200 below +10), public logs only, one entry per team as WCL ranks them.';
   if(n(c.public_runs)!=null)
-    h+=' This sweep listed <b>'+n(c.public_runs)+'</b> public runs and skipped <b>'+(n(c.anonymous_entries)||"0")
-      +'</b> anonymous entries (no report to fetch).';
+    h+=' The last full sweep listed <b>'+n(c.public_runs)+'</b> public runs'
+      +(c.anonymous_entries>0
+        ?' and skipped <b>'+n(c.anonymous_entries)+'</b> anonymous entries (no report to fetch).'
+        :'; Warcraft Logs is asked for entries with a public log only, so anonymous entries take no slot in the window.');
   if(n(c.boards_capped)!=null){
     const ks=Array.isArray(c.keys_capped)&&c.keys_capped.length?c.keys_capped:null;
     h+=' <b>'+n(c.boards_capped)+' of '+n(c.boards)+'</b> boards were cut by the API\'s 20-page cap'
@@ -1801,8 +1803,11 @@ function renderCoverageNote(){
       ? Math.round(100*c.public_runs/(c.public_runs+c.anonymous_entries)) : null;
     fs.textContent="Data is the top ~1,000 ranked entries per dungeon × key level from Warcraft Logs fight "
       +"rankings (~200 below +10, where the leaderboards are bottomless); "
-      +(share!=null?"this sweep, "+share+"% of entries ("+pub+") carried a public report the site can read and "+an+" were anonymous"
-                   :"roughly 60% of entries carry a public report the site can read, the rest are anonymous")
+      +(share!=null&&c.anonymous_entries>0
+          ?"in the last full sweep "+share+"% of entries ("+pub+") carried a public report the site can read and "+an+" were anonymous"
+        :pub!=null
+          ?"the last full sweep listed "+pub+" public runs; the query asks for logged entries only, so anonymous entries take no slot"
+          :"only entries with a public report can be read; anonymous entries are excluded at the source")
       +" — read it as \"what strong runs pull\", not a population census.";
   }
 }

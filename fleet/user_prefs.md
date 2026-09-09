@@ -539,3 +539,28 @@
     to 3 because a count against a shared line is exact rather than an estimate. Full
     reasoning in fleet/blueprints/upgrade_surface.md §4; the rest of that blueprint is the
     superseded rule and says so.
+
+35. **Refresh cadence: minimum time, maximum frequency (owner, 2026-09-09: "for today and
+    tomorrow, make updates much more frequent - whatever is the minimum that is feasible
+    without breaking things. if there is no cost to it and things are stable, keep the
+    updates at that cadence afterwards as well" / "minimum time, maximum frequency").**
+    Supersedes the 20-minutes-between-starts pacing of 2026-09-02. Measured before the
+    change: a run took ~28 min of which Raider.IO ratings were 15 min (a 900 s budget at
+    96.4 % coverage) and the build 7-8 min; the sweep costs ~1,900 points a run, the only
+    fixed WCL cost. Now: chained runs start immediately; the trinket collector, the
+    keystone backfill (400 reports) and Raider.IO (180 s) run detached in the background
+    under name resolution and the build, and the job waits for them only before the cache
+    save (the build's procs reader tolerates a torn tail, Raider.IO replaces its file
+    atomically, the clock map feeds the next run's export); the sweep is SHALLOW four runs
+    in five (page 1-5 of the max-score boards +10..+16 where a new run is always on page 1,
+    two pages below +10, every board in full from +17 where score still varies) and DEEP
+    at least every 50 minutes, with the discovery ledger holding anything a shallow sweep
+    skipped; the query asks WCL for logged entries only (leaderboard: LogsOnly, probed
+    2026-09-09: anonymous entries vanish, same top runs), which deepens the fetchable
+    window for free; the daily seed commits when the committed copy is 20 h old instead of
+    in a clock slot two runs would now share. Expected: ~12 min a run, ~5 runs an hour,
+    ~10-11k of the 15.3k-point ceiling an hour while the keystone backfill runs, less
+    after. Costs: none in money (public repo, Actions minutes free, Pages deploys well
+    under any limit); the journal cache retains ~5 h of history instead of ~7 (guard
+    unchanged). Stability watch: run duration, `sweep.depth`, quota stops in the collector
+    logs, deploys landing. If stable it stays -- the owner asked for that explicitly.

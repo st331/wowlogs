@@ -94,8 +94,54 @@ MAX_PAGE = 20  # the API 404s past page 20 (hasMorePages stays true)
 LOW_KEY_MAX_PAGE = 4              # 200 runs per dungeon x key below +10
 
 
-def page_cap(bracket: int) -> int:
+# Sweep depth (2026-09-09, owner: "minimum time, maximum frequency"). A DEEP
+# sweep walks every board to its cap (~1,900 points) and is what the page's
+# Coverage line describes. A SHALLOW sweep -- the default between deep ones --
+# reads only where a NEW run can appear: a board whose whole window sits at the
+# bracket's maximum score (+10..+16 since late August) orders it newest-upload
+# first, so a new run is on page 1; a board whose score still varies (+17 and
+# up) is walked in full because a new run lands anywhere in it; below +10 the
+# shallow read is two pages of the four. Runs a shallow sweep misses are picked
+# up by the next deep one, and the discovery ledger keeps anything seen once
+# pending until fetched. Cost: ~0.8k points against ~1.9k.
+SWEEP_DEPTH = (os.environ.get("SWEEP_DEPTH") or "deep").strip().lower()
+SHALLOW_SATURATED_PAGES = 5       # +10 .. SHALLOW_FULL_FROM_KEY-1
+SHALLOW_LOW_PAGES = 2             # below +10
+SHALLOW_FULL_FROM_KEY = 17        # score still varies here: walk the whole board
+SWEEP_STATS_FILE = PROCESSED / "sweep_stats.json"     # last DEEP sweep's coverage facts
+DEEP_STAMP_FILE = PROCESSED / "last_deep_sweep"       # epoch seconds of the last deep sweep
+
+
+def deep_page_cap(bracket: int) -> int:
     return MAX_PAGE if bracket_to_key(bracket) >= 10 else LOW_KEY_MAX_PAGE
+
+
+def page_cap(bracket: int) -> int:
+    cap = deep_page_cap(bracket)
+    if SWEEP_DEPTH != "shallow":
+        return cap
+    k = bracket_to_key(bracket)
+    if k >= SHALLOW_FULL_FROM_KEY:
+        return cap
+    return min(cap, SHALLOW_SATURATED_PAGES if k >= 10 else SHALLOW_LOW_PAGES)
+
+
+def persist_sweep_stats(update: dict | None = None) -> dict:
+    """The coverage facts the page prints come from the last DEEP sweep. A
+    shallow run re-emits them unchanged; a deep run rewrites them."""
+    stats: dict = {}
+    if SWEEP_STATS_FILE.exists():
+        try:
+            stats = json.loads(SWEEP_STATS_FILE.read_text())
+        except ValueError:
+            stats = {}
+    if update:
+        stats.update(update)
+        PROCESSED.mkdir(parents=True, exist_ok=True)
+        tmp = SWEEP_STATS_FILE.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(stats))
+        os.replace(tmp, SWEEP_STATS_FILE)
+    return stats
 
 # Two uploads of one run agree on dungeon, key level and keystone clock, and
 # their absolute start times land within a couple of seconds of each other
@@ -255,7 +301,7 @@ def _sweep_shard(cursors: dict, out, out_lock, label: str) -> None:
         for i, ((enc, br), page) in enumerate(batch):
             parts.append(
                 f'a{i}: encounter(id: {enc}) '
-                f'{{ fightRankings(metric: score, bracket: {br}, page: {page}) }}'
+                f'{{ fightRankings(metric: score, bracket: {br}, page: {page}, leaderboard: LogsOnly) }}'
             )
         q = "{ worldData { " + " ".join(parts) + " } }"
         data = client.query(q, est_cost=1.5 * len(batch))
@@ -975,8 +1021,11 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     # not give us. Anonymous entries carry no report code and can never be
     # fetched; they are a property of WCL's privacy settings, not of this
     # collector, and the reader must be able to see their share.
-    write_outputs(**{"sweep.public_runs": len(fights),
-                     "sweep.anonymous_entries": load_fights.anon_skipped})
+    if SWEEP_DEPTH != "shallow":
+        persist_sweep_stats({"sweep.public_runs": len(fights),
+                             "sweep.anonymous_entries": load_fights.anon_skipped})
+    write_outputs(**{k: v for k, v in persist_sweep_stats().items()
+                     if k in ("sweep.public_runs", "sweep.anonymous_entries")})
 
     PROCESSED.mkdir(parents=True, exist_ok=True)
     _repair_tail(SUMMARIES_DONE)
@@ -1490,12 +1539,17 @@ def main() -> None:
             # +10). The page tells the reader those key levels are a
             # top-score slice, not every run played.
             st = load_sweep_state()
-            capped = sorted((enc, br) for (enc, br), cur in st.items()
-                            if cur["more"] and cur["last_page"] >= page_cap(br))
-            keys_capped = sorted({bracket_to_key(br) for _, br in capped})
-            write_outputs(**{"sweep.boards": len(st), "sweep.boards_capped": len(capped),
-                             "sweep.pages": sum(c["last_page"] for c in st.values()),
-                             "sweep.keys_capped": "|".join(str(k) for k in keys_capped)})
+            pages_now = sum(c["last_page"] for c in st.values())
+            if SWEEP_DEPTH != "shallow":
+                capped = sorted((enc, br) for (enc, br), cur in st.items()
+                                if cur["more"] and cur["last_page"] >= deep_page_cap(br))
+                keys_capped = sorted({bracket_to_key(br) for _, br in capped})
+                persist_sweep_stats({"sweep.boards": len(st), "sweep.boards_capped": len(capped),
+                                     "sweep.pages": pages_now,
+                                     "sweep.keys_capped": "|".join(str(k) for k in keys_capped)})
+                DEEP_STAMP_FILE.write_text(str(int(time.time())))
+            write_outputs(**persist_sweep_stats(),
+                          **{"sweep.depth": SWEEP_DEPTH, "sweep.pages_this_run": pages_now})
         if args.stage in ("all", "summaries") and not STOP:
             regear = ((args.regear_min_key, args.regear_days)
                       if args.regear_min_key is not None else None)

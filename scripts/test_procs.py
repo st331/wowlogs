@@ -370,7 +370,7 @@ assert "showing the top \"+COMPS_MAX+\" on this sort" in html and "Showing \"+sh
 assert "ratings rounded to steps of" in html and "not published in this build (size ladder)" in html, "stats scale / withheld labels"
 _b = (ROOT / "scripts" / "build_site_data.py").read_text()
 assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)' in _b and "def _window_cuts" in _b, "sidecar headers carry caps/window/stats_all"
-assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'write_outputs(**{"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build -> page"
+assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'persist_sweep_stats({"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build -> page"
 print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner; coverage note")
 
 print("\nPASS")
