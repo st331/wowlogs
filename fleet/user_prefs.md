@@ -519,3 +519,13 @@
     partitioned payload. Standing rule from this night: a cap, window, sample, quantisation
     or filter that changes what the reader sees is printed where the number is; the
     ladders may still step down, never silently.
+    Round two (owner, 2026-09-09, picking from the unverified list): the pooled ring and
+    trinket fold-out, the US-dated reset labels and the chart's cut-before-sort are fixed
+    and verified headless. The owner deferred the Top Comps and Trajectory caps as "cutting
+    very sparse data, if that is the case"; it is not the case, so both now print their
+    count (109 of 134 qualifying comps, each with 20+ runs, were undrawn; 3 of 19 gated
+    specs missing from the Trajectory) while the caps themselves stand. Still deferred and
+    unverified: CS_THIN withholds the Character screen for specs under ten parses in the
+    lens band (CC-2 argues for the beamStatsWin fallback there too), the talent-build cap
+    of 24, the mixed DPS denominator on clock-less rows (±0.17%), and the dead
+    hero-talent recovery path (3.1% Unknown).

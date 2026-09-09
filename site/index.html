@@ -1625,6 +1625,13 @@ const PULSE_MAX = 12, PULSE_THIN = 25;
 
 let D=null, R=null, N=0, runCount=0;
 let availWeeks=[], weekCounts=new Map(), usB0=0;
+/* Reset buckets are per-region by construction (each region's own reset
+   instant), but every LABEL used to be anchored on the US bound, so for the
+   13-31 h each week between the US reset and the others the chips read "since
+   <US date>" over rows a week older, and a US-filtered reader saw an empty
+   chart blamed on the trust gate. bucketSpan holds each bucket's real day
+   range; resetHoles names regions that have rolled over with no runs yet. */
+let bucketSpan=new Map(), resetHoles=[];
 let curMinDay=0, curMaxDay=-1;   // day span covered by the current reset
 const EMPTY=new Set(); let lastEffMin=0;
 // The filter state the page opens on. The minimum-characters threshold means
@@ -2075,8 +2082,30 @@ function computeResetBuckets(){
   const bounds=boundsD;
   usB0=bounds[D.regions.indexOf("US")] ?? Object.values(bounds)[0];
   weekCounts=new Map();
-  for(let i=0;i<N;i++) if(R.rbucket[i]<999)
-    weekCounts.set(R.rbucket[i],(weekCounts.get(R.rbucket[i])||0)+1);
+  bucketSpan=new Map();
+  const regAll=new Map(), reg0=new Map();
+  for(let i=0;i<N;i++){
+    const w=R.rbucket[i];
+    if(w>=999) continue;
+    weekCounts.set(w,(weekCounts.get(w)||0)+1);
+    const d0=R.day[i];
+    if(d0>=0){
+      const sp=bucketSpan.get(w);
+      if(!sp) bucketSpan.set(w,{lo:d0,hi:d0});
+      else { if(d0<sp.lo) sp.lo=d0; if(d0>sp.hi) sp.hi=d0; }
+    }
+    const ri=R.reg[i];
+    regAll.set(ri,(regAll.get(ri)||0)+1);
+    if(w===0) reg0.set(ri,(reg0.get(ri)||0)+1);
+  }
+  // a region with rows in the payload but none in ITS current reset has just
+  // rolled over -- the reader is told, rather than left with an empty chart
+  const nowH=Math.floor((now-epoch)/36e5);
+  resetHoles=[];
+  for(const [ri,n] of regAll)
+    if(n>0&&!reg0.get(ri)&&RESET_RULES[D.regions[ri]])
+      resetHoles.push({reg:D.regions[ri], agoH:Math.max(0,nowH-boundsH[ri]), rows:n});
+  resetHoles.sort((a,b)=>a.agoH-b.agoH);
   availWeeks=[...weekCounts.keys()].sort((a,b)=>a-b);
   // day span of the current reset, anchored on the latest day that HAS data
   // (so "last 1 day" is never empty just because today's logs aren't in yet)
@@ -2145,12 +2174,31 @@ function syncCounts(){
 }
 
 /* ---------------- period controls ---------------- */
-function weekLabel(w){return w===0?"This reset":fmtDay(usB0-7*w)}
+// the days the bucket's rows actually cover, not the US-anchored arithmetic
+function bucketLo(w){const s=bucketSpan.get(w); return s?s.lo:usB0-7*w}
+function bucketHi(w){const s=bucketSpan.get(w); return s?s.hi:usB0-7*w+7}
+function weekLabel(w){return w===0?"This reset":fmtDay(bucketLo(w))}
 function weekTitle(w){
-  const start=usB0-7*w;
-  return (w===0?"since "+fmtDay(start):fmtDay(start)+" – "+fmtDay(start+7))
+  return (w===0?"since "+fmtDay(bucketLo(0))
+                :fmtDay(bucketLo(w))+" – "+fmtDay(bucketHi(w)))
     +" · "+(weekCounts.get(w)||0).toLocaleString("en-US")+" parses"
-    +(w>0?" · "+w+" reset"+(w>1?"s":"")+" ago":"");
+    +(w>0?" · "+w+" reset"+(w>1?"s":"")+" ago":"")
+    +" · each region by its own reset instant";
+}
+/* Regions that have rolled over with nothing logged yet in their new week.
+   Their runs are all one bucket older, which is why "This reset" can hold no
+   rows at all for a region the reader has filtered to. */
+function resetHoleText(only){
+  const hits=resetHoles.filter(h=>!only||only.has(h.reg));
+  if(!hits.length) return "";
+  const one=h=>h.reg+" reset "+(h.agoH<1?"under an hour":h.agoH+" hour"+(h.agoH===1?"":"s"))+" ago";
+  return hits.map(one).join("; ");
+}
+function resetNote(){
+  const t=resetHoleText(state.reg.size?state.reg:null);
+  if(!t) return "";
+  return ' <b class="delta down" style="font-size:.95em">⚠ '+esc(t)
+    +' — no runs there in this reset yet; those runs are in last reset.</b>';
 }
 const PRESETS=[
   ["All season", ()=>[]],
@@ -2175,7 +2223,8 @@ function buildPeriodUI(prefix, sel, ghosted){
       c.textContent=name;
       if(name!=="All season"){
         const ws=[...target].sort((a,b)=>a-b);
-        c.title=fmtDay(usB0-7*Math.max(...ws))+" → "+(ws.includes(0)?"now":fmtDay(usB0-7*Math.min(...ws)+7));
+        c.title=fmtDay(bucketLo(Math.max(...ws)))+" → "
+          +(ws.includes(0)?"now":fmtDay(bucketHi(Math.min(...ws))));
       } else c.title="no time filter";
       c.onclick=()=>{sel.clear(); target.forEach(w=>sel.add(w)); refreshPeriodUIs(); render();};
       pbox.appendChild(c);
@@ -3130,6 +3179,7 @@ function jumpToComps(k){
    behavior — the 450ms #tip owns hover, untouched. */
 let FRAME_A=null, FRAME_B=null, CHART_KEYS=[];
 let GATED_KEYS=new Set();   // every group past the minimum-characters gate this render
+let CHART_CUT="";           // which CHART_MAX the current sort drew, for the caption
 
 /* ---- live-stats sidecar (stats.json.gz) — per-parse stat ratings, ROW-ALIGNED
    with the payload's rows arrays. Fetched lazily on the FIRST frame open, once
@@ -4774,11 +4824,25 @@ function csPoolFoldHTML(d,p,M){
   // under prevalence, summing would count a player whose BOTH rings are
   // unlisted twice. One definition absorbs all four fold-in paths (vocab value
   // 0, an unresolvable vocab entry, below CS_ENTRY_MIN, beyond the top 10).
-  let other=0;
+  // ...but ranks 11+ are REAL, NAMED items, exactly as in the per-slot fold
+  // below: folding them into "other / none" overstated the genuinely-unlisted
+  // share (measured 2026-09-09: 52 of 66 "other" players on the biggest spec's
+  // trinket panel wore a named trinket ranked 11-17). They get their own
+  // summary row; "other / none" keeps only rows with an unlisted or
+  // below-floor item. A row is counted at most once, unlisted taking
+  // precedence, so the two rows never double-count a player.
+  const E=new Set(M.ent.map(x=>x.k));      // every entry that cleared CS_ENTRY_MIN
+  const tailSeen=new Set();
+  let other=0, tailRows=0;
   for(let r=0;r<M.rowKeys.length;r++){
     if(M.rowRaw[r]){ other++; continue }
-    const ks=M.rowKeys[r];
-    for(const k of ks) if(!L.has(k)){ other++; break }
+    let unlisted=false, tail=false;
+    for(const k of M.rowKeys[r]){
+      if(L.has(k)) continue;
+      if(E.has(k)){ tail=true; tailSeen.add(k) } else unlisted=true;
+    }
+    if(unlisted) other++;
+    else if(tail) tailRows++;
   }
   const slots=BUILDSC.slots, pr=CS_POOL_SLOTS[p];
   const sis=[slots.indexOf(pr[0]),slots.indexOf(pr[1])];
@@ -4786,6 +4850,10 @@ function csPoolFoldHTML(d,p,M){
     s:100*x.c/total, c:x.c, ph:csFoldPh(x.e)}, csFoldField(x.e,sis,d.sk),
     csBeamSub(x.e,d)));
   const pinned=[];
+  if(tailRows>0) pinned.push({pin:true, ph:"+",
+    nm:'<span class="na">'+fmtInt(tailSeen.size)+' more listed '+lc
+      +(tailSeen.size===1?"":"s")+'</span>',
+    s:100*tailRows/total, c:tailRows});
   if(other>0) pinned.push({pin:true, nm:'<span class="na">other / none</span>',
     s:100*other/total, c:other, ph:"–"});
   return '<div id="cs-fold"><span class="caret"></span>'
@@ -4793,7 +4861,12 @@ function csPoolFoldHTML(d,p,M){
     +'<div class="caption">'+esc("share of the "+fmtInt(M.n)
       +" gear-known players in this window who wore this "+lc+" in either "+lc
       +" slot. A player wearing two different "+lc+"s appears in two rows, so "
-      +"this column sums above 100%; a "+lc+" worn in both slots counts once.")
+      +"this column sums above 100%; a "+lc+" worn in both slots counts once. "
+      +"The ten most-worn are listed by name"
+      +(tailRows>0?"; the next "+fmtInt(tailSeen.size)+" named "+lc
+        +(tailSeen.size===1?"":"s")+" are summarised in one row":"")
+      +". \u201cother / none\u201d is players carrying an unlisted "+lc
+      +" or one worn by fewer than "+CS_ENTRY_MIN+" people.")
     +'</div>'
     +csFoldTable(list,pinned)+'</div>';
 }
@@ -6752,7 +6825,8 @@ function render(){
     +(skill?" <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
       +state.pctlB+" of the same parses (distribution metrics: percentile DPS and deaths).":"")
     +labNoteBadges()
-    +gapsNote(A.dmin,A.dmax);
+    +gapsNote(A.dmin,A.dmax)
+    +resetNote();
 
   renderArchonCard();
   renderComps(A);          // also publishes the qualifying-comp presence set
@@ -6767,13 +6841,28 @@ function render(){
   let ranked=rows;
   ranked.sort((x,y)=>(y.a[col]-x.a[col])*bestDir);
   ranked.forEach((r,i)=>r.rank=i+1);
-  let view=ranked.slice(0,CHART_MAX);   // "desc" (Best first) = ranked order
   const pct=r=>r.b&&Math.abs(r.b[col])>1e-9?(r.a[col]-r.b[col])/Math.abs(r.b[col]):null;
-  if(state.sort==="asc") view=[...view].sort((x,y)=>(x.a[col]-y.a[col])*bestDir);
-  else if(state.sort==="name") view=[...view].sort((x,y)=>
-    (x.cls+x.spec+x.hero).localeCompare(y.cls+y.spec+y.hero));
-  else if(state.sort==="gain") view=[...view].sort((x,y)=>(pct(y)??-1e9)-(pct(x)??-1e9));
-  else if(state.sort==="loss") view=[...view].sort((x,y)=>(pct(x)??1e9)-(pct(y)??1e9));
+  // The sort chooses WHICH groups are drawn, then the cap trims. Until
+  // 2026-09-09 the cap ran FIRST, so "Worst first" re-ordered the best forty
+  // and the genuinely worst groups were never drawn (73 of 113 undrawn at a
+  // widened gate); "Biggest gain" ranked only those forty too. Name A-Z is a
+  // display order, not a selection rule, so it still alphabetises the best
+  // forty -- and the caption says which forty every sort is showing.
+  let pool=ranked, cutWord="the "+CHART_MAX+" best";
+  if(state.sort==="asc"){
+    pool=[...ranked].sort((x,y)=>(x.a[col]-y.a[col])*bestDir);
+    cutWord="the "+CHART_MAX+" lowest";
+  }else if(state.sort==="gain"){
+    pool=[...ranked].sort((x,y)=>(pct(y)??-1e9)-(pct(x)??-1e9));
+    cutWord="the "+CHART_MAX+" biggest gains";
+  }else if(state.sort==="loss"){
+    pool=[...ranked].sort((x,y)=>(pct(x)??1e9)-(pct(y)??1e9));
+    cutWord="the "+CHART_MAX+" biggest drops";
+  }
+  let view=pool.slice(0,CHART_MAX);
+  if(state.sort==="name")
+    view=[...view].sort((x,y)=>(x.cls+x.spec+x.hero).localeCompare(y.cls+y.spec+y.hero));
+  CHART_CUT=cutWord;
   CHART_KEYS=view.map(r=>r.key);   // Spec Frame arrow-stepping walks chart order
   // the gate, not the chart's top-N cap: the ⚗ Lightspire table lists exactly
   // the groups the trust gate lets through (owner, 2026-09-08: "if a spec
@@ -6800,9 +6889,17 @@ function render(){
   chart.className=cmpA?"cmp":"";
   chart.innerHTML="";
   if(!view.length){
-    chart.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups match '
-      +'the current filters — widen the filters or lower the minimum-characters threshold '
-      +'(≥ '+effMinA+' here).</div>';
+    // an empty period is not a gate problem, and saying so sent readers to the
+    // wrong control every week (a region between its reset and the next)
+    const hole=A.parses===0?resetHoleText(state.reg.size?state.reg:null):"";
+    chart.innerHTML='<div class="caption" style="padding:1.4rem 0">'
+      +(A.parses===0
+        ? esc("No parses at all in this period under the current filters"
+            +(hole?" — "+hole+", so its runs are in last reset":
+              "; try another period or widen the filters")+".")
+        : 'No groups match the current filters — widen the filters or lower the '
+          +'minimum-characters threshold (≥ '+effMinA+' here).')
+      +'</div>';
   }
   for(const r of view){
     const v=r.a[col];
@@ -6890,7 +6987,10 @@ function render(){
       cap+=" The skill compare applies to distribution metrics "
         +"(percentile DPS, deaths) — this tab shows its plain value.";
   }
-  if(ranked.length>CHART_MAX) cap+=" Showing top "+CHART_MAX+" of "+ranked.length+" groups.";
+  if(ranked.length>CHART_MAX)
+    cap+=" Showing "+CHART_CUT+" of "+ranked.length+" groups that pass the gate"
+      +(state.sort==="name"?", in name order":"")
+      +"; the Data Table lists every one.";
   $("chart-caption").textContent=cap;
 
   // generated scope lines — the single source of section evidence sentences
@@ -7357,7 +7457,9 @@ function renderComps(A){
     $("comps-sub").innerHTML=esc(fmtInt(rows.length)
       +(rows.length===1?" comp with ":" comps with ")
       +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
-      +" distinct — ranked by strength, click a column to sort"+perANote)
+      +" distinct — ranked by strength, click a column to sort"+perANote
+      +(rows.length>COMPS_MAX?" · showing the top "+COMPS_MAX+" on this sort;"
+        +" sort another column or pick a spec to reach the rest":""))
       +labStamp("comps")+compsClockNote();
   }else{
     // K here === __compPresence.map.get(csKey), Q === rows.length — the same
@@ -7467,8 +7569,8 @@ function renderTrend(){
     buckets=daily?[...daysSeen].sort((a,b)=>a-b):wks;
     store=daily?byDay:byWeek;
     MINP=daily?8:25;
-    bLabel=b=>daily?fmtDay(b):(b===0?"now":fmtDay(usB0-7*b));
-    bTip=b=>daily?fmtDay(b):(b===0?"this reset":fmtDay(usB0-7*b)+" wk");
+    bLabel=b=>daily?fmtDay(b):(b===0?"now":fmtDay(bucketLo(b)));
+    bTip=b=>daily?fmtDay(b):(b===0?"this reset":fmtDay(bucketLo(b))+" – "+fmtDay(bucketHi(b)));
   }
   if(!buckets.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
@@ -7627,7 +7729,7 @@ function renderTrend(){
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv,
                     keyAxis?(pt=>"at "+bLabel(pt.b)):(()=>"latest"));
-    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis)
+    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis,top.length,cand.length)
       +extraCap
       +" Each card is one group, ranked best-first; all cards share one y-scale, "
       +(keyAxis?"key level rising left → right.":"time running left → right.");
@@ -7700,15 +7802,18 @@ function renderTrend(){
     el.addEventListener("mouseleave",()=>{hover=null; apply();});
   }
   apply();
-  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis)
+  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis,top.length,cand.length)
     +extraCap
     +" Dash patterns distinguish specs of the same class. Hover a line or its "
     +"label to spotlight it.";
 }
-function trendCap(mt,span,keyAxis){
+function trendCap(mt,span,keyAxis,shown,ofN){
   return (keyAxis?TREND_CAP_KEY:TREND_CAP).replace("{metric}",mt.label.toLowerCase())
     +(mt.betterUp?"":" The best (lowest) groups are shown.")
-    +(span?" "+span:"");
+    +(span?" "+span:"")
+    // the group cap, stated like the Overview's (2026-09-09): 3 of 19 gated
+    // groups went undrawn under the default filters with nothing saying so
+    +(ofN>shown?" Showing "+shown+" of "+ofN+" groups that pass the gate.":"");
 }
 function trendSpan(daily,n,minp,keyAxis){
   if(keyAxis)

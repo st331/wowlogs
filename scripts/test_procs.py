@@ -360,6 +360,13 @@ assert "Sampled payload:" in html and '"sample": dict(SAMPLE_INFO)' in (ROOT / "
 assert 'id="coverage-note"' in html and "function renderCoverageNote" in html and "renderCoverageNote();" in html, "coverage note"
 # 2026-09-08 fleet S1-S5: what a sidecar rung withheld is printed, never silent
 assert 'id="frame-dead"' in html and "function windowNote(win,idx)" in html and "enchants not published" in html, "sidecar notices"
+# 2026-09-09: the chart selects with the sort and then cuts; bucket labels come from the
+# rows the bucket holds; the pooled fold names its ranked-11+ tail; every cap says N of M
+assert "let view=pool.slice(0,CHART_MAX)" in html and "CHART_CUT=cutWord" in html, "chart cuts AFTER the sort"
+assert "function bucketLo(w)" in html and "usB0-7*w" not in html.split("function bucketLo")[1][:4000].split("function renderTrend")[0].replace("return s?s.lo:usB0-7*w","").replace("return s?s.hi:usB0-7*w+7",""), "week labels read bucketSpan, not the US bound"
+assert "function resetNote()" in html and "no runs there in this reset yet" in html, "per-region reset straddle note"
+assert "more listed '+lc" in html and "const E=new Set(M.ent.map(x=>x.k))" in html, "pooled fold names its tail"
+assert "showing the top \"+COMPS_MAX+\" on this sort" in html and "Showing \"+shown+\" of \"+ofN+\" groups that pass the gate" in html, "comps + trajectory caps state N of M"
 assert "ratings rounded to steps of" in html and "not published in this build (size ladder)" in html, "stats scale / withheld labels"
 _b = (ROOT / "scripts" / "build_site_data.py").read_text()
 assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)' in _b and "def _window_cuts" in _b, "sidecar headers carry caps/window/stats_all"
