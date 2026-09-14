@@ -695,6 +695,84 @@ def _sidecar_window(df, resets: int):
     return (st >= cut).fillna(True).to_numpy()
 
 
+# --------------------------------------------------------------------------
+# RETENTION — the dashboard holds the newest RETENTION_RESETS weekly resets
+# --------------------------------------------------------------------------
+# Owner, 2026-09-14: "don't keep data for longer than 2 weeks. only data in
+# the last two weeks is ever relevant, beyond that is useless ... it is fine
+# to keep a day or two extra of data."
+#
+# Two weekly resets IS two weeks in the game's own units, and it is the unit
+# the page already buckets by, so the window never cuts a reset in half and
+# never leaves a ragged third bucket on the period chips. The extra day or
+# two of grace lives on the COLLECTOR side (scripts/prune_journals.py keeps
+# 16 days), so a boundary row is always still on disk when this window moves.
+#
+# This is the ONE place rows are dropped, applied before anything else reads
+# the frame: the payload, specstats, every sidecar and every health line see
+# the same windowed rows, so no two consumers can disagree about what the
+# dashboard holds.
+#
+# Per REGION, because resets are per region (US Tue 15:00 UTC, EU Wed 04:00
+# UTC): one flat cut would take an extra half-day off one region and leave it
+# on another. Anchored to the DATA and not the wall clock, like the sidecar
+# windows: when collection stalls -- and it did, for 21 hours on 2026-09-13 --
+# a now-anchored window would slide past every row there is and blank the
+# page instead of showing the newest two resets it actually has.
+#
+# UNDATED rows are KEPT. A row whose started_at will not parse cannot be
+# shown to be old, and deleting data on a missing field is how a parser bug
+# turns into data loss. Their count is printed and shipped, so the exception
+# can never grow unnoticed. (Note for anyone copying _sidecar_window below:
+# its `.fillna(True)` does NOT keep undated rows -- a NaT comparison is
+# already False, not NA -- so it drops them. This window does not.)
+RETENTION_RESETS = 2
+RETENTION_INFO: dict = {"resets": RETENTION_RESETS, "rows_in": 0, "rows_out": 0,
+                        "dropped": 0, "undated": 0, "runs_dropped": 0,
+                        "cut": None, "oldest_kept": None}
+
+
+def apply_retention(df: pd.DataFrame, name: str) -> pd.DataFrame:
+    """Rows inside the newest RETENTION_RESETS resets, per region."""
+    RETENTION_INFO["rows_in"] = len(df)
+    if not RETENTION_RESETS or not len(df):
+        RETENTION_INFO["rows_out"] = len(df)
+        return df
+    st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
+                        unit="ms", errors="coerce").dt.tz_localize("UTC")
+    now = pd.Timestamp.now("UTC")
+    plaus = st[st <= now]
+    anchor = min(plaus.max(), now) if len(plaus) else now
+    # region is cleaned to "Unknown" later in build(); do it here too rather
+    # than sorting a column that can still hold NA (pandas' StringDtype keeps
+    # NA through .astype(str), and sorted() then compares NA against str)
+    reg = df["region"].astype(object).where(df["region"].notna(), "Unknown")
+    reg = reg.map(lambda v: str(v) if str(v).strip() else "Unknown")
+    inst = reset_instants(anchor, sorted(reg.unique()))
+    back = pd.Timedelta(days=7 * (RETENTION_RESETS - 1))
+    cuts = {r: t - back for r, t in inst.items()}
+    cut = reg.map(cuts)
+    keep = ((st >= cut) | st.isna()).to_numpy()
+    ids = df["report_code"].astype(str) + ":" + df["fight_id"].astype(str)
+    out = df[keep]
+    kept_dates = st[keep].dropna()
+    RETENTION_INFO.update(
+        rows_out=int(len(out)), dropped=int(len(df) - len(out)),
+        undated=int(st.isna().sum()),
+        runs_dropped=int(ids.nunique() - ids[keep].nunique()),
+        cut={r: t.strftime("%Y-%m-%dT%H:%M:%SZ") for r, t in sorted(cuts.items())},
+        oldest_kept=(kept_dates.min().strftime("%Y-%m-%dT%H:%M:%SZ")
+                     if len(kept_dates) else None))
+    span = ", ".join(f"{r} {t[5:10]}" for r, t in RETENTION_INFO["cut"].items())
+    print(f"[{name}] retention: newest {RETENTION_RESETS} resets kept — "
+          f"{len(out):,} of {len(df):,} rows ({RETENTION_INFO['dropped']:,} "
+          f"older rows, {RETENTION_INFO['runs_dropped']:,} runs dropped); "
+          f"cut at {span}"
+          + (f"; {RETENTION_INFO['undated']:,} undated rows kept"
+             if RETENTION_INFO["undated"] else ""), flush=True)
+    return out
+
+
 def stats_sidecar(df, journal, name: str, enc: str | None = None,
                   cap: int = SIDECAR_GZ_CAP,
                   target: int = SIDECAR_GZ_TARGET) -> str | None:
@@ -2992,6 +3070,7 @@ def build(name: str, cfg: dict) -> None:
         return
     df = pd.read_csv(csv)
     df = use_keystone_clock(df, name)
+    df = apply_retention(df, name)
     df = sample_runs(df, name)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
         df[col] = df[col].fillna("Unknown").replace("", "Unknown")
@@ -3028,6 +3107,11 @@ def build(name: str, cfg: dict) -> None:
     future_n = int((started > now_utc.tz_localize(None)).sum())
     health(f"built={now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     health(f"rows={len(df)}")
+    health(f"retention.resets={RETENTION_INFO['resets']}")
+    health(f"retention.rows_dropped={RETENTION_INFO['dropped']}")
+    health(f"retention.runs_dropped={RETENTION_INFO['runs_dropped']}")
+    health(f"retention.undated_kept={RETENTION_INFO['undated']}")
+    health(f"retention.oldest_kept={RETENTION_INFO['oldest_kept'] or 'none'}")
     health(f"runs_collected={SAMPLE_INFO['collected']}")
     health(f"runs_published={SAMPLE_INFO['published']}")
     health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")
@@ -3133,6 +3217,7 @@ def build(name: str, cfg: dict) -> None:
         # runs collected vs published on this build; equal unless a MAX_RUNS
         # cap is back, in which case the client shows it (never a silent sample)
         "sample": dict(SAMPLE_INFO),
+        "retention": dict(RETENTION_INFO),
         # what the leaderboard sweep listed / could not list (see above);
         # {} until a fetch on or after 2026-09-08 has run
         "coverage": coverage,
