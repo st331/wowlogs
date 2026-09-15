@@ -78,6 +78,19 @@ EPOCH = pd.Timestamp("2026-01-01")
 MEDAL_TIMED = {"gold": 1, "silver": 1, "bronze": 1, "timed": 1, "none": 0}
 TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 
+# --------------------------------------------------------------------------
+# RETENTION POLICY (owner, 2026-09-14) -- the constants live up here so every
+# window in this file BINDS to them and none can claim a wider span. The
+# mechanism is apply_retention(), further down.
+# --------------------------------------------------------------------------
+# "don't keep data for longer than 2 weeks. only data in the last two weeks is
+# ever relevant, beyond that is useless. remove any features that allow
+# looking at data older than 2 weeks. Just to give it a grace period and
+# mitigate boundary conditions, it is fine to keep a day or two extra of data."
+RETENTION_RESETS = 2           # the page shows the newest two weekly resets, per region
+RETENTION_MAX_AGE_DAYS = 15    # and never a row older than this: 14 + one day of grace
+ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
+
 
 def latest_tuning():
     """The newest class-tuning pass, or None if none is recorded."""
@@ -387,7 +400,13 @@ GEAR_EXPORT = ROOT / "data" / "gear.jsonl.gz"
 # the wall clock, so rebuilding stale data cannot silently empty the block.
 # +12 is where the gear backfill concentrated, so that is where stats coverage
 # is dense enough to quote; timed-only matches the dashboard's default flavor.
-SPECSTATS_WINDOW_DAYS = 14
+# A RAIL, not the window: the frame reaching spec_stats_block has already been
+# cut to RETENTION_RESETS resets by apply_retention() inside build(), so inside
+# a build this clause excludes nothing. It stays because the block is also
+# built on un-retained frames (tests, standalone calls) and an all-stale frame
+# must still yield its newest cohort. One day wider than two resets can ever
+# reach, so it can never trim a retained row.
+SPECSTATS_WINDOW_DAYS = 7 * RETENTION_RESETS + 1
 SPECSTATS_MIN_KEY = 12
 SPECSTATS_MIN_CHARS = 10        # a spec below this is omitted, never guessed
 # The four ratings every real combatantInfo carries; a record missing any of
@@ -461,8 +480,12 @@ def _specstats_cohort(df, started, timed) -> "pd.Series":
         >= SPECSTATS_MIN_KEY
     ok = started.notna() & (timed == 1) & key_ok
     if ok.any():
-        cutoff = started[ok].max() \
-            - pd.Timedelta(days=SPECSTATS_WINDOW_DAYS)
+        # anchored on the newest PLAUSIBLE cohort row (uploader clocks run
+        # ahead; one future-dated row must not drag the rail forward)
+        now = pd.Timestamp.now("UTC").tz_localize(None)
+        plaus = started[ok & (started <= now)]
+        newest = plaus.max() if len(plaus) else started[ok].max()
+        cutoff = newest - pd.Timedelta(days=SPECSTATS_WINDOW_DAYS)
         ok &= started >= cutoff
     return ok
 
@@ -542,8 +565,8 @@ def spec_stats_block(df, started, timed, name: str, journal=None):
 
     # printed verbatim by the client -- window, key floor, n and coverage in
     # one line, per the feature contract
-    cohort = (f"timed +{SPECSTATS_MIN_KEY}s and higher from the last "
-              f"{SPECSTATS_WINDOW_DAYS} days of data; one record per "
+    cohort = (f"timed +{SPECSTATS_MIN_KEY}s and higher from the newest "
+              f"{RETENTION_RESETS} weekly resets the site keeps; one record per "
               f"character (their latest parse); stats known for {n_hit:,} of "
               f"{n_cohort:,} parses ({n_hit / n_cohort:.0%}); values are "
               f"stat ratings as the character sheet read at the pull — "
@@ -610,11 +633,12 @@ SIDECAR_CORE = 7               # first 7 of SIDECAR_STATS; the tertiaries
 # labelled default must be the complete one.
 SIDECAR_GZ_TARGET = 12_000_000  # step down the ladder above this
 SIDECAR_GZ_CAP = 14_000_000    # never ship over this (builds.json.gz is 13.0)
-# Rows older than this many weekly resets are dropped from the SPARSE
-# encoding's coverage, mirroring BUILDS_WINDOW_RESETS. It is a ladder rung,
-# not a default: the full document keeps the whole season, and the window is
-# only spent when the bytes demand it. 0 disables it.
-SIDECAR_WINDOW_RESETS = 3
+# The coverage window of every rung IS the retention window. Bound to the
+# constant, never a literal, so no rung can ever claim a span wider than the
+# rows the build holds (2026-09-14: a "3-reset window" label survived one
+# build over a 2-reset frame). On the retained frame it excludes nothing by
+# construction; it exists so a standalone document still states a true window.
+SIDECAR_WINDOW_RESETS = RETENTION_RESETS
 
 
 def _sidecar_json(names, enc, n, vals, idx=None, scale=1,
@@ -653,48 +677,6 @@ def _sidecar_json(names, enc, n, vals, idx=None, scale=1,
     return json.dumps(obj, separators=(",", ":"))
 
 
-def _window_cuts(df, resets: int) -> dict | None:
-    """{region: ISO instant} a `resets`-reset window starts at, or None.
-
-    The same anchor rule as _sidecar_window (newest plausible row, never the
-    wall clock). Shipped in the sidecar headers so the page can print
-    'covers parses since 25 Aug (US) / 26 Aug (EU)' instead of letting the
-    window drop a week of a region silently (fleet finding S3, 2026-09-08).
-    """
-    if not resets:
-        return None
-    st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
-                        unit="ms", errors="coerce").dt.tz_localize("UTC")
-    now = pd.Timestamp.now("UTC")
-    plaus = st[st <= now]
-    anchor = min(plaus.max(), now) if len(plaus) else now
-    inst = reset_instants(anchor, sorted(df["region"].astype(str).unique()))
-    back = pd.Timedelta(days=7 * (resets - 1))
-    return {r: (t - back).strftime("%Y-%m-%dT%H:%M:%SZ") for r, t in inst.items()}
-
-
-def _sidecar_window(df, resets: int):
-    """Boolean mask of rows inside the newest `resets` weekly resets.
-
-    Anchored to the DATA, not the wall clock, exactly like the builds
-    sidecar's window: if collection stalls, a now-anchored window would
-    slide past every row it has and cover nothing. Undated rows and regions
-    with no rule stay covered -- never drop data because a field is missing.
-    Returns None when windowing is off.
-    """
-    if not resets:
-        return None
-    st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
-                        unit="ms", errors="coerce").dt.tz_localize("UTC")
-    now = pd.Timestamp.now("UTC")
-    plaus = st[st <= now]
-    anchor = min(plaus.max(), now) if len(plaus) else now
-    inst = reset_instants(anchor, sorted(df["region"].astype(str).unique()))
-    back = pd.Timedelta(days=7 * (resets - 1))
-    cut = df["region"].astype(str).map({r: t - back for r, t in inst.items()})
-    return (st >= cut).fillna(True).to_numpy()
-
-
 # --------------------------------------------------------------------------
 # RETENTION — the dashboard holds the newest RETENTION_RESETS weekly resets
 # --------------------------------------------------------------------------
@@ -702,75 +684,272 @@ def _sidecar_window(df, resets: int):
 # the last two weeks is ever relevant, beyond that is useless ... it is fine
 # to keep a day or two extra of data."
 #
-# Two weekly resets IS two weeks in the game's own units, and it is the unit
-# the page already buckets by, so the window never cuts a reset in half and
-# never leaves a ragged third bucket on the period chips. The extra day or
-# two of grace lives on the COLLECTOR side (scripts/prune_journals.py keeps
-# 16 days), so a boundary row is always still on disk when this window moves.
+# WHAT THE WINDOW IS. Two weekly resets per region: bucket 0 ("this reset")
+# and bucket 1 ("last reset"), the unit the page already buckets by, so the
+# window never cuts a reset in half or leaves a ragged third chip. In wall
+# clock that is 7.00 to just under 14.00 days per region, depending where the
+# region sits in its own week -- NOT a flat fourteen days, and the page prints
+# the span it actually holds (days_kept) rather than the round number.
+# RETENTION_MAX_AGE_DAYS is the ceiling on top: the reset cut is anchored to
+# the DATA (below), so a long stall would drag it backwards; the floor is the
+# policy, the reset alignment only the shape.
 #
-# This is the ONE place rows are dropped, applied before anything else reads
-# the frame: the payload, specstats, every sidecar and every health line see
-# the same windowed rows, so no two consumers can disagree about what the
-# dashboard holds.
+# THIS IS THE ONE PLACE ROWS LEAVE THE PUBLISHED FRAME, applied straight after
+# the CSV is read: the payload, specstats, every sidecar and every health line
+# see the same rows, so no two consumers can disagree about what the dashboard
+# holds. Disk retention is a second, separate rail (the collector keeps a flat
+# window strictly WIDER than anything this function can want, measured from
+# the newest row on disk, not the wall clock) -- see scripts/retention.py.
 #
-# Per REGION, because resets are per region (US Tue 15:00 UTC, EU Wed 04:00
-# UTC): one flat cut would take an extra half-day off one region and leave it
-# on another. Anchored to the DATA and not the wall clock, like the sidecar
-# windows: when collection stalls -- and it did, for 21 hours on 2026-09-13 --
-# a now-anchored window would slide past every row there is and blank the
-# page instead of showing the newest two resets it actually has.
+# PER RUN, NOT PER ROW. A run is one dungeon instance with one start and one
+# reset schedule; region is a property of the group that leaked to the player
+# row, and 7 runs in today's seed carry two regions. Cut per row and such a
+# roster is split across the boundary (the comps table then reports a 3-of-5
+# composition as real). The region is decided once per run (modal known
+# region; ties go to the EARLIEST cut, i.e. toward keeping) and the whole run
+# passes or fails together. Measured on the seed: 0 split runs, 0 rows
+# resurrected, exactly one orphan row leaving with its own roster.
 #
-# UNDATED rows are KEPT. A row whose started_at will not parse cannot be
-# shown to be old, and deleting data on a missing field is how a parser bug
-# turns into data loss. Their count is printed and shipped, so the exception
-# can never grow unnoticed. (Note for anyone copying _sidecar_window below:
-# its `.fillna(True)` does NOT keep undated rows -- a NaT comparison is
-# already False, not NA -- so it drops them. This window does not.)
-RETENTION_RESETS = 2
-RETENTION_INFO: dict = {"resets": RETENTION_RESETS, "rows_in": 0, "rows_out": 0,
-                        "dropped": 0, "undated": 0, "runs_dropped": 0,
-                        "cut": None, "oldest_kept": None}
+# ANCHORED TO THE DATA, not the wall clock, like the sidecar windows: when
+# collection stalls -- and it did, for 21 hours on 2026-09-13 -- a now-anchored
+# window would slide past every row there is and blank the page instead of
+# showing the newest two resets it actually has. The anchor and the wall clock
+# are BOTH shipped, so the page can bucket on the same instants the build cut
+# on and say how far behind the newest run is.
+#
+# UNDATED rows are KEPT. A row whose started_at will not parse cannot be shown
+# to be old, and deleting data on a missing field is how a parser bug turns
+# into data loss. Their count is printed and shipped, so the exception can
+# never grow unnoticed. (The former _sidecar_window's `.fillna(True)` did NOT
+# keep them -- a NaT comparison is already False, not NA -- which is why every
+# window in this file now goes through _window_mask below.)
 
 
-def apply_retention(df: pd.DataFrame, name: str) -> pd.DataFrame:
-    """Rows inside the newest RETENTION_RESETS resets, per region."""
-    RETENTION_INFO["rows_in"] = len(df)
-    if not RETENTION_RESETS or not len(df):
-        RETENTION_INFO["rows_out"] = len(df)
-        return df
-    st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
-                        unit="ms", errors="coerce").dt.tz_localize("UTC")
-    now = pd.Timestamp.now("UTC")
+def _retention_defaults() -> dict:
+    return {
+        "resets": RETENTION_RESETS, "max_age_days": RETENTION_MAX_AGE_DAYS,
+        "rows_in": 0, "rows_out": 0, "runs_in": 0, "runs_out": 0,
+        "dropped": 0, "runs_dropped": 0, "undated": 0,
+        "runs_region_mixed": 0, "rows_region_overridden": 0,
+        "cut": None, "days_kept": None, "oldest_kept": None, "oldest_seen": None,
+        "anchor": None, "now": None, "lag_h": None,
+        "floored": 0, "stale": False, "window_before_data": False,
+        "note": "",
+        # measurements on the page that are NOT limited to the window, named
+        # so the page can say so beside them (owner: nothing hidden)
+        "exceptions": [
+            {"key": "rating", "what": "Player rating",
+             "scope": "a Raider.IO season total (best run in each of the 8 "
+                      "dungeons) over the whole season -- the one measurement "
+                      "on this page not limited to the retained resets"},
+            {"key": "talents", "what": "Talent trees",
+             "scope": "the union of every talent allocation in the gear "
+                      "records the collector still holds, not the current "
+                      "filters"},
+        ],
+    }
+
+
+RETENTION_INFO: dict = _retention_defaults()
+
+
+def _started(df) -> "pd.Series":
+    return pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
+                          unit="ms", errors="coerce").dt.tz_localize("UTC")
+
+
+def _run_ids(df) -> "pd.Series":
+    return df["report_code"].astype(str) + ":" + df["fight_id"].astype(str)
+
+
+def _raw_regions(df) -> "pd.Series":
+    """region per row, None where missing/blank. build() cleans NA to
+    "Unknown" only AFTER retention, and pandas' StringDtype keeps NA through
+    .astype(str) (sorted() then compares NA against str and raises), so the
+    window must do its own normalisation and treat a missing region as
+    "no vote", never as a region named "Unknown"."""
+    reg = df["region"].astype(object).where(df["region"].notna(), None)
+    return reg.map(lambda v: (str(v).strip() or None) if v is not None else None)
+
+
+def _run_regions(df, ids, raw, cuts):
+    """ONE region per run -> (runreg, runs_mixed, rows_overridden)."""
+    known = pd.DataFrame({"id": ids.to_numpy(), "r": raw.to_numpy()}).dropna(subset=["r"])
+    if len(known):
+        votes = known.groupby(["id", "r"]).size().rename("n").reset_index()
+        votes["cut"] = votes["r"].map(cuts)
+        mode = (votes.sort_values(["id", "n", "cut", "r"],
+                                  ascending=[True, False, True, True])
+                     .drop_duplicates("id").set_index("id")["r"])
+        runreg = ids.map(mode)
+        mixed = int((known.groupby("id")["r"].nunique() > 1).sum())
+    else:
+        runreg = pd.Series([None] * len(df), index=df.index, dtype=object)
+        mixed = 0
+    runreg = runreg.astype(object).where(runreg.notna(), "Unknown")
+    overridden = int((raw.notna() & (raw != runreg)).sum())
+    return runreg, mixed, overridden
+
+
+def _window_mask(df, resets: int, max_age_days: int | None = None, now=None):
+    """The ONE window rule: (keep ndarray, facts) or (None, None) when off.
+
+    Per region (reset_instants), per RUN (modal region), anchored to the
+    newest plausible row, floored at max_age_days from the wall clock,
+    undated rows kept. `now` is injectable for tests only.
+    """
+    if not resets or not len(df):
+        return None, None
+    st = _started(df)
+    now = pd.Timestamp.now("UTC") if now is None else pd.Timestamp(now).tz_convert("UTC")
     plaus = st[st <= now]
     anchor = min(plaus.max(), now) if len(plaus) else now
-    # region is cleaned to "Unknown" later in build(); do it here too rather
-    # than sorting a column that can still hold NA (pandas' StringDtype keeps
-    # NA through .astype(str), and sorted() then compares NA against str)
-    reg = df["region"].astype(object).where(df["region"].notna(), "Unknown")
-    reg = reg.map(lambda v: str(v) if str(v).strip() else "Unknown")
-    inst = reset_instants(anchor, sorted(reg.unique()))
-    back = pd.Timedelta(days=7 * (RETENTION_RESETS - 1))
-    cuts = {r: t - back for r, t in inst.items()}
-    cut = reg.map(cuts)
+    raw = _raw_regions(df)
+    regions = sorted(set(raw.dropna().unique()) | {"Unknown"})
+    inst = reset_instants(anchor, regions)
+    back = pd.Timedelta(days=7 * (resets - 1))
+    raw_cuts = {r: t - back for r, t in inst.items()}
+    cuts, floor, stale, floored = dict(raw_cuts), None, False, 0
+    if max_age_days:
+        floor = now - pd.Timedelta(days=max_age_days)
+        # A stall longer than the ceiling would empty the page. "No data
+        # inside the policy window" is the honest answer, but blanking a live
+        # dashboard on an outage is the owner's call, not the builder's: fall
+        # back to the reset cut and SAY SO (stale, on every channel).
+        stale = bool(anchor < floor)
+        if not stale:
+            cuts = {r: max(t, floor) for r, t in raw_cuts.items()}
+            floored = sum(1 for r in raw_cuts if cuts[r] > raw_cuts[r])
+    ids = _run_ids(df)
+    runreg, mixed, overridden = _run_regions(df, ids, raw, cuts)
+    cut = runreg.map(cuts)
     keep = ((st >= cut) | st.isna()).to_numpy()
-    ids = df["report_code"].astype(str) + ":" + df["fight_id"].astype(str)
+    facts = {"st": st, "now": now, "anchor": anchor, "cuts": cuts,
+             "raw_cuts": raw_cuts, "floor": floor, "stale": stale,
+             "floored": floored, "ids": ids, "runreg": runreg,
+             "mixed": mixed, "overridden": overridden}
+    return keep, facts
+
+
+def _window_cuts(df, resets: int, now=None) -> dict | None:
+    """{region: ISO instant} the window starts at, or None when off."""
+    _, f = _window_mask(df, resets, RETENTION_MAX_AGE_DAYS, now)
+    if f is None:
+        return None
+    return {r: t.strftime(ISO_Z) for r, t in sorted(f["cuts"].items())}
+
+
+def _sidecar_window(df, resets: int, now=None):
+    """Boolean mask of rows inside the newest `resets` resets (the SAME rule
+    as apply_retention: per run, data-anchored, floored, undated kept), or
+    None when windowing is off. On the retained frame it is all True."""
+    keep, _ = _window_mask(df, resets, RETENTION_MAX_AGE_DAYS, now)
+    return keep
+
+
+def _retention_header(df, resets: int) -> dict | None:
+    """The `window` a sidecar header ships: retention's own cuts when a build
+    has run (one source of truth for the page's 'covers parses since' line),
+    else a freshly computed window for a standalone document (tests)."""
+    if RETENTION_INFO.get("cut"):
+        return {"resets": RETENTION_INFO["resets"], "cut": RETENTION_INFO["cut"],
+                "max_age_days": RETENTION_INFO["max_age_days"]}
+    wc = _window_cuts(df, resets)
+    return {"resets": resets, "cut": wc, "max_age_days": RETENTION_MAX_AGE_DAYS} if wc else None
+
+
+def _retention_note() -> str:
+    """The sentence the page prints. Policy FIRST, then this build's
+    counts as a trailing clause omitted when zero: once the collector prunes,
+    'dropped' is 0 in steady state and a dropped-led sentence would read as
+    'nothing was removed' at the exact moment removal became permanent."""
+    i = RETENTION_INFO
+    note = (f"the newest {i['resets']} weekly resets per region, nothing older "
+            f"than {i['max_age_days']} days")
+    if i.get("stale"):
+        note += (" -- STALE: the newest run held is older than that ceiling, so "
+                 "the newest two resets on file are shown instead")
+    if i.get("dropped"):
+        note += (f"; this build set aside {i['dropped']:,} older parses "
+                 f"({i['runs_dropped']:,} runs)")
+    if i.get("undated"):
+        note += f"; {i['undated']:,} undated parses kept"
+    return note
+
+
+def apply_retention(df: pd.DataFrame, name: str, now=None) -> pd.DataFrame:
+    """Rows inside the newest RETENTION_RESETS resets, per region, per run."""
+    RETENTION_INFO.clear()
+    RETENTION_INFO.update(_retention_defaults())
+    RETENTION_INFO["rows_in"] = int(len(df))
+    RETENTION_INFO["runs_in"] = int(_run_ids(df).nunique()) if len(df) else 0
+    keep, f = _window_mask(df, RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, now)
+    if keep is None:
+        RETENTION_INFO.update(rows_out=int(len(df)), runs_out=RETENTION_INFO["runs_in"])
+        RETENTION_INFO["note"] = _retention_note()
+        return df
     out = df[keep]
+    st = f["st"]
     kept_dates = st[keep].dropna()
+    seen_dates = st.dropna()
+    earliest_cut = min(f["cuts"].values())
     RETENTION_INFO.update(
         rows_out=int(len(out)), dropped=int(len(df) - len(out)),
+        runs_out=int(f["ids"][keep].nunique()),
+        runs_dropped=int(f["ids"].nunique() - f["ids"][keep].nunique()),
         undated=int(st.isna().sum()),
-        runs_dropped=int(ids.nunique() - ids[keep].nunique()),
-        cut={r: t.strftime("%Y-%m-%dT%H:%M:%SZ") for r, t in sorted(cuts.items())},
-        oldest_kept=(kept_dates.min().strftime("%Y-%m-%dT%H:%M:%SZ")
-                     if len(kept_dates) else None))
+        runs_region_mixed=int(f["mixed"]), rows_region_overridden=int(f["overridden"]),
+        cut={r: t.strftime(ISO_Z) for r, t in sorted(f["cuts"].items())},
+        days_kept={r: round((f["anchor"] - t).total_seconds() / 86400, 2)
+                   for r, t in sorted(f["cuts"].items())},
+        oldest_kept=(kept_dates.min().strftime(ISO_Z) if len(kept_dates) else None),
+        oldest_seen=(seen_dates.min().strftime(ISO_Z) if len(seen_dates) else None),
+        anchor=f["anchor"].strftime(ISO_Z), now=f["now"].strftime(ISO_Z),
+        lag_h=round((f["now"] - f["anchor"]).total_seconds() / 3600, 1),
+        floored=int(f["floored"]), stale=bool(f["stale"]),
+        # the window reaches back before the oldest row the source holds:
+        # a young season, or a pruner that ate rows this build wanted. Only
+        # detectable here, before the rows are gone.
+        window_before_data=bool(len(seen_dates) and seen_dates.min() > earliest_cut),
+    )
+    RETENTION_INFO["note"] = _retention_note()
     span = ", ".join(f"{r} {t[5:10]}" for r, t in RETENTION_INFO["cut"].items())
-    print(f"[{name}] retention: newest {RETENTION_RESETS} resets kept — "
-          f"{len(out):,} of {len(df):,} rows ({RETENTION_INFO['dropped']:,} "
-          f"older rows, {RETENTION_INFO['runs_dropped']:,} runs dropped); "
-          f"cut at {span}"
+    days = ", ".join(f"{r} {d:g}d" for r, d in RETENTION_INFO["days_kept"].items())
+    print(f"[{name}] retention: newest {RETENTION_RESETS} resets kept "
+          f"({days}; ceiling {RETENTION_MAX_AGE_DAYS}d"
+          + (f", floored {f['floored']} region(s)" if f["floored"] else "")
+          + (", STALE anchor" if f["stale"] else "")
+          + f") — {len(out):,} of {len(df):,} rows "
+          f"({RETENTION_INFO['dropped']:,} older rows, "
+          f"{RETENTION_INFO['runs_dropped']:,} runs set aside); cut at {span}; "
+          f"anchor {RETENTION_INFO['anchor']} ({RETENTION_INFO['lag_h']:g} h behind now)"
           + (f"; {RETENTION_INFO['undated']:,} undated rows kept"
-             if RETENTION_INFO["undated"] else ""), flush=True)
+             if RETENTION_INFO["undated"] else "")
+          + (f"; {f['mixed']:,} runs carried more than one region"
+             if f["mixed"] else ""), flush=True)
     return out
+
+
+def _gaps_in_window(gaps: list) -> tuple[list, int]:
+    """Collection-outage annotations (data/collection_gaps.json, a hand-kept
+    archive that is never pruned) only mean something while the window still
+    holds hours they cover; past that they are a claim about rows the page no
+    longer has. Keep a gap whose end is at or after the EARLIEST regional cut
+    (so one straddling the boundary stays); a missing or unparseable end is
+    KEPT, the same rule undated rows get. FAILS OPEN (publishes everything)
+    when no cut is known. Returns (published, suppressed)."""
+    cuts = RETENTION_INFO.get("cut") or {}
+    if not cuts or not isinstance(gaps, list):
+        return (gaps if isinstance(gaps, list) else []), 0
+    floor = pd.to_datetime(min(cuts.values()), utc=True)
+    keep = []
+    for g in gaps:
+        if not isinstance(g, dict):
+            continue
+        end = pd.to_datetime(g.get("to"), utc=True, errors="coerce")
+        if pd.isna(end) or end >= floor:
+            keep.append(g)
+    return keep, len(gaps) - len(keep)
 
 
 def stats_sidecar(df, journal, name: str, enc: str | None = None,
@@ -842,8 +1021,10 @@ def stats_sidecar(df, journal, name: str, enc: str | None = None,
             q = (vals + scale // 2) // scale
             vals = np.where((q == 0) & (vals > 0), 1, q)
         vals = vals.astype("<u2")
-        hdr = {"window": {"resets": resets, "cut": _window_cuts(df, resets)},
-               "stats_all": list(SIDECAR_STATS)}
+        hdr = {"stats_all": list(SIDECAR_STATS)}
+        win_hdr = _retention_header(df, resets)
+        if win_hdr:
+            hdr["window"] = win_hdr
         sparse = _sidecar_json(names, "sparse", n, vals.T, idx,
                                scale=scale, layout="col", idxdelta=True, extra=hdr)
         if enc == "sparse":
@@ -859,17 +1040,17 @@ def stats_sidecar(df, journal, name: str, enc: str | None = None,
 
     W = SIDECAR_WINDOW_RESETS
     core = SIDECAR_STATS[:SIDECAR_CORE]
-    # (stat names, quantisation step, coverage window in resets)
-    ladder = [(SIDECAR_STATS, 1, 0), (core, 1, 0)]
-    if W:
-        ladder.append((core, 1, W))
-    ladder += [(core, 8, W), (core, 16, W)]
+    # (stat names, quantisation step, coverage window in resets). Every rung
+    # covers the same window -- the retention window -- so the ladder now
+    # degrades by stats first and quantisation second, never by shortening
+    # the window (that rung could only ever have disagreed with retention).
+    ladder = [(SIDECAR_STATS, 1, W), (core, 1, W), (core, 8, W), (core, 16, W)]
 
     def rung_label(r) -> str:
         names, scale, resets = r
         return (f"{len(names)} stats"
                 + ("" if scale == 1 else f" /{scale}")
-                + (" whole season" if not resets else f" {resets}-reset window"))
+                + (f" over the newest {resets} resets" if resets else " over every retained row"))
 
     def gz(d: str) -> int:
         return len(gzip.compress(d.encode(), 9))
@@ -1202,8 +1383,8 @@ def spec_meta_block(df, started, timed, name: str, journal=None):
               f"characters; specmeta block omitted")
         return None
 
-    cohort = (f"timed +{SPECSTATS_MIN_KEY}s and higher from the last "
-              f"{SPECSTATS_WINDOW_DAYS} days of data; one record per "
+    cohort = (f"timed +{SPECSTATS_MIN_KEY}s and higher from the newest "
+              f"{RETENTION_RESETS} weekly resets the site keeps; one record per "
               f"character (their latest parse); builds/gear known for "
               f"{n_hit:,} of {n_cohort:,} parses ({n_hit / n_cohort:.0%}); "
               f"the top band is the top quartile of each spec's characters "
@@ -1291,14 +1472,13 @@ _DEBUG_TALLIES = None
 # bounds the document, so it grows with weekly volume, not with the season.
 BUILDS_GZ_TARGET = 11_500_000
 BUILDS_GZ_CAP = 13_000_000
-# Rows older than this many weekly resets are not covered by the sidecar. The
-# character screen answers "what are people wearing NOW"; a parse from three
-# resets ago is not that, and covering the whole season is what pushes the
-# document down the ladder. Today the season is younger than the window, so
-# this excludes nothing -- it starts biting on 2026-09-08 and from then on
-# holds the document at roughly three resets' worth instead of a season's.
-# 0 disables it. Undated rows (no start time) stay covered.
-BUILDS_WINDOW_RESETS = 3
+# The sidecar's coverage window IS the retention window, bound to the constant
+# so it can never drift above it again (2026-09-14: a "3 resets" header shipped
+# over a 2-reset frame and the Character screen claimed coverage the page did
+# not have). apply_retention() is the one place rows are dropped; on the
+# retained frame this mask is all True and exists so a standalone document
+# (tests) still states a true window. Undated rows stay covered.
+BUILDS_WINDOW_RESETS = RETENTION_RESETS
 
 NAMES_ITEMS = ROOT / "data" / "names_items.json"
 NAMES_ENCHANTS = ROOT / "data" / "names_enchants.json"
@@ -1759,31 +1939,12 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     # The wearer identity rides along for §1.8: iup is a share of DISTINCT
     # wearers, and a 40-key grinder must not vote forty times. Transient
     # only -- two references per covered row, nothing on the wire.
-    win = None
+    # ONE window rule for the whole build (see apply_retention): the same
+    # per-run, data-anchored, floored, undated-keeping mask, so this sidecar
+    # can never cover a row the payload dropped or drop one it kept.
     win_dropped = 0
-    if BUILDS_WINDOW_RESETS:
-        _st = pd.to_datetime(pd.to_numeric(df["started_at"], errors="coerce"),
-                             unit="ms", errors="coerce").dt.tz_localize("UTC")
-        # ANCHORED TO THE DATA, not to the wall clock. If collection stalls
-        # for a fortnight a now-anchored window would slide past every row it
-        # has and cover nothing, emptying the character screen entirely -- the
-        # same silent class of failure as the outages this week. The anchor is
-        # the newest row that is not in the future (uploader clocks run ahead;
-        # a +3 h row is normal, and one wrong clock must not drag the window),
-        # and never later than now.
-        _now = pd.Timestamp.now("UTC")
-        _plaus = _st[_st <= _now]
-        _anchor = min(_plaus.max(), _now) if len(_plaus) else _now
-        _inst = reset_instants(_anchor,
-                               sorted(df["region"].astype(str).unique()))
-        _back = pd.Timedelta(days=7 * (BUILDS_WINDOW_RESETS - 1))
-        _cut = df["region"].astype(str).map({r: t - _back for r, t in _inst.items()})
-        # a row with no start time, or a region with no rule, stays covered:
-        # never drop data because a field is missing
-        win = (_st >= _cut).fillna(True).to_numpy()
-        win_cuts = {r: (t - _back).strftime("%Y-%m-%dT%H:%M:%SZ") for r, t in _inst.items()}
-    else:
-        win_cuts = None
+    win = _sidecar_window(df, BUILDS_WINDOW_RESETS)
+    win_hdr = _retention_header(df, BUILDS_WINDOW_RESETS)
     rows_c = []
     gear_known = 0
     ench_hits: Counter = Counter()
@@ -2139,7 +2300,7 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                          # (fleet findings S1/S3/S5, 2026-09-08)
                          "caps": {"items": item_cap, "big": item_cap_big,
                                   "builds": build_cap, "en": bool(with_en)},
-                         "window": {"resets": BUILDS_WINDOW_RESETS, "cut": win_cuts}}
+                         "window": win_hdr}
             if enc == "sparse":
                 obj["idx"] = b64(idx_a)
             cols: dict = {"fl": b64(fl_c), "it": [b64(a) for a in it_c]}
@@ -2165,8 +2326,9 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
           f"({len(rows_c) / n:.0%}), {len(tallies)} specs, "
           f"eslots {eslots}, iup {'on' if iup_ok else 'OFF'}"
           + (f", window {BUILDS_WINDOW_RESETS} resets excluded "
-             f"{win_dropped:,} older rows" if win_dropped else
-             (f", window {BUILDS_WINDOW_RESETS} resets (excludes nothing yet)"
+             f"{win_dropped:,} rows" if win_dropped else
+             (f", window {BUILDS_WINDOW_RESETS} resets = the retention window "
+              f"(excludes nothing by construction)"
               if BUILDS_WINDOW_RESETS else "")))
     if iup_ok:
         health(f"[{name}] [iup] gate: 0 (spec,slot,id,emb) collisions over "
@@ -3107,11 +3269,24 @@ def build(name: str, cfg: dict) -> None:
     future_n = int((started > now_utc.tz_localize(None)).sum())
     health(f"built={now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')}")
     health(f"rows={len(df)}")
-    health(f"retention.resets={RETENTION_INFO['resets']}")
-    health(f"retention.rows_dropped={RETENTION_INFO['dropped']}")
-    health(f"retention.runs_dropped={RETENTION_INFO['runs_dropped']}")
-    health(f"retention.undated_kept={RETENTION_INFO['undated']}")
-    health(f"retention.oldest_kept={RETENTION_INFO['oldest_kept'] or 'none'}")
+    ri = RETENTION_INFO
+    health(f"retention.resets={ri['resets']}")
+    health(f"retention.max_age_days={ri['max_age_days']}")
+    health(f"retention.anchor={ri['anchor'] or 'none'}")
+    health(f"retention.lag_h={ri['lag_h'] if ri['lag_h'] is not None else 'none'}")
+    health(f"retention.stale={int(bool(ri['stale']))}")
+    health(f"retention.floored_regions={ri['floored']}")
+    health(f"retention.cut={'|'.join(f'{r}={t}' for r, t in (ri['cut'] or {}).items()) or 'none'}")
+    health(f"retention.days_kept={'|'.join(f'{r}={d}' for r, d in (ri['days_kept'] or {}).items()) or 'none'}")
+    health(f"retention.rows_in={ri['rows_in']}")
+    health(f"retention.rows_dropped={ri['dropped']}")
+    health(f"retention.runs_in={ri['runs_in']}")
+    health(f"retention.runs_dropped={ri['runs_dropped']}")
+    health(f"retention.undated_kept={ri['undated']}")
+    health(f"retention.runs_region_mixed={ri['runs_region_mixed']}")
+    health(f"retention.oldest_kept={ri['oldest_kept'] or 'none'}")
+    health(f"retention.oldest_seen={ri['oldest_seen'] or 'none'}")
+    health(f"retention.window_before_data={int(bool(ri['window_before_data']))}")
     health(f"runs_collected={SAMPLE_INFO['collected']}")
     health(f"runs_published={SAMPLE_INFO['published']}")
     health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")
@@ -3188,6 +3363,11 @@ def build(name: str, cfg: dict) -> None:
     rio = player_scores()
     charscore = [int(round(rio.get(k, -1))) if rio.get(k) is not None else -1
                  for k in char_keys]
+    # the outage annotations the page may still be under-counted by
+    gaps_pub, gaps_sup = _gaps_in_window(
+        _load_json(ROOT / "data" / "collection_gaps.json", []))
+    health(f"retention.gaps_published={len(gaps_pub)}")
+    health(f"retention.gaps_suppressed={gaps_sup}")
     rated = sum(1 for v in charscore if v >= 0)
     if charscore:
         print(f"[{name}] player rating: {rated:,} of {len(charscore):,} "
@@ -3197,6 +3377,9 @@ def build(name: str, cfg: dict) -> None:
     timed = df["medal"].map(MEDAL_TIMED).fillna(-1).astype(int)
     patch = latest_tuning()
     post = post_tuning_flag(started, df["region"], patch)
+    if patch:
+        health(f"tuning.post_runs={int((post == 1).sum())}")
+        health(f"tuning.pre_runs={int((post == 0).sum())}")
     # per-parse projected-tuning multiplier. This is a property of the parse
     # itself — derived from that player's own ability breakdown — so the client
     # can apply it row by row and every aggregate stays exact under any filter.
@@ -3224,13 +3407,19 @@ def build(name: str, cfg: dict) -> None:
         # known collection outages, committed by hand when one is diagnosed
         # (data/collection_gaps.json: [{from, to, note}]); the page shades any
         # period that overlaps one (fleet finding F2, 2026-09-08)
-        "gaps": _load_json(ROOT / "data" / "collection_gaps.json", []),
+        "gaps": gaps_pub,
+        "gaps_suppressed": gaps_sup,
         "season": cfg["season"],
         "epoch": str(EPOCH.date()),
         "tuning": ({"label": patch.get("label"), "date": patch.get("date"),
                     "regions": patch.get("regions"),
                     "note": patch.get("note", ""),
-                    "runs": int((post == 1).sum())} if patch else None),
+                    "runs": int((post == 1).sum()),
+                    # rows BEFORE the patch inside the window: the control
+                    # group the "since tuning" split compares against. Under
+                    # retention it goes to 0 about two weeks after a patch,
+                    # and the page must say so rather than compare to nothing
+                    "pre_runs": int((post == 0).sum())} if patch else None),
         "classes": classes, "specs": specs, "heroes": heroes,
         "dungeons": dungeons, "regions": regions, "roles": roles,
         "pars": derive_pars(df, dungeons),   # keystone timer per dungeon, seconds

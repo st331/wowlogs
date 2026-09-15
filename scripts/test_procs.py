@@ -369,7 +369,10 @@ assert "more listed '+lc" in html and "const E=new Set(M.ent.map(x=>x.k))" in ht
 assert "showing the top \"+COMPS_MAX+\" on this sort" in html and "Showing \"+shown+\" of \"+ofN+\" groups that pass the gate" in html, "comps + trajectory caps state N of M"
 assert "ratings rounded to steps of" in html and "not published in this build (size ladder)" in html, "stats scale / withheld labels"
 _b = (ROOT / "scripts" / "build_site_data.py").read_text()
-assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)' in _b and "def _window_cuts" in _b, "sidecar headers carry caps/window/stats_all"
+assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)' in _b and _b.count("_retention_header(df, ") >= 2, "sidecar headers carry caps/window/stats_all, the window from retention"
+# 2026-09-14 retention: the build drops rows; the payload ships what it dropped and where it cut,
+# every sidecar window is BOUND to the retention constant, and the sentence leads with the policy
+assert '"retention": dict(RETENTION_INFO)' in _b and "SIDECAR_WINDOW_RESETS = RETENTION_RESETS" in _b and "BUILDS_WINDOW_RESETS = RETENTION_RESETS" in _b, "retention facts ship; sidecar windows bind to retention"
 assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'persist_sweep_stats({"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build -> page"
 print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner; coverage note")
 

@@ -138,7 +138,7 @@ add("RX1", 1, "LowKey", "Illidan", "Rogue", "Assassination",
 add("RX2", 1, "Depleted", "Illidan", "Rogue", "Assassination",
     medal="none", stats=st(crit=999_999))                # over the timer
 add("RX3", 1, "Ancient", "Illidan", "Rogue", "Assassination",
-    start_ms=BASE_MS - 20 * DAY_MS, stats=st(crit=999_999))   # outside window
+    start_ms=BASE_MS - 20 * DAY_MS, stats=st(crit=999_999))   # outside the 15-day rail
 torn = st(crit=999_999)
 del torn["Mastery"]
 add("RX4", 1, "Torn", "Illidan", "Rogue", "Assassination",
@@ -223,13 +223,15 @@ assert w["n"] == 11 and "flasks" not in w, w
 print("no flasks : flask-carrying and flask-less records aggregate the "
       "same; no flasks sub-blocks ship (feature removed)")
 
-for needle in ("+12", "14 days", "ratings", "not percentages"):
+for needle in ("+12", "newest 2 weekly resets", "ratings", "not percentages"):
     assert needle in block["cohort"], (needle, block["cohort"])
 # the consumables wording stays -- it is true of the ratings regardless --
 # but the removed feature's coverage clause must never reappear
 assert "flask, food" in block["cohort"], block["cohort"]
 assert "flask known" not in block["cohort"], block["cohort"]
-assert block["keyMin"] == 12 and block["windowDays"] == 14
+# windowDays is the RAIL (7*RETENTION_RESETS+1): one day wider than two resets
+# can reach, so it never trims a retained row and still excludes the -20d poison
+assert block["keyMin"] == 12 and block["windowDays"] == 7 * bsd.RETENTION_RESETS + 1 == 15
 print(f"cohort    : {block['cohort']!r}")
 
 # --- llms flatten of the same block
@@ -391,7 +393,7 @@ assert [(pl["vals"][e["v"]], e["n"], e["dps"]) for e in pb["all"]["e"]] == \
 print("meta bands  : thin top quartile omitted; observability shrinks the "
       "share denominator, not the spec")
 
-for needle in ("+12", "14 days", "top quartile", "latest parse"):
+for needle in ("+12", "newest 2 weekly resets", "top quartile", "latest parse"):
     assert needle in mb["cohort"], (needle, mb["cohort"])
 print(f"meta cohort : {mb['cohort']!r}")
 
