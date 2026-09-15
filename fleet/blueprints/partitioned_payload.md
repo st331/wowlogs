@@ -1,5 +1,23 @@
 # BLUEPRINT — Partitioned data path · build-ready · 2026-09-02 · revision 2
 
+> **SUPERSEDED IN PART, 2026-09-14 — owner retention policy (user_prefs #36).** The owner
+> limited all retained data to two weeks. The dashboard holds the newest TWO weekly resets
+> per region (`RETENTION_RESETS = 2`, scripts/retention.py; live since 821a9e6) under a
+> 15-day ceiling, with a 16-day disk window measured from the newest row. §3's serving split
+> ("rows for buckets 0–2, cubes for buckets ≥ 3") can no longer arise: no week is ever
+> cube-served, and cubes are not merely unreachable but PROHIBITED — they are a feature for
+> reading data older than the window. Moot in whole or part: all of §3 (cube files, the
+> absolute reset week, the serving rule, the cube-gap invariant, §3.4's tolerances), the
+> "last three resets" scope lines, §6.7's close-out cubing, §8.5's "All season" residency
+> sums and the perf budget that cites them, §11.1's cube rows. Still alive, as optional
+> performance work on a now-bounded dataset: §2 (WLP1 typed columns), per-spec day shards,
+> the incremental build (the builder still reads the whole windowed seed before it windows).
+> §7.4's checkpoint discipline is what the pruner and the trait union rely on and stands.
+> Decision 6 (Release-asset journal snapshots) is now an OWNER QUESTION, not a footnote:
+> with the journals pruned to 16 days, a Release asset would be the only record of anything
+> older — and the owner has said older data is useless. Nothing here is being built until
+> the owner asks.
+
 Owner prefs (`fleet/user_prefs.md`) override everything here. Two implementers work from
 this file alone and never at the same time on the same file: PIPELINE (`scripts/*`,
 `.github/workflows/*`, `data/season*.json`) ships first; CLIENT (`site/next/index.html`,

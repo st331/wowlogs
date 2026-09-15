@@ -64,6 +64,15 @@ per point:
 
 ## Scope and caveats
 
+**Retention (owner policy, 2026-09-14): the site holds the newest two weekly resets per
+region and nothing older than 15 days; disk keeps 16 days measured from the newest row.**
+The numbers live in `scripts/retention.py`; the page prints the span it actually holds on
+every build (`payload.retention`); the collector refuses older runs at discovery, the
+committed seed is windowed by `export()`, and `scripts/prune_journals.py` prunes the
+journals (dry run first, then at most every 20 h). Nothing older exists anywhere on the
+site; git history keeps the daily seeds up to 2026-09-14 only.
+
+
 * **Population:** every run WCL serves through fight rankings for zone 55
   (Midnight M+ Season 2), keystone brackets 1–29 = key levels 2–30
   (bracket = key − 1). WCL caps each dungeon × bracket leaderboard at 20
@@ -137,3 +146,19 @@ One row per player per run.
 | `item_level` | player max item level during the run |
 | `score`, `medal` | WCL points/medal for the run |
 | `report_code`, `fight_id`, `started_at` | provenance of the parse |
+
+## Tests
+
+Every suite is a standalone script and prints `PASS`; no workflow runs them, so run them
+before a push:
+
+```bash
+for t in scripts/test_*.py; do python3 "$t" >/dev/null && echo "ok   $t" || echo "FAIL $t"; done
+```
+
+`test_retention.py` (the page's window), `test_retention_fetch.py` (the collector's),
+`test_prune_journals.py` (the pruner), `test_procs.py` (the page's static contract),
+`test_builds_sidecar.py`, `test_stats_sidecar_roundtrip.py`, `test_spec_stats.py`,
+`test_trait_union.py`, `test_legacy_single_pass.py`, `test_names_scan.py`,
+`test_gear_parse.py`, `test_export_stream.py`, `test_quota_ceiling.py`, `test_build_entry.py`.
+

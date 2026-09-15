@@ -351,10 +351,17 @@ readable without the Actions log API (which returns only tails).
 - **`export()` player rows will hit the same OOM wall** as `export_gear()` did; it holds
   the list of dicts and the DataFrame together (now released early, but the DataFrame
   alone is large). Stream it before the season's row count doubles.
-- **Season-long growth.** ~65k player rows/day baseline; the payload, the builder's
-  full-CSV pandas load and the sidecar ladder all assume the whole season fits. It will
-  not by mid-season. A retention window (the UI already has "Last 2 months") or a
-  partitioned payload is needed before then.
+- **Season-long growth — CLOSED 2026-09-15 by the two-week retention policy (user_prefs
+  #36, checklist §Y).** It did not wait for mid-season: at 1.64M rows the build was killed
+  ten runs in a row on 2026-09-13/14 and the site sat 21 h stale. The window, not the
+  payload format, is the answer: the page holds the newest two resets (`apply_retention`,
+  8.2 MB gz vs 16.3 MB; build 340-400 s vs 1023 s), the collector refuses runs older than
+  16 days at discovery, the committed seed and the journals are pruned to the same window
+  (`scripts/prune_journals.py`). The partitioned-payload blueprint is superseded in part
+  (see its header). RESIDUE, still open: the builder still loads the WHOLE CSV before it
+  windows (`pd.read_csv` then `apply_retention`) — bounded now by the windowed seed, but the
+  peak is the seed's size, not the window's; and the first live prune's counters are not
+  yet on record (checklist 203).
 - **Off-leaderboard loss from the outage.** Runs from Aug 27–31 that dropped off their
   (dungeon, key) leaderboard before the fix cannot be re-swept; Aug 28 is the worst day.
   Recovering them would need a resurrect-by-report-code stage (the FAILED keys are known).

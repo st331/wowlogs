@@ -564,3 +564,53 @@
     under any limit); the journal cache retains ~5 h of history instead of ~7 (guard
     unchanged). Stability watch: run duration, `sweep.depth`, quota stops in the collector
     logs, deploys landing. If stable it stays -- the owner asked for that explicitly.
+
+36. **DATA RETENTION — two weeks, and the page cannot look past them (owner, 2026-09-14).**
+    Owner, verbatim: "don't keep data for longer than 2 weeks. only data in the last two
+    weeks is ever relevant, beyond that is useless. remove any features that allow looking
+    at data older than 2 weeks. Just to give it a grace period and mitigate boundary
+    conditions, it is fine to keep a day or two extra of data."
+    (Not the Trajectory "Retention" normalisation of #17 — that is a chart axis. This
+    entry is about deleting data.)
+
+    MY READING, not the owner's words — if it is wrong, this paragraph is what to change;
+    the quote stands either way. "Two weeks" on the PAGE is the newest TWO WEEKLY RESETS
+    per region (`RETENTION_RESETS = 2`, scripts/retention.py; applied once, in
+    `build_site_data.apply_retention`), because a reset is the unit the page buckets by and
+    a flat day-count would slice a reset in half and leave a ragged third chip. That is 7.00
+    to just under 14.00 days of wall clock per region depending where the region sits in its
+    own week, and the page PRINTS the span it actually holds (US 13.6 d / EU 13.1 d on
+    2026-09-15) rather than the round number. A hard ceiling of 15 days from the wall clock
+    (`RETENTION_MAX_AGE_DAYS`, 14 + one day of grace) sits on top, because the reset cut is
+    anchored to the DATA (so an outage cannot blank the page) and a long stall would drag it
+    backwards. "A day or two extra" lives on DISK: the journals, the committed seed, the
+    keystone map and the Raider.IO journal keep 16 days (`RETENTION_DISK_DAYS`) measured
+    back from the NEWEST ROW ON DISK, never from the clock — strictly wider than anything
+    the page can want, in a stall too. The alternative reading — a flat 14 days regardless
+    of reset — is defensible; it would always show a partial third bucket and was not taken.
+
+    Rules that fall out, all pinned by tests:
+    - ONE dating rule everywhere: only a run DATED before the cut is ever refused, dropped
+      or set aside. Undated and implausibly dated rows are KEPT and counted apart — a
+      missing field must never be able to delete data (a parser bug must not become loss).
+    - The cut is decided per RUN (modal known region, ties toward keeping), never per row:
+      a roster is never split across the boundary.
+    - Nothing is silent (#33): the page renders `payload.retention` on every build — the
+      policy, the span held per region as of the anchor, the lag, a STALE flag when the
+      newest run held is older than the ceiling, this build's set-aside counts, undated
+      parses, the two measurements NOT limited to the window (player rating is a Raider.IO
+      season total; talent trees are the whole retained gear journal), and any outage notes
+      older than the window. Every window in the builder binds to the same constant.
+    - Removed under it: the All season / Last month / Prev month / Last 2 months presets,
+      the Custom weeks chips, the "Last vs prev month" quick compare, the Pulse season
+      sparkline, every "whole season" caption. "Everything kept" (the no-filter chip) stays
+      because it is the only selection that reaches undated parses.
+    - Disk deletion is one-way. gear.jsonl has no copy outside the Actions cache; the
+      committed seed and keystone map keep only the window from 2026-09-15 on; git history
+      holds the daily seeds from 2026-08-18 to 2026-09-14 (player rows only). No history
+      rewrite — sunk cost, and the owner said older data is useless.
+    - The pruner (scripts/prune_journals.py) deletes only on proof of age, refuses when
+      the arithmetic looks like a parser regression (> 85% would leave), when players.jsonl
+      is missing, or when the anchor is > 30 days behind the clock; its first invocation is
+      a dry run; the watchdog alerts on a row floor, a reset count other than 2, or STALE.
+
