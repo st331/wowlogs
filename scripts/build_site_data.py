@@ -87,8 +87,7 @@ TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 # ever relevant, beyond that is useless. remove any features that allow
 # looking at data older than 2 weeks. Just to give it a grace period and
 # mitigate boundary conditions, it is fine to keep a day or two extra of data."
-RETENTION_RESETS = 2           # the page shows the newest two weekly resets, per region
-RETENTION_MAX_AGE_DAYS = 15    # and never a row older than this: 14 + one day of grace
+from retention import RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS  # noqa: E402
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -3368,6 +3367,22 @@ def build(name: str, cfg: dict) -> None:
         _load_json(ROOT / "data" / "collection_gaps.json", []))
     health(f"retention.gaps_published={len(gaps_pub)}")
     health(f"retention.gaps_suppressed={gaps_sup}")
+    # what DISK holds: the pruner's last decision (scripts/prune_journals.py
+    # writes data/processed/prune_state.json), shipped beside the page's own
+    # window so the reader can see both halves of the policy
+    disk = _load_json(ROOT / "data" / "processed" / "prune_state.json", None)
+    if isinstance(disk, dict):
+        RETENTION_INFO["disk"] = {k: disk.get(k) for k in
+                                  ("days", "mode", "at", "anchor", "cut", "counts", "refused")}
+        health(f"retention.disk.days={disk.get('days')}")
+        health(f"retention.disk.mode={disk.get('mode')}")
+        health(f"retention.disk.at={disk.get('at')}")
+        health(f"retention.disk.cut={disk.get('cut')}")
+        for k, v in (disk.get("counts") or {}).items():
+            health(f"retention.disk.{k}={v}")
+    else:
+        RETENTION_INFO["disk"] = None
+        health("retention.disk.mode=never_run")
     rated = sum(1 for v in charscore if v >= 0)
     if charscore:
         print(f"[{name}] player rating: {rated:,} of {len(charscore):,} "

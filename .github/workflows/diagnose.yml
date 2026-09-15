@@ -4,6 +4,13 @@ name: Diagnose (read-only journal scan)
 # the Actions cache. Restores that cache READ-ONLY (never saves it back),
 # runs the named script, and prints its report to the job log. Its own
 # concurrency group, so it can never queue behind or cancel a refresh run.
+#
+# RETENTION (2026-09-14): the journals restored here hold ONLY the retention
+# window (16 days from the newest row; scripts/prune_journals.py, state in
+# data/processed/prune_state.json and retention.txt). A diagnostic asking a
+# whole-SEASON question gets a windowed answer and says nothing about it;
+# data/mythic_runs.csv.gz in the checkout is windowed too. Read the span the
+# run prints before concluding anything about coverage.
 
 on:
   workflow_dispatch:
@@ -30,6 +37,12 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install requests pandas numpy
+      # These paths must stay byte-identical to refresh.yml's restore and save
+      # steps: actions/cache derives a cache VERSION from the path list and only
+      # matches entries of the same version, so editing this list does not
+      # orphan production caches (this workflow never saves) -- it silently
+      # stops matching them, the restore comes back EMPTY, and the diagnostic
+      # below prints a zero that reads like a finding. Never add a save step.
       - name: Restore collection journals (read-only)
         uses: actions/cache/restore@v4
         with:
@@ -47,4 +60,5 @@ jobs:
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
         run: |
           ls -la data/processed/gear.jsonl 2>/dev/null || echo "no gear journal restored"
+          [ -f data/processed/retention.txt ] && sed 's/^/retention: /' data/processed/retention.txt || echo "retention: no prune state restored (the journals may still hold the whole season)"
           python -u "scripts/${{ inputs.script }}.py"

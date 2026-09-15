@@ -48,6 +48,8 @@ env:
   ALERT_SUCCESS_MIN: 180     # ... for this long -> also open the issue
   STALE_DATA_MIN: 360        # newest collected run older than this -> issue
   STUCK_QUEUE_MIN: 45        # queued/pending this long with NOTHING running -> cancel it
+  MIN_ROWS: 200000           # published rows below this -> issue (retention steady state ~800k)
+  EXPECT_RESETS: 2           # policy: the build ships the newest two resets (scripts/retention.py)
   BRANCH: claude/wow-mythic-dashboard-jv235l
   SITE_HEALTH: https://st331.github.io/wowlogs/build_health.txt
 
@@ -117,6 +119,9 @@ jobs:
           BUILT=$(echo "$HEALTH" | sed -n 's/^\[season\] built=//p;s/^built=//p' | head -1)
           NEWEST=$(echo "$HEALTH" | sed -n 's/^\[season\] newest_row=//p;s/^newest_row=//p' | head -1)
           ROWS=$(echo "$HEALTH" | sed -n 's/^\[season\] rows=//p;s/^rows=//p' | head -1)
+          RESETS=$(echo "$HEALTH" | sed -n 's/^retention.resets=//p' | head -1)
+          STALE_WIN=$(echo "$HEALTH" | sed -n 's/^retention.stale=//p' | head -1)
+          case "$ROWS" in ''|*[!0-9]*) ROWS_N=-1 ;; *) ROWS_N="$ROWS" ;; esac
           if [ -n "$NEWEST" ] && [ "$NEWEST" != "none" ]; then
             DATA_AGE=$(( (NOW - $(date -u -d "$NEWEST" +%s)) / 60 ))
           else
@@ -134,6 +139,7 @@ jobs:
             echo "stuck_id=$STUCK_ID"; echo "stuck_age=$STUCK_AGE"
             echo "last_conclusion=$LAST_CONCLUSION"; echo "data_age=$DATA_AGE"
             echo "built=${BUILT:-unknown}"; echo "newest=${NEWEST:-unknown}"; echo "rows=${ROWS:-?}"
+            echo "rows_n=$ROWS_N"; echo "resets=${RESETS:-}"; echo "stale_win=${STALE_WIN:-}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Free the concurrency group from a run that never got a runner
@@ -184,6 +190,9 @@ jobs:
           BUILT: ${{ steps.probe.outputs.built }}
           NEWEST: ${{ steps.probe.outputs.newest }}
           ROWS: ${{ steps.probe.outputs.rows }}
+          ROWS_N: ${{ steps.probe.outputs.rows_n }}
+          RESETS: ${{ steps.probe.outputs.resets }}
+          STALE_WIN: ${{ steps.probe.outputs.stale_win }}
           LAST_CONCLUSION: ${{ steps.probe.outputs.last_conclusion }}
         run: |
           set -u
@@ -195,6 +204,11 @@ jobs:
           [ "$STREAK" -ge 2 ] && REASONS="${REASONS}${NL}- **${STREAK} consecutive failed runs** -- a deterministic fault, not a blip; the dead-man cron cannot fix this"
           [ -n "$STUCK_ID" ] && REASONS="${REASONS}${NL}- run [#${STUCK_ID}](https://github.com/${REPO}/actions/runs/${STUCK_ID}) sat **${STUCK_AGE} min** waiting for a runner with nothing running, holding the \`wowlogs-refresh\` concurrency group so every later run queued behind it and was cancelled; this watchdog has cancelled it"
           [ "$DATA_AGE" -gt "$STALE_DATA_MIN" ] && REASONS="${REASONS}${NL}- site keeps building (built ${BUILT}, ${ROWS} rows) but the **newest collected run is ${DATA_AGE} min old** -- collection is dead while runs are green"
+          # retention guard rails (2026-09-14): far too few published rows, a window other than
+          # the policy's, or a page flagged STALE (newest run held older than the ceiling)
+          [ "${ROWS_N:--1}" -ge 0 ] 2>/dev/null && [ "${ROWS_N:-0}" -lt "$MIN_ROWS" ] 2>/dev/null && REASONS="${REASONS}${NL}- the build published **${ROWS_N} rows** (floor ${MIN_ROWS}) -- the journals or the CSV have been emptied; check the prune (data/processed/prune_state.json) before the daily seed overwrites \`data/mythic_runs.csv.gz\`"
+          [ -n "${RESETS:-}" ] && [ "$RESETS" != "$EXPECT_RESETS" ] && REASONS="${REASONS}${NL}- the build ships **${RESETS} resets**, policy is ${EXPECT_RESETS} (scripts/retention.py)"
+          [ "${STALE_WIN:-0}" = "1" ] && REASONS="${REASONS}${NL}- the page is **STALE**: the newest run held is older than the retention ceiling; it shows the newest two resets on file and says so"
 
           OPEN=$(api "https://api.github.com/repos/$REPO/issues?state=open&labels=watchdog&per_page=5" | jq -r '[.[] | select(.title=="'"$TITLE"'")] | first | .number // empty')
 

@@ -1,10 +1,18 @@
 # credentials — never commit
 .secrets/
 
-# bulky pipeline checkpoints (re-created by scripts/fetch_data.py; compressed
-# snapshots live in data/checkpoints/ which IS committed for resumability)
+# The collection journals. They exist ONLY in the GitHub Actions cache
+# (refresh.yml restores and saves data/raw + data/processed every run); nothing
+# outside it holds gear.jsonl, procs.jsonl or discovered.jsonl, and they are NOT
+# re-creatable -- that is the premise of scripts/journal_guard.sh. The only
+# off-cache copies are data/mythic_runs.csv.gz (player rows, windowed) and
+# data/checkpoints/summaries_done.txt.gz (the full done-set), both committed
+# daily. Since 2026-09-14 the journals hold the retention window only
+# (scripts/prune_journals.py).
 data/raw/
 data/processed/
+data/checkpoints/*
+!data/checkpoints/summaries_done.txt.gz
 logs/
 
 __pycache__/
@@ -20,6 +28,15 @@ package-lock.json
 package.json
 data/.build_stamp
 data/*.jsonl.gz.tmp
+
+# main payload: rebuilt from the journals every run. The committed copy was
+# frozen at 2026-08-24, outside the retention window by construction, so a
+# checkout must never be able to carry one (untracked 2026-09-15). Both
+# spellings: under 8 MB raw the builder writes data.json and unlinks the .gz.
+site/data.json.gz
+docs/data.json.gz
+site/data.json
+docs/data.json
 
 # per-parse stats sidecar: rebuilt from the gear journal every run, never committed
 site/stats.json.gz

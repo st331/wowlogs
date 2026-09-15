@@ -63,6 +63,18 @@ FRESH_DAYS = 7
 # would spend the whole budget on known misses, so they are parked much longer.
 MISS_DAYS = 30
 
+# Retention (owner, 2026-09-14). population() already confines FETCHING to
+# the windowed export; what did not stop was the JOURNAL -- save_journal()
+# wrote every key load_journal() read, so a rating outlived its character's
+# last run forever and rode the daily commit into git history. On save a key
+# is dropped when it is BOTH absent from the export's population AND last
+# fetched more than RIO_GRACE_DAYS ago. Membership is the correctness term;
+# age is the grace that makes it safe (a character whose last run aged out
+# this morning keeps its rating a while, and a short CSV cannot empty the
+# journal). Refused outright when the population is implausibly small next
+# to the journal -- a truncated export must not read as "everyone left".
+RIO_GRACE_DAYS = 16
+RIO_MIN_POP_SHARE = 0.5
 MISS = -1            # journalled score meaning "asked, no answer"
 DAY = 86400
 THREADS = 8
@@ -135,8 +147,26 @@ def load_journal() -> dict[tuple[str, str, str], tuple[float, int]]:
     return out
 
 
-def save_journal(j: dict[tuple[str, str, str], tuple[float, int]]) -> None:
-    """Atomic rewrite -- a half-written journal costs the whole sweep."""
+def retire(j: dict, pop_keys: set, now_day: int) -> tuple[dict, int, str]:
+    """(journal, dropped, note): forget characters outside the window."""
+    if not pop_keys or len(pop_keys) < RIO_MIN_POP_SHARE * len(j):
+        return j, 0, (f"retire refused: population {len(pop_keys):,} vs journal "
+                      f"{len(j):,} (< {RIO_MIN_POP_SHARE:.0%}) -- a short export must not empty the journal")
+    kept = {k: v for k, v in j.items()
+            if k in pop_keys or now_day - v[1] <= RIO_GRACE_DAYS}
+    return kept, len(j) - len(kept), ""
+
+
+def save_journal(j: dict[tuple[str, str, str], tuple[float, int]],
+                 pop_keys: set | None = None, now_day: int | None = None) -> None:
+    """Atomic rewrite -- a half-written journal costs the whole sweep.
+    With pop_keys, characters outside the window are retired first (retire)."""
+    if pop_keys is not None:
+        now_day = int(time.time() // DAY) if now_day is None else now_day
+        j, dropped, note = retire(j, pop_keys, now_day)
+        print(f"[rio] retention: {dropped:,} characters absent from the windowed export "
+              f"for over {RIO_GRACE_DAYS} days retired from the journal ({len(j):,} kept)"
+              + (f"; {note}" if note else ""), flush=True)
     RIO_FILE.parent.mkdir(parents=True, exist_ok=True)
     # ".csv.gz" + ".tmp", not with_suffix() -- that would replace .gz and give
     # "rio_scores.csv.tmp", which the .gitignore rule for *.csv.gz.tmp misses
@@ -272,7 +302,7 @@ def sweep(budget_s: float, limit: int | None) -> None:
                 print(f"[rio] {done:,} fetched ({ok:,} scored, {miss:,} miss) "
                       f"{done / (time.monotonic() - t0) * 60:.0f}/min", flush=True)
 
-    save_journal(journal)
+    save_journal(journal, pop_keys={k for k, _ in pop})
     el = time.monotonic() - t0
     left = max(0, len(queue) - done)
     print(f"[rio] {done:,} fetched in {el:.0f}s ({done / max(el, 1) * 60:.0f}/min) "

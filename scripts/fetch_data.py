@@ -42,12 +42,20 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wcl_client import WCLClient, QuotaDeadline
+from retention import (RETENTION_DISK_DAYS, DATED, UNDATED, IMPLAUSIBLE, date_class,
+                       disk_cut_ms, in_window, iso as _iso)
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 PROCESSED = ROOT / "data" / "processed"
 CHECKPOINTS = ROOT / "data" / "checkpoints"
 RANKINGS_FILE = RAW / "rankings.jsonl"
+# EXEMPT from the retention prune (scripts/prune_journals.py touches journals
+# BY NAME and never this one): a marker carries no date, its FAILED half cannot
+# be re-derived from the CSV, it is 0.2% of the cache, and it is the only thing
+# that stops an all-season leaderboard from re-buying a run the window already
+# refused. The fetch-side window below is what keeps old runs out of `pending`;
+# the markers are the belt to that brace.
 SUMMARIES_DONE = PROCESSED / "summaries_done.txt"
 PLAYERS_FILE = PROCESSED / "players.jsonl"
 # Full gear and talents live in their own journal rather than inline on the
@@ -203,7 +211,15 @@ def _repair_tail(path: pathlib.Path) -> None:
 
 
 def restore_checkpoints() -> None:
-    """Rehydrate journals from committed gzip snapshots (fresh clone case)."""
+    """Rehydrate journals from committed snapshots (fresh clone / evicted cache).
+
+    Live arms: data/checkpoints/summaries_done.txt.gz (the FULL done-set,
+    committed daily since 2026-09-15 -- it survives the retention prune and
+    the windowed CSV, so a cold start never re-buys a run it already fetched)
+    and seed_from_csv() (player rows from data/mythic_runs.csv.gz, itself
+    windowed to RETENTION_DISK_DAYS). The rankings/players checkpoint pairs
+    and data/gear.jsonl.gz are aspirational: nothing writes them today (the
+    gear export never fit under GitHub's file limit)."""
     pairs = [
         (CHECKPOINTS / "rankings.jsonl.gz", RANKINGS_FILE),
         (CHECKPOINTS / "summaries_done.txt.gz", SUMMARIES_DONE),
@@ -256,9 +272,16 @@ def seed_from_csv() -> None:
         with SUMMARIES_DONE.open("w") as fh:
             for c, f in zip(pairs["report_code"], pairs["fight_id"]):
                 fh.write(f"{c}:{f}\tOK\n")
-        print(f"[restore] {len(pairs)} fetched runs seeded from {CSV_FILE.name}",
-              flush=True)
-    print(f"[restore] {len(df)} player rows seeded from {CSV_FILE.name}",
+        print(f"[restore] {len(pairs)} fetched runs seeded from {CSV_FILE.name} "
+              f"(no data/checkpoints/summaries_done.txt.gz was restored; runs "
+              f"older than the seed's window are out of scope, not missing -- "
+              f"the fetch window refuses them regardless)", flush=True)
+    st = pd.to_numeric(df["started_at"], errors="coerce") if "started_at" in df.columns else None
+    span = ""
+    if st is not None and st.notna().any():
+        span = (f"; oldest row {_iso(float(st.min()))}, newest {_iso(float(st.max()))} "
+                f"(the seed holds the newest {RETENTION_DISK_DAYS} days of its journal)")
+    print(f"[restore] {len(df)} player rows seeded from {CSV_FILE.name}{span}",
           flush=True)
 
 
@@ -447,13 +470,46 @@ def load_fights(regions: set[str] | None) -> dict:
                 "score": r.get("score"), "medal": r.get("medal"),
                 "affixes": r.get("affixes") or [],
                 "region": region or (prev or {}).get("region", ""),
-                "start_time": r.get("startTime") or (prev or {}).get("start_time"),
+                # the raw value, not `or`-coerced: a literal 0 must read as
+                # IMPLAUSIBLE (kept, counted apart), never as "undated"
+                "start_time": (r.get("startTime") if r.get("startTime") is not None
+                               else (prev or {}).get("start_time")),
             }
     load_fights.anon_skipped = anon
     if regions:
         fights = {k: f for k, f in fights.items()
                   if not f["region"] or f["region"] in regions}
-    return fights
+    # RETENTION (owner, 2026-09-14): the leaderboards are all-season and
+    # score-sorted, so the top boards will list runs far older than the
+    # window forever. Refuse them HERE, where runs enter the collector, so
+    # nothing downstream (the ledger, pending, backlog_size, regear, released
+    # markers) can re-buy them. Flat RETENTION_DISK_DAYS back from the newest
+    # plausible listed start -- the data anchor, like the builder -- so a
+    # stalled collector refuses nothing it would still display. UNDATED and
+    # IMPLAUSIBLE entries are KEPT and counted apart: a missing startTime is a
+    # WCL schema fact, not proof of age (fetch_procs.py:243 is the precedent).
+    now_ms = time.time() * 1000
+    cut_ms, anchor_ms = disk_cut_ms((f.get("start_time") for f in fights.values()), now_ms)
+    kept, old, undated, implaus = {}, 0, 0, 0
+    for k, f in fights.items():
+        cls = date_class(f.get("start_time"), now_ms)
+        if cls == DATED and f["start_time"] < cut_ms:
+            old += 1
+            continue
+        if cls == UNDATED:
+            undated += 1
+        elif cls == IMPLAUSIBLE:
+            implaus += 1
+        kept[k] = f
+    load_fights.cut_ms, load_fights.anchor_ms = cut_ms, anchor_ms
+    load_fights.out_of_window, load_fights.undated, load_fights.implausible = old, undated, implaus
+    return kept
+
+
+load_fights.anon_skipped = 0
+load_fights.cut_ms = None
+load_fights.anchor_ms = None
+load_fights.out_of_window = load_fights.undated = load_fights.implausible = 0
 
 
 LEDGER_FILE = PROCESSED / "discovered.jsonl"
@@ -475,7 +531,17 @@ def merge_ledger(fights: dict, regions: set[str] | None = None) -> dict:
     for rec in _iter_journal(LEDGER_FILE):
         k = f"{rec.get('code')}:{rec.get('fid')}"
         known[k] = rec
-    new = [f for k, f in fights.items() if k not in known]
+    # `known` is the append-dedupe set over EVERY key ever listed and must
+    # never be date-filtered: filter it and every out-of-window run the
+    # boards still list reads as "new" and is re-appended, with a fresh
+    # first_seen, every ten minutes. The window applies to the WORK set below.
+    now_ms = time.time() * 1000
+    cut_ms = load_fights.cut_ms
+    if cut_ms is None:                       # a caller with a hand-built snapshot
+        cut_ms, _ = disk_cut_ms((f.get("start_time") for f in fights.values()), now_ms)
+    cut_s = cut_ms / 1000
+    new = [f for k, f in fights.items()
+           if k not in known and in_window(f.get("start_time"), cut_ms, now_ms)]
     if new:
         LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
         stamp = int(time.time())
@@ -483,12 +549,32 @@ def merge_ledger(fights: dict, regions: set[str] | None = None) -> dict:
             for f in new:
                 out.write(json.dumps({**f, "first_seen": stamp}) + "\n")
     out: dict = {}
+    dropped_old = undated_kept = 0
     for k, rec in known.items():
         if regions and rec.get("region") and rec["region"] not in regions:
             continue
+        if k not in fights:
+            # a ledger-only row: dated and older than the window -> not work.
+            # UNDATED rows are kept, but bounded by first_seen (epoch SECONDS,
+            # not ms): a run cannot have been played after it was first
+            # listed, so an old first_seen PROVES age where a missing start
+            # time cannot.
+            st = rec.get("start_time")
+            cls = date_class(st, now_ms)
+            fs = rec.get("first_seen")
+            if cls == DATED and st < cut_ms:
+                dropped_old += 1
+                continue
+            if cls != DATED and isinstance(fs, (int, float)) and 0 < fs < cut_s:
+                dropped_old += 1
+                continue
+            if cls != DATED:
+                undated_kept += 1
         out[k] = {kk: v for kk, v in rec.items() if kk != "first_seen"}
     out.update(fights)
     merge_ledger.added = len(new)
+    merge_ledger.dropped_old = dropped_old
+    merge_ledger.undated_kept = undated_kept
     # listed by the ledger only (no board lists them this sweep), fetched or
     # not -- NOT a backlog count; fetch_summaries reports the unfetched share
     # as sweep.ledger_pending once the done set is loaded
@@ -803,30 +889,51 @@ SYSTEMIC_MIN = 20
 POISON_RE = re.compile(r"parse_summary\(\) takes \d+ positional arguments?")
 
 
-def release_failed(path: pathlib.Path, pattern: re.Pattern) -> int:
+def release_failed(path: pathlib.Path, pattern: re.Pattern,
+                   started: dict | None = None,
+                   cutoff_ms: float | None = None) -> int:
     """Drop FAILED markers whose message matches, so those keys refetch.
 
     Rewrites the done journal in place. OK markers and non-matching failures
     are untouched, so a genuinely unreadable report stays skipped. Idempotent:
-    a second pass finds nothing. Returns the number released.
+    a second pass finds nothing. Returns the number released; the number HELD
+    is on release_failed.held.
+
+    Retention: with `started` ({key: start ms}) and `cutoff_ms`, a matching
+    marker is HELD -- kept, not released -- when its run is dated before the
+    window or is not in the window's snapshot at all: releasing it could not
+    lead to a fetch (the window refuses the key) and dropping it would make
+    the key count as backlog forever.
     """
+    release_failed.held = 0
     if not path.exists():
         return 0
-    kept, released = [], 0
+    kept, released, held = [], 0, 0
+    now_ms = time.time() * 1000
     with path.open() as fh:
         for line in fh:
             parts = line.rstrip("\n").split("\t")
             if (len(parts) >= 3 and parts[1] == "FAILED"
                     and pattern.search(parts[2])):
+                if cutoff_ms is not None:
+                    st = (started or {}).get(parts[0])
+                    if st is None or not in_window(st, cutoff_ms, now_ms):
+                        held += 1
+                        kept.append(line if line.endswith("\n") else line + "\n")
+                        continue
                 released += 1
                 continue
             kept.append(line if line.endswith("\n") else line + "\n")
+    release_failed.held = held
     if released:
         tmp = path.with_suffix(path.suffix + ".tmp")
         with tmp.open("w") as out:
             out.writelines(kept)
         tmp.replace(path)
     return released
+
+
+release_failed.held = 0
 
 
 def order_pending(pending: list[dict]) -> list[dict]:
@@ -950,6 +1057,8 @@ def regear_candidates(fights: dict, done: set[str], min_key: int,
         return set()
     newest = max((f.get("start_time") or 0) for f in fights.values())
     cutoff = newest - days * 86400 * 1000          # start_time is epoch ms
+    if load_fights.cut_ms is not None:             # never re-open past the window
+        cutoff = max(cutoff, load_fights.cut_ms)
     out = set()
     for k, f in fights.items():
         if k not in done:
@@ -983,11 +1092,16 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     write_outputs(**{"sweep.ledger_new": merge_ledger.added,
                      "sweep.ledger_only": merge_ledger.ledger_only})
     if release is not None:
-        n_rel = release_failed(SUMMARIES_DONE, release)
-        if n_rel:
+        n_rel = release_failed(SUMMARIES_DONE, release,
+                               started={k: f.get("start_time") for k, f in fights.items()},
+                               cutoff_ms=load_fights.cut_ms)
+        if n_rel or release_failed.held:
             print(f"[summaries] released {n_rel:,} FAILED markers matching "
                   f"/{release.pattern}/ -- those runs will be fetched again "
-                  f"where a leaderboard still lists them", flush=True)
+                  f"where a leaderboard still lists them"
+                  + (f"; {release_failed.held:,} held: their runs are outside "
+                     f"the {RETENTION_DISK_DAYS}-day window and will not be refetched"
+                     if release_failed.held else ""), flush=True)
     done = load_done()
     if regear:
         min_key, days = regear
@@ -1014,6 +1128,23 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
           flush=True)
     write_outputs(**{"sweep.ledger_pending": ledger_pending,
                      "summaries.pending": pending_total})
+    # RETENTION facts for the page (build folds fetch_health into
+    # build_health and the payload's retention.disk): what the window refused
+    # this run and where it sits. Anchored to the data like the builder.
+    print(f"[retention] fetch window: {RETENTION_DISK_DAYS} days back from "
+          f"{_iso(load_fights.anchor_ms)} -> cut {_iso(load_fights.cut_ms)}; "
+          f"{load_fights.out_of_window:,} listed runs older than that are never "
+          f"fetched; {merge_ledger.dropped_old:,} ledger rows left the work set; "
+          f"{load_fights.undated + merge_ledger.undated_kept:,} undated kept"
+          + (f", {load_fights.implausible:,} implausibly dated kept"
+             if load_fights.implausible else ""), flush=True)
+    write_outputs(**{"retention.disk_days": RETENTION_DISK_DAYS,
+                     "retention.fetch_anchor": _iso(load_fights.anchor_ms),
+                     "retention.fetch_cut": _iso(load_fights.cut_ms),
+                     "retention.fetch_refused": load_fights.out_of_window,
+                     "retention.ledger_refused": merge_ledger.dropped_old,
+                     "retention.fetch_undated_kept": load_fights.undated + merge_ledger.undated_kept,
+                     "retention.fetch_implausible_kept": load_fights.implausible})
     if fresh_hours is not None:
         cutoff_ms = (time.time() - fresh_hours * 3600) * 1000
         older = sum(1 for f in pending if (f.get("start_time") or 0) < cutoff_ms)
@@ -1349,6 +1480,32 @@ def export() -> None:
     # gear-less row and silently discard everything the refetch just paid for.
     df = df.drop_duplicates(subset=["report_code", "fight_id", "character", "server"],
                             keep="last")
+    # RETENTION (owner, 2026-09-14): the CSV is the committed cold-start seed
+    # and it holds RETENTION_DISK_DAYS back from the newest plausible row --
+    # the SAME data anchor the builder and the fetch window use, so a stall
+    # freezes this window rather than sliding it past the rows the page still
+    # publishes. Numeric-coerced (a chunk can leave the column as read),
+    # undated rows KEPT (a missing field must never delete data), counted.
+    st_ms = pd.to_numeric(df["started_at"], errors="coerce") if "started_at" in df.columns else None
+    ret_dropped = 0
+    if st_ms is not None and len(df):
+        now_ms = time.time() * 1000
+        cut_ms, anchor_ms = disk_cut_ms((float(t) for t in st_ms.dropna()), now_ms)
+        dated = st_ms.notna() & (st_ms > 0) & (st_ms <= now_ms + 86_400_000)
+        keep = (~dated) | (st_ms >= cut_ms)
+        ret_dropped = int((~keep).sum())
+        if ret_dropped:
+            df = df[keep.to_numpy()]
+        kept_dated = st_ms[keep & dated]
+        write_outputs(**{"export.retention_cut": _iso(cut_ms),
+                         "export.retention_anchor": _iso(anchor_ms),
+                         "export.retention_rows_dropped": ret_dropped,
+                         "export.retention_undated_kept": int((~dated).sum()),
+                         "export.oldest_kept": _iso(float(kept_dated.min())) if len(kept_dated) else "none"})
+        if ret_dropped:
+            print(f"[export] retention: {ret_dropped:,} rows older than "
+                  f"{RETENTION_DISK_DAYS} days before {_iso(anchor_ms)} left the seed",
+                  flush=True)
     # score and medal live in the rankings journal, which is re-swept far more
     # cheaply than the summaries. Overlaying here means a run fetched before it
     # carried either value picks them up on the next export, with no refetch
@@ -1375,6 +1532,29 @@ def export() -> None:
         own = pd.to_numeric(df["keystone_s"], errors="coerce")
         for c, f, v in zip(df["report_code"][own.notna()], df["fight_id"][own.notna()], own[own.notna()]):
             ks.setdefault(f"{c}:{f}", round(float(v), 1))
+    # RETENTION: this map is an identity cache for the runs the window still
+    # holds, not a season archive. Pruned HERE -- after every source has been
+    # merged and BEFORE the duplicate-upload collapse below: a collapse loser
+    # is dropped from the CSV but is still in the append-only journal, and its
+    # clock is exactly what lets it match its winner's signature next run.
+    # The keep set is the union of the frame's runs (pre-collapse) and every
+    # run the leaderboards still list, so ks stays a SUPERSET of the CSV's run
+    # keys (prune it narrower and duplicate uploads silently un-merge).
+    # Refused on an implausible overlap: a dtype flip ("code:3.0") would make
+    # every key miss and wipe both copies in one run.
+    live = {f"{c}:{f}" for c, f in zip(df["report_code"], df["fight_id"])}
+    live |= {f"{c}:{f}" for (c, f) in jmap.keys()}
+    frame_keys = {f"{c}:{f}" for c, f in zip(df["report_code"], df["fight_id"])}
+    hit = len(frame_keys & ks.keys())
+    ks_before = len(ks)
+    if frame_keys and hit < 0.5 * len(frame_keys):
+        print(f"[export] WARNING: keystone key overlap only {hit:,}/{len(frame_keys):,} "
+              f"-- key-format mismatch suspected, keystone map NOT pruned", flush=True)
+        write_outputs(**{"export.keystone_prune": "refused_low_overlap"})
+    else:
+        ks = {k: v for k, v in ks.items() if k in live}
+        write_outputs(**{"export.keystone_kept": len(ks),
+                         "export.keystone_pruned": ks_before - len(ks)})
     for dst in (ks_file, ks_cache):
         dst.parent.mkdir(parents=True, exist_ok=True)
         tmp = dst.with_suffix(".json.tmp")

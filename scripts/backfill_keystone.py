@@ -43,6 +43,10 @@ def main():
         max_reports = int(sys.argv[sys.argv.index("--max-reports") + 1])
 
     df = pd.read_csv(csv, usecols=["report_code", "fight_id", "started_at"]).drop_duplicates(["report_code", "fight_id"])
+    # Retention (2026-09-14): the CSV is already windowed by export(), so
+    # every run here is inside the disk window; the map itself is pruned by
+    # export(), never here (one writer). "missing" therefore counts in-window
+    # runs only, and the health line says so.
     missing = [(c, int(f)) for c, f in zip(df.report_code, df.fight_id)
                if f"{c}:{f}" not in ks]
     newest = df.groupby("report_code")["started_at"].max()
@@ -109,6 +113,7 @@ def main():
     try:
         with (ROOT / "data" / "processed" / "fetch_health.txt").open("a") as fh:
             fh.write(f"keystone.backfilled={len(missing) - still}\nkeystone.still_missing={still}\n"
+                     f"keystone.scope=runs in the windowed export only\n"
                      + (f"keystone.stopped={stopped[0]}\n" if stopped[0] else ""))
     except OSError:
         pass

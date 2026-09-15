@@ -440,11 +440,12 @@ jobs:
       # before a UI push republishes the OLD interface and silently reverts it --
       # which is exactly how the talent-diff UI vanished minutes after deploying.
       # Take the branch's newest committed UI immediately before publishing.
-      # ONLY the UI files: site/data.json.gz is TRACKED and its committed copy is
-      # stale (the 33-hour-old-data trap), while builds/stats/talents.json.gz are
-      # gitignored and so are never touched by a checkout. The index is reset
-      # afterwards so the daily-commit step below cannot sweep the UI into a
-      # data commit built on an older base.
+      # ONLY the UI files. The payloads (site/data.json.gz and friends) are
+      # gitignored since 2026-09-15 -- a checkout cannot carry a stale one; the
+      # committed copy that used to sit here was frozen weeks outside the
+      # retention window by construction. The index is reset afterwards so the
+      # daily-commit step below cannot sweep the UI into a data commit built on
+      # an older base.
       - name: Publish the newest committed UI, not this checkout's
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         continue-on-error: true
@@ -505,6 +506,24 @@ jobs:
               echo "::notice::drain: the one-reset window is fully collected; the drain ends here and fresh runs resume on the next run"
             fi
           fi
+
+      # RETENTION (owner, 2026-09-14): disk keeps RETENTION_DISK_DAYS (16)
+      # measured from the newest row on disk -- strictly wider than the page's
+      # window (2 resets, 15-day ceiling), see scripts/retention.py. Runs HERE,
+      # after the background collectors have joined and after this run's build
+      # already read its CSV, so nothing holds a journal open and a prune can
+      # never starve the build that publishes in the same run. Gated on 'ok'
+      # only (never 'fresh': a cold start has nothing on disk to prune, and a
+      # refusal there would look like a finding). The pruner's first ever
+      # invocation is a dry run; afterwards it applies at most every 20 h
+      # (data/processed/prune_state.json), touches journals BY NAME, deletes
+      # only on proof of age, rewrites atomically and leaves a journal with
+      # nothing to drop untouched. summaries_done.txt is exempt.
+      - name: Prune the journals to the retention window
+        if: always() && steps.guard.outputs.journals == 'ok' && steps.fetch.outcome == 'success'
+        run: |
+          python -u scripts/prune_journals.py
+          [ -f data/processed/retention.txt ] && sed 's/^/  retention: /' data/processed/retention.txt || true
 
       - name: Save collection journals
         # always() so a failed Fetch still saves what it journaled -- but NEVER
@@ -568,6 +587,23 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cp -f data/processed/rio_scores.csv.gz data/rio_scores.csv.gz 2>/dev/null || true
+          # RETENTION: the committed CSV now holds only the window (export()),
+          # so a cold start can no longer rebuild the FULL done-set from it.
+          # The done-set itself (summaries_done.txt, exempt from the prune, a
+          # few MB gzipped) is committed daily under data/checkpoints/, the
+          # path restore_checkpoints() has always read: a cold start then knows
+          # every run it ever fetched and re-buys nothing.
+          if [ -s data/processed/summaries_done.txt ]; then
+            mkdir -p data/checkpoints
+            gzip -9 -c data/processed/summaries_done.txt > data/checkpoints/summaries_done.txt.gz.tmp \
+              && mv -f data/checkpoints/summaries_done.txt.gz.tmp data/checkpoints/summaries_done.txt.gz
+            git add data/checkpoints/summaries_done.txt.gz
+          fi
+          # Seed floor: never overwrite the committed seed with a CSV that is
+          # implausibly small (a torn journal, a prune gone wrong). The window
+          # holds ~800k rows today; a seed under the floor is skipped and said.
+          ROWS=$(grep '^export.rows=' data/processed/fetch_health.txt 2>/dev/null | tail -1 | cut -d= -f2)
+          SEED_FLOOR=200000
           # GitHub rejects any file over 100 MB at push, and a rejected push
           # fails this step and the run. Nothing over 95 MB is ever staged;
           # a skipped file is a loud warning, not a red run. The gear journal
@@ -576,6 +612,10 @@ jobs:
           too_big() { [ -f "$1" ] && [ "$(stat -c %s "$1")" -gt 99614720 ]; }
           if too_big data/mythic_runs.csv.gz; then
             echo "::warning::mythic_runs.csv.gz is $(du -h data/mythic_runs.csv.gz | cut -f1), over GitHub's 100 MB file limit; NOT committed"
+            git add data/keystone_times.json data/rio_scores.csv.gz
+          elif [ -n "$ROWS" ] && [ "$ROWS" -lt "$SEED_FLOOR" ] 2>/dev/null; then
+            echo "::warning::export wrote only ${ROWS} rows (floor ${SEED_FLOOR}); the committed seed is NOT overwritten this run -- check the prune (data/processed/prune_state.json) and the journal before the next daily commit"
+            git checkout -- data/mythic_runs.csv.gz 2>/dev/null || true
             git add data/keystone_times.json data/rio_scores.csv.gz
           else
             git add data/mythic_runs.csv.gz data/keystone_times.json data/rio_scores.csv.gz
@@ -611,7 +651,15 @@ jobs:
           # code commit edits, so replaying it onto the new tip is safe; if
           # the rebase somehow conflicts, give up on THIS commit loudly and
           # let the 20-hour seed rule retry next run rather than fail the run.
-          git fetch --depth=50 origin "${{ github.ref_name }}"
+          # --filter=blob:none: the deepen used to pull every daily seed blob in
+          # the last 50 commits (~390 MB) to replay one commit; commits and trees
+          # still arrive, so the merge base is still found. --no-tags: a future
+          # Release tag must not drag its history back in. Guarded: a failed
+          # deepen used to fail the job and break the chain.
+          if ! git fetch --filter=blob:none --no-tags --depth=50 origin "${{ github.ref_name }}"; then
+            echo "::warning::could not deepen the branch to replay the export commit; skipped (the seed rule retries next run)"
+            exit 0
+          fi
           if ! git -c rebase.autoStash=true rebase FETCH_HEAD; then
             git rebase --abort || true
             echo "::warning::export commit could not be replayed onto the moved branch tip; skipped (the seed rule retries next run)"

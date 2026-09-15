@@ -188,18 +188,29 @@ print("release_failed: 2 poisoned markers dropped, OK and genuine failures kept,
 # --- fetch order: newest run first, regardless of region tag. The owner's
 # stated priority; a week-old region-tagged run must never be fetched ahead of
 # this morning's untagged one.
+# Dated in DAY units from now (2026-09-14 retention): the fixture speaks the
+# policy's language, so a future cutoff moved into order_pending would fail
+# this for the right reason instead of on 1970 arithmetic.
+import time as _time
 from fetch_data import order_pending
+_DAY, _NOW = 86_400_000, int(_time.time() * 1000)
 pend = [
-    {"code": "old-tagged", "fid": 1, "region": "US", "start_time": 1_000},
-    {"code": "new-untagged", "fid": 2, "region": None, "start_time": 9_000},
-    {"code": "mid-untagged", "fid": 3, "region": "", "start_time": 5_000},
-    {"code": "new-tagged", "fid": 4, "region": "EU", "start_time": 9_000},
-    {"code": "no-time", "fid": 5, "region": "US", "start_time": None},
+    {"code": "old-tagged",   "fid": 1, "region": "US", "start_time": _NOW - 9 * _DAY},
+    {"code": "new-untagged", "fid": 2, "region": None, "start_time": _NOW - 1 * _DAY},
+    {"code": "mid-untagged", "fid": 3, "region": "",   "start_time": _NOW - 5 * _DAY},
+    {"code": "new-tagged",   "fid": 4, "region": "EU", "start_time": _NOW - 1 * _DAY},
+    {"code": "no-time",      "fid": 5, "region": "US", "start_time": None},
+    {"code": "stale",        "fid": 6, "region": "US", "start_time": _NOW - 20 * _DAY},
+    {"code": "edge",         "fid": 7, "region": "US", "start_time": _NOW - 16 * _DAY},
 ]
 got = [f["code"] for f in order_pending(pend)]
-assert got == ["new-tagged", "new-untagged", "mid-untagged", "old-tagged", "no-time"], got
+assert got == ["new-tagged", "new-untagged", "mid-untagged", "old-tagged", "edge", "stale", "no-time"], got
 assert order_pending(pend) == order_pending(list(reversed(pend))), "order must be deterministic"
-print("order_pending: strictly newest-first, tags ignored, unknown time last, deterministic")
+# order_pending ORDERS; it never filters -- the window lives at discovery
+# (load_fights / merge_ledger, scripts/test_retention_fetch.py), so an
+# undated run is still in the list here
+assert "no-time" in got and "stale" in got, "order_pending must not drop anything"
+print("order_pending: strictly newest-first, tags ignored, unknown time last, deterministic, never filters")
 
 # --- the batch request is the Summary table alone: the flask feature's
 # CombatantInfo events sub-query is removed and must NOT be requested

@@ -39,6 +39,9 @@ out() { if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "journals=$1" >> "$GITHUB_OUTP
 if [ "$OK" = 1 ]; then
   out ok
   echo "restored '$MATCHED': gear.jsonl $(stat -c %s "$GEAR") B, players.jsonl $(stat -c %s "$PLAYERS") B"
+  # the sizes carry their own explanation: the journals hold the retention window
+  # (scripts/prune_journals.py), not the season -- halved sizes are the policy, not a loss
+  [ -f "$DIR/retention.txt" ] && sed 's/^/  retention: /' "$DIR/retention.txt"
 elif [ "${FRESH_START:-}" = "true" ]; then
   out fresh
   echo "::warning::fresh_start: proceeding with NO restored journals (matched key '${MATCHED:-none}', gear.jsonl $(have "$GEAR"), players.jsonl $(have "$PLAYERS")); this run seeds from the committed CSV and saves a NEW cache that every later run will restore"
