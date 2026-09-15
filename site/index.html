@@ -3095,8 +3095,41 @@ function tipHTML(r,compare){
   const row=(k,va,vb)=>"<tr><td>"+k+"</td><td>"+va+"</td>"+(compare?"<td>"+vb+"</td>":"")+"</tr>";
   const f=(o,k,fmt)=>o?fmt(o[k]):"–";
   let h="<b>"+esc(r.cls+" "+r.spec+(r.hero?" — "+r.hero:""))+"</b><table>";
-  if(compare) h+=row("", "<b>"+(skill?"p"+state.pctl:"A")+"</b>",
-                         "<b>"+(skill?"p"+state.pctlB:"B")+"</b>");
+  if(compare&&skill){
+    // Skill axis: ONE population read at TWO percentiles. Runs, parses,
+    // characters, the averages, deathless share and rating are the same
+    // parses whichever percentile is read, so they print once; only the two
+    // distribution reads get a p-lens · p-vs pair. (2026-09-15, owner: the
+    // table used to print the whole A column twice with a single cell
+    // changed -- "the numbers are identical on every field".)
+    const a=r.a0||r.a;
+    const one=(k,v)=>"<tr><td>"+k+"</td><td colspan=\"2\">"+v+"</td></tr>";
+    const two=(k,va,vb)=>"<tr><td>"+k+"</td><td>"+va+"</td><td>"+vb+"</td></tr>";
+    const pj=(k,rk,fmt)=>fmt(a[k])+(state.proj?projDelta(a[k],a[rk]):"");
+    h+=two("", "<b>p"+state.pctl+"</b>", "<b>p"+state.pctlB+"</b>");
+    h+=two(state.proj?"DPS at percentile (proj.)":"DPS at percentile",
+           pj("med","rmed",fmtInt), fmtInt(a.qb));
+    h+=two("Deaths at percentile", a.qdA.toFixed(2), a.qdB.toFixed(2));
+    h+=one("Runs", fmtInt(a.runs));
+    h+=one("Parses", fmtInt(a.n));
+    h+=one("Unique characters", fmtInt(a.chars));
+    h+=one(state.proj?"Average DPS (proj.)":"Average DPS", pj("avg","ravg",fmtInt));
+    if(state.proj&&a.ravg!=null){
+      h+=one("Recorded average", fmtInt(a.ravg));
+      h+=one("Recorded p"+state.pctl+" DPS", fmtInt(a.rmed));
+    }
+    h+=one("Average deaths", a.adeaths.toFixed(2));
+    h+=one("Deathless runs", a.deathless.toFixed(1)+"%");
+    if(hasRating){
+      const rf=v=>isFinite(v)?fmtInt(v):"–";
+      h+=one("Average player rating", rf(a.arating));
+      h+=one("Median player rating", rf(a.mrating));
+      h+=one("Rated characters", fmtInt(a.rn));
+    }
+    return h+"</table><div class=\"fnote\">the same parses read at two "
+      +"percentiles — the population figures are shared</div>";
+  }
+  if(compare) h+=row("", "<b>A</b>", "<b>B</b>");
   h+=row("Runs", f(r.a,"runs",fmtInt), f(r.b,"runs",fmtInt));
   h+=row("Parses", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
   h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
@@ -6816,7 +6849,9 @@ function render(){
     // Roster is gated on period A alone: compare must never add or remove
     // rows, only annotate them — a B-side ghost is context, not a ticket in.
     if(!state.elite&&a0.chars<effMinA) continue;
-    rows.push({key, cls:a0.cls, spec:a0.spec, hero:a0.hero, a, b});
+    // a0 rides along untouched: on the deaths tab `a` has adeaths overridden
+    // with the lens-percentile read, and the tooltip needs the real average
+    rows.push({key, cls:a0.cls, spec:a0.spec, hero:a0.hero, a, b, a0});
   }
 
   // KPIs (period A)
