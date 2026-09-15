@@ -1373,16 +1373,12 @@ table.beamtbl tr:hover td{background:var(--surface1)}
 
   <div class="side-label">When + Baseline</div>
   <div class="chips" id="presetA" style="padding-top:2px"></div>
-  <details><summary>Custom weeks <span class="cnt" id="cnt-weeksA"></span></summary>
-    <div class="chips" id="f-weeksA"></div></details>
   <label class="small" style="margin-top:.5rem"><input type="checkbox" id="cmp">
     Compare with a second period</label>
   <div class="chips" id="quickcmp"></div>
   <div id="blockB" class="bpanel" style="display:none">
     <div class="hint" style="margin:0 0 .1rem">Period B — drawn as grey ghost bars</div>
     <div class="chips" id="presetB" style="padding-top:2px"></div>
-    <details><summary>Custom weeks (B) <span class="cnt" id="cnt-weeksB"></span></summary>
-      <div class="chips" id="f-weeksB"></div></details>
   </div>
   <div id="posttune-slot"></div>
 
@@ -1399,7 +1395,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <div id="labbox"></div>
   </div>
 
-  <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. Hover any week chip for its dates and volume.</p>
+  <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. The site keeps only the newest two weekly resets; hover a period chip for its dates and volume.</p>
 </aside>
 
 <main>
@@ -1432,6 +1428,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     </div>
     <div class="kpi-note" id="period-note"></div>
     <div class="hint" id="coverage-note" title="What the collection can and cannot see. Runs enter this site only through Warcraft Logs' dungeon leaderboards, and only public logs carry a report to fetch."></div>
+    <div class="hint" id="retention-note" title="How much history this site holds. Older runs are not kept anywhere on the site; the number here is the policy, printed from the build that made this page."></div>
     <div id="archon-card" hidden></div>
 
 
@@ -1477,7 +1474,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <div class="segrow">
       <div class="seg" id="trendseg"></div>
       <div class="seg" id="trendaxis">
-        <button data-x="time" class="on">Over: resets</button>
+        <button data-x="time" class="on">Over: time</button>
         <button data-x="key">Key level</button>
       </div>
       <div class="seg" id="trendnorm">
@@ -1518,7 +1515,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
       death events. <span id="foot-src">Data is the top ~1,000 runs per dungeon × key level
       from Warcraft Logs fight rankings (~200 below +10, where the leaderboards are
       bottomless) — read it as "what strong runs pull", not a population census.</span>
-      Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC).
+      Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC). <span id="foot-retention">Only the newest two resets are kept.</span>
       <span id="built"></span>
       <br>Raw payload: <a href="data.json.gz">data.json.gz</a>.
     </footer>
@@ -1603,10 +1600,12 @@ const TABS = [
    cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher {med}."},
 ];
 // Trajectory is a plain last section now — no Trend tab (feedback #4)
-const TREND_CAP="Weekly {metric} for the top groups under the current filters, "
-  +"whole season. Weeks with fewer than 25 parses for a group are skipped.";
+// {window} is filled from payload.retention (retPhrase), never a hardcoded
+// "two": the sentence cannot drift from the builder's constant.
+const TREND_CAP="{metric} over time for the top groups under the current filters, "
+  +"across {window}; the point floor is stated below.";
 const TREND_CAP_KEY="{metric} at each key level for the top groups under the "
-  +"current filters, whole season, across the key range the slider selects.";
+  +"current filters, across {window} and the key range the slider selects.";
 const CHART_MAX = 40;
 const TREND_MAX = 16;
 // Key-level axis. The chart's RANGE is whatever the key slider selects, so
@@ -1625,6 +1624,23 @@ const PULSE_MAX = 12, PULSE_THIN = 25;
 
 let D=null, R=null, N=0, runCount=0;
 let availWeeks=[], weekCounts=new Map(), usB0=0;
+/* RETENTION (owner, 2026-09-14): the build keeps the newest KEEP_BUCKETS weekly
+   resets per region and nothing older than a ceiling in days; both numbers are
+   READ from payload.retention (build_site_data.py RETENTION_RESETS /
+   RETENTION_MAX_AGE_DAYS), never retyped here. An older payload without the
+   block falls back to 2 so the clamp fails CLOSED, not open. OUTW marks a row
+   the builder somehow shipped outside the window (an old payload against a new
+   page); 999 stays the UNDATED sentinel, which the builder keeps on purpose. */
+let KEEP_BUCKETS=2, outWindowRows=0;
+const OUTW=1000;
+function retInfo(){return (D&&D.retention&&typeof D.retention==="object")?D.retention:null}
+function retResets(){const r=retInfo(); const n=r&&+r.resets; return (Number.isFinite(n)&&n>0)?n:0}
+function retPhrase(){
+  const n=retResets(), r=retInfo();
+  if(!n) return "the data the site keeps";
+  return "the newest "+n+" weekly reset"+(n===1?"":"s")+" the site keeps"
+    +(r&&r.max_age_days?", nothing older than "+r.max_age_days+" days":"");
+}
 /* Reset buckets are per-region by construction (each region's own reset
    instant), but every LABEL used to be anchored on the US bound, so for the
    13-31 h each week between the US reset and the others the chips read "since
@@ -1775,6 +1791,42 @@ function renderTimedHint(){
     +'(see Coverage under the KPIs). In the newest 7 days of data none arrived at <b>'+keyRangeText(none)
     +'</b> — there "All completed" shows the same runs as "Timed only".';
 }
+/* Retention statement (owner, 2026-09-14; standing rule: nothing that changes
+   what the reader sees may go unsaid). Reads payload.retention as the builder
+   shipped it; leads with the POLICY and the span actually held, then this
+   build's counts as trailing clauses omitted when zero (once the collector
+   prunes, "dropped" is 0 in steady state and a dropped-led sentence would
+   read as "nothing removed"). Names the two measurements that are NOT limited
+   to the window, and the outage notes the filter set aside. */
+function renderRetentionNote(){
+  const el=$("retention-note"), fr=$("foot-retention"); if(!el) return;
+  const r=retInfo();
+  if(!r){
+    el.innerHTML='<b>Retention.</b> This payload carries no retention block; the page cannot state how much history it holds.';
+    return;
+  }
+  const n=+r.resets||0, days=r.days_kept&&typeof r.days_kept==="object"?r.days_kept:null;
+  const held=days?Object.keys(days).filter(k=>k!=="Unknown").sort().map(k=>k+" "+(+days[k]).toFixed(1)+" d").join(" · "):"";
+  const asof=r.anchor?new Date(r.anchor):null;
+  const fmtT=t=>t.toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC";
+  let h='<b>Retention.</b> This dashboard holds the newest <b>'+n+'</b> weekly reset'+(n===1?'':'s')+' per region'
+    +(r.max_age_days?' and nothing older than <b>'+r.max_age_days+' days</b>':'')
+    +(held?' — as of '+(asof&&!isNaN(+asof)?fmtT(asof):'the newest run')+' that is '+held:'')
+    +'. Older runs are not kept on this site and no control here can reach them.';
+  if(r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than that ceiling, so the newest two resets on file are shown instead.</b>';
+  if(typeof r.lag_h==="number"&&r.lag_h>3) h+=' Newest run <b>'+r.lag_h.toFixed(1)+' h</b> before this build; "this reset" is as of that run, not the clock.';
+  if(r.window_before_data) h+=' The window reaches back before the oldest run held (a young season, or older runs already gone).';
+  if(r.dropped>0) h+=' This build set aside '+fmtInt(r.dropped)+' older parses ('+fmtInt(r.runs_dropped||0)+' runs).';
+  if(r.undated>0) h+=' '+fmtInt(r.undated)+' parses with no readable start time are kept and appear only under "Everything kept".';
+  if(outWindowRows>0) h+=' <b class="delta down">'+fmtInt(outWindowRows)+' parses in this payload fall past the window and are not shown anywhere.</b>';
+  if(Array.isArray(r.exceptions)&&r.exceptions.length){
+    const ex=r.exceptions.filter(e=>e&&e.key!=="rating"||hasRating);
+    if(ex.length) h+=' Not limited to the window: '+ex.map(e=>'<b>'+esc(e.what)+'</b> — '+esc(e.scope)).join('; ')+'.';
+  }
+  if(D.gaps_suppressed>0) h+=' '+D.gaps_suppressed+' outage note'+(D.gaps_suppressed===1?'':'s')+' older than the window '+(D.gaps_suppressed===1?'is':'are')+' not shown.';
+  el.innerHTML=h;
+  if(fr) fr.textContent="Only "+retPhrase().replace(/^the /,"the ")+(held?" — "+held:"")+".";
+}
 function renderCoverageNote(){
   const el=$("coverage-note"); if(!el) return;
   const c=(D&&D.coverage)||{};
@@ -1827,6 +1879,7 @@ function initData(d,cfg){
     if(hn!=="Unknown") csHeroes.get(k).add(hn);
   }
   buildRuns();
+  {const r=(d.retention||{}).resets; KEEP_BUCKETS=(Number.isFinite(+r)&&+r>0)?+r:2;}
   computeResetBuckets();
   // Raider.IO season score per character, indexed by the same char id the rows
   // carry. Enrichment is a slow background sweep, so partial coverage is the
@@ -1885,12 +1938,16 @@ function initData(d,cfg){
   state.weeksA.clear();
   state.dayCut=0;   // day spans differ per source
   if(weekCounts.has(0)) state.weeksA.add(0);
+  else if(weekCounts.has(1)) state.weeksA.add(1);
   else if(availWeeks.length) state.weeksA.add(availWeeks[0]);
   state.weeksB.clear();
-  // compare default: A = this reset (above), B = the reset before it. Until
-  // a second reset exists, B falls back to the only bucket there is.
-  const wb=availWeeks.find(w=>w>0) ?? availWeeks[0];
-  if(wb!==undefined) state.weeksB.add(wb);
+  // Compare default: A = this reset, B = the one before it -- the only two
+  // buckets the payload is allowed to hold. When A has itself fallen back to
+  // last reset (bucket 0 still empty after a rollover) there is no legal
+  // baseline inside the window: leave B empty and let setCompare refuse
+  // rather than compare a period against itself.
+  const wa=[...state.weeksA][0];
+  if(wa===0&&weekCounts.has(1)) state.weeksB.add(1);
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
   const kmin=keys[0], kmax=keys[keys.length-1];
   // Every key level stays selectable; the default opens on a six-wide band
@@ -1915,6 +1972,7 @@ function initData(d,cfg){
   $("hero-sub").textContent=cfg.sub;
   $("foot-src").textContent=cfg.foot;
   renderCoverageNote();   // after the static footer text: it rewrites #foot-src with the live fetchable share
+  renderRetentionNote();  // the window this page holds, from payload.retention -- printed on every build
   document.title="Mythic+ Performance — "+(d.season||"Midnight");
   $("loading").style.display="none";
   $("app").style.display=""; $("side").style.display="";
@@ -2053,7 +2111,15 @@ function fmtDur(sec){
   return m+":"+String(r).padStart(2,"0");
 }
 function computeResetBuckets(){
-  const epoch=new Date(D.epoch+"T00:00:00Z"), now=new Date();
+  const epoch=new Date(D.epoch+"T00:00:00Z"), wallNow=new Date();
+  // Bucket boundaries are the instants the BUILDER cut on (payload.retention
+  // .anchor, the newest plausible row), so the page's "this reset" is the
+  // build's "this reset" and a bucket past the window is arithmetically
+  // impossible on a matching payload. isNaN-guarded: an Invalid Date makes
+  // every bound NaN, Int16Array turns NaN into 0, and the whole window would
+  // silently read "This reset". The WALL clock stays for "reset N hours ago".
+  const ri0=retInfo(), aD=ri0&&ri0.anchor?new Date(ri0.anchor):null;
+  const now=(aD&&!isNaN(+aD))?aD:wallNow;
   // A run belongs to a reset by its start INSTANT against its region's
   // reset instant. The payload carries the start hour (R.hr, UTC) beside the
   // day, so the comparison is made in hours; a payload without it falls
@@ -2073,16 +2139,22 @@ function computeResetBuckets(){
     boundsD[ri]=Math.floor((b-epoch)/864e5);       // its calendar day
   });
   R.rbucket=new Int16Array(N);
+  outWindowRows=0;
   for(let i=0;i<N;i++){
     const d0=R.day[i];
     if(d0<0){R.rbucket[i]=999; continue}
+    let w;
     if(HR&&HR[i]>=0){
       const h0=d0*24+HR[i], b0=boundsH[R.reg[i]];
-      R.rbucket[i]=h0>=b0?0:Math.ceil((b0-h0)/168);
+      w=h0>=b0?0:Math.ceil((b0-h0)/168);
     }else{
       const b0=boundsD[R.reg[i]];
-      R.rbucket[i]=d0>=b0?0:Math.ceil((b0-d0)/7);
+      w=d0>=b0?0:Math.ceil((b0-d0)/7);
     }
+    // outside the retained window: never in a bucket, never in a selection,
+    // and COUNTED so the retention note can say so (an old payload only)
+    if(w>=KEEP_BUCKETS){R.rbucket[i]=OUTW; outWindowRows++; continue}
+    R.rbucket[i]=w;
   }
   const bounds=boundsD;
   usB0=bounds[D.regions.indexOf("US")] ?? Object.values(bounds)[0];
@@ -2105,7 +2177,7 @@ function computeResetBuckets(){
   }
   // a region with rows in the payload but none in ITS current reset has just
   // rolled over -- the reader is told, rather than left with an empty chart
-  const nowH=Math.floor((now-epoch)/36e5);
+  const nowH=Math.floor((wallNow-epoch)/36e5);   // wall clock: "reset N hours ago" stays honest
   resetHoles=[];
   for(const [ri,n] of regAll)
     if(n>0&&!reg0.get(ri)&&RESET_RULES[D.regions[ri]])
@@ -2128,7 +2200,9 @@ function periodCut(weeks){
     ? state.dayCut : 0;
 }
 function periodPass(i,weeks,cut){
-  if(weeks.size&&!weeks.has(R.rbucket[i])) return false;
+  const w=R.rbucket[i];
+  if(w===OUTW) return false;              // past the retained window, whatever is selected
+  if(weeks.size&&!weeks.has(w)) return false;
   if(cut&&R.day[i]<curMaxDay-cut+1) return false;
   return true;
 }
@@ -2173,8 +2247,7 @@ function chipGroup(el, items, sel, onchange, ghosted){
 }
 function syncCounts(){
   const pairs=[["cnt-cls",state.cls],["cnt-spec",state.spec],["cnt-hero",state.hero],
-    ["cnt-dun",state.dun],["cnt-role",state.role],["cnt-reg",state.reg],
-    ["cnt-weeksA",state.weeksA],["cnt-weeksB",state.weeksB]];
+    ["cnt-dun",state.dun],["cnt-role",state.role],["cnt-reg",state.reg]];
   for(const [id,s] of pairs){const e=$(id); if(e) e.textContent=s.size?s.size+" ✓":"";}
 }
 
@@ -2205,42 +2278,37 @@ function resetNote(){
   return ' <b class="delta down" style="font-size:.95em">⚠ '+esc(t)
     +' — no runs there in this reset yet; those runs are in last reset.</b>';
 }
+// Retention (owner, 2026-09-14): the build keeps the newest two resets, so
+// the whole dataset IS ~two weeks and there is no month to name. The EMPTY
+// target means "no week filter" and is the ONLY selection that reaches rows
+// whose start time would not parse (rbucket 999, kept by the builder on
+// purpose) -- so it stays, named for what it is.
 const PRESETS=[
-  ["All season", ()=>[]],
+  ["Everything kept", ()=>[]],
   ["This reset", ()=>[0]],
   ["Last reset", ()=>[1]],
-  ["Last month", ()=>[0,1,2,3]],
-  ["Prev month", ()=>[4,5,6,7]],
-  ["Last 2 months", ()=>[0,1,2,3,4,5,6,7]],
 ];
 function presetWeeks(make){return make().filter(w=>weekCounts.has(w))}
 function setsEqual(a,b){if(a.size!==b.size)return false; for(const x of a) if(!b.has(x))return false; return true}
 
 function buildPeriodUI(prefix, sel, ghosted){
-  const pbox=$("preset"+prefix), wbox=$("f-weeks"+prefix);
+  const pbox=$("preset"+prefix);
   const paint=()=>{
     pbox.innerHTML="";
     for(const [name,make] of PRESETS){
       const target=new Set(presetWeeks(make));
-      if(name!=="All season" && !target.size) continue;   // no data for that span
+      const noFilter=!make().length;                  // the "Everything kept" chip
+      if(!noFilter && !target.size) continue;         // no data for that span
       const c=document.createElement("span");
       c.className="chip"+(ghosted?" ghosted":"")+(setsEqual(sel,target)?" on":"");
       c.textContent=name;
-      if(name!=="All season"){
+      if(!noFilter){
         const ws=[...target].sort((a,b)=>a-b);
-        c.title=fmtDay(bucketLo(Math.max(...ws)))+" → "
-          +(ws.includes(0)?"now":fmtDay(bucketHi(Math.min(...ws))));
-      } else c.title="no time filter";
+        c.title=(ws.length===1?weekTitle(ws[0]):fmtDay(bucketLo(Math.max(...ws)))+" → "
+          +(ws.includes(0)?"now":fmtDay(bucketHi(Math.min(...ws)))));
+      } else c.title="no week filter: "+retPhrase()+" — the only selection that also shows parses with no readable start time";
       c.onclick=()=>{sel.clear(); target.forEach(w=>sel.add(w)); refreshPeriodUIs(); render();};
       pbox.appendChild(c);
-    }
-    wbox.innerHTML="";
-    for(const w of availWeeks){
-      const c=document.createElement("span");
-      c.className="chip"+(ghosted?" ghosted":"")+(sel.has(w)?" on":"");
-      c.textContent=weekLabel(w); c.title=weekTitle(w);
-      c.onclick=()=>{sel.has(w)?sel.delete(w):sel.add(w); refreshPeriodUIs(); render();};
-      wbox.appendChild(c);
     }
   };
   return paint;
@@ -2248,10 +2316,13 @@ function buildPeriodUI(prefix, sel, ghosted){
 let paintA=null, paintB=null;
 function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); paintDays(); syncCounts();}
 function describePeriod(sel){
+  // the empty selection is the no-filter sentinel (periodPass), not a preset
+  // alias: name it before the loop so it can never fall through to "0 weeks"
+  if(!sel.size) return "everything kept ("+retPhrase()+")";
   let base=null;
   for(const [name,make] of PRESETS)
-    if(setsEqual(sel,new Set(presetWeeks(make)))) {base=name.toLowerCase(); break}
-  if(base===null) base=sel.size+" week"+(sel.size>1?"s":"");
+    if(make().length&&setsEqual(sel,new Set(presetWeeks(make)))) {base=name.toLowerCase(); break}
+  if(base===null) base=sel.size+" reset"+(sel.size>1?"s":"");
   const cut=periodCut(sel);
   return cut ? base+" · last "+cut+" day"+(cut>1?"s":"") : base;
 }
@@ -2335,7 +2406,6 @@ function buildControls(){
   $("cmp").onchange=e=>{setCompare(e.target.checked)};
   const QUICK=[
     ["This vs last reset",[0],[1]],
-    ["Last vs prev month",[0,1,2,3],[4,5,6,7]],
   ];
   const qbox=$("quickcmp");
   qbox.innerHTML="";
@@ -2395,7 +2465,7 @@ function buildControls(){
     // bypassed, and leaving them mid-range would misleadingly suggest they
     // apply. Moving any of them exits the mode, which un-bypasses them.
     return {kmin:Math.min(...keys), kmax:Math.max(...keys),
-            weeks:[...weekCounts.keys()]};
+            weeks:[...availWeeks]};      // the retained buckets only
   };
   window.__archonMatches=()=>{
     const t=archonTarget();
@@ -2529,6 +2599,14 @@ function syncAxisUI(){
   $("cmpseg").classList.toggle("dis",state.elite);
 }
 function setCompare(on){
+  if(on&&!state.weeksB.size){
+    // no legal baseline inside the window (bucket 1 empty, or A is already
+    // on it): refuse, say why, and leave the box unchecked -- never compare
+    // a period against itself or against "everything"
+    state.compare=false; $("cmp").checked=false;
+    setNotice("Compare needs two resets — only one reset has data inside the window right now.");
+    refreshPeriodUIs(); syncAxisUI(); return;
+  }
   state.compare=on;
   if(on) state.skill=false;   // strict XOR; pctlB is kept for the switch back
   refreshPeriodUIs();
@@ -3049,7 +3127,8 @@ function ratingCoverage(){
   const pct=100*r/n;
   return "Ratings cover "+fmtInt(r)+" of "+fmtInt(n)+" characters ("+pct.toFixed(1)+"%)"
     +(pct<80?"; the sweep fills in heaviest-logged first, so a partial one reads high."
-            :".");
+            :".")
+    +" Rating is a Raider.IO season total — the one figure here that reaches past "+retPhrase()+".";
 }
 
 /* ---------------- rendering ---------------- */
@@ -3122,8 +3201,8 @@ function tipHTML(r,compare){
     h+=one("Deathless runs", a.deathless.toFixed(1)+"%");
     if(hasRating){
       const rf=v=>isFinite(v)?fmtInt(v):"–";
-      h+=one("Average player rating", rf(a.arating));
-      h+=one("Median player rating", rf(a.mrating));
+      h+=one("Average player rating (season)", rf(a.arating));
+      h+=one("Median player rating (season)", rf(a.mrating));
       h+=one("Rated characters", fmtInt(a.rn));
     }
     return h+"</table><div class=\"fnote\">the same parses read at two "
@@ -3146,8 +3225,8 @@ function tipHTML(r,compare){
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
   if(hasRating){
     const rf=v=>isFinite(v)?fmtInt(v):"–";
-    h+=row("Average player rating", f(r.a,"arating",rf), f(r.b,"arating",rf));
-    h+=row("Median player rating", f(r.a,"mrating",rf), f(r.b,"mrating",rf));
+    h+=row("Average player rating (season)", f(r.a,"arating",rf), f(r.b,"arating",rf));
+    h+=row("Median player rating (season)", f(r.a,"mrating",rf), f(r.b,"mrating",rf));
     h+=row("Rated characters", f(r.a,"rn",fmtInt), f(r.b,"rn",fmtInt));
   }
   return h+"</table>";
@@ -3433,8 +3512,8 @@ function frameIdentityHTML(ctx){
     }
   }
   if(hasRating&&g.rn)
-    rows+=row("Med player rating",
-      fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated</span>");
+    rows+=row("Med player rating (Raider.IO season)",
+      fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated · a season total, not limited to the window</span>");
   h+='<table class="frows">'+rows+'</table>';
   h+='<div class="foot">'+fmtInt(g.n)+" parses · "+fmtInt(g.runs)+" runs · "
     +fmtInt(g.chars)+" chars · "
@@ -4582,8 +4661,8 @@ function windowNote(win,idx){
     if(ep+R.day[i]*86400000+Math.max(0,R.hr[i])*3600000<c) older++; }
   const fmt=t=>new Date(t).toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC"});
   const parts=Object.keys(cutMs).sort().map(r=>fmt(cutMs[r])+" ("+r+")");
-  return "covers parses since "+parts.join(" · ")+" (newest "+win.resets+" resets)"
-    +(idx?" · "+fmtInt(older)+" of "+fmtInt(idx.length)+" in view are older and carry none":"");
+  return "covers parses since "+parts.join(" · ")+" (newest "+win.resets+" reset"+(win.resets===1?"":"s")+")"
+    +(idx&&older?" · "+fmtInt(older)+" of "+fmtInt(idx.length)+" in view are older and carry none":"");
 }
 function csSubnavHTML(d){
   const t=(id,label,cnt)=>'<button data-t="'+id+'" class="'+(screenTab===id?"on":"")
@@ -4795,9 +4874,9 @@ function csFoldTR(e,nameHTML,s,c,ph,extra,sub){
 function csFoldCols(){
   const c=[[null,"","fi"],["item","Item","txt"],["share","Share"],["n","n"]];
   if(gearMode==="lean")
-    c.push(["lean","Season lean %","",
-        "season-wide and fixed: "+CS_LEAN_TITLE],
-      ["field","Field","","season-wide and fixed: median across the other "
+    c.push(["lean","Fixed lean %","",
+        "fixed across the resets this build covers: "+CS_LEAN_TITLE],
+      ["field","Field","","fixed across the resets this build covers: median across the other "
         +"specs that list this piece"]);
   return c;
 }
@@ -4824,7 +4903,7 @@ function csFoldTable(list,pinned,baseTxt){
     // the baseline is the SLOT's most common item level (2026-09-09), one line
     // shared by every row here, so the column is comparable top to bottom
     let x='<td'+(iu==null?' class="na"':'')
-      +(iu!=null?' title="'+escA("season-wide: "+iu+"% of this piece's wearers "
+      +(iu!=null?' title="'+escA("across the resets this build covers: "+iu+"% of this piece's wearers "
         +"carry it above "+(baseTxt?"item level "+baseTxt+", ":"")
         +"the item level most wearers of this slot carry")+'"':'')
       +'>'+(iu==null?"–":iu+"%")+'</td>';
@@ -5200,10 +5279,10 @@ function csGearPaneHTML(ctx,d){
   const foot=lean?'<div class="cs-lean-foot">'+esc(CS_LEAN_FOOT)+'</div>':"";
   const covPct=lean?Math.round(100*LR.cov):0;
   const scope=lean
-    ? "upgrade lean · per-item rates are season-wide, the mix weighting them "
-      +"is your current lens · covers "+covPct+"% of "+fmtInt(total)
+    ? "upgrade lean · per-item rates are fixed across the resets this build covers, "
+      +"the mix weighting them is your current lens · covers "+covPct+"% of "+fmtInt(total)
       +" gear-known in window — "+(100-covPct)+"% fall outside the item "
-      +"vocabulary or below the wearer floor"
+      +"vocabulary or below the wearer floor"+capsTxt+(winTxt?" · "+winTxt:"")
     : scope0;
   // "Upgrade" is the owner's own word and may label the control; it never
   // sits attached to a number. The column is LEAN %.
@@ -7056,7 +7135,7 @@ function render(){
 
   // generated scope lines — the single source of section evidence sentences
   $("overview-sub").innerHTML=scopeLine("overview","click any bar for its Spec Frame — comps and stats in one place");
-  $("trend-sub").innerHTML=scopeLine("trajectory","whole season, ignores the period selection");
+  $("trend-sub").innerHTML=scopeLine("trajectory",retPhrase()+", ignores the period selection");
 
   renderPulse(rows);
   renderTrend();
@@ -7162,18 +7241,6 @@ function pulseVerdict(e){
     parts.push("in "+e.pres+" of "+__compPresence.den+" comps"+(COMPS_NO_CLOCK?" (clock-scored runs)":""));
   return parts.join(" · ");
 }
-function pulseSpark(pts,color){
-  if(pts.length<2) return '<span class="na">–</span>';
-  const w=96,h=24,p=3;
-  let mn=Infinity,mx=-Infinity;
-  pts.forEach(v=>{mn=Math.min(mn,v);mx=Math.max(mx,v)});
-  if(mx<=mn){mn-=1;mx+=1}
-  const X=i=>p+(w-2*p)*i/(pts.length-1), Y=v=>p+(h-2*p)*(1-(v-mn)/(mx-mn));
-  const d=pts.map((v,i)=>(i?"L":"M")+X(i).toFixed(1)+" "+Y(v).toFixed(1)).join(" ");
-  return '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h
-    +'" style="vertical-align:middle"><path d="'+d+'" fill="none" stroke="'+color
-    +'" stroke-width="1.8"/></svg>';
-}
 function renderPulse(rowsGated){
   const bodyEl=$("sec-pulse"), host=$("pulse");
   const sub=$("pulse-sub"), note=$("pulse-note"), capEl=$("pulse-caption");
@@ -7190,7 +7257,7 @@ function renderPulse(rowsGated){
   const nowB=weekCounts.has(0)?0:(availWeeks[0]??0);
   const prevB=availWeeks.find(w=>w>nowB);
   const m=baseMasks();
-  const G=new Map(), wkBag=new Map();
+  const G=new Map();
   let nNow=0,nPrev=0, nMin=1e9,nMax=-1, pMin=1e9,pMax=-1;
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
@@ -7200,8 +7267,6 @@ function renderPulse(rowsGated){
     let g=G.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
              now:[],prev:[],dsum:0}; G.set(key,g)}
-    let bag=wkBag.get(key*1000+w); if(!bag){bag=[]; wkBag.set(key*1000+w,bag)}
-    bag.push(v);
     if(w===nowB){g.now.push(v); g.dsum+=R.deaths[i]; nNow++;
       if(R.day[i]>=0){if(R.day[i]<nMin)nMin=R.day[i]; if(R.day[i]>nMax)nMax=R.day[i]}}
     else if(w===prevB){g.prev.push(v); nPrev++;
@@ -7226,11 +7291,6 @@ function renderPulse(rowsGated){
       isNew:prevB!==undefined&&!g.prev.length,
       pres:pres.map.get(g.cls*100+g.spec)||0,
       csKey:g.cls*100+g.spec,
-      spark:(()=>{const pts=[];
-        for(const w of [...availWeeks].sort((a,b)=>b-a)){
-          const bag=wkBag.get(key*1000+w);
-          if(bag&&bag.length>=PULSE_THIN) pts.push(qp(bag.sort((a,b)=>a-b),state.pctl/100));
-        } return pts;})(),
       color:CLASS_COLORS[D.classes[g.cls]]||"#999"});
   }
   // ranks anchored to DPS at the current lens, both windows
@@ -7257,10 +7317,9 @@ function renderPulse(rowsGated){
     return;
   }
   // EVERY column sorts, both directions, through the shared rule (feedback L51-52).
-  // Spark sorts by net season movement (last − first point); <2 points parks last.
   const cols=[["rn","#","txt"],["spec","Spec","txt"],
     ["dps","DPS @ p"+state.pctl],["delta","Δ vs last reset"],["rankd","Rank"],
-    ["spark","Season","txt"],["adeaths","Deaths"],["pres","Comps","txt"],
+    ["adeaths","Deaths"],["pres","Comps","txt"],
     // an empty label would be a zero-width click target: the title names it
     ["tag","","txt","new to the sample since last reset"],
     ["verdict","Verdict","txt"]];
@@ -7270,7 +7329,6 @@ function renderPulse(rowsGated){
       case "spec": return e.cls+" "+e.spec+(e.hero?" — "+e.hero:"");
       case "delta": return e.delta==null?NaN:e.delta;
       case "rankd": return e.rp==null?NaN:e.rp-e.rn;
-      case "spark": return e.spark.length<2?NaN:e.spark[e.spark.length-1]-e.spark[0];
       case "pres": return pres.den?e.pres:NaN;
       case "tag": return e.isNew?"new":"";
       default: return e[k];
@@ -7295,7 +7353,6 @@ function renderPulse(rowsGated){
       +'<td>'+fmtInt(e.dps)+'</td>'
       +'<td>'+dcell+'</td>'
       +'<td>'+rcell+'</td>'
-      +'<td class="txt">'+pulseSpark(e.spark,e.color)+'</td>'
       +'<td>'+e.adeaths.toFixed(2)+'</td>'
       +'<td class="txt">'+(pres.den
         ?('<span class="complink" data-ck="'+e.csKey+'" title="qualifying comps ('
@@ -7316,14 +7373,13 @@ function renderPulse(rowsGated){
     if(g.prev.length>=PULSE_THIN&&!g.now.length)
       left.push(D.specs[g.spec]+" "+D.classes[g.cls]);
   capEl.textContent="Sorted by DPS at the current lens by default — the top-now "
-    +"read; every column sorts both ways (the Season column by net season "
-    +"movement, last spark point minus first), dashes always last. "
+    +"read; every column sorts both ways, dashes always last. "
     +"Δ compares this reset's p"+state.pctl+" DPS against last reset's at the same "
     +"lens; thin baselines (under "+PULSE_THIN+" parses) are greyed, never hidden. "
     +"Comp presence counts the qualifying comps (≥"+state.compMin+" runs under the "
     +"current filters) that include the spec — the denominator is that comp count, "
     +"stated in the cell; click a Comps cell to open Top Comps filtered to that "
-    +"spec. Sparkline: per-reset p"+state.pctl+" DPS across the season."
+    +"spec. The board holds "+retPhrase()+"; older resets are not kept."
     +(entries.length>PULSE_MAX?" Showing top "+PULSE_MAX+" of "+entries.length+" specs.":"")
     +(left.length?" Left the sample since last reset: "+left.join(", ")+".":"");
 }
@@ -7785,8 +7841,13 @@ function renderTrend(){
     +" plotted points, "+(keyAxis?"so the specs that hold up best as keys rise come"
       +" first and the fastest drop-offs last":"steepest riser first")+".";
   if(hasTune&&state.postTune) extraCap+=" Range truncated by the post-tuning filter.";
-  { const g=gapsIn(-1,1e9); if(g.length) extraCap+=" Collection was down "+g.map(gapText).join("; ")
-      +" — those buckets are under-counted."; }
+  if(!keyAxis&&buckets.length){
+    // the chart's own day span, never every outage ever recorded
+    const dlo=daily?buckets[0]:Math.min(...buckets.map(bucketLo));
+    const dhi=daily?buckets[buckets.length-1]:Math.max(...buckets.map(bucketHi));
+    const g=gapsIn(dlo,dhi); if(g.length) extraCap+=" Collection was down "+g.map(gapText).join("; ")
+      +" — those buckets are under-counted.";
+  }
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv,
                     keyAxis?(pt=>"at "+bLabel(pt.b)):(()=>"latest"));
@@ -7869,7 +7930,7 @@ function renderTrend(){
     +"label to spotlight it.";
 }
 function trendCap(mt,span,keyAxis,shown,ofN){
-  return (keyAxis?TREND_CAP_KEY:TREND_CAP).replace("{metric}",mt.label.toLowerCase())
+  return (keyAxis?TREND_CAP_KEY:TREND_CAP).replace("{metric}",mt.label.toLowerCase()).replace("{window}",retPhrase())
     +(mt.betterUp?"":" The best (lowest) groups are shown.")
     +(span?" "+span:"")
     // the group cap, stated like the Overview's (2026-09-09): 3 of 19 gated
@@ -7941,7 +8002,7 @@ function renderTable(rows,tab){
       ["deathless","Deathless %"],
       // punishment proxy: fixed p30–p85 by design, immune to the pctl slider
       ["spread","p-spread (fixed p30–p85)"]);
-    if(hasRating) cols.push(["arating","Avg Player Rating"],["mrating","Med Player Rating"]);
+    if(hasRating) cols.push(["arating","Avg Player Rating (season)"],["mrating","Med Player Rating (season)"]);
   }
   // comp presence "in K of Q" — read from renderComps' published set (one
   // model, one denominator); the cell links to Top Comps sliced to the spec

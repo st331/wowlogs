@@ -374,6 +374,21 @@ assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)'
 # every sidecar window is BOUND to the retention constant, and the sentence leads with the policy
 assert '"retention": dict(RETENTION_INFO)' in _b and "SIDECAR_WINDOW_RESETS = RETENTION_RESETS" in _b and "BUILDS_WINDOW_RESETS = RETENTION_RESETS" in _b, "retention facts ship; sidecar windows bind to retention"
 assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'persist_sweep_stats({"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build -> page"
+# 2026-09-14 retention (owner): the page STATES the window on every build from
+# payload.retention, buckets on the builder's anchor, and has no control that
+# reaches past the newest two resets
+assert "D.retention" in html and 'id="retention-note"' in html and "function renderRetentionNote" in html and "renderRetentionNote();" in html, "the retention note is rendered every build"
+_rn = html[html.index("function renderRetentionNote"):]; _rn = _rn[:_rn.index("\nfunction renderCoverageNote")]
+assert "weekly reset" in _rn and _rn.index("weekly reset") < _rn.index("dropped"), "the window sentence leads; dropped counts trail"
+assert '["Everything kept", ()=>[]]' in html and '["This reset", ()=>[0]]' in html and '["Last reset", ()=>[1]]' in html, "the three period presets"
+for gone in ('"All season"', '"Last month"', '"Prev month"', '"Last 2 months"', "Custom weeks", 'id="f-weeksA"', "whole season", "pulseSpark(", "wkBag", "Last vs prev month"):
+    assert gone not in html, f"{gone!r} must not survive the two-week window"
+assert "if(w===OUTW) return false;" in html and "KEEP_BUCKETS=(Number.isFinite(+r)&&+r>0)?+r:2" in html, "rows past the window never pass, and the clamp fails closed on an old payload"
+assert "const now=(aD&&!isNaN(+aD))?aD:wallNow;" in html and "Math.floor((wallNow-epoch)/36e5)" in html, "buckets on the builder's anchor (NaN-guarded); reset-age on the wall clock"
+assert 'replace("{window}",retPhrase())' in html and "function retPhrase()" in html, "captions read the window from the payload"
+assert "Compare needs two resets" in html, "compare refuses without a baseline inside the window"
+assert "Rating is a Raider.IO season total" in html and "Avg Player Rating (season)" in html, "the one season-wide figure says so where it prints"
 print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner; coverage note")
+print("client      : retention note every build; presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
 print("\nPASS")
