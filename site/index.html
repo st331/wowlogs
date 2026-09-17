@@ -1368,7 +1368,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
   <input type="range" id="minchars" min="1" max="1200" value="250">
   <div class="hint" id="minchars-help">How many distinct players must have
     parsed a spec for it to show, counted against the view this page opens on.
-    Narrowing the sample — period, key range, dungeon, region — scales the
+    Narrowing the sample — period, key range, item level, dungeon, region — scales the
     threshold down to match, so roughly the same specs stay listed. Role,
     melee/ranged and un-merging hero talents change which specs are listed
     rather than the sample behind them, so those leave the threshold alone and
@@ -2421,7 +2421,8 @@ function buildControls(){
     e.target.value=state.khi; paintKeys(); render();};
 
   // item-level range (dual slider, clamped) -- the same shape as the key
-  // range. Hidden, with the reason, on a payload that carries no rows.ilvl.
+  // range. Hidden outright, like the timed segment, when the payload carries
+  // no rows.ilvl (or no known value in it): nothing to filter, nothing to say.
   const ibox=$("ilvl-box");
   if(!ILVL.has){
     ibox.hidden=true;
@@ -2435,13 +2436,12 @@ function buildControls(){
       const on=ilvlNarrowed();
       $("ilvl-v").textContent=(on?"":"any · ")+state.ilo+" – "+state.ihi;
       $("ilvl-hint").textContent=on&&ILVL.unknown
-        ?"· "+fmtInt(ILVL.unknown)+" parses with no item level are excluded while narrowed":"";
+        ?"· "+fmtInt(ILVL.unknown)+" parses in this build carry no item level; a narrowed range leaves them out":"";
       const f=$("ilvl-fill"), span=ILVL.max-ILVL.min||1;
       f.style.left=((state.ilo-ILVL.min)/span*100)+"%";
       f.style.width=((state.ihi-state.ilo)/span*100)+"%";
     };
     paintIlvl();
-    window.__paintIlvl=paintIlvl;
     $("ilo").oninput=e=>{state.ilo=Math.min(+e.target.value,state.ihi);
       e.target.value=state.ilo; paintIlvl(); render();};
     $("ihi").oninput=e=>{state.ihi=Math.max(+e.target.value,state.ilo);
@@ -2552,7 +2552,6 @@ function buildControls(){
     document.querySelectorAll("#trendseg button").forEach(b=>{
       b.classList.toggle("on",b.dataset.tid===state.trendMetric);
       if(b.dataset.tid==="med") b.textContent=dpsLabel()});
-    if(ILVL.has){$("ilo").value=state.ilo; $("ihi").value=state.ihi; window.__paintIlvl&&window.__paintIlvl();}
     syncLensUI();
     render();
   };
@@ -2781,7 +2780,7 @@ document.querySelector("#archon-toast .x").onclick=()=>hideArchonToast();
 function archonTitle(){
   return "Replicates archon.gg's high-keys table: per spec, the top decile of key "
     +"levels over the last 14 days, then p85 DPS within (per-spec elite key floor). "
-    +"Keys and weeks are parked at full range because the replica path bypasses them; "
+    +"Keys"+(ILVL.has?", item level":"")+" and weeks are parked at full range because the replica path bypasses them; "
     +"timed filter off, hero talents merged, DPS role, compare off. "
     +"Validated against their live table at ρ≈0.95. "
     +"Unchecks itself the moment any of those settings moves.";
@@ -2990,7 +2989,7 @@ function groupKey(i){
 //
 // Those two — and unmerging hero talents — change *which entities* the page
 // lists, so the list is meant to grow or shrink with them and the threshold
-// must hold still. Everything else (period, key range, dungeon, region,
+// must hold still. Everything else (period, key range, item-level range, dungeon, region,
 // timed-only, post-tuning, class, spec) only narrows the *sample* behind the
 // same entities, so the threshold scales down with the sample and roughly the
 // same rows stay on screen. Unmerging needs no special case: it regroups rows
@@ -3007,6 +3006,9 @@ function refChars(){
     if(DEF.postTune&&R.post[i]!==1) continue;
     if(DEF.timedOnly&&R.timed[i]!==1) continue;
     if(R.key[i]<DEF.klo||R.key[i]>DEF.khi) continue;
+    // item level: DEF.ilo/ihi are the payload's full range (no default
+    // narrowing), so this is inert today and correct if a default ever narrows
+    if(ILVL.has&&(DEF.ilo>ILVL.min||DEF.ihi<ILVL.max)){const v=R.ilvl[i]; if(v<DEF.ilo||v>DEF.ihi) continue;}
     if(role&&!role.has(R.role[i])) continue;
     if(atk&&R.atk[i]!==atk) continue;
     if(projSkip(i)) continue;
@@ -3684,7 +3686,7 @@ function frameStatsHTML(ctx){
      (frameIdentityHTML renders its own "no parses" state off the same test),
      so the numbers stand down and only the explanation remains. */
   h+='<div class="fsub">fixed build-time cohort — these do <b>not</b> follow '
-    +'the key, period, dungeon or lens filters</div>';
+    +'the key, item-level, period, dungeon or lens filters</div>';
   if(!ctx.g)
     return h+'<div class="foot" style="margin-top:0">no parses match the '
       +'current filters, so the live figures are unavailable; the fixed cohort '
@@ -7013,7 +7015,7 @@ function render(){
     +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
     +(state.elite?"<b>⚔ Archon replica:</b> per spec, the top decile of key "
         +"levels, then p85 DPS within — the moving elite frontier their table "
-        +"tracks. Key/period/min-character controls are bypassed while active"
+        +"tracks. Key/"+(ILVL.has?"item-level/":"")+"period/min-character controls are bypassed while active"
         +(eliteHidden?"; "+eliteHidden+" spec"+(eliteHidden>1?"s":"")
           +" hidden for having under "+50+" qualifying parses":"")+". ":"")
     +(state.compare
@@ -7281,7 +7283,7 @@ function renderArchonCard(){
    +'+ qualifying parses to show'
    +(eliteHidden?'; <b>'+eliteHidden+' spec'+(eliteHidden>1?'s':'')
      +'</b> hidden for having under '+ELITE_MIN+' qualifying parses':'')+'. '
-   +'<div class="byp">Bypassed while active: <s>key range</s> · <s>period selection</s> · '
+   +'<div class="byp">Bypassed while active: <s>key range</s> · '+(ILVL.has?'<s>item-level range</s> · ':'')+'<s>period selection</s> · '
    +'<s>timed filter</s> · <s>minimum characters'
    +(em?' ('+esc(em)+')':'')+'</s> — parked at full range so a mid-range setting '
    +'cannot misleadingly suggest it applies; moving any of them exits the mode.</div>';
@@ -7753,7 +7755,7 @@ function renderTrend(){
   if(!buckets.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
       +(keyAxis?'No runs between +'+Math.max(state.klo,TREND_KEY_FLOOR)+' and +'
-               +state.khi+' match the current filters.'
+               +state.khi+(ilvlNarrowed()?' at '+ilvlText():'')+' match the current filters.'
                :'No dated runs match the current filters.')+'</div>';
     $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
   }

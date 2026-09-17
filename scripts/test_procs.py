@@ -397,9 +397,11 @@ print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'u
 assert 'id="ilo"' in html and 'id="ihi"' in html and 'id="ilvl-fill"' in html and 'id="ilvl-v"' in html, "item-level dual slider"
 assert "il:ilvlNarrowed()" in html and "if(m.il){const v=R.ilvl[i]; if(v<state.ilo||v>state.ihi) return false;}" in html, "rowPass applies the range only when narrowed; unknown (0) fails a narrowed range"
 assert html.count("if(ilvlNarrowed()) p.push(ilvlText());") == 2, "printed in the scope line and the frame scope"
-assert 'scopeChip(box,ilvlText()' in html and "with no item level are excluded while narrowed" in html, "scope chip + the excluded-unknowns hint"
+assert 'scopeChip(box,ilvlText()' in html and "carry no item level; a narrowed range leaves them out" in html, "scope chip + the excluded-unknowns hint"
 assert "ilo:ILVL.min, ihi:ILVL.max," in html and "&& !ilvlNarrowed()" in html and "ilo:state.ilo, ihi:state.ihi," in html, "Archon parks, matches and snapshots the range"
 assert "ibox.hidden=true;" in html, "hidden on a payload without rows.ilvl"
+assert html.count('(ILVL.has?') >= 3 and "item level, dungeon, region" in html and "the key, item-level, period, dungeon or lens filters" in html, "the bypassed/narrowing/fixed-cohort prose names item level"
+assert "if(ILVL.has&&(DEF.ilo>ILVL.min||DEF.ihi<ILVL.max))" in html, "the trust-gate reference pool mirrors the item-level default"
 assert '"ilvl": ilvl_arr' in _b, "the builder ships rows.ilvl"
 print("client      : retention note every build; presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
