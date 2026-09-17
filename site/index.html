@@ -3686,7 +3686,7 @@ function frameStatsHTML(ctx){
      (frameIdentityHTML renders its own "no parses" state off the same test),
      so the numbers stand down and only the explanation remains. */
   h+='<div class="fsub">fixed build-time cohort — these do <b>not</b> follow '
-    +'the key, item-level, period, dungeon or lens filters</div>';
+    +'the key, '+(ILVL.has?'item-level, ':'')+'period, dungeon or lens filters</div>';
   if(!ctx.g)
     return h+'<div class="foot" style="margin-top:0">no parses match the '
       +'current filters, so the live figures are unavailable; the fixed cohort '
@@ -6963,7 +6963,8 @@ function render(){
   const cmpA=state.compare||skillTab;
 
   // The slider is the threshold for the default view. Narrowing the sample —
-  // a shorter period, fewer key levels, one dungeon, one region — scales it
+  // a shorter period, fewer key levels, a narrower item-level range, one
+  // dungeon, one region — scales it
   // down by the same factor, so the chart keeps roughly the row count it
   // opened with instead of emptying out. Each period scales by its own share,
   // which matters in compare mode. Characters, not parses, set the ratio: a
