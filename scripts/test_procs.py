@@ -389,6 +389,18 @@ assert 'replace("{window}",retPhrase())' in html and "function retPhrase()" in h
 assert "Compare needs two resets" in html, "compare refuses without a baseline inside the window"
 assert "Rating is a Raider.IO season total" in html and "Avg Player Rating (season)" in html, "the one season-wide figure says so where it prints"
 print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'uptime' only in the definition; every-parse table + lens column; sample banner; coverage note")
+# 2026-09-17 item-level range filter (owner: "add a filter for ilevel as well"): the same
+# shape as the key range, applied in rowPass through baseMasks (so every surface that
+# filters rows inherits it), printed in the scope line, the frame scope and a scope chip
+# whenever narrowed, parked and restored by the Archon replica, hidden on a payload
+# without rows.ilvl, and honest about the unknown rows a narrowed range excludes.
+assert 'id="ilo"' in html and 'id="ihi"' in html and 'id="ilvl-fill"' in html and 'id="ilvl-v"' in html, "item-level dual slider"
+assert "il:ilvlNarrowed()" in html and "if(m.il){const v=R.ilvl[i]; if(v<state.ilo||v>state.ihi) return false;}" in html, "rowPass applies the range only when narrowed; unknown (0) fails a narrowed range"
+assert html.count("if(ilvlNarrowed()) p.push(ilvlText());") == 2, "printed in the scope line and the frame scope"
+assert 'scopeChip(box,ilvlText()' in html and "with no item level are excluded while narrowed" in html, "scope chip + the excluded-unknowns hint"
+assert "ilo:ILVL.min, ihi:ILVL.max," in html and "&& !ilvlNarrowed()" in html and "ilo:state.ilo, ihi:state.ihi," in html, "Archon parks, matches and snapshots the range"
+assert "ibox.hidden=true;" in html, "hidden on a payload without rows.ilvl"
+assert '"ilvl": ilvl_arr' in _b, "the builder ships rows.ilvl"
 print("client      : retention note every build; presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
 print("\nPASS")

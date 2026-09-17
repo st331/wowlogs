@@ -3362,6 +3362,17 @@ def build(name: str, cfg: dict) -> None:
     rio = player_scores()
     charscore = [int(round(rio.get(k, -1))) if rio.get(k) is not None else -1
                  for k in char_keys]
+    # per-row item level for the page's range filter (owner, 2026-09-17)
+    if "item_level" in df.columns:
+        _il = pd.to_numeric(df["item_level"], errors="coerce")
+        _il = _il.where(_il > 0)                       # 0/negative = unknown too
+        ilvl_arr = _il.fillna(0).round(0).astype(int).tolist()
+        _known = _il.dropna()
+        health(f"ilvl.unknown_rows={int(_il.isna().sum())}")
+        health(f"ilvl.range={int(_known.min()) if len(_known) else 'none'}-{int(_known.max()) if len(_known) else 'none'}")
+    else:
+        ilvl_arr = [0] * len(df)
+        health("ilvl.unknown_rows=all (no item_level column)")
     # the outage annotations the page may still be under-counted by
     gaps_pub, gaps_sup = _gaps_in_window(
         _load_json(ROOT / "data" / "collection_gaps.json", []))
@@ -3443,6 +3454,11 @@ def build(name: str, cfg: dict) -> None:
             "cls": cls_arr, "spec": spec_arr, "hero": hero_arr,
             "dun": dun_arr, "reg": reg_arr, "role": role_arr,
             "key": df["key_level"].astype(int).tolist(),
+            # item level at the pull (WCL maxItemLevel), whole points; 0 =
+            # unknown (47 of 1.66M rows on 2026-09-17). The page's item-level
+            # range filter reads this; an unknown row passes only an
+            # untouched range and the page prints how many it excluded.
+            "ilvl": ilvl_arr,
             "deaths": df["deaths"].astype(int).tolist(),
             "dps": df["dps"].round(0).astype(int).tolist(),
             "dur": pd.to_numeric(df["duration_s"], errors="coerce")

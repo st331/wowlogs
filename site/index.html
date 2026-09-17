@@ -1352,6 +1352,14 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <div class="track"></div><div class="fill" id="key-fill"></div>
     <input type="range" id="klo"><input type="range" id="khi">
   </div>
+  <div id="ilvl-box">
+    <div style="margin-top:.5rem">Item Level: <b id="ilvl-v" style="color:var(--accent)"></b>
+      <span class="hint" id="ilvl-hint"></span></div>
+    <div class="dual">
+      <div class="track"></div><div class="fill" id="ilvl-fill"></div>
+      <input type="range" id="ilo"><input type="range" id="ihi">
+    </div>
+  </div>
 
   <div class="side-label">Trust Gate</div>
   <div>Minimum characters:
@@ -1654,9 +1662,13 @@ const EMPTY=new Set(); let lastEffMin=0;
 // "this many players under the default view", so the default view is the
 // yardstick every other selection is measured against.
 let DEF=null, refMemo=new Map(), SCOPE_DEF=null;
+let ILVL={min:0,max:0,unknown:0,has:false};   // item-level bounds of the payload (set in initData)
+function ilvlNarrowed(){return ILVL.has&&(state.ilo>ILVL.min||state.ihi<ILVL.max)}
+function ilvlText(){return ilvlNarrowed()?"ilvl "+state.ilo+"–"+state.ihi:""}
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
+             ilo:0, ihi:0,   // item-level range (owner, 2026-09-17); full range = no filter
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20,
              compSpec:null,   // Top Comps "With spec" view slice — display-only, cleared on reload
@@ -1957,12 +1969,21 @@ function initData(d,cfg){
   // handful of runs that add noise without adding signal.
   state.khi=Math.max(kmax-1,kmin);
   state.klo=Math.max(state.khi-5,kmin);
+  // item level: the slider spans every KNOWN value (0 = unknown, never a bound)
+  // and opens at the full range, which is "no filter"
+  ILVL={min:0,max:0,unknown:0,has:false};
+  if(R.ilvl&&R.ilvl.length===N){
+    let lo=Infinity,hi=-Infinity,unk=0;
+    for(let i=0;i<N;i++){const v=R.ilvl[i]; if(v>0){if(v<lo)lo=v; if(v>hi)hi=v} else unk++;}
+    if(hi>=lo){ILVL={min:lo,max:hi,unknown:unk,has:true}}
+  }
+  state.ilo=ILVL.min; state.ihi=ILVL.max;
   state.minchars=cfg.minchars;
   $("minchars").max=cfg.maxchars;
   $("minchars").value=state.minchars;
   $("minchars-v").textContent=state.minchars;
   DEF={klo:state.klo, khi:state.khi, timedOnly:state.timedOnly,
-       postTune:state.postTune};
+       postTune:state.postTune, ilo:state.ilo, ihi:state.ihi};
   SCOPE_DEF={weeksA:new Set(state.weeksA)};   // yardstick for the strip's scope chips
   refMemo=new Map();
   state.compare=false; $("cmp").checked=false;
@@ -2399,6 +2420,34 @@ function buildControls(){
   $("khi").oninput=e=>{state.khi=Math.max(+e.target.value,state.klo);
     e.target.value=state.khi; paintKeys(); render();};
 
+  // item-level range (dual slider, clamped) -- the same shape as the key
+  // range. Hidden, with the reason, on a payload that carries no rows.ilvl.
+  const ibox=$("ilvl-box");
+  if(!ILVL.has){
+    ibox.hidden=true;
+  }else{
+    ibox.hidden=false;
+    state.ilo=Math.max(ILVL.min,state.ilo); state.ihi=Math.min(ILVL.max,state.ihi);
+    if(state.ilo>state.ihi){state.ilo=ILVL.min; state.ihi=ILVL.max}
+    for(const s of ["ilo","ihi"]){$(s).min=ILVL.min; $(s).max=ILVL.max; $(s).step=1}
+    $("ilo").value=state.ilo; $("ihi").value=state.ihi;
+    const paintIlvl=()=>{
+      const on=ilvlNarrowed();
+      $("ilvl-v").textContent=(on?"":"any · ")+state.ilo+" – "+state.ihi;
+      $("ilvl-hint").textContent=on&&ILVL.unknown
+        ?"· "+fmtInt(ILVL.unknown)+" parses with no item level are excluded while narrowed":"";
+      const f=$("ilvl-fill"), span=ILVL.max-ILVL.min||1;
+      f.style.left=((state.ilo-ILVL.min)/span*100)+"%";
+      f.style.width=((state.ihi-state.ilo)/span*100)+"%";
+    };
+    paintIlvl();
+    window.__paintIlvl=paintIlvl;
+    $("ilo").oninput=e=>{state.ilo=Math.min(+e.target.value,state.ihi);
+      e.target.value=state.ilo; paintIlvl(); render();};
+    $("ihi").oninput=e=>{state.ihi=Math.max(+e.target.value,state.ilo);
+      e.target.value=state.ihi; paintIlvl(); render();};
+  }
+
   // periods
   paintA=buildPeriodUI("A",state.weeksA,false);
   paintB=buildPeriodUI("B",state.weeksB,true);
@@ -2465,12 +2514,14 @@ function buildControls(){
     // bypassed, and leaving them mid-range would misleadingly suggest they
     // apply. Moving any of them exits the mode, which un-bypasses them.
     return {kmin:Math.min(...keys), kmax:Math.max(...keys),
+            ilo:ILVL.min, ihi:ILVL.max,   // the replica's recipe has no item-level term
             weeks:[...availWeeks]};      // the retained buckets only
   };
   window.__archonMatches=()=>{
     const t=archonTarget();
     return state.elite && state.pctl===85
       && state.klo===t.kmin && state.khi===t.kmax
+      && !ilvlNarrowed()
       && !state.timedOnly
       && state.merge && !state.compare
       && state.role.size===1 && state.role.has("DPS");
@@ -2482,6 +2533,7 @@ function buildControls(){
   // setting stranded the percentile at 90.
   window.applyArchonState=(st)=>{
     Object.assign(state,{pctl:st.pctl, elite:!!st.elite, klo:st.klo, khi:st.khi,
+      ilo:("ilo" in st)?st.ilo:ILVL.min, ihi:("ihi" in st)?st.ihi:ILVL.max,
       timedOnly:st.timedOnly,
       merge:st.merge, compare:st.compare, tab:st.tab,
       trendMetric:st.trendMetric, dayCut:0});
@@ -2500,10 +2552,12 @@ function buildControls(){
     document.querySelectorAll("#trendseg button").forEach(b=>{
       b.classList.toggle("on",b.dataset.tid===state.trendMetric);
       if(b.dataset.tid==="med") b.textContent=dpsLabel()});
+    if(ILVL.has){$("ilo").value=state.ilo; $("ihi").value=state.ihi; window.__paintIlvl&&window.__paintIlvl();}
     syncLensUI();
     render();
   };
   const snap=()=>({pctl:state.pctl, elite:state.elite, klo:state.klo, khi:state.khi,
+    ilo:state.ilo, ihi:state.ihi,
     timedOnly:state.timedOnly, merge:state.merge, compare:state.compare,
     tab:state.tab, trendMetric:state.trendMetric, skill:state.skill,
     role:[...state.role], weeksA:[...state.weeksA]});
@@ -2514,6 +2568,7 @@ function buildControls(){
       const t=archonTarget();
       setNotice("⚔ Archon replica on — filters rewritten to its recipe; your previous filters are held for restore.");
       applyArchonState({pctl:85, elite:true, klo:t.kmin, khi:t.kmax,
+        ilo:t.ilo, ihi:t.ihi,
         timedOnly:false, merge:true,
         compare:false, tab:"med", trendMetric:"med", role:["DPS"],
         weeksA:t.weeks});
@@ -2886,6 +2941,7 @@ function scopeLine(sec,extra){
   else{
     p.push(describePeriod(state.weeksA));
     p.push("keys +"+state.klo+"–+"+state.khi);
+    if(ilvlNarrowed()) p.push(ilvlText());
   }
   if(state.timedOnly) p.push("timed only");
   let s=esc(p.join(" · "))+labStamp(sec);
@@ -2909,12 +2965,14 @@ function baseMasks(){
   return {cls:idxSet(state.cls,D.classes), spec:idxSet(state.spec,D.specs),
     hero:idxSet(state.hero,D.heroes), dun:idxSet(state.dun,D.dungeons),
     role:idxSet(state.role,D.roles), reg:idxSet(state.reg,D.regions),
-    atk:state.melee!==state.ranged?(state.melee?1:2):0};
+    atk:state.melee!==state.ranged?(state.melee?1:2):0,
+    il:ilvlNarrowed()};   // the item-level range applies only when narrowed
 }
 function rowPass(i,m){
   if(state.postTune&&R.post[i]!==1) return false;
   if(state.timedOnly&&R.timed[i]!==1) return false;
   if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
+  if(m.il){const v=R.ilvl[i]; if(v<state.ilo||v>state.ihi) return false;}   // 0 = unknown fails a narrowed range
   if(m.cls&&!m.cls.has(R.cls[i])) return false;
   if(m.spec&&!m.spec.has(R.spec[i])) return false;
   if(!state.merge&&m.hero&&!m.hero.has(R.hero[i])) return false;
@@ -3438,7 +3496,8 @@ function frameScope(){
   const p=["p"+state.pctl+" lens"];
   if(state.elite) p.push("Archon replica");
   else{ p.push(describePeriod(state.weeksA));
-        p.push("keys +"+state.klo+"–+"+state.khi); }
+        p.push("keys +"+state.klo+"–+"+state.khi);
+        if(ilvlNarrowed()) p.push(ilvlText()); }
   if(state.timedOnly) p.push("timed only");
   return p.join(" · ");
 }
@@ -7178,6 +7237,8 @@ function renderScopeChips(){
   if(state.melee!==state.ranged) scopeChip(box,state.melee?"melee only":"ranged only","melee");
   if(DEF&&!state.elite&&(state.klo!==DEF.klo||state.khi!==DEF.khi))
     scopeChip(box,"keys +"+state.klo+"–+"+state.khi,"klo");
+  if(!state.elite&&ilvlNarrowed())
+    scopeChip(box,ilvlText()+(ILVL.unknown?" (the "+fmtInt(ILVL.unknown)+" parses with no item level cannot match)":""),"ilo");
   if(SCOPE_DEF&&!state.elite&&!setsEqual(state.weeksA,SCOPE_DEF.weeksA))
     scopeChip(box,"period: "+describePeriod(state.weeksA),"presetA");
   if(state.timedOnly!==hasTimed)
