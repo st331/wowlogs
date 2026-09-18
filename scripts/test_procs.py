@@ -395,15 +395,38 @@ print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'u
 # whenever narrowed, parked and restored by the Archon replica, hidden on a payload
 # without rows.ilvl, and honest about the unknown rows a narrowed range excludes.
 assert 'id="ilo"' in html and 'id="ihi"' in html and 'id="ilvl-fill"' in html and 'id="ilvl-v"' in html, "item-level dual slider"
-assert "il:ilvlNarrowed()" in html and "if(m.il){const v=R.ilvl[i]; if(v<state.ilo||v>state.ihi) return false;}" in html, "rowPass applies the range only when narrowed; unknown (0) fails a narrowed range"
-assert html.count("if(ilvlNarrowed()) p.push(ilvlText());") == 2, "printed in the scope line and the frame scope"
-assert 'scopeChip(box,ilvlText()' in html and "carry no item level; a narrowed range leaves them out" in html, "scope chip + the excluded-unknowns hint"
+assert "il:il?true:(ilvlNarrowed()||gearOn())" in html and "if(m.il){const v=R.ilvl[i]; if(v<m.ilo||v>m.ihi) return false;}" in html, "rowPass applies the range only when narrowed or under the Gear axis; unknown (0) fails a narrowed range"
+assert html.count("else if(ilvlNarrowed()) p.push(ilvlText());") == 2 and 'if(gearOn()) p.push(ilvlAText()+" (cohort A)");' in html and 'if(gearOn()) p.push(ilvlAText()+" vs "+ilvlBText()+" (ghost)");' in html, "printed in the scope line (cohort A) and the frame scope (A vs B) under the Gear axis"
+assert 'scopeChip(box,ilvlText()' in html and "parses in this build carry no item level; " in html and '(gear?"they sit in neither cohort":"a narrowed range leaves them out")' in html, "scope chip + the excluded-unknowns hint (cohort wording under the Gear axis)"
 assert "ilo:ILVL.min, ihi:ILVL.max," in html and "&& !ilvlNarrowed()" in html and "ilo:state.ilo, ihi:state.ihi," in html, "Archon parks, matches and snapshots the range"
 assert "ibox.hidden=true;" in html, "hidden on a payload without rows.ilvl"
 assert html.count('(ILVL.has?') >= 3 and "item level, dungeon, region" in html and "'the key, '+(ILVL.has?'item-level, ':'')" in html, "the bypassed/narrowing/fixed-cohort prose names item level (the disclaimer only when the page has it)"
 assert "if(ILVL.has&&(DEF.ilo>ILVL.min||DEF.ihi<ILVL.max))" in html, "the trust-gate reference pool mirrors the item-level default"
 assert '"ilvl": ilvl_arr' in _b, "the builder ships rows.ilvl"
 print("client      : item-level range: dual slider under Key Level; rowPass gate; scope line + frame scope; chip + hint name the unknown count; Archon park/match/snap; hidden without rows.ilvl")
+
+# Gear compare axis (owner, 2026-09-18: "compare on ... ilevel. I want to be able to see how
+# classes scale with gear"): a third XOR axis next to Time and Skill. The same period and
+# filters are aggregated twice, once per item-level cohort (A = the Item Level slider, B = a
+# ghost twin in the sidebar), and joined on A's groups exactly like the Time axis. Turning it
+# on splits an open slider at the median item level of the current selection (A at or above,
+# B below) or keeps a narrowed A and gives B the complement; every surface that prints
+# "period A/B" under Time prints the two item-level ranges under Gear; parses with no item
+# level sit in neither cohort; Archon parks it and restores it; hidden without rows.ilvl.
+assert 'data-a="gear" data-l="Gear" id="axis-gear-btn"' in html and 'id="axis-gear"' in html and 'id="axis-gear-chip"' in html, "Gear segment button + reserved axis sub-slot"
+assert 'id="blockG"' in html and 'id="ilob"' in html and 'id="ihib"' in html and 'id="ilvlb-v"' in html and 'id="ilvlb-fill"' in html and 'id="gearquick"' in html, "B cohort panel: dual slider + quick chips"
+assert "const gearOn=()=>state.gear&&!state.compare&&!state.skill&&!state.elite&&ILVL.has;" in html and "const twoSided=()=>state.compare||gearOn();" in html, "gearOn and twoSided predicates"
+assert "const skillOn=()=>state.skill&&!state.compare&&!state.gear&&!state.elite;" in html and "if(on){state.skill=false; if(state.gear) gearOff();}" in html and "function gearOff()" in html and 'else if(a==="gear"){ if(!state.gear) setGear(true); }' in html, "strict XOR across the three axes"
+assert "function gearMedian()" in html and "function gearSplitApply(announce)" in html and "function setGear(on)" in html and "function gearOverlapNote()" in html, "gear engine"
+assert 'at or above the median item level of the current selection, "' in html and '(everything "+(below?"below":"above")+" A, grey ghost)' in html and "Gear compare needs item levels — this build carries none." in html and "no spread of item levels to split" in html, "the notices say what was set, kept or refused"
+assert "function aggregate(weeks,il){" in html and "const m=baseMasks(il), cut=periodCut(weeks);" in html and "aggregate(state.weeksA,{lo:state.ilob,hi:state.ihib})" in html, "B is period A aggregated over the B cohort"
+assert html.count("twoSided()") >= 7 and "if(twoSided()) b=B?B.groups.get(key)||null:null;" in html, "every two-aggregation surface reads twoSided(), not state.compare"
+assert '<b>Gear compare:</b> solid = item level A (' in html and "parses with no item level sit in neither cohort." in html and "Item level climbs with key level, so keep the key range narrow to read gear alone" in html and "A and B overlap on ilvl" in html, "period note: cohorts, unknowns, the key confound, overlap"
+assert 'cap="Solid bar: item level A ("' in html and 'scopeChip(box,"compare: gear vs "+ilvlBText(),"cmpseg")' in html and 'row("", "<b>A</b> "+esc(ilvlAText()), "<b>B</b> "+esc(ilvlBText()))' in html and '" at item level A ("+state.ilo+"–"+state.ihi+") vs B ("' in html, "caption, scope chip, tooltip header and table sub-line name the ranges"
+assert "(gearOn()?'no B':'new')" in html and "gearOn()?' · cohort A':''" in html and 'gearOn()?" · item-level cohort A":""' in html, "no time words under the Gear axis"
+assert 'state.gear=("gear" in st)?!!st.gear:false;' in html and "gear:state.gear, ilob:state.ilob, ihib:state.ihib," in html and "&& state.merge && !state.compare && !state.gear" in html, "Archon parks the Gear axis and restores it"
+assert '$("axis-gear-btn").style.display=ILVL.has?"":"none";' in html and "state.gear=false; state.ilob=0; state.ihib=0;" in html, "hidden without rows.ilvl; opens off"
+print("client      : Gear compare axis: Off|Time|Skill|Gear XOR; B = period A over the B item-level cohort; median split / complement / swap; period note, caption, chip, tooltip, table, frame; Archon park+restore; hidden without rows.ilvl")
 print("client      : retention note every build; presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
 print("\nPASS")

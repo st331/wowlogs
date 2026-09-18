@@ -1312,6 +1312,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
       <button data-a="off" data-l="Off" class="on">Off</button>
       <button data-a="time" data-l="Time">Time</button>
       <button data-a="skill" data-l="Skill">Skill</button>
+      <button data-a="gear" data-l="Gear" id="axis-gear-btn" title="Compare two item-level cohorts of the same parses — how a spec scales with gear">Gear</button>
     </div>
     <!-- reserved sub-slot: fixed footprint whatever the axis (feedback L45-48) -->
     <div id="axis-slot">
@@ -1324,6 +1325,9 @@ table.beamtbl tr:hover td{background:var(--surface1)}
         <span class="chip" data-p="50">p50</span>
         <span class="chip on" data-p="85">p85</span>
         <span class="chip" id="pctlb-read" title="open the vs-percentile slider">p85 +</span>
+      </div>
+      <div id="axis-gear">
+        <span class="chip" id="axis-gear-chip" title="Item level B — click to jump to its slider in the sidebar">B: ilvl</span>
       </div>
     </div>
     <div id="pctlb-pop" hidden>
@@ -1353,11 +1357,20 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <input type="range" id="klo"><input type="range" id="khi">
   </div>
   <div id="ilvl-box">
-    <div style="margin-top:.5rem">Item Level: <b id="ilvl-v" style="color:var(--accent)"></b>
+    <div style="margin-top:.5rem"><span id="ilvl-lbl">Item Level</span>: <b id="ilvl-v" style="color:var(--accent)"></b>
       <span class="hint" id="ilvl-hint"></span></div>
     <div class="dual">
       <div class="track"></div><div class="fill" id="ilvl-fill"></div>
       <input type="range" id="ilo"><input type="range" id="ihi">
+    </div>
+    <div id="blockG" class="bpanel" style="display:none">
+      <div class="hint" style="margin:0 0 .1rem">Item level B — drawn as grey ghost bars; the same period and filters as A</div>
+      <div>Item Level B: <b id="ilvlb-v" style="color:var(--accent)"></b></div>
+      <div class="dual">
+        <div class="track"></div><div class="fill" id="ilvlb-fill"></div>
+        <input type="range" id="ilob"><input type="range" id="ihib">
+      </div>
+      <div class="chips" id="gearquick"></div>
     </div>
   </div>
 
@@ -1683,6 +1696,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              pctl:50, elite:false,
              // V2 additions — all inert defaults, no existing default touched
              skill:false, pctlB:85,          // Compare: Skill axis (second qp pass)
+             gear:false, ilob:0, ihib:0,     // Compare: Gear axis — item-level cohort B (0 = not set yet)
              trendNorm:"dps", trajSort:"metric", trendAxis:"time",
              trustPrev:null};
 let hasTimed=false, hasTune=false, hasProj=false;
@@ -1700,8 +1714,16 @@ const projSkip=i=>hasProj&&state.proj&&R.tmul[i]===0;
 const dpsAt=i=>R.dps[i]*projMul(i);
 // tabs the Skill compare honestly applies to: per-parse distributions only
 const SKILL_TABS=new Set(["med","adeaths"]);
-const skillOn=()=>state.skill&&!state.compare&&!state.elite;
+const skillOn=()=>state.skill&&!state.compare&&!state.gear&&!state.elite;
 const skillApplies=tabId=>skillOn()&&SKILL_TABS.has(tabId);
+// Gear axis (owner, 2026-09-18: "see how classes scale with gear"): the SAME
+// period and filters aggregated twice, once per item-level cohort — A is the
+// Item Level slider, B its ghost twin — and joined on A's groups exactly like
+// the Time axis. A parse with no item level sits in neither cohort.
+const gearOn=()=>state.gear&&!state.compare&&!state.skill&&!state.elite&&ILVL.has;
+const twoSided=()=>state.compare||gearOn();   // two aggregations, B joined on A's groups
+const ilvlAText=()=>"ilvl "+state.ilo+"–"+state.ihi;
+const ilvlBText=()=>"ilvl "+state.ilob+"–"+state.ihib;
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
@@ -1987,6 +2009,7 @@ function initData(d,cfg){
   SCOPE_DEF={weeksA:new Set(state.weeksA)};   // yardstick for the strip's scope chips
   refMemo=new Map();
   state.compare=false; $("cmp").checked=false;
+  state.gear=false; state.ilob=0; state.ihib=0;   // the Gear axis opens off; its B cohort is set on first use
   buildControls();
   labScopeRefresh();
   $("archon-chip").title=archonTitle();
@@ -2334,7 +2357,7 @@ function buildPeriodUI(prefix, sel, ghosted){
   };
   return paint;
 }
-let paintA=null, paintB=null;
+let paintA=null, paintB=null, paintIlvl=null;
 function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); paintDays(); syncCounts();}
 function describePeriod(sel){
   // the empty selection is the no-filter sentinel (periodPass), not a preset
@@ -2425,27 +2448,55 @@ function buildControls(){
   // no rows.ilvl (or no known value in it): nothing to filter, nothing to say.
   const ibox=$("ilvl-box");
   if(!ILVL.has){
-    ibox.hidden=true;
+    ibox.hidden=true; paintIlvl=null;
   }else{
     ibox.hidden=false;
     state.ilo=Math.max(ILVL.min,state.ilo); state.ihi=Math.min(ILVL.max,state.ihi);
     if(state.ilo>state.ihi){state.ilo=ILVL.min; state.ihi=ILVL.max}
-    for(const s of ["ilo","ihi"]){$(s).min=ILVL.min; $(s).max=ILVL.max; $(s).step=1}
+    if(state.ilob||state.ihib){   // B, once set, is clamped like A — never invented here
+      state.ilob=Math.max(ILVL.min,state.ilob); state.ihib=Math.min(ILVL.max,state.ihib);
+      if(state.ilob>state.ihib){state.ilob=ILVL.min; state.ihib=ILVL.max}
+    }
+    for(const s of ["ilo","ihi","ilob","ihib"]){$(s).min=ILVL.min; $(s).max=ILVL.max; $(s).step=1}
     $("ilo").value=state.ilo; $("ihi").value=state.ihi;
-    const paintIlvl=()=>{
-      const on=ilvlNarrowed();
+    $("ilob").value=state.ilob||ILVL.min; $("ihib").value=state.ihib||ILVL.max;
+    const fill=(id,lo,hi)=>{const f=$(id), span=ILVL.max-ILVL.min||1;
+      f.style.left=((lo-ILVL.min)/span*100)+"%"; f.style.width=((hi-lo)/span*100)+"%";};
+    paintIlvl=()=>{
+      const gear=gearOn(), on=ilvlNarrowed()||gear;
+      $("ilvl-lbl").textContent=gear?"Item Level A (solid)":"Item Level";
       $("ilvl-v").textContent=(on?"":"any · ")+state.ilo+" – "+state.ihi;
       $("ilvl-hint").textContent=on&&ILVL.unknown
-        ?"· "+fmtInt(ILVL.unknown)+" parses in this build carry no item level; a narrowed range leaves them out":"";
-      const f=$("ilvl-fill"), span=ILVL.max-ILVL.min||1;
-      f.style.left=((state.ilo-ILVL.min)/span*100)+"%";
-      f.style.width=((state.ihi-state.ilo)/span*100)+"%";
+        ?"· "+fmtInt(ILVL.unknown)+" parses in this build carry no item level; "
+          +(gear?"they sit in neither cohort":"a narrowed range leaves them out"):"";
+      fill("ilvl-fill",state.ilo,state.ihi);
+      $("blockG").style.display=gear?"":"none";
+      if(gear){ $("ilvlb-v").textContent=state.ilob+" – "+state.ihib; fill("ilvlb-fill",state.ilob,state.ihib); }
     };
     paintIlvl();
     $("ilo").oninput=e=>{state.ilo=Math.min(+e.target.value,state.ihi);
       e.target.value=state.ilo; paintIlvl(); render();};
     $("ihi").oninput=e=>{state.ihi=Math.max(+e.target.value,state.ilo);
       e.target.value=state.ihi; paintIlvl(); render();};
+    $("ilob").oninput=e=>{state.ilob=Math.min(+e.target.value,state.ihib);
+      e.target.value=state.ilob; paintIlvl(); render();};
+    $("ihib").oninput=e=>{state.ihib=Math.max(+e.target.value,state.ilob);
+      e.target.value=state.ihib; paintIlvl(); render();};
+    // one-click cohorts: the median split (A at or above the median item level
+    // of the current selection, B below it) and a swap of the two ranges
+    const gq=$("gearquick"); gq.innerHTML="";
+    for(const [name,title,fn] of [
+        ["⚡ Split at median","A = at or above the median item level of the parses the other filters select; B = below it",
+          ()=>{ if(gearSplitApply(true)){ syncAxisUI(); render(); } }],
+        ["⇄ Swap A and B","exchange the two item-level ranges — the badge then reads the other cohort's change",
+          ()=>{ const lo=state.ilo, hi=state.ihi;
+                gearTrack(state.ilob,state.ihib);
+                state.ilo=state.ilob; state.ihi=state.ihib; state.ilob=lo; state.ihib=hi;
+                setNotice("Gear compare: swapped — A = "+ilvlAText()+" (solid), B = "+ilvlBText()+" (grey ghost).");
+                syncIlvlInputs(); syncAxisUI(); render(); }]]){
+      const c=document.createElement("span"); c.className="chip"; c.textContent=name; c.title=title; c.onclick=fn;
+      gq.appendChild(c);
+    }
   }
 
   // periods
@@ -2523,7 +2574,7 @@ function buildControls(){
       && state.klo===t.kmin && state.khi===t.kmax
       && !ilvlNarrowed()
       && !state.timedOnly
-      && state.merge && !state.compare
+      && state.merge && !state.compare && !state.gear
       && state.role.size===1 && state.role.has("DPS");
   };
   // Turning the mode ON snapshots every setting it is about to change, so
@@ -2538,6 +2589,8 @@ function buildControls(){
       merge:st.merge, compare:st.compare, tab:st.tab,
       trendMetric:st.trendMetric, dayCut:0});
     state.skill=("skill" in st)?!!st.skill:false;   // Skill axis counts as compare
+    state.gear=("gear" in st)?!!st.gear:false;      // so does the Gear axis
+    if("ilob" in st){state.ilob=st.ilob; state.ihib=st.ihib;}
     state.role=new Set(st.role); state.weeksA=new Set(st.weeksA);
     $("merge").checked=state.merge; $("cmp").checked=state.compare;
     $("pctl").value=state.pctl; $("pctl-v").textContent=state.pctl;
@@ -2556,7 +2609,7 @@ function buildControls(){
     render();
   };
   const snap=()=>({pctl:state.pctl, elite:state.elite, klo:state.klo, khi:state.khi,
-    ilo:state.ilo, ihi:state.ihi,
+    ilo:state.ilo, ihi:state.ihi, gear:state.gear, ilob:state.ilob, ihib:state.ihib,
     timedOnly:state.timedOnly, merge:state.merge, compare:state.compare,
     tab:state.tab, trendMetric:state.trendMetric, skill:state.skill,
     role:[...state.role], weeksA:[...state.weeksA]});
@@ -2620,13 +2673,17 @@ function buildControls(){
   }
 }
 
-/* -------- compare engine: one ghost system, two XOR axes (Off|Time|Skill) -------- */
+/* -------- compare engine: one ghost system, three XOR axes (Off|Time|Skill|Gear) -------- */
 function syncAxisUI(){
-  const a=state.compare?"time":(state.skill?"skill":"off");
+  const a=state.compare?"time":state.skill?"skill":state.gear?"gear":"off";
   document.querySelectorAll("#cmpseg button").forEach(b=>
     b.classList.toggle("on",b.dataset.a===a));
   $("cmp").checked=state.compare;
   $("blockB").style.display=state.compare?"":"none";
+  $("axis-gear-btn").style.display=ILVL.has?"":"none";   // no item levels in the build, no Gear axis
+  $("axis-gear").classList.toggle("act",a==="gear"&&!state.elite);
+  if(a==="gear") $("axis-gear-chip").textContent="B: "+ilvlBText();
+  paintIlvl&&paintIlvl();   // A's label and hint and the B panel follow the axis
   // reserved sub-slot: content swaps by visibility, the footprint never changes
   $("axis-time").classList.toggle("act",a==="time"&&!state.elite);
   $("axis-skill").classList.toggle("act",a==="skill"&&!state.elite);
@@ -2641,7 +2698,7 @@ function syncAxisUI(){
     if(b.dataset.tid==="adeaths")
       b.textContent=skillOn()?"Deaths @ p"+state.pctl:"Average Deaths";
   });
-  const any=state.compare||state.skill;
+  const any=state.compare||state.skill||state.gear;
   $("sortseg").querySelectorAll("button").forEach(b=>{
     if(b.dataset.s==="gain"||b.dataset.s==="loss") b.style.display=any?"":"none";
   });
@@ -2662,7 +2719,7 @@ function setCompare(on){
     refreshPeriodUIs(); syncAxisUI(); return;
   }
   state.compare=on;
-  if(on) state.skill=false;   // strict XOR; pctlB is kept for the switch back
+  if(on){state.skill=false; if(state.gear) gearOff();}   // strict XOR; pctlB and the B cohort are kept for the switch back
   refreshPeriodUIs();
   syncAxisUI();
   render();
@@ -2672,10 +2729,87 @@ function setSkill(on){
   state.skill=on;
   if(on){
     if(state.compare){state.compare=false; $("cmp").checked=false; refreshPeriodUIs();}
+    if(state.gear) gearOff();
     if(state.pctl>=85&&state.pctlB===85) state.pctlB=30;
   }
   syncAxisUI();
   render();
+}
+/* Gear axis cohorts. The median split reads the item levels of the parses the
+   OTHER filters select for period A (no item-level term), so it follows the key
+   range, role, class and period in force. Lower median, whole item levels. */
+function gearMedian(){
+  const m=baseMasks(); m.il=false;
+  const cut=periodCut(state.weeksA), v=[];
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)||!periodPass(i,state.weeksA,cut)||projSkip(i)) continue;
+    const x=R.ilvl[i]; if(x>0) v.push(x);
+  }
+  if(!v.length) return null;
+  v.sort((a,b)=>a-b); return v[Math.floor((v.length-1)/2)];
+}
+let gearPrevA=null;   // A's range before the Gear axis rewrote it (null = A was not rewritten)
+function gearTrack(lo,hi){   // remember what the axis set A to, and (once) what A was before
+  if(!gearPrevA) gearPrevA={lo:state.ilo, hi:state.ihi};
+  gearPrevA.setLo=lo; gearPrevA.setHi=hi;
+}
+function gearSplitApply(announce){
+  const med=gearMedian();
+  if(med==null||med<=ILVL.min){
+    setNotice("Gear compare: the current selection has no spread of item levels to split"
+      +(med==null?"":" — every parse in it sits at ilvl "+med)+"; drag the two ranges by hand.");
+    return false;
+  }
+  gearTrack(med,ILVL.max);
+  state.ilo=med; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=med-1;
+  if(announce) setNotice("Gear compare: A = "+ilvlAText()+" (at or above the median item level of the current selection, "
+    +med+"), B = "+ilvlBText()+" (below it) — drag either range in the sidebar.");
+  syncIlvlInputs(); return true;
+}
+function syncIlvlInputs(){
+  if(!ILVL.has) return;
+  $("ilo").value=state.ilo; $("ihi").value=state.ihi;
+  $("ilob").value=state.ilob; $("ihib").value=state.ihib;
+  paintIlvl&&paintIlvl();
+}
+function setGear(on){
+  if(state.elite) return;   // compare axes are disabled inside the replica
+  if(on&&!ILVL.has){ setNotice("Gear compare needs item levels — this build carries none."); syncAxisUI(); return; }
+  if(on){
+    if(state.compare){state.compare=false; $("cmp").checked=false; refreshPeriodUIs();}
+    state.skill=false;
+    state.gear=true;
+    // cohorts: an open A slider is split at the median (A at or above, B below);
+    // a narrowed A is kept and B takes the complement on the side with room
+    if(!ilvlNarrowed()){
+      if(!gearSplitApply(true)){ state.gear=false; syncAxisUI(); render(); return; }
+    }else{
+      const below=state.ilo>ILVL.min;
+      if(below){ state.ilob=ILVL.min; state.ihib=state.ilo-1; }
+      else { state.ilob=state.ihi+1; state.ihib=ILVL.max; }
+      setNotice("Gear compare: A kept at "+ilvlAText()+" (solid), B = "+ilvlBText()
+        +" (everything "+(below?"below":"above")+" A, grey ghost) — drag either range in the sidebar.");
+      syncIlvlInputs();
+    }
+  }else gearOff();
+  syncAxisUI();
+  render();
+}
+// Leaving the axis by any route: A goes back to what it was before the axis
+// rewrote it -- unless the reader moved A since, in which case their range
+// stands. A kept range (the complement path) was never rewritten, so it stays.
+function gearOff(){
+  state.gear=false;
+  if(gearPrevA&&state.ilo===gearPrevA.setLo&&state.ihi===gearPrevA.setHi){
+    state.ilo=gearPrevA.lo; state.ihi=gearPrevA.hi; syncIlvlInputs();
+    setNotice("Gear compare off — the item-level range is back to "+(ilvlNarrowed()?ilvlAText():"any")+".");
+  }
+  gearPrevA=null;
+}
+function gearOverlapNote(){
+  const lo=Math.max(state.ilo,state.ilob), hi=Math.min(state.ihi,state.ihib);
+  if(lo>hi) return "";
+  return " <b>A and B overlap on ilvl "+lo+(hi>lo?"–"+hi:"")+"</b> — parses there count on both sides.";
 }
 document.querySelectorAll("#cmpseg button").forEach(b=>{
   b.onclick=()=>{
@@ -2683,9 +2817,14 @@ document.querySelectorAll("#cmpseg button").forEach(b=>{
     const a=b.dataset.a;
     if(a==="time"){ if(!state.compare) setCompare(true); }
     else if(a==="skill"){ if(!state.skill) setSkill(true); }
-    else { if(state.compare) setCompare(false); else if(state.skill) setSkill(false); }
+    else if(a==="gear"){ if(!state.gear) setGear(true); }
+    else { if(state.compare) setCompare(false); else if(state.skill) setSkill(false); else if(state.gear) setGear(false); }
   };
 });
+$("axis-gear-chip").onclick=()=>{
+  const el=$("blockG"); if(!el||!D||!gearOn()) return;
+  el.scrollIntoView({behavior:"smooth", block:"center"});
+};
 document.querySelectorAll("#axis-skill .chip[data-p]").forEach(c=>{
   c.onclick=()=>{ if(!D) return; state.pctlB=+c.dataset.p; syncPctlB(); render(); };
 });
@@ -2940,7 +3079,8 @@ function scopeLine(sec,extra){
   else{
     p.push(describePeriod(state.weeksA));
     p.push("keys +"+state.klo+"–+"+state.khi);
-    if(ilvlNarrowed()) p.push(ilvlText());
+    if(gearOn()) p.push(ilvlAText()+" (cohort A)");   // B is the ghost's business, named where a ghost is drawn
+    else if(ilvlNarrowed()) p.push(ilvlText());
   }
   if(state.timedOnly) p.push("timed only");
   let s=esc(p.join(" · "))+labStamp(sec);
@@ -2960,18 +3100,21 @@ function qp(sorted,f){                // linear-interpolated quantile, f in (0,1
   const x=(sorted.length-1)*f, i=Math.floor(x);
   return i+1<sorted.length?sorted[i]+(x-i)*(sorted[i+1]-sorted[i]):sorted[i]}
 
-function baseMasks(){
+function baseMasks(il){
   return {cls:idxSet(state.cls,D.classes), spec:idxSet(state.spec,D.specs),
     hero:idxSet(state.hero,D.heroes), dun:idxSet(state.dun,D.dungeons),
     role:idxSet(state.role,D.roles), reg:idxSet(state.reg,D.regions),
     atk:state.melee!==state.ranged?(state.melee?1:2):0,
-    il:ilvlNarrowed()};   // the item-level range applies only when narrowed
+    // the item-level term applies when the slider is narrowed and always under
+    // the Gear axis, where A and B are cohorts (unknown = 0 fits neither);
+    // `il` = {lo,hi} aggregates the B cohort with the same masks otherwise
+    il:il?true:(ilvlNarrowed()||gearOn()), ilo:il?il.lo:state.ilo, ihi:il?il.hi:state.ihi};
 }
 function rowPass(i,m){
   if(state.postTune&&R.post[i]!==1) return false;
   if(state.timedOnly&&R.timed[i]!==1) return false;
   if(R.key[i]<state.klo||R.key[i]>state.khi) return false;
-  if(m.il){const v=R.ilvl[i]; if(v<state.ilo||v>state.ihi) return false;}   // 0 = unknown fails a narrowed range
+  if(m.il){const v=R.ilvl[i]; if(v<m.ilo||v>m.ihi) return false;}   // 0 = unknown fails a narrowed range
   if(m.cls&&!m.cls.has(R.cls[i])) return false;
   if(m.spec&&!m.spec.has(R.spec[i])) return false;
   if(!state.merge&&m.hero&&!m.hero.has(R.hero[i])) return false;
@@ -3113,9 +3256,9 @@ function aggregateElite(){
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
 
-function aggregate(weeks){
+function aggregate(weeks,il){
   if(state.elite) return aggregateElite();
-  const m=baseMasks(), cut=periodCut(weeks);
+  const m=baseMasks(il), cut=periodCut(weeks);
   const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
   const runSeen=new Uint8Array(runCount), charSeen=new Set();
   for(let i=0;i<N;i++){
@@ -3203,7 +3346,7 @@ function ink(rgbStr){
   return (0.2126*r+0.7152*g+0.0722*b)/255>0.45?"#1f1e1d":"#fff";
 }
 function deltaHTML(a,b,tab){
-  if(b==null||!isFinite(b)) return '<span class="delta na">new</span>';
+  if(b==null||!isFinite(b)) return '<span class="delta na">'+(gearOn()?'no B':'new')+'</span>';
   if(Math.abs(b)<1e-9) return '<span class="delta na">–</span>';
   const d=(a-b)/Math.abs(b);
   const cls=(d>=0)===tab.betterUp?"up":"down";
@@ -3268,7 +3411,9 @@ function tipHTML(r,compare){
     return h+"</table><div class=\"fnote\">the same parses read at two "
       +"percentiles — the population figures are shared</div>";
   }
-  if(compare) h+=row("", "<b>A</b>", "<b>B</b>");
+  if(compare) h+=gearOn()
+    ? row("", "<b>A</b> "+esc(ilvlAText()), "<b>B</b> "+esc(ilvlBText()))
+    : row("", "<b>A</b>", "<b>B</b>");
   h+=row("Runs", f(r.a,"runs",fmtInt), f(r.b,"runs",fmtInt));
   h+=row("Parses", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
   h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
@@ -3499,7 +3644,8 @@ function frameScope(){
   if(state.elite) p.push("Archon replica");
   else{ p.push(describePeriod(state.weeksA));
         p.push("keys +"+state.klo+"–+"+state.khi);
-        if(ilvlNarrowed()) p.push(ilvlText()); }
+        if(gearOn()) p.push(ilvlAText()+" vs "+ilvlBText()+" (ghost)");
+        else if(ilvlNarrowed()) p.push(ilvlText()); }
   if(state.timedOnly) p.push("timed only");
   return p.join(" · ");
 }
@@ -3514,7 +3660,7 @@ function frameCtx(){
   return {key, presKey:pk, cls, spec,
     hero:(!state.merge&&g)?g.hero:"",
     g,
-    b:(state.compare&&FRAME_B)?(FRAME_B.groups.get(key)??null):null,
+    b:(twoSided()&&FRAME_B)?(FRAME_B.groups.get(key)??null):null,
     stats:(D&&D.specstats&&D.specstats.specs)
       ?(D.specstats.specs[cls+"|"+spec]||null):null};
 }
@@ -3532,13 +3678,13 @@ function frameIdentityHTML(ctx){
     return fmt(a)+" · "+(ok?fmt(bv):"–")+" "+deltaHTML(a,ok?bv:null,{betterUp});
   };
   let rows="";
-  if(state.compare) rows+=row(esc(dpsLabel()),ab(g.med,b?b.med:null,fmtInt,true));
+  if(twoSided()) rows+=row(esc(dpsLabel()),ab(g.med,b?b.med:null,fmtInt,true));
   else if(skill) rows+=row("p"+state.pctl+" · p"+state.pctlB+" DPS",
     fmtInt(g.med)+" · "+fmtInt(g.qb));
   else rows+=row(esc(dpsLabel()),fmtInt(g.med));
   rows+=row("p30–p85 spread",fmtInt(g.q30)+" – "+fmtInt(g.q85)
     +(g.q85>0?" · "+(100*(g.q85-g.q30)/g.q85).toFixed(1)+"%":""));
-  if(state.compare)
+  if(twoSided())
     rows+=row("Avg deaths",ab(g.adeaths,b?b.adeaths:null,v=>v.toFixed(2),false));
   else if(skill)
     rows+=row("Deaths @ p"+state.pctl+" · p"+state.pctlB,
@@ -3546,7 +3692,7 @@ function frameIdentityHTML(ctx){
       +'<div class="fnote">deaths at the p'+state.pctl+'-th vs p'+state.pctlB
       +'-th parse — lower is better</div>');
   else rows+=row("Avg deaths",g.adeaths.toFixed(2));
-  if(state.compare)
+  if(twoSided())
     rows+=row("Deathless",ab(g.deathless,b?b.deathless:null,v=>v.toFixed(1)+"%",true));
   else rows+=row("Deathless",g.deathless.toFixed(1)+"%"
     +(skill?' <span class="fnote">(skill compare does not apply)</span>':""));
@@ -3569,7 +3715,7 @@ function frameIdentityHTML(ctx){
         +(s.all?' · every parse in the filters (none with beam data around p'+state.pctl+', lens ±10)'
                :' around p'+state.pctl+(skill?' · p'+state.pctlB:'')+' (lens ±10)')
         +(s.nb?' · '+fmtInt(s.nb)+' got no beam':'')
-        +(state.compare?' · period A':'')+'</div>');
+        +(state.compare?' · period A':gearOn()?' · cohort A':'')+'</div>');
     }
   }
   if(hasRating&&g.rn)
@@ -3595,7 +3741,7 @@ function frameCompsHTML(ctx){
   const members=(window.__compRows||[]).filter(r=>
     r.comp.some(c=>c.cls*100+c.spec===ctx.presKey));
   const gated=members.filter(r=>r.n>=state.compMin);
-  const notes=(state.compare?" · period A":"")
+  const notes=(state.compare?" · period A":gearOn()?" · item-level cohort A":"")
     +(!state.merge?" · comps are class+spec — hero talents share them":"");
   let h='<div class="bt">Top comps</div>';
   if(!members.length)
@@ -6958,9 +7104,12 @@ function render(){
   const A=aggregate(state.weeksA);
   const skill=skillOn();
   const skillTab=skillApplies(tab.id);   // ghost only where a distribution exists
-  const B=state.compare?aggregate(state.weeksB):null;
+  const gear=gearOn();
+  // Time axis: period B. Gear axis: period A again, over the B item-level cohort.
+  const B=state.compare?aggregate(state.weeksB)
+         :gear?aggregate(state.weeksA,{lo:state.ilob,hi:state.ihib}):null;
   FRAME_A=A; FRAME_B=B;   // Spec Frame reads the same single computation
-  const cmpA=state.compare||skillTab;
+  const cmpA=twoSided()||skillTab;
 
   // The slider is the threshold for the default view. Narrowing the sample —
   // a shorter period, fewer key levels, a narrower item-level range, one
@@ -6981,7 +7130,7 @@ function render(){
   const rows=[];
   for(const [key,a0] of A.groups){
     let a=a0, b=null;
-    if(state.compare) b=B?B.groups.get(key)||null:null;
+    if(twoSided()) b=B?B.groups.get(key)||null:null;
     else if(skillTab){
       if(tab.id==="med") b=Object.assign({},a0,{med:a0.qb});
       else{ a=Object.assign({},a0,{adeaths:a0.qdA});
@@ -7026,6 +7175,12 @@ function render(){
     : "Period: "+describePeriod(state.weeksA))
     +(skill?" <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
       +state.pctlB+" of the same parses (distribution metrics: percentile DPS and deaths).":"")
+    +(gear?" <b>Gear compare:</b> solid = item level A ("+state.ilo+"–"+state.ihi+"), grey ghost = item level B ("
+      +state.ilob+"–"+state.ihib+") — the same period and filters aggregated once per cohort; KPIs show A"
+      +(B?"; "+fmtInt(B.parses)+" parses in B":"")+"."+gearOverlapNote()
+      +(ILVL.unknown?" The "+fmtInt(ILVL.unknown)+" parses with no item level sit in neither cohort.":"")
+      +" Item level climbs with key level, so keep the key range narrow to read gear alone; "
+      +"sort by Biggest gain to rank specs by what they gain from gear.":"")
     +labNoteBadges()
     +gapsNote(A.dmin,A.dmax)
     +resetNote();
@@ -7173,6 +7328,8 @@ function render(){
   let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
   if(tab.rating) cap+=" "+ratingCoverage();
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
+  else if(gear) cap="Solid bar: item level A ("+state.ilo+"–"+state.ihi+") · grey ghost: item level B ("
+    +state.ilob+"–"+state.ihib+") · % badge: A's change vs B. "+cap;
   else if(skill){
     // honest per-tab captions: ghost only where a per-parse distribution exists
     if(tab.id==="med")
@@ -7248,6 +7405,7 @@ function renderScopeChips(){
     scopeChip(box,state.timedOnly?"timed only":"all completed","timedseg");
   if(state.compare) scopeChip(box,"compare: time","cmp");
   if(state.skill&&!state.elite) scopeChip(box,"compare: skill vs p"+state.pctlB,"cmpseg");
+  if(gearOn()) scopeChip(box,"compare: gear vs "+ilvlBText(),"cmpseg");
   if(state.elite) scopeChip(box,"⚔ archon replica","archon-chip");
 }
 // trust-gate "show anyway": drops the effective min-chars to 1 for the session;
@@ -7584,7 +7742,7 @@ function renderComps(A){
   const specColor=csKey==null?""
     :(CLASS_COLORS[D.classes[Math.floor(csKey/100)]]||"#999");
   const heroNote=!state.merge?" · comps are class+spec — hero talents share them":"";
-  const perANote=state.compare?" · period A":"";
+  const perANote=state.compare?" · period A":gearOn()?" · item-level cohort A":"";
   let view=rows, subgate=false;
   if(inSpec){
     const gated=inSpec.filter(r=>r.n>=state.compMin);
@@ -8039,7 +8197,7 @@ function renderTrendGrid(box,series,weeks,ymin,ymax,mt,vfmt,inv,lastLbl){
 /* ---------------- Data Table — v1's complete version (feedback L53-54) ---------------- */
 function renderTable(rows,tab){
   const skill=skillApplies(tab.id);   // ghost columns only for distribution metrics
-  const compare=state.compare||skill;
+  const compare=twoSided()||skill;
   const metricCol=tab.id==="avg"?"avg":tab.id==="med"?"med":tab.id;
   const metricLabel=tab.label;
   const fmt=tab.fmt;
@@ -8121,7 +8279,7 @@ function renderTable(rows,tab){
       return '<span class="complink" data-ck="'+presKey(r)
         +'" title="qualifying comps ('+state.compMin+'+ runs) fielding this spec'
         +' — click to open Top Comps filtered to it'
-        +(compare?' · period A presence':'')+'">in '+fmtInt(v)
+        +(compare?(gearOn()?' · cohort A presence':' · period A presence'):'')+'">in '+fmtInt(v)
         +' of '+fmtInt(p.den)+'</span>';
     }
     return esc(v);
@@ -8145,6 +8303,8 @@ function renderTable(rows,tab){
             ?" — deaths at the p"+state.pctl+"-th vs p"+state.pctlB
               +"-th parse of each spec's deaths distribution (lower is better); click a column to sort"
             :" — p"+state.pctl+" vs p"+state.pctlB+" of the same parses; click a column to sort")
+             :gearOn()?" — "+metricLabel+" at item level A ("+state.ilo+"–"+state.ihi+") vs B ("
+               +state.ilob+"–"+state.ihib+"), the same period; click a column to sort"
              :" — "+metricLabel+" for periods A and B; click a column to sort")
       :" — click a column to sort")));
 }
