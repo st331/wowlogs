@@ -125,9 +125,12 @@ nothing to project.
 * Groups by **Class / Spec / Hero Talent**, with tabs for Average and Median
   DPS, Mean − Median, Average Deaths, Deathless %, Unique Characters, Score,
   and a Trend view whose metric is selectable.
-* Filters: class, spec and hero-talent multiselects, key-level range, region,
-  role, a **minimum unique characters** threshold that scales with the period,
-  weekly-reset and day-granularity pickers, timed-only and compare-periods.
+* Filters: class, spec and hero-talent multiselects, key-level and item-level
+  ranges, region, role, a **minimum unique characters** threshold that scales
+  with the sample, weekly-reset and day-granularity pickers, timed-only, and a
+  **Compare** axis — Off | Time (a second period) | Skill (a second percentile
+  of the same parses) | Gear (a second item-level cohort of the same period) —
+  with the B side drawn as grey ghost bars and a % badge for A's change vs B.
 * A **Top Comps** table ranks 5-player compositions by a key-normalised
   Strength score, sortable on every column.
 

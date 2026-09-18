@@ -105,7 +105,7 @@ button,input,select{font-family:inherit}
     var(--line1) 299px 300px, transparent 300px)}
 @media(max-width:900px){.layout{grid-template-columns:1fr; background:none}}
 aside{background:var(--bg-side); border-right:1px solid var(--line1); padding:20px 18px 48px}
-@media(min-width:901px){aside{position:sticky; top:var(--barh);
+@media(min-width:956px){aside{position:sticky; top:var(--barh);
   height:calc(100vh - var(--barh)); overflow-y:auto}}
 .side-label{text-transform:uppercase; letter-spacing:.18em; font-size:.64rem;
   font-weight:700; color:var(--accent); margin:1.6rem 0 .6rem; padding-top:1.15rem;
@@ -187,6 +187,12 @@ input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
 .hint{color:var(--ink3); font-size:.73rem; line-height:1.5; margin-top:.15rem}
 .bpanel{border:1px solid var(--line1); border-radius:var(--r2); padding:8px 10px;
   margin-top:.45rem; background:rgba(234,227,208,.02)}
+/* item level B is the ghost side: grey fill and thumbs, like the ghosted period-B chips;
+   the hover rule is repeated at id specificity so B thumbs keep the same hover feedback as A */
+#blockG .dual .fill{background:#8E8C86}
+#blockG .dual input::-webkit-slider-thumb{background:#B9B6B0}
+#blockG .dual input:hover::-webkit-slider-thumb{background:#D8D6CF}
+#blockG .dual input::-moz-range-thumb{background:#B9B6B0}
 /* Lab cards — dashed quarantine for transient features (§15.13); manifest-rendered,
    ACTIVE-GATED ONLY: a gate()-false feature renders nothing at all (feedback #3) */
 .labcard{border:1px dashed var(--line2); border-radius:var(--r2); background:transparent;
@@ -1256,7 +1262,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
   #axis-slot{min-width:212px}
   #axis-slot .chip{padding:.18rem .42rem; font-size:.7rem}
 }
-@media(max-width:900px){
+@media(max-width:955px){
   #lensbar{height:auto; min-height:var(--barh); flex-wrap:wrap; padding:6px 12px; position:static}
   aside{position:static; height:auto}
   #strip{top:0}
@@ -1312,7 +1318,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
       <button data-a="off" data-l="Off" class="on">Off</button>
       <button data-a="time" data-l="Time">Time</button>
       <button data-a="skill" data-l="Skill">Skill</button>
-      <button data-a="gear" data-l="Gear" id="axis-gear-btn" title="Compare two item-level cohorts of the same parses — how a spec scales with gear">Gear</button>
+      <button data-a="gear" data-l="Gear" id="axis-gear-btn" title="Compare two item-level ranges of the same period and filters — how a spec scales with gear">Gear</button>
     </div>
     <!-- reserved sub-slot: fixed footprint whatever the axis (feedback L45-48) -->
     <div id="axis-slot">
@@ -1365,7 +1371,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     </div>
     <div id="blockG" class="bpanel" style="display:none">
       <div class="hint" style="margin:0 0 .1rem">Item level B — drawn as grey ghost bars; the same period and filters as A</div>
-      <div>Item Level B: <b id="ilvlb-v" style="color:var(--accent)"></b></div>
+      <div>Item Level B: <b id="ilvlb-v" style="color:#D8D6CF"></b></div>
       <div class="dual">
         <div class="track"></div><div class="fill" id="ilvlb-fill"></div>
         <input type="range" id="ilob"><input type="range" id="ihib">
@@ -2486,8 +2492,15 @@ function buildControls(){
     // of the current selection, B below it) and a swap of the two ranges
     const gq=$("gearquick"); gq.innerHTML="";
     for(const [name,title,fn] of [
-        ["⚡ Split at median","A = at or above the median item level of the parses the other filters select; B = below it",
+        ["⚡ Median split","A = at or above the median item level of the parses the other filters select; B = below it",
           ()=>{ if(gearSplitApply(true)){ syncAxisUI(); render(); } }],
+        ["⚡ Quartile split","A = the top quarter of the selection's item levels, B = the bottom quarter — the middle half sits in neither cohort (the note counts it)",
+          ()=>{ const lo=gearQuantile(.25), hi=gearQuantile(.75);
+                if(lo==null||hi==null||hi<=lo){ setNotice("Gear compare: the current selection has no spread of item levels for a quartile split."); return; }
+                gearTrack(hi,ILVL.max); state.ilo=hi; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=lo;
+                setNotice("Gear compare: A = "+ilvlAText()+" (top quarter of the selection's item levels), B = "+ilvlBText()
+                  +" (bottom quarter) — the middle half sits in neither cohort; the note counts it.");
+                syncIlvlInputs(); syncAxisUI(); render(); }],
         ["⇄ Swap A and B","exchange the two item-level ranges — the badge then reads the other cohort's change",
           ()=>{ const lo=state.ilo, hi=state.ihi;
                 gearTrack(state.ilob,state.ihib);
@@ -2520,8 +2533,10 @@ function buildControls(){
       paintA=buildPeriodUI("A",state.weeksA,false);
       paintB=buildPeriodUI("B",state.weeksB,true);
       $("cmp").checked=true;
-      setNotice("⚡ Quick compare rewrote both periods: A = "+name.toLowerCase().replace(" vs ",", B = ")+" — compare on.");
+      const wasGear=state.gear;   // setCompare turns the Gear axis off; gearOff says what happened to A
       setCompare(true);
+      setNotice("⚡ Quick compare rewrote both periods: A = "+name.toLowerCase().replace(" vs ",", B = ")+" — compare on."
+        +(wasGear?" "+$("notice").textContent:""));
     };
     qbox.appendChild(c);
   }
@@ -2590,6 +2605,7 @@ function buildControls(){
       trendMetric:st.trendMetric, dayCut:0});
     state.skill=("skill" in st)?!!st.skill:false;   // Skill axis counts as compare
     state.gear=("gear" in st)?!!st.gear:false;      // so does the Gear axis
+    gearPrevA=("gearPrev" in st)?st.gearPrev:null;  // its restore memory travels with it: parked on entry, back on restore, never stale
     if("ilob" in st){state.ilob=st.ilob; state.ihib=st.ihib;}
     state.role=new Set(st.role); state.weeksA=new Set(st.weeksA);
     $("merge").checked=state.merge; $("cmp").checked=state.compare;
@@ -2609,7 +2625,7 @@ function buildControls(){
     render();
   };
   const snap=()=>({pctl:state.pctl, elite:state.elite, klo:state.klo, khi:state.khi,
-    ilo:state.ilo, ihi:state.ihi, gear:state.gear, ilob:state.ilob, ihib:state.ihib,
+    ilo:state.ilo, ihi:state.ihi, gear:state.gear, ilob:state.ilob, ihib:state.ihib, gearPrev:gearPrevA,
     timedOnly:state.timedOnly, merge:state.merge, compare:state.compare,
     tab:state.tab, trendMetric:state.trendMetric, skill:state.skill,
     role:[...state.role], weeksA:[...state.weeksA]});
@@ -2738,32 +2754,38 @@ function setSkill(on){
 /* Gear axis cohorts. The median split reads the item levels of the parses the
    OTHER filters select for period A (no item-level term), so it follows the key
    range, role, class and period in force. Lower median, whole item levels. */
-function gearMedian(){
+function gearIlvls(){   // sorted known item levels of the parses the other filters select for period A
   const m=baseMasks(); m.il=false;
   const cut=periodCut(state.weeksA), v=[];
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)||!periodPass(i,state.weeksA,cut)||projSkip(i)) continue;
     const x=R.ilvl[i]; if(x>0) v.push(x);
   }
-  if(!v.length) return null;
-  v.sort((a,b)=>a-b); return v[Math.floor((v.length-1)/2)];
+  return v.sort((a,b)=>a-b);
 }
+function gearMedian(){
+  const v=gearIlvls();
+  if(!v.length) return null;
+  return {med:v[Math.floor((v.length-1)/2)], lo:v[0]};
+}
+const gearQuantile=f=>{ const v=gearIlvls(); return v.length?v[Math.floor((v.length-1)*f)]:null; };
 let gearPrevA=null;   // A's range before the Gear axis rewrote it (null = A was not rewritten)
 function gearTrack(lo,hi){   // remember what the axis set A to, and (once) what A was before
   if(!gearPrevA) gearPrevA={lo:state.ilo, hi:state.ihi};
   gearPrevA.setLo=lo; gearPrevA.setHi=hi;
 }
 function gearSplitApply(announce){
-  const med=gearMedian();
-  if(med==null||med<=ILVL.min){
-    setNotice("Gear compare: the current selection has no spread of item levels to split"
-      +(med==null?"":" — every parse in it sits at ilvl "+med)+"; drag the two ranges by hand.");
+  const r=gearMedian(), med=r?r.med:null;
+  if(r==null||r.lo>=med){   // nothing below the median: B would hold no parse at all
+    setNotice("Gear compare: the current selection cannot be split at its median item level"
+      +(r==null?" — it holds no parse with an item level":" — its median is ilvl "+med+" and no parse in it sits below that")
+      +(state.gear?"; drag the two ranges by hand.":"; narrow the Item Level slider by hand first, then turn Gear on — B takes the other side."));
     return false;
   }
   gearTrack(med,ILVL.max);
   state.ilo=med; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=med-1;
-  if(announce) setNotice("Gear compare: A = "+ilvlAText()+" (at or above the median item level of the current selection, "
-    +med+"), B = "+ilvlBText()+" (below it) — drag either range in the sidebar.");
+  if(announce) setNotice("Gear compare: A = "+ilvlAText()+" (at or above the selection's median item level at the split, "
+    +med+"), B = "+ilvlBText()+" (below it).");
   syncIlvlInputs(); return true;
 }
 function syncIlvlInputs(){
@@ -2776,19 +2798,22 @@ function setGear(on){
   if(state.elite) return;   // compare axes are disabled inside the replica
   if(on&&!ILVL.has){ setNotice("Gear compare needs item levels — this build carries none."); syncAxisUI(); return; }
   if(on){
+    gearPrevA=null;   // a fresh activation: Off goes back to the A of NOW, never to a snapshot an earlier session left behind
+    // cohorts: an open A slider is split at the median (A at or above, B below);
+    // a narrowed A is kept and B takes the complement on the side with room.
+    // The split is tried before the other axis is switched off, so a refusal
+    // leaves the page exactly as it was -- Time or Skill stays on.
+    const open=!ilvlNarrowed();
+    if(open&&!gearSplitApply(true)){ syncAxisUI(); return; }   // refused: gear stays off, the notice says why
     if(state.compare){state.compare=false; $("cmp").checked=false; refreshPeriodUIs();}
     state.skill=false;
     state.gear=true;
-    // cohorts: an open A slider is split at the median (A at or above, B below);
-    // a narrowed A is kept and B takes the complement on the side with room
-    if(!ilvlNarrowed()){
-      if(!gearSplitApply(true)){ state.gear=false; syncAxisUI(); render(); return; }
-    }else{
+    if(!open){
       const below=state.ilo>ILVL.min;
       if(below){ state.ilob=ILVL.min; state.ihib=state.ilo-1; }
       else { state.ilob=state.ihi+1; state.ihib=ILVL.max; }
       setNotice("Gear compare: A kept at "+ilvlAText()+" (solid), B = "+ilvlBText()
-        +" (everything "+(below?"below":"above")+" A, grey ghost) — drag either range in the sidebar.");
+        +" (everything "+(below?"below":"above")+" A, grey ghost).");
       syncIlvlInputs();
     }
   }else gearOff();
@@ -2803,13 +2828,43 @@ function gearOff(){
   if(gearPrevA&&state.ilo===gearPrevA.setLo&&state.ihi===gearPrevA.setHi){
     state.ilo=gearPrevA.lo; state.ihi=gearPrevA.hi; syncIlvlInputs();
     setNotice("Gear compare off — the item-level range is back to "+(ilvlNarrowed()?ilvlAText():"any")+".");
-  }
+  }else setNotice("Gear compare off — the item-level range stays at "+(ilvlNarrowed()?ilvlAText():"any")+".");
   gearPrevA=null;
+}
+/* Gear axis census — ONE pass over the parses the other filters select for
+   period A (no item-level term): parses with no item level, parses in the gap
+   between the two ranges (in neither cohort), and each cohort's median item
+   level and median key, so the note prints what the two ranges actually hold
+   and how far apart they sit on the key ladder (measured, not assumed). */
+function gearCensus(){
+  const m=baseMasks(); m.il=false;
+  const cut=periodCut(state.weeksA);
+  let unk=0, gap=0, gapLo=Infinity, gapHi=-Infinity;
+  const ilA=[], ilB=[], kA=[], kB=[];
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)||!periodPass(i,state.weeksA,cut)||projSkip(i)) continue;
+    const v=R.ilvl[i];
+    if(!(v>0)){unk++; continue;}
+    const a=v>=state.ilo&&v<=state.ihi, b=v>=state.ilob&&v<=state.ihib;
+    if(a){ilA.push(v); kA.push(R.key[i]);}
+    if(b){ilB.push(v); kB.push(R.key[i]);}
+    if(!a&&!b){gap++; if(v<gapLo)gapLo=v; if(v>gapHi)gapHi=v;}
+  }
+  const med=a=>{ if(!a.length) return NaN; a.sort((x,y)=>x-y); return a[Math.floor((a.length-1)/2)]; };
+  return {unk, gap, gapLo, gapHi, ilA:med(ilA), ilB:med(ilB), kA:med(kA), kB:med(kB)};
 }
 function gearOverlapNote(){
   const lo=Math.max(state.ilo,state.ilob), hi=Math.min(state.ihi,state.ihib);
   if(lo>hi) return "";
   return " <b>A and B overlap on ilvl "+lo+(hi>lo?"–"+hi:"")+"</b> — parses there count on both sides.";
+}
+// a character with parses on both sides of the split counts in both cohorts — said, because
+// part of the A-vs-B gap is then the same players at different gear
+function gearSharedCharsNote(A,B){
+  if(!A||!B||!A.charSet||!B.charSet) return "";
+  const [s,t]=A.charSet.size<=B.charSet.size?[A.charSet,B.charSet]:[B.charSet,A.charSet];
+  let n=0; for(const c of s) if(t.has(c)) n++;
+  return n?" "+fmtInt(n)+" characters have parses in both cohorts and count on both sides.":"";
 }
 document.querySelectorAll("#cmpseg button").forEach(b=>{
   b.onclick=()=>{
@@ -3271,7 +3326,7 @@ function aggregate(weeks,il){
     const key=groupKey(i);
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
-             n:0,sum:0,dsum:0,dzero:0,dps:[],dth:[],rsum:0,rdps:[],chars:new Set(),
+             n:0,sum:0,dsum:0,dzero:0,dps:[],dth:[],rsum:0,rdps:[],chars:new Set(),il:[],key:[],
              runs:new Set()};
            groups.set(key,g)}
     const dv=dpsAt(i);
@@ -3280,7 +3335,7 @@ function aggregate(weeks,il){
     g.dps.push(dv);
     // per-parse deaths distribution — the honest base for the Skill compare's
     // deaths read (qp of small ints; one extra array per group)
-    g.dth.push(R.deaths[i]);
+    g.dth.push(R.deaths[i]); g.il.push(R.ilvl[i]); g.key.push(R.key[i]);
     // recorded (un-projected) figures, so the toggle can show a delta
     g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
     g.chars.add(R.char[i]); charSeen.add(R.char[i]);
@@ -3314,11 +3369,15 @@ function aggregate(weeks,il){
       q30:qp(g.dps,.30), q85:qp(g.dps,.85), qb:qp(g.dps,state.pctlB/100),
       // deaths distribution quantiles: A reads at the lens, B at the vs-pctl
       qdA:qp(g.dth,state.pctl/100), qdB:qp(g.dth,state.pctlB/100),
+      // the group's own centre on the gear and key ladders (lower medians), so a
+      // Gear-axis badge can be read against ITS spec's key gap, not the pool's
+      mil:(g.il.sort((a,b)=>a-b),g.il[Math.floor((g.il.length-1)/2)]),
+      mkey:(g.key.sort((a,b)=>a-b),g.key[Math.floor((g.key.length-1)/2)]),
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
       chars:g.chars.size, runs:g.runs.size, arating, mrating, rn});
   }
-  return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
+  return {groups:out, parses, runs, chars:charSeen.size, charSet:charSeen, dmin, dmax, runSeen};
 }
 
 // Ratings arrive over hours, heaviest loggers first, so a partial sweep reads
@@ -3412,11 +3471,16 @@ function tipHTML(r,compare){
       +"percentiles — the population figures are shared</div>";
   }
   if(compare) h+=gearOn()
-    ? row("", "<b>A</b> "+esc(ilvlAText()), "<b>B</b> "+esc(ilvlBText()))
+    ? row("", '<b>A</b><br><span style="white-space:nowrap">'+esc(ilvlAText())+'</span>',
+              '<b>B</b><br><span style="white-space:nowrap">'+esc(ilvlBText())+'</span>')
     : row("", "<b>A</b>", "<b>B</b>");
   h+=row("Runs", f(r.a,"runs",fmtInt), f(r.b,"runs",fmtInt));
   h+=row("Parses", f(r.a,"n",fmtInt), f(r.b,"n",fmtInt));
   h+=row("Unique characters", f(r.a,"chars",fmtInt), f(r.b,"chars",fmtInt));
+  if(gearOn()){   // the spec's own cohort centres: the key gap inside this badge
+    h+=row("Median item level", f(r.a,"mil",v=>v>0?String(v):"–"), f(r.b,"mil",v=>v>0?String(v):"–"));
+    h+=row("Median key", f(r.a,"mkey",v=>"+"+v), f(r.b,"mkey",v=>"+"+v));
+  }
   const pj=(o,k,rk,fmt)=>o?fmt(o[k])+(state.proj?projDelta(o[k],o[rk]):""):"–";
   h+=row(state.proj?"Average DPS (proj.)":"Average DPS",
          pj(r.a,"avg","ravg",fmtInt), f(r.b,"avg",fmtInt));
@@ -3434,7 +3498,8 @@ function tipHTML(r,compare){
     h+=row("Median player rating (season)", f(r.a,"mrating",rf), f(r.b,"mrating",rf));
     h+=row("Rated characters", f(r.a,"rn",fmtInt), f(r.b,"rn",fmtInt));
   }
-  return h+"</table>";
+  return h+"</table>"+(compare&&gearOn()
+    ?"<div class=\"fnote\">a character with parses in both item-level ranges counts in both columns</div>":"");
 }
 function attachTip(el,html){
   el.onmouseenter=e=>{
@@ -3639,12 +3704,12 @@ function liveIdxMulti(keys){
 }
 
 // the same scope fragments scopeLine() builds, without the labStamp/extra
-function frameScope(){
+function frameScope(withB){   // withB: the Spec Frame only — its identity rows carry a B column
   const p=["p"+state.pctl+" lens"];
   if(state.elite) p.push("Archon replica");
   else{ p.push(describePeriod(state.weeksA));
         p.push("keys +"+state.klo+"–+"+state.khi);
-        if(gearOn()) p.push(ilvlAText()+" vs "+ilvlBText()+" (ghost)");
+        if(gearOn()) p.push(withB?ilvlAText()+" vs "+ilvlBText()+" (ghost)":ilvlAText()+" (cohort A)");
         else if(ilvlNarrowed()) p.push(ilvlText()); }
   if(state.timedOnly) p.push("timed only");
   return p.join(" · ");
@@ -3715,7 +3780,7 @@ function frameIdentityHTML(ctx){
         +(s.all?' · every parse in the filters (none with beam data around p'+state.pctl+', lens ±10)'
                :' around p'+state.pctl+(skill?' · p'+state.pctlB:'')+' (lens ±10)')
         +(s.nb?' · '+fmtInt(s.nb)+' got no beam':'')
-        +(state.compare?' · period A':gearOn()?' · cohort A':'')+'</div>');
+        +(state.compare?' · period A':gearOn()?' · item-level cohort A':'')+'</div>');
     }
   }
   if(hasRating&&g.rn)
@@ -3962,7 +4027,7 @@ function renderFrame(){
   const fc=$("frame-char"); if(fc) fc.hidden=buildsDead;
   const fd=$("frame-dead"); if(fd) fd.hidden=!buildsDead;
   $("frame-hero").textContent=(!state.merge&&ctx.hero)?"· "+ctx.hero:"";
-  $("frame-scope").textContent=frameScope();
+  $("frame-scope").textContent=frameScope(true);
   const host=$("frame-blocks"); host.innerHTML="";
   for(const blk of FRAME_BLOCKS){
     if(!blk.has(ctx)) continue;
@@ -7141,7 +7206,8 @@ function render(){
     if(!state.elite&&a0.chars<effMinA) continue;
     // a0 rides along untouched: on the deaths tab `a` has adeaths overridden
     // with the lens-percentile read, and the tooltip needs the real average
-    rows.push({key, cls:a0.cls, spec:a0.spec, hero:a0.hero, a, b, a0});
+    rows.push({key, cls:a0.cls, spec:a0.spec, hero:a0.hero, a, b, a0,
+      thinB:!!(b&&b.chars<effMinB)});   // B under the gate: badged, never hidden
   }
 
   // KPIs (period A)
@@ -7173,14 +7239,23 @@ function render(){
       +"Period <b>B</b>: "+describePeriod(state.weeksB)+" (grey ghost bars) — KPIs show period A. "
       +(B?fmtInt(B.parses)+" parses in B.":"")
     : "Period: "+describePeriod(state.weeksA))
-    +(skill?" <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
+    +(skill?". <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
       +state.pctlB+" of the same parses (distribution metrics: percentile DPS and deaths).":"")
-    +(gear?" <b>Gear compare:</b> solid = item level A ("+state.ilo+"–"+state.ihi+"), grey ghost = item level B ("
+    +(gear?(()=>{const gc=gearCensus(), aHigh=state.ilo>state.ihib, aLow=state.ihi<state.ilob;
+      return ". <b>Gear compare:</b> solid = item level A ("+state.ilo+"–"+state.ihi+"), grey ghost = item level B ("
       +state.ilob+"–"+state.ihib+") — the same period and filters aggregated once per cohort; KPIs show A"
-      +(B?"; "+fmtInt(B.parses)+" parses in B":"")+"."+gearOverlapNote()
-      +(ILVL.unknown?" The "+fmtInt(ILVL.unknown)+" parses with no item level sit in neither cohort.":"")
-      +" Item level climbs with key level, so keep the key range narrow to read gear alone; "
-      +"sort by Biggest gain to rank specs by what they gain from gear.":"")
+      +(B?"; "+fmtInt(B.parses)+" parses in B":"")+"."+gearOverlapNote()+gearSharedCharsNote(A,B)
+      +(gc.gap?" <b>"+fmtInt(gc.gap)+" parses at ilvl "+gc.gapLo+(gc.gapHi>gc.gapLo?"–"+gc.gapHi:"")
+          +" fall between the two ranges and sit in neither cohort.</b>":"")
+      +(gc.unk?" In this selection "+fmtInt(gc.unk)+" parses with no item level sit in neither cohort.":"")
+      +(isFinite(gc.ilA)&&isFinite(gc.ilB)
+          ?" <b>Median item level "+gc.ilA+" in A vs "+gc.ilB+" in B · median key +"+gc.kA+" in A vs +"+gc.kB+" in B.</b>":"")
+      +" Item level climbs with key level, so keep the key range narrow to read gear alone"
+      +(isFinite(gc.kA)&&gc.kA!==gc.kB?" — the key gap above is inside every badge":"")
+      +" — the two item-level ranges stay put when other filters move (⚡ Median split re-splits the current selection); "
+      +(aHigh?"sort by Gained most to rank specs by what they gain from gear."
+        :aLow?"A sits below B, so a positive badge means less gear did better — ⇄ Swap A and B reads gains from gear as positive, or sort by Lost most."
+        :"A and B overlap, so the badge is not a clean gear read — separate the two ranges to rank specs by what they gain from gear.");})():"")
     +labNoteBadges()
     +gapsNote(A.dmin,A.dmax)
     +resetNote();
@@ -7310,6 +7385,7 @@ function render(){
                               :col==="med"?"rmed":null]:null;
     valEl.innerHTML=esc(tab.fmt(v))
       +(cmpA?deltaHTML(r.a[col], r.b?r.b[col]:null, tab)
+          +(r.thinB?'<span class="delta na" title="B side under the gate: '+fmtInt(r.b.chars)+' characters, gate ≥ '+effMinB+' here">thin B</span>':'')
         :(rbase==null?"":projDelta(v,rbase)));
     track.appendChild(valEl);
     row.appendChild(lbl); row.appendChild(track);
@@ -7405,7 +7481,7 @@ function renderScopeChips(){
     scopeChip(box,state.timedOnly?"timed only":"all completed","timedseg");
   if(state.compare) scopeChip(box,"compare: time","cmp");
   if(state.skill&&!state.elite) scopeChip(box,"compare: skill vs p"+state.pctlB,"cmpseg");
-  if(gearOn()) scopeChip(box,"compare: gear vs "+ilvlBText(),"cmpseg");
+  if(gearOn()) scopeChip(box,"compare: gear vs "+ilvlBText(),"blockG");
   if(state.elite) scopeChip(box,"⚔ archon replica","archon-chip");
 }
 // trust-gate "show anyway": drops the effective min-chars to 1 for the session;
@@ -7532,6 +7608,7 @@ function renderPulse(rowsGated){
   if(prevB!==undefined&&pMax>=0&&nMin<1e9&&pMax>=nMin)
     notes.push("the two windows overlap by "+(pMax-nMin+1)+" day(s) — regions reset on different days");
   if(hasTune&&state.postTune) notes.push("post-tuning filter truncates both windows");
+  if(gearOn()) notes.push("item-level cohort A only ("+ilvlAText()+") in both windows — B is not on this board");
   note.textContent=notes.join(" · ");
   if(!entries.length){
     host.innerHTML="";
@@ -8206,13 +8283,13 @@ function renderTable(rows,tab){
     cols=[["cls","Class","txt"],["spec","Spec","txt"]];
     if(!state.merge) cols.push(["hero","Hero Talent","txt"]);
     if(skill){
-      // Skill axis: pA/pB/Δ through the same machinery; runs are one period
-      cols.push(["a_n","Runs"],
+      // Skill axis: pA/pB/Δ through the same machinery; parses are one period
+      cols.push(["a_n","Parses"],
         ["a_v",metricCol==="med"?"p"+state.pctl+" DPS":"Deaths @ p"+state.pctl],
         ["b_v",metricCol==="med"?"p"+state.pctlB+" DPS":"Deaths @ p"+state.pctlB],
         ["d","Δ %"]);
     } else {
-      cols.push(["a_n","Runs A"],["b_n","Runs B"],
+      cols.push(["a_n","Parses A"],["b_n","Parses B"],
         ["a_v",metricLabel+" A"],["b_v",metricLabel+" B"],["d","Δ %"]);
     }
   } else {
@@ -8279,7 +8356,7 @@ function renderTable(rows,tab){
       return '<span class="complink" data-ck="'+presKey(r)
         +'" title="qualifying comps ('+state.compMin+'+ runs) fielding this spec'
         +' — click to open Top Comps filtered to it'
-        +(compare?(gearOn()?' · cohort A presence':' · period A presence'):'')+'">in '+fmtInt(v)
+        +(compare?(gearOn()?' · item-level cohort A presence':' · period A presence'):'')+'">in '+fmtInt(v)
         +' of '+fmtInt(p.den)+'</span>';
     }
     return esc(v);

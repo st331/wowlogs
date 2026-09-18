@@ -18,7 +18,10 @@
 5. **Prediction is a first-class use case.** "I am constantly trying to stay ahead of the
    game and use data to predict trends — which is why the compare-to-previous-periods
    feature. I also like looking for trends, hence the Trends tab." Compare and Trends must
-   stay prominent and effortless.
+   stay prominent and effortless. 2026-09-18: "add the ability to compare on not just skill and
+   time, but also on ilevel. I want to be able to see how classes scale with gear" — the third
+   Compare axis (checklist §AA); same rule, same ghost vocabulary (A solid, B grey ghost), and
+   the key-level confound printed beside the badge (median key per cohort), never assumed away.
 
 6. **Archon distance.** "I like the archon color scheme, so take inspiration from there but
    don't give me something that looks similar to Archon. make sure that does not happen…
