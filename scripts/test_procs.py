@@ -455,15 +455,16 @@ assert "@media(max-width:955px){" in html and "@media(min-width:956px){aside{pos
 # reader (rowPass, the cohorts, Archon, gearCensus) is untouched.
 assert 'id="ilvl-spark"' in html and 'id="ilvl-single"' in html and 'id="ilvl-one"' in html and 'id="ilvl-band"' in html and 'id="ilvl-mode"' in html and 'id="ilvlb-band"' in html, "one-thumb form, density strip, two-range form and the toggle"
 assert "const ILVL_DOMAIN_SHARE = 0.005;" in html and "function ilvlWindow()" in html and "function ilvlSig()" in html and "function ilvlShare(lo,hi)" in html, "the window: domain, cache signature and share"
-assert "const m=baseMasks(); m.il=false;" in html and "if(ILW&&ILW.sig===sig) return ILW;" in html, "the window ignores the item-level term, so moving the thumb cannot move the ground under it"
+assert "const m=baseMasks(); m.il=false;" in html and "if(!ILW||ILW.sig!==sig){" in html and "coreLo:core.length?core[0]:ILVL.min" in html, "the window ignores the item-level term, so moving the thumb cannot move the ground under it; only the histogram and core are cached, so the drawn ends shrink back"
 assert "let core=all.filter(v=>counts.get(v)>=pool*ILVL_DOMAIN_SHARE);" in html and "if(core.length<2) core=all;" in html, "the domain is the populated core, and it fails open"
-assert "if(state.ilo>ILVL.min) lo=Math.min(lo,state.ilo);" in html and "if(state.ihi<ILVL.max) hi=Math.max(hi,state.ihi);" in html, "a value the reader already set is never stranded outside the drawn domain"
+assert "if(state.ilo>ILVL.min) lo=Math.min(lo,state.ilo);" in html and "if(state.ihi<ILVL.max) hi=Math.max(hi,state.ihi);" in html and "let lo=ILW.coreLo, hi=ILW.coreHi;" in html, "a value the reader already set is never stranded outside the drawn domain, and the ends are derived fresh so they shrink back"
 assert "state.ilo=(v<=w.lo)?ILVL.min:v; state.ihi=ILVL.max;" in html, "off the Gear axis the thumb is a minimum, and its far left clears the filter"
 assert "state.ilo=v; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=v-1;" in html and "one.min=gear?w.lo+1:w.lo;" in html, "on the Gear axis the same thumb is the split, and it always leaves B a level"
 assert 'ilBand:false,' in html and '$("ilvl-mode").onclick=()=>{ state.ilBand=!state.ilBand; paintIlvl(); };' in html and '$("ilvl-single").hidden=band; $("ilvl-band").hidden=!band;' in html, "the two-range form is a visibility toggle over the same inputs"
 assert html.count("state.ilBand=true;   //") == 2, "the quartile split and the swap show both ranges, because one thumb cannot say them"
 assert '(inA?"a":inB?"b":"")' in html and "' parses in this selection\"></i>'" in html and "thinner parses sit outside this span and are still reachable at the ends" in html, "the density strip colours A and B and says what sits beyond its ends"
 assert '"· "+Math.round(shA.pct)+"% of the selection"' in html and '" here carry no item level and "' in html and '" ("+fmtInt(ILVL.unknown)+" parses in the whole build carry none)"' in html, "the readout is selection-scoped and the build-wide count stays in the title"
+assert 'id="ilvl-num"' in html and '$("ilvl-num").oninput=e=>{' in html and "num.min=gear?ILVL.min+1:ILVL.min; num.max=ILVL.max;" in html, "a typed number lands exactly and reaches the levels the drawn scale trims"
 print("client      : item-level picker: one thumb over the populated window (density strip, share readout); on the Gear axis the same thumb is the split; two-range form one click away over the same four inputs")
 
 # Trajectory item-level axis (owner, 2026-09-19: "I want to be able to see how a class scales

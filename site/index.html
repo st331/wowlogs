@@ -176,6 +176,10 @@ input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
 .ilspark i{flex:1 1 0; min-height:2px; background:rgba(234,227,208,.13); border-radius:1px 1px 0 0}
 .ilspark i.a{background:var(--metal)}
 .ilspark i.b{background:#8E8C86}
+/* typed precision: a slider is for aiming, a number is for landing exactly —
+   and it reaches the thin tail the drawn window trims away */
+.ilnum{width:64px; background:var(--surface2); color:var(--ink); border:1px solid var(--line2);
+  border-radius:var(--r1); padding:.22rem .3rem; font:inherit; font-size:.78rem}
 .dual{position:relative; height:28px; margin:.35rem 0 .1rem}
 .dual .track{position:absolute; top:12px; left:0; right:0; height:4px;
   border-radius:2px; background:rgba(234,227,208,.11)}
@@ -1381,7 +1385,10 @@ table.beamtbl tr:hover td{background:var(--surface1)}
       <div class="track"></div><div class="fill" id="ilvl-fill"></div>
       <input type="range" id="ilo"><input type="range" id="ihi">
     </div>
-    <div class="chips" style="margin-top:.1rem"><span class="chip" id="ilvl-mode"></span></div>
+    <div class="chips" style="margin-top:.1rem; align-items:center">
+      <input type="number" id="ilvl-num" class="ilnum" title="type an exact item level — this reaches levels the drawn scale trims away">
+      <span class="chip" id="ilvl-mode"></span>
+    </div>
     <div id="blockG" class="bpanel" style="display:none">
       <div class="hint" style="margin:0 0 .1rem">Item level B — drawn as grey ghost bars; the same period and filters as A</div>
       <div>Item Level B: <b id="ilvlb-v" style="color:#D8D6CF"></b></div>
@@ -2535,6 +2542,12 @@ function buildControls(){
       sp.title="parses per item level in the current selection, "+w.lo+"–"+w.hi
         +(w.outLo||w.outHi?" — "+fmtInt(w.outLo+w.outHi)+" thinner parses sit outside this span and are still reachable at the ends":"");
       $("ilvl-single").hidden=band; $("ilvl-band").hidden=!band;
+      // the number box is the exact-landing twin of the one thumb; its range is
+      // the whole payload, so a level the drawn window trims is still typeable
+      const num=$("ilvl-num");
+      num.hidden=band; num.min=gear?ILVL.min+1:ILVL.min; num.max=ILVL.max;
+      if(document.activeElement!==num) num.value=on?state.ilo:"";
+      num.placeholder=gear?"split":"any";
       $("ilvl-mode").textContent=band?"◂▸ one value":"⇔ two ranges";
       $("ilvl-mode").title=band
         ?"back to one thumb: a single item-level cut"+(gear?" that splits A from B":"")
@@ -2567,6 +2580,21 @@ function buildControls(){
       }
       syncIlvlInputs(); render();
     };
+    $("ilvl-num").oninput=e=>{
+      const raw=e.target.value.trim();
+      if(raw===""){ if(!gearOn()){ state.ilo=ILVL.min; state.ihi=ILVL.max; syncIlvlInputs(); render(); } return; }
+      let v=Math.round(+raw);
+      if(!isFinite(v)) return;
+      v=Math.max(gearOn()?ILVL.min+1:ILVL.min,Math.min(v,ILVL.max));
+      if(gearOn()){
+        gearTrack(v,ILVL.max);
+        state.ilo=v; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=v-1;
+      }else{
+        state.ilo=(v<=ILVL.min)?ILVL.min:v; state.ihi=ILVL.max;
+      }
+      syncIlvlInputs(); render();   // the window covers a typed value on its own
+    };
+    $("ilvl-num").onblur=()=>paintIlvl();
     $("ilvl-mode").onclick=()=>{ state.ilBand=!state.ilBand; paintIlvl(); };
     paintIlvl();
     $("ilo").oninput=e=>{state.ilo=Math.min(+e.target.value,state.ihi);
@@ -2867,29 +2895,36 @@ function ilvlSig(){
     [...state.role].join(),[...state.reg].join(),[...state.weeksA].join()].join("|");
 }
 function ilvlWindow(){
+  // the histogram and the core are the expensive half and depend only on the
+  // OTHER filters, so they are cached on the signature; the drawn ends are
+  // derived fresh every call, because they also have to cover whatever the
+  // reader has set -- and must shrink back when that value goes away
   const sig=ilvlSig();
-  if(ILW&&ILW.sig===sig) return ILW;
-  const m=baseMasks(); m.il=false;
-  const cut=periodCut(state.weeksA), counts=new Map(); let pool=0, unk=0;
-  for(let i=0;i<N;i++){
-    if(!rowPass(i,m)||!periodPass(i,state.weeksA,cut)||projSkip(i)) continue;
-    const v=R.ilvl[i];
-    if(!(v>0)){unk++; continue;}
-    counts.set(v,(counts.get(v)||0)+1); pool++;
+  if(!ILW||ILW.sig!==sig){
+    const m=baseMasks(); m.il=false;
+    const cut=periodCut(state.weeksA), counts=new Map(); let pool=0, unk=0;
+    for(let i=0;i<N;i++){
+      if(!rowPass(i,m)||!periodPass(i,state.weeksA,cut)||projSkip(i)) continue;
+      const v=R.ilvl[i];
+      if(!(v>0)){unk++; continue;}
+      counts.set(v,(counts.get(v)||0)+1); pool++;
+    }
+    const all=[...counts.keys()].sort((a,b)=>a-b);
+    let core=all.filter(v=>counts.get(v)>=pool*ILVL_DOMAIN_SHARE);
+    if(core.length<2) core=all;
+    ILW={sig, counts, pool, unk, all,
+         coreLo:core.length?core[0]:ILVL.min, coreHi:core.length?core[core.length-1]:ILVL.max};
   }
-  const all=[...counts.keys()].sort((a,b)=>a-b);
-  let core=all.filter(v=>counts.get(v)>=pool*ILVL_DOMAIN_SHARE);
-  if(core.length<2) core=all;
-  let lo=core.length?core[0]:ILVL.min, hi=core.length?core[core.length-1]:ILVL.max;
-  const outLo=all.filter(v=>v<lo).reduce((a,v)=>a+counts.get(v),0);
-  const outHi=all.filter(v=>v>hi).reduce((a,v)=>a+counts.get(v),0);
+  let lo=ILW.coreLo, hi=ILW.coreHi;
   // never strand a value the reader has already set outside the drawn domain
   if(state.ilo>ILVL.min) lo=Math.min(lo,state.ilo);
   if(state.ihi<ILVL.max) hi=Math.max(hi,state.ihi);
   if(state.ilob>ILVL.min) lo=Math.min(lo,state.ilob);
   if(state.ihib&&state.ihib<ILVL.max) hi=Math.max(hi,state.ihib);
   if(hi<=lo) hi=lo+1;
-  ILW={sig,lo,hi,counts,pool,unk,outLo,outHi};
+  ILW.lo=lo; ILW.hi=hi;
+  ILW.outLo=ILW.all.filter(v=>v<lo).reduce((a,v)=>a+ILW.counts.get(v),0);
+  ILW.outHi=ILW.all.filter(v=>v>hi).reduce((a,v)=>a+ILW.counts.get(v),0);
   return ILW;
 }
 // how many of the selection's parses a range holds, and its share
