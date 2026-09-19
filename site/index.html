@@ -169,6 +169,13 @@ input[type=range]::-moz-range-track{height:4px; border-radius:2px; background:rg
 input[type=range]::-moz-range-progress{height:4px; border-radius:2px; background:var(--accent)}
 input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
   background:var(--metal); border:2px solid var(--bg-side)}
+/* item-level density: one bar per item level in the drawn domain, height by
+   parse count, so the reader aims at where the players are instead of counting
+   pixels. Champagne = inside A, grey = inside the Gear axis's B cohort. */
+.ilspark{display:flex; align-items:flex-end; gap:1px; height:26px; margin:.4rem 0 -.2rem}
+.ilspark i{flex:1 1 0; min-height:2px; background:rgba(234,227,208,.13); border-radius:1px 1px 0 0}
+.ilspark i.a{background:var(--metal)}
+.ilspark i.b{background:#8E8C86}
 .dual{position:relative; height:28px; margin:.35rem 0 .1rem}
 .dual .track{position:absolute; top:12px; left:0; right:0; height:4px;
   border-radius:2px; background:rgba(234,227,208,.11)}
@@ -1365,14 +1372,20 @@ table.beamtbl tr:hover td{background:var(--surface1)}
   <div id="ilvl-box">
     <div style="margin-top:.5rem"><span id="ilvl-lbl">Item Level</span>: <b id="ilvl-v" style="color:var(--accent)"></b>
       <span class="hint" id="ilvl-hint"></span></div>
-    <div class="dual">
+    <div class="ilspark" id="ilvl-spark"></div>
+    <div class="dual" id="ilvl-single">
+      <div class="track"></div><div class="fill" id="ilvl-one-fill"></div>
+      <input type="range" id="ilvl-one">
+    </div>
+    <div class="dual" id="ilvl-band" hidden>
       <div class="track"></div><div class="fill" id="ilvl-fill"></div>
       <input type="range" id="ilo"><input type="range" id="ihi">
     </div>
+    <div class="chips" style="margin-top:.1rem"><span class="chip" id="ilvl-mode"></span></div>
     <div id="blockG" class="bpanel" style="display:none">
       <div class="hint" style="margin:0 0 .1rem">Item level B — drawn as grey ghost bars; the same period and filters as A</div>
       <div>Item Level B: <b id="ilvlb-v" style="color:#D8D6CF"></b></div>
-      <div class="dual">
+      <div class="dual" id="ilvlb-band">
         <div class="track"></div><div class="fill" id="ilvlb-fill"></div>
         <input type="range" id="ilob"><input type="range" id="ihib">
       </div>
@@ -1714,6 +1727,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              // V2 additions — all inert defaults, no existing default touched
              skill:false, pctlB:85,          // Compare: Skill axis (second qp pass)
              gear:false, ilob:0, ihib:0,     // Compare: Gear axis — item-level cohort B (0 = not set yet)
+             ilBand:false,                    // item level: false = one thumb, true = the two-range form
              trendNorm:"dps", trajSort:"metric", trendAxis:"time",
              trustPrev:null};
 let hasTimed=false, hasTune=false, hasProj=false;
@@ -2027,6 +2041,7 @@ function initData(d,cfg){
   refMemo=new Map();
   state.compare=false; $("cmp").checked=false;
   state.gear=false; state.ilob=0; state.ihib=0;   // the Gear axis opens off; its B cohort is set on first use
+  state.ilBand=false; ILW=null;                  // item level opens on one thumb, window recomputed
   buildControls();
   labScopeRefresh();
   $("archon-chip").title=archonTitle();
@@ -2477,19 +2492,82 @@ function buildControls(){
     for(const s of ["ilo","ihi","ilob","ihib"]){$(s).min=ILVL.min; $(s).max=ILVL.max; $(s).step=1}
     $("ilo").value=state.ilo; $("ihi").value=state.ihi;
     $("ilob").value=state.ilob||ILVL.min; $("ihib").value=state.ihib||ILVL.max;
+    // the two-range form keeps the payload's own scale; the one-thumb form is
+    // drawn over the window, where every pixel is a level someone plays at
     const fill=(id,lo,hi)=>{const f=$(id), span=ILVL.max-ILVL.min||1;
       f.style.left=((lo-ILVL.min)/span*100)+"%"; f.style.width=((hi-lo)/span*100)+"%";};
+    const fillW=(id,lo,hi,w)=>{const f=$(id), span=(w.hi-w.lo)||1;
+      const a=Math.max(w.lo,Math.min(lo,w.hi)), b=Math.max(w.lo,Math.min(hi,w.hi));
+      f.style.left=((a-w.lo)/span*100)+"%"; f.style.width=((b-a)/span*100)+"%";};
     paintIlvl=()=>{
-      const gear=gearOn(), on=ilvlNarrowed()||gear;
-      $("ilvl-lbl").textContent=gear?"Item Level A (solid)":"Item Level";
-      $("ilvl-v").textContent=(on?"":"any · ")+state.ilo+" – "+state.ihi;
-      $("ilvl-hint").textContent=on&&ILVL.unknown
-        ?"· "+fmtInt(ILVL.unknown)+" parses in this build carry no item level; "
-          +(gear?"they sit in neither cohort":"a narrowed range leaves them out"):"";
+      const gear=gearOn(), on=ilvlNarrowed()||gear, w=ilvlWindow(), band=state.ilBand;
+      // one thumb under Gear IS the split, so the label says so instead of
+      // repeating the A that the value already carries
+      $("ilvl-lbl").textContent=gear?(band?"Item Level A (solid)":"Item Level split"):"Item Level";
+      // the one-thumb form states the cut; the two-range form states both ends
+      const shA=ilvlShare(state.ilo,state.ihi);
+      $("ilvl-v").textContent=band
+        ? (on?"":"any · ")+state.ilo+" – "+state.ihi
+        : gear ? "A ≥ "+state.ilo+" · B ≤ "+state.ihib
+        : on ? "≥ "+state.ilo : "any";
+      // the unknown count is the SELECTION's, not the build's, so it is silent
+      // when nothing in view is affected; the long phrasing lives in the title
+      const hint=$("ilvl-hint");
+      hint.textContent=(on?"· "+Math.round(shA.pct)+"% of the selection":"")
+        +(on&&w.unk?" · "+fmtInt(w.unk)+" here carry no item level and "
+          +(gear?"sit in neither cohort":"are left out"):"");
+      hint.title=on?Math.round(shA.pct)+"% of the "+fmtInt(w.pool+w.unk)
+        +" parses the other filters select "+(gear?"are in cohort A":"match this item level")
+        +(w.unk?"; "+fmtInt(w.unk)+" of them carry no item level at all":"")
+        +(ILVL.unknown?" ("+fmtInt(ILVL.unknown)+" parses in the whole build carry none)":""):"";
+      // density: one bar per level in the window, so the shape of the population
+      // is visible and the ends say what sits beyond them
+      const sp=$("ilvl-spark"); let mx=0;
+      for(let v=w.lo;v<=w.hi;v++) mx=Math.max(mx,w.counts.get(v)||0);
+      let h="";
+      for(let v=w.lo;v<=w.hi;v++){
+        const c=w.counts.get(v)||0;
+        const inA=v>=state.ilo&&v<=state.ihi, inB=gear&&v>=state.ilob&&v<=state.ihib;
+        h+='<i class="'+(inA?"a":inB?"b":"")+'" style="height:'+(mx?Math.max(2,Math.round(24*c/mx)):2)
+          +'px" title="ilvl '+v+" · "+fmtInt(c)+' parses in this selection"></i>';
+      }
+      sp.innerHTML=h;
+      sp.title="parses per item level in the current selection, "+w.lo+"–"+w.hi
+        +(w.outLo||w.outHi?" — "+fmtInt(w.outLo+w.outHi)+" thinner parses sit outside this span and are still reachable at the ends":"");
+      $("ilvl-single").hidden=band; $("ilvl-band").hidden=!band;
+      $("ilvl-mode").textContent=band?"◂▸ one value":"⇔ two ranges";
+      $("ilvl-mode").title=band
+        ?"back to one thumb: a single item-level cut"+(gear?" that splits A from B":"")
+        :"two thumbs: pick both ends of a band"+(gear?", and both ends of cohort B":"");
+      const one=$("ilvl-one");
+      one.min=gear?w.lo+1:w.lo; one.max=w.hi; one.step=1;
+      one.value=Math.max(+one.min,Math.min(state.ilo>ILVL.min?state.ilo:w.lo,w.hi));
+      fillW("ilvl-one-fill",on?state.ilo:w.lo,w.hi,w);
       fill("ilvl-fill",state.ilo,state.ihi);
       $("blockG").style.display=gear?"":"none";
-      if(gear){ $("ilvlb-v").textContent=state.ilob+" – "+state.ihib; fill("ilvlb-fill",state.ilob,state.ihib); }
+      if(gear){
+        const shB=ilvlShare(state.ilob,state.ihib);
+        // one thumb means B is everything under the cut, so say that, not a floor
+        $("ilvlb-v").innerHTML=esc(band?state.ilob+" – "+state.ihib:"≤ "+state.ihib)
+          +' <span class="hint">· '+Math.round(shB.pct)+"% of the selection</span>";
+        fill("ilvlb-fill",state.ilob,state.ihib);
+        $("ilvlb-band").hidden=!band;
+      }
     };
+    // ONE THUMB. Off the Gear axis it is a minimum ("≥ N", the far left = any);
+    // on it, the same thumb is the split that defines both cohorts, so a gear
+    // comparison is one gesture instead of four.
+    $("ilvl-one").oninput=e=>{
+      const w=ilvlWindow(), v=Math.max(+e.target.min,Math.min(+e.target.value,w.hi));
+      if(gearOn()){
+        gearTrack(v,ILVL.max);
+        state.ilo=v; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=v-1;
+      }else{
+        state.ilo=(v<=w.lo)?ILVL.min:v; state.ihi=ILVL.max;
+      }
+      syncIlvlInputs(); render();
+    };
+    $("ilvl-mode").onclick=()=>{ state.ilBand=!state.ilBand; paintIlvl(); };
     paintIlvl();
     $("ilo").oninput=e=>{state.ilo=Math.min(+e.target.value,state.ihi);
       e.target.value=state.ilo; paintIlvl(); render();};
@@ -2509,6 +2587,7 @@ function buildControls(){
           ()=>{ const lo=gearQuantile(.25), hi=gearQuantile(.75);
                 if(lo==null||hi==null||hi<=lo){ setNotice("Gear compare: the current selection has no spread of item levels for a quartile split."); return; }
                 gearTrack(hi,ILVL.max); state.ilo=hi; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=lo;
+                state.ilBand=true;   // a gap between the cohorts: one thumb cannot say this
                 setNotice("Gear compare: A = "+ilvlAText()+" (top quarter of the selection's item levels), B = "+ilvlBText()
                   +" (bottom quarter) — the middle half sits in neither cohort; the note counts it.");
                 syncIlvlInputs(); syncAxisUI(); render(); }],
@@ -2516,6 +2595,7 @@ function buildControls(){
           ()=>{ const lo=state.ilo, hi=state.ihi;
                 gearTrack(state.ilob,state.ihib);
                 state.ilo=state.ilob; state.ihi=state.ihib; state.ilob=lo; state.ihib=hi;
+                state.ilBand=true;   // A below B: one thumb cannot say this either
                 setNotice("Gear compare: swapped — A = "+ilvlAText()+" (solid), B = "+ilvlBText()+" (grey ghost).");
                 syncIlvlInputs(); syncAxisUI(); render(); }]]){
       const c=document.createElement("span"); c.className="chip"; c.textContent=name; c.title=title; c.onclick=fn;
@@ -2768,6 +2848,56 @@ function setSkill(on){
 /* Gear axis cohorts. The median split reads the item levels of the parses the
    OTHER filters select for period A (no item-level term), so it follows the key
    range, role, class and period in force. Lower median, whole item levels. */
+/* THE ITEM-LEVEL WINDOW (owner, 2026-09-19: "picking a top and a bottom value,
+   from 70-371, is quite difficult"). Item level is enormously skewed: the
+   payload spans ~343 levels and a default view puts 99% of its parses inside
+   about twelve of them, so a slider over the raw domain wastes ~97% of its
+   travel and every useful value is a few pixels apart. The control is drawn
+   over the levels that actually hold players in the CURRENT selection — with
+   the item-level term itself excluded, so moving the thumb cannot move the
+   ground under it — and the ends still mean "and below" / "and above", so
+   nothing is out of reach. Cached on a signature of the other filters: one
+   extra walk only when something else actually changed. */
+const ILVL_DOMAIN_SHARE = 0.005;
+let ILW=null;
+function ilvlSig(){
+  return [state.klo,state.khi,state.timedOnly,state.postTune,state.proj,state.merge,
+    state.melee,state.ranged,state.dayCut,state.elite,
+    [...state.cls].join(),[...state.spec].join(),[...state.hero].join(),[...state.dun].join(),
+    [...state.role].join(),[...state.reg].join(),[...state.weeksA].join()].join("|");
+}
+function ilvlWindow(){
+  const sig=ilvlSig();
+  if(ILW&&ILW.sig===sig) return ILW;
+  const m=baseMasks(); m.il=false;
+  const cut=periodCut(state.weeksA), counts=new Map(); let pool=0, unk=0;
+  for(let i=0;i<N;i++){
+    if(!rowPass(i,m)||!periodPass(i,state.weeksA,cut)||projSkip(i)) continue;
+    const v=R.ilvl[i];
+    if(!(v>0)){unk++; continue;}
+    counts.set(v,(counts.get(v)||0)+1); pool++;
+  }
+  const all=[...counts.keys()].sort((a,b)=>a-b);
+  let core=all.filter(v=>counts.get(v)>=pool*ILVL_DOMAIN_SHARE);
+  if(core.length<2) core=all;
+  let lo=core.length?core[0]:ILVL.min, hi=core.length?core[core.length-1]:ILVL.max;
+  const outLo=all.filter(v=>v<lo).reduce((a,v)=>a+counts.get(v),0);
+  const outHi=all.filter(v=>v>hi).reduce((a,v)=>a+counts.get(v),0);
+  // never strand a value the reader has already set outside the drawn domain
+  if(state.ilo>ILVL.min) lo=Math.min(lo,state.ilo);
+  if(state.ihi<ILVL.max) hi=Math.max(hi,state.ihi);
+  if(state.ilob>ILVL.min) lo=Math.min(lo,state.ilob);
+  if(state.ihib&&state.ihib<ILVL.max) hi=Math.max(hi,state.ihib);
+  if(hi<=lo) hi=lo+1;
+  ILW={sig,lo,hi,counts,pool,unk,outLo,outHi};
+  return ILW;
+}
+// how many of the selection's parses a range holds, and its share
+function ilvlShare(lo,hi){
+  const w=ilvlWindow(); let k=0;
+  for(const [v,c] of w.counts) if(v>=lo&&v<=hi) k+=c;
+  return {n:k, pct:w.pool?100*k/w.pool:0};
+}
 function gearIlvls(){   // sorted known item levels of the parses the other filters select for period A
   const m=baseMasks(); m.il=false;
   const cut=periodCut(state.weeksA), v=[];
@@ -2806,7 +2936,7 @@ function syncIlvlInputs(){
   if(!ILVL.has) return;
   $("ilo").value=state.ilo; $("ihi").value=state.ihi;
   $("ilob").value=state.ilob; $("ihib").value=state.ihib;
-  paintIlvl&&paintIlvl();
+  paintIlvl&&paintIlvl();   // repaints the one-thumb form, the density and both readouts
 }
 function setGear(on){
   if(state.elite) return;   // compare axes are disabled inside the replica

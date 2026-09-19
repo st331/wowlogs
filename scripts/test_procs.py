@@ -397,7 +397,7 @@ print("client      : renderBeamTable() after FRAME_A=A; label 'in the light'; 'u
 assert 'id="ilo"' in html and 'id="ihi"' in html and 'id="ilvl-fill"' in html and 'id="ilvl-v"' in html, "item-level dual slider"
 assert "il:il?true:(ilvlNarrowed()||gearOn())" in html and "if(m.il){const v=R.ilvl[i]; if(v<m.ilo||v>m.ihi) return false;}" in html, "rowPass applies the range only when narrowed or under the Gear axis; unknown (0) fails a narrowed range"
 assert html.count("else if(ilvlNarrowed()) p.push(ilvlText());") == 2 and 'if(gearOn()) p.push(ilvlAText()+" (cohort A)");' in html and 'if(gearOn()) p.push(withB?ilvlAText()+" vs "+ilvlBText()+" (ghost)":ilvlAText()+" (cohort A)");' in html and '$("frame-scope").textContent=frameScope(true);' in html, "printed in the scope line (cohort A) and the frame scope (A vs B) under the Gear axis"
-assert 'scopeChip(box,ilvlText()' in html and '" parses in this build with no item level cannot match)"' in html and "parses in this build carry no item level; " in html and '(gear?"they sit in neither cohort":"a narrowed range leaves them out")' in html, "scope chip + the excluded-unknowns hint (cohort wording under the Gear axis)"
+assert 'scopeChip(box,ilvlText()' in html and '" parses in this build with no item level cannot match)"' in html and '" here carry no item level and "' in html and '(gear?"sit in neither cohort":"are left out")' in html, "scope chip names the build; the slider hint names this selection (cohort wording under the Gear axis)"
 assert "ilo:ILVL.min, ihi:ILVL.max," in html and "&& !ilvlNarrowed()" in html and "ilo:state.ilo, ihi:state.ihi," in html, "Archon parks, matches and snapshots the range"
 assert "ibox.hidden=true;" in html, "hidden on a payload without rows.ilvl"
 assert html.count('(ILVL.has?') >= 3 and "item level, dungeon, region" in html and "'the key, '+(ILVL.has?'item-level, ':'')" in html, "the bypassed/narrowing/fixed-cohort prose names item level (the disclaimer only when the page has it)"
@@ -427,7 +427,7 @@ assert '<b>Gear compare:</b> solid = item level A (' in html and "parses with no
 assert 'cap="Solid bar: item level A ("' in html and 'scopeChip(box,"compare: gear vs "+ilvlBText(),"blockG")' in html and "'<b>A</b><br><span style=\"white-space:nowrap\">'+esc(ilvlAText())+'</span>'" in html and '" at item level A ("+state.ilo+"–"+state.ihi+") vs B ("' in html, "caption, scope chip, tooltip header and table sub-line name the ranges"
 assert "(gearOn()?'no B':'new')" in html and "gearOn()?' · item-level cohort A':''" in html and 'gearOn()?" · item-level cohort A":""' in html, "no time words under the Gear axis"
 assert 'state.gear=("gear" in st)?!!st.gear:false;' in html and 'if("ilob" in st){state.ilob=st.ilob; state.ihib=st.ihib;}' in html and "gear:state.gear, ilob:state.ilob, ihib:state.ihib," in html and "&& state.merge && !state.compare && !state.gear" in html and "function setGear(on){\n  if(state.elite) return;" in html, "Archon parks the Gear axis and restores it with both cohorts; the axis cannot be turned on inside the replica"
-assert '$("axis-gear-btn").style.display=ILVL.has?"":"none";' in html and "state.gear=false; state.ilob=0; state.ihib=0;" in html and "const any=state.compare||state.skill||state.gear;" in html and 'gear?"Item Level A (solid)":"Item Level"' in html and '$("axis-gear-chip").textContent="B: "+ilvlBText();' in html, "hidden without rows.ilvl; opens off; gain/loss sorts, the A label and the B chip follow the axis"
+assert '$("axis-gear-btn").style.display=ILVL.has?"":"none";' in html and "state.gear=false; state.ilob=0; state.ihib=0;" in html and "const any=state.compare||state.skill||state.gear;" in html and 'gear?(band?"Item Level A (solid)":"Item Level split"):"Item Level"' in html and '$("axis-gear-chip").textContent="B: "+ilvlBText();' in html, "hidden without rows.ilvl; opens off; gain/loss sorts, the A label and the B chip follow the axis"
 # review follow-up (2026-09-18): the split is tried before the other axis is switched off; the
 # degenerate case is "nothing below the median"; the restore memory rides the Archon snapshot;
 # leaving the axis always says where A stands; the selection-scoped unknown count; shared
@@ -447,6 +447,25 @@ assert 'notes.push("item-level cohort A only ("+ilvlAText()+") in both windows �
 assert 'cols.push(["a_n","Parses A"],["b_n","Parses B"],' in html and 'cols.push(["a_n","Parses"],' in html and '"Runs A"' not in html, "compare columns carry parses and say so"
 assert "#blockG .dual .fill{background:#8E8C86}" in html and '<b id="ilvlb-v" style="color:#D8D6CF">' in html, "B slider is the ghost side"
 assert "@media(max-width:955px){" in html and "@media(min-width:956px){aside{position:sticky;" in html, "the header wraps before the fourth button squeezes it"
+# Item-level picker (owner, 2026-09-19: "picking a top and a bottom value, from 70-371, is quite
+# difficult ... the slider I want to move should ideally not require two different sliders moving
+# independently. for doing a comparison I need to get 4 sliders precisely"). One thumb over the
+# levels that actually hold players in the CURRENT selection, with a density strip behind it; the
+# two-range form is one click away and still drives the same four inputs, so every downstream
+# reader (rowPass, the cohorts, Archon, gearCensus) is untouched.
+assert 'id="ilvl-spark"' in html and 'id="ilvl-single"' in html and 'id="ilvl-one"' in html and 'id="ilvl-band"' in html and 'id="ilvl-mode"' in html and 'id="ilvlb-band"' in html, "one-thumb form, density strip, two-range form and the toggle"
+assert "const ILVL_DOMAIN_SHARE = 0.005;" in html and "function ilvlWindow()" in html and "function ilvlSig()" in html and "function ilvlShare(lo,hi)" in html, "the window: domain, cache signature and share"
+assert "const m=baseMasks(); m.il=false;" in html and "if(ILW&&ILW.sig===sig) return ILW;" in html, "the window ignores the item-level term, so moving the thumb cannot move the ground under it"
+assert "let core=all.filter(v=>counts.get(v)>=pool*ILVL_DOMAIN_SHARE);" in html and "if(core.length<2) core=all;" in html, "the domain is the populated core, and it fails open"
+assert "if(state.ilo>ILVL.min) lo=Math.min(lo,state.ilo);" in html and "if(state.ihi<ILVL.max) hi=Math.max(hi,state.ihi);" in html, "a value the reader already set is never stranded outside the drawn domain"
+assert "state.ilo=(v<=w.lo)?ILVL.min:v; state.ihi=ILVL.max;" in html, "off the Gear axis the thumb is a minimum, and its far left clears the filter"
+assert "state.ilo=v; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=v-1;" in html and "one.min=gear?w.lo+1:w.lo;" in html, "on the Gear axis the same thumb is the split, and it always leaves B a level"
+assert 'ilBand:false,' in html and '$("ilvl-mode").onclick=()=>{ state.ilBand=!state.ilBand; paintIlvl(); };' in html and '$("ilvl-single").hidden=band; $("ilvl-band").hidden=!band;' in html, "the two-range form is a visibility toggle over the same inputs"
+assert html.count("state.ilBand=true;   //") == 2, "the quartile split and the swap show both ranges, because one thumb cannot say them"
+assert '(inA?"a":inB?"b":"")' in html and "' parses in this selection\"></i>'" in html and "thinner parses sit outside this span and are still reachable at the ends" in html, "the density strip colours A and B and says what sits beyond its ends"
+assert '"· "+Math.round(shA.pct)+"% of the selection"' in html and '" here carry no item level and "' in html and '" ("+fmtInt(ILVL.unknown)+" parses in the whole build carry none)"' in html, "the readout is selection-scoped and the build-wide count stays in the title"
+print("client      : item-level picker: one thumb over the populated window (density strip, share readout); on the Gear axis the same thumb is the split; two-range form one click away over the same four inputs")
+
 # Trajectory item-level axis (owner, 2026-09-19: "I want to be able to see how a class scales
 # with item level"). A third option beside Over: time and Key level, out of the same single walk:
 # one point per item level, domain = the levels holding at least TREND_ILVL_SHARE of the filtered

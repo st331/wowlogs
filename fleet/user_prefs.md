@@ -22,6 +22,12 @@
    time, but also on ilevel. I want to be able to see how classes scale with gear" — the third
    Compare axis (checklist §AA); same rule, same ghost vocabulary (A solid, B grey ghost), and
    the key-level confound printed beside the badge (median key per cohort), never assumed away.
+   2026-09-19: "the current mechanism for picking item level is really painful ... the slider I
+   want to move should ideally not require two different sliders moving independently. for doing
+   a comparison I need to get 4 sliders precisely to where I want" — a control whose scale is the
+   raw data range is unusable when the data is skewed: draw it over the population and give the
+   common case ONE thumb (checklist §AB). Same day: "I want to be able to see how a class scales
+   with item level" — Trajectory's third axis.
 
 6. **Archon distance.** "I like the archon color scheme, so take inspiration from there but
    don't give me something that looks similar to Archon. make sure that does not happen…
