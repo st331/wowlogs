@@ -1714,7 +1714,14 @@ const EMPTY=new Set(); let lastEffMin=0;
 let DEF=null, refMemo=new Map(), SCOPE_DEF=null;
 let ILVL={min:0,max:0,unknown:0,has:false};   // item-level bounds of the payload (set in initData)
 function ilvlNarrowed(){return ILVL.has&&(state.ilo>ILVL.min||state.ihi<ILVL.max)}
-function ilvlText(){return ilvlNarrowed()?"ilvl "+state.ilo+"–"+state.ihi:""}
+// A range that reaches an end of the payload is a floor or a ceiling, and
+// saying "322–371" for "everything from 322 up" invites the reader to think
+// the top end is a real bound they chose.
+function ilvlSpan(lo,hi){
+  const atLo=lo<=ILVL.min, atHi=hi>=ILVL.max;
+  return atLo&&atHi?"any":atHi?"≥ "+lo:atLo?"≤ "+hi:lo+"–"+hi;
+}
+function ilvlText(){return ilvlNarrowed()?"ilvl "+ilvlSpan(state.ilo,state.ihi):""}
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
@@ -1735,6 +1742,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              skill:false, pctlB:85,          // Compare: Skill axis (second qp pass)
              gear:false, ilob:0, ihib:0,     // Compare: Gear axis — item-level cohort B (0 = not set yet)
              ilBand:false,                    // item level: false = one thumb, true = the two-range form
+             keyHeld:null,                    // {klo,khi} parked by ⚑ Hold key, so releasing is a real action
              trendNorm:"dps", trajSort:"metric", trendAxis:"time",
              trustPrev:null};
 let hasTimed=false, hasTune=false, hasProj=false;
@@ -1760,8 +1768,8 @@ const skillApplies=tabId=>skillOn()&&SKILL_TABS.has(tabId);
 // the Time axis. A parse with no item level sits in neither cohort.
 const gearOn=()=>state.gear&&!state.compare&&!state.skill&&!state.elite&&ILVL.has;
 const twoSided=()=>state.compare||gearOn();   // two aggregations, B joined on A's groups
-const ilvlAText=()=>"ilvl "+state.ilo+"–"+state.ihi;
-const ilvlBText=()=>"ilvl "+state.ilob+"–"+state.ihib;
+const ilvlAText=()=>"ilvl "+ilvlSpan(state.ilo,state.ihi);
+const ilvlBText=()=>"ilvl "+ilvlSpan(state.ilob,state.ihib);
 
 const $=id=>document.getElementById(id);
 function fmtInt(v){return Math.round(v).toLocaleString("en-US")}
@@ -2625,7 +2633,29 @@ function buildControls(){
                 state.ilo=state.ilob; state.ihi=state.ihib; state.ilob=lo; state.ihib=hi;
                 state.ilBand=true;   // A below B: one thumb cannot say this either
                 setNotice("Gear compare: swapped — A = "+ilvlAText()+" (solid), B = "+ilvlBText()+" (grey ghost).");
-                syncIlvlInputs(); syncAxisUI(); render(); }]]){
+                syncIlvlInputs(); syncAxisUI(); render(); }],
+        [state.keyHeld?"↺ Release key":"⚑ Hold key",
+          state.keyHeld
+            ?"give the key range back to what it was before the hold"
+            :"pin the key range to the selection's median key, so both cohorts sit on one rung of the ladder and what is left of the badge is gear — the note says what it costs in sample",
+          ()=>{
+            if(state.keyHeld){
+              const k=state.keyHeld; state.keyHeld=null;
+              state.klo=k.klo; state.khi=k.khi; ILW=null;
+              buildControls(); render();
+              setNotice("Gear compare: key range released — back to +"+k.klo+"–+"+k.khi+".");
+              return;
+            }
+            const gc=gearCensus();
+            if(!isFinite(gc.kAll)){ setNotice("Gear compare: nothing in this selection to hold a key level at."); return; }
+            const beforeA=FRAME_A?FRAME_A.parses:0, beforeB=FRAME_B?FRAME_B.parses:0;
+            state.keyHeld={klo:state.klo, khi:state.khi};
+            state.klo=state.khi=gc.kAll; ILW=null;
+            buildControls(); render();
+            const afterA=FRAME_A?FRAME_A.parses:0, afterB=FRAME_B?FRAME_B.parses:0;
+            setNotice("Gear compare: key range held at +"+gc.kAll+" — both cohorts sit on one rung now, so what is left of the badge is gear, not the ladder. "
+              +"A "+fmtInt(beforeA)+" → "+fmtInt(afterA)+" parses, B "+fmtInt(beforeB)+" → "+fmtInt(afterB)+". ↺ Release key puts it back.");
+          }]]){
       const c=document.createElement("span"); c.className="chip"; c.textContent=name; c.title=title; c.onclick=fn;
       gq.appendChild(c);
     }
@@ -3004,6 +3034,11 @@ function setGear(on){
 // stands. A kept range (the complement path) was never rewritten, so it stays.
 function gearOff(){
   state.gear=false;
+  if(state.keyHeld){   // the hold belongs to the gear read; it must not outlive it
+    const k=state.keyHeld; state.keyHeld=null;
+    state.klo=k.klo; state.khi=k.khi; ILW=null;
+    setNotice("Gear compare off — the key range is back to +"+k.klo+"–+"+k.khi+".");
+  }
   if(gearPrevA&&state.ilo===gearPrevA.setLo&&state.ihi===gearPrevA.setHi){
     state.ilo=gearPrevA.lo; state.ihi=gearPrevA.hi; syncIlvlInputs();
     setNotice("Gear compare off — the item-level range is back to "+(ilvlNarrowed()?ilvlAText():"any")+".");
@@ -3019,18 +3054,23 @@ function gearCensus(){
   const m=baseMasks(); m.il=false;
   const cut=periodCut(state.weeksA);
   let unk=0, gap=0, gapLo=Infinity, gapHi=-Infinity;
-  const ilA=[], ilB=[], kA=[], kB=[];
+  const ilA=[], ilB=[], kA=[], kB=[], dpsA=[], dpsB=[], kAll=[];
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)||!periodPass(i,state.weeksA,cut)||projSkip(i)) continue;
     const v=R.ilvl[i];
     if(!(v>0)){unk++; continue;}
     const a=v>=state.ilo&&v<=state.ihi, b=v>=state.ilob&&v<=state.ihib;
-    if(a){ilA.push(v); kA.push(R.key[i]);}
-    if(b){ilB.push(v); kB.push(R.key[i]);}
+    kAll.push(R.key[i]);
+    if(a){ilA.push(v); kA.push(R.key[i]); dpsA.push(dpsAt(i));}
+    if(b){ilB.push(v); kB.push(R.key[i]); dpsB.push(dpsAt(i));}
     if(!a&&!b){gap++; if(v<gapLo)gapLo=v; if(v>gapHi)gapHi=v;}
   }
   const med=a=>{ if(!a.length) return NaN; a.sort((x,y)=>x-y); return a[Math.floor((a.length-1)/2)]; };
-  return {unk, gap, gapLo, gapHi, ilA:med(ilA), ilB:med(ilB), kA:med(kA), kB:med(kB)};
+  // the pooled read at the lens, so the note can say what a point of item level
+  // is worth across the whole selection instead of leaving it per spec
+  const q=a=>{ if(!a.length) return NaN; a.sort((x,y)=>x-y); return qp(a,state.pctl/100); };
+  return {unk, gap, gapLo, gapHi, ilA:med(ilA), ilB:med(ilB), kA:med(kA), kB:med(kB),
+          dA:q(dpsA), dB:q(dpsB), kAll:med(kAll)};
 }
 function gearOverlapNote(){
   const lo=Math.max(state.ilo,state.ilob), hi=Math.min(state.ihi,state.ihib);
@@ -7421,16 +7461,25 @@ function render(){
     +(skill?". <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
       +state.pctlB+" of the same parses (distribution metrics: percentile DPS and deaths).":"")
     +(gear?(()=>{const gc=gearCensus(), aHigh=state.ilo>state.ihib, aLow=state.ihi<state.ilob;
-      return ". <b>Gear compare:</b> solid = item level A ("+state.ilo+"–"+state.ihi+"), grey ghost = item level B ("
-      +state.ilob+"–"+state.ihib+") — the same period and filters aggregated once per cohort; KPIs show A"
+      return ". <b>Gear compare:</b> solid = item level A ("+ilvlSpan(state.ilo,state.ihi)+"), grey ghost = item level B ("
+      +ilvlSpan(state.ilob,state.ihib)+") — the same period and filters aggregated once per cohort; KPIs show A"
       +(B?"; "+fmtInt(B.parses)+" parses in B":"")+"."+gearOverlapNote()+gearSharedCharsNote(A,B)
       +(gc.gap?" <b>"+fmtInt(gc.gap)+" parses at ilvl "+gc.gapLo+(gc.gapHi>gc.gapLo?"–"+gc.gapHi:"")
           +" fall between the two ranges and sit in neither cohort.</b>":"")
       +(gc.unk?" In this selection "+fmtInt(gc.unk)+" parses with no item level sit in neither cohort.":"")
       +(isFinite(gc.ilA)&&isFinite(gc.ilB)
-          ?" <b>Median item level "+gc.ilA+" in A vs "+gc.ilB+" in B · median key +"+gc.kA+" in A vs +"+gc.kB+" in B.</b>":"")
+          ?" <b>Median item level "+gc.ilA+" in A vs "+gc.ilB+" in B · median key +"+gc.kA+" in A vs +"+gc.kB+" in B.</b>"
+            +(isFinite(gc.dA)&&isFinite(gc.dB)&&gc.dB>0&&gc.ilA!==gc.ilB
+              ? " Across the whole selection A's "+dpsLabel().toLowerCase()+" is "
+                +((gc.dA-gc.dB)/gc.dB*100).toFixed(1)+"% above B's over "+Math.abs(gc.ilA-gc.ilB)
+                +" item level"+(Math.abs(gc.ilA-gc.ilB)===1?"":"s")+" of median gap — <b>"
+                +((gc.dA/gc.dB-1)*100/Math.abs(gc.ilA-gc.ilB)).toFixed(1)+"% per item level</b>"
+                +(gc.kA!==gc.kB?", the key gap included":"")+"."
+              : "")
+          :"")
       +" Item level climbs with key level, so keep the key range narrow to read gear alone"
-      +(isFinite(gc.kA)&&gc.kA!==gc.kB?" — the key gap above is inside every badge":"")
+      +(isFinite(gc.kA)&&gc.kA!==gc.kB?" — the key gap above is inside every badge; <b>⚑ Hold key</b> pins both cohorts to one key level so the rest is gear":"")
+      +(state.keyHeld?" (held at +"+state.klo+" now)":"")
       +" — the two item-level ranges stay put when other filters move (⚡ Median split re-splits the current selection); "
       +(aHigh?"sort by Gained most to rank specs by what they gain from gear."
         :aLow?"A sits below B, so a positive badge means less gear did better — ⇄ Swap A and B reads gains from gear as positive, or sort by Lost most."
@@ -7583,8 +7632,8 @@ function render(){
   let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
   if(tab.rating) cap+=" "+ratingCoverage();
   if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
-  else if(gear) cap="Solid bar: item level A ("+state.ilo+"–"+state.ihi+") · grey ghost: item level B ("
-    +state.ilob+"–"+state.ihib+") · % badge: A's change vs B. "+cap;
+  else if(gear) cap="Solid bar: item level A ("+ilvlSpan(state.ilo,state.ihi)+") · grey ghost: item level B ("
+    +ilvlSpan(state.ilob,state.ihib)+") · % badge: A's change vs B. "+cap;
   else if(skill){
     // honest per-tab captions: ghost only where a per-parse distribution exists
     if(tab.id==="med")
@@ -7651,7 +7700,7 @@ function renderScopeChips(){
     scopeChip(box,"role: "+(state.role.size?lst(state.role):"all"),"f-role");
   if(state.melee!==state.ranged) scopeChip(box,state.melee?"melee only":"ranged only","melee");
   if(DEF&&!state.elite&&(state.klo!==DEF.klo||state.khi!==DEF.khi))
-    scopeChip(box,"keys +"+state.klo+"–+"+state.khi,"klo");
+    scopeChip(box,"keys +"+state.klo+"–+"+state.khi+(state.keyHeld?" (held for the gear read)":""),"klo");
   if(!state.elite&&ilvlNarrowed())
     scopeChip(box,ilvlText()+(ILVL.unknown?" (the "+fmtInt(ILVL.unknown)+" parses in this build with no item level cannot match)":""),"ilo");
   if(SCOPE_DEF&&!state.elite&&!setsEqual(state.weeksA,SCOPE_DEF.weeksA))
@@ -8618,8 +8667,8 @@ function renderTable(rows,tab){
             ?" — deaths at the p"+state.pctl+"-th vs p"+state.pctlB
               +"-th parse of each spec's deaths distribution (lower is better); click a column to sort"
             :" — p"+state.pctl+" vs p"+state.pctlB+" of the same parses; click a column to sort")
-             :gearOn()?" — "+metricLabel+" at item level A ("+state.ilo+"–"+state.ihi+") vs B ("
-               +state.ilob+"–"+state.ihib+"), the same period; click a column to sort"
+             :gearOn()?" — "+metricLabel+" at item level A ("+ilvlSpan(state.ilo,state.ihi)+") vs B ("
+               +ilvlSpan(state.ilob,state.ihib)+"), the same period; click a column to sort"
              :" — "+metricLabel+" for periods A and B; click a column to sort")
       :" — click a column to sort")));
 }
