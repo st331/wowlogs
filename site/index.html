@@ -1503,6 +1503,7 @@ table.beamtbl tr:hover td{background:var(--surface1)}
       <div class="seg" id="trendaxis">
         <button data-x="time" class="on">Over: time</button>
         <button data-x="key">Key level</button>
+        <button data-x="ilvl" id="trendaxis-ilvl">Item level</button>
       </div>
       <div class="seg" id="trendnorm">
         <button data-n="dps" class="on">Value</button>
@@ -1633,6 +1634,8 @@ const TREND_CAP="{metric} over time for the top groups under the current filters
   +"across {window}; the point floor is stated below.";
 const TREND_CAP_KEY="{metric} at each key level for the top groups under the "
   +"current filters, across {window} and the key range the slider selects.";
+const TREND_CAP_ILVL="{metric} at each item level for the top groups under the "
+  +"current filters, across {window} — how a spec scales with gear.";
 const CHART_MAX = 40;
 const TREND_MAX = 16;
 // Key-level axis. The chart's RANGE is whatever the key slider selects, so
@@ -1647,6 +1650,14 @@ const TREND_MAX = 16;
 // the slider says.
 const TREND_KEY_FLOOR = 10;
 const TREND_KEY_MINP = 15;    // parses per (group, key) before a point is drawn
+// ITEM-LEVEL axis (owner, 2026-09-19: "I want to be able to see how a class
+// scales with item level"). One point per item level. The domain is the levels
+// that actually hold players: item level is enormously skewed (in a default
+// view 99% of parses sit inside ~12 of the 343 levels the payload spans), so a
+// bucket must hold at least TREND_ILVL_SHARE of the filtered pool to be drawn.
+// Whatever that clips is counted and printed under the chart.
+const TREND_ILVL_MINP = 15;   // parses per (group, item level) before a point is drawn
+const TREND_ILVL_SHARE = 0.005;
 const PULSE_MAX = 12, PULSE_THIN = 25;
 
 let D=null, R=null, N=0, runCount=0;
@@ -2697,6 +2708,9 @@ function syncAxisUI(){
   $("cmp").checked=state.compare;
   $("blockB").style.display=state.compare?"":"none";
   $("axis-gear-btn").style.display=ILVL.has?"":"none";   // no item levels in the build, no Gear axis
+  $("trendaxis-ilvl").style.display=ILVL.has?"":"none";  // ...and no item-level Trajectory axis
+  if(state.trendAxis==="ilvl"&&!ILVL.has){ state.trendAxis="time";
+    document.querySelectorAll("#trendaxis button").forEach(x=>x.classList.toggle("on",x.dataset.x==="time")); }
   $("axis-gear").classList.toggle("act",a==="gear"&&!state.elite);
   if(a==="gear") $("axis-gear-chip").textContent="B: "+ilvlBText();
   paintIlvl&&paintIlvl();   // A's label and hint and the B panel follow the axis
@@ -3335,7 +3349,7 @@ function aggregate(weeks,il){
     g.dps.push(dv);
     // per-parse deaths distribution — the honest base for the Skill compare's
     // deaths read (qp of small ints; one extra array per group)
-    g.dth.push(R.deaths[i]); g.il.push(R.ilvl[i]); g.key.push(R.key[i]);
+    g.dth.push(R.deaths[i]); if(ILVL.has) g.il.push(R.ilvl[i]); g.key.push(R.key[i]);   // no rows.ilvl: no array to read, and mil is never printed without the Gear axis
     // recorded (un-projected) figures, so the toggle can show a delta
     g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
     g.chars.add(R.char[i]); charSeen.add(R.char[i]);
@@ -7926,11 +7940,17 @@ function renderTrend(){
   // the curves from a higher key, which is the only way the differences near
   // the top are legible at all. TREND_KEY_FLOOR still clips the bottom.
   const keyAxis=state.trendAxis==="key";
+  // The ITEM-LEVEL axis answers the owner's question directly -- how does a
+  // spec scale with gear -- out of the same single walk. Item level climbs with
+  // key level, so the median key at each end of the band is printed under the
+  // chart: part of any rise is the ladder, not the gear.
+  const ilAxis=state.trendAxis==="ilvl"&&ILVL.has;
   const m=baseMasks();
   // per (group, bucket) source values, ignoring the period selection
-  const tot=new Map(), byWeek=new Map(), byDay=new Map(), byKey=new Map();
-  const wTot=new Map(), dTot=new Map(), kTot=new Map();  // per-bucket parse totals
-  const weeksSeen=new Set(), daysSeen=new Set(), keysSeen=new Set();
+  const tot=new Map(), byWeek=new Map(), byDay=new Map(), byKey=new Map(), byIl=new Map();
+  const wTot=new Map(), dTot=new Map(), kTot=new Map(), ilTot=new Map();  // per-bucket parse totals
+  const weeksSeen=new Set(), daysSeen=new Set(), keysSeen=new Set(), ilsSeen=new Set();
+  const ilKeys=new Map();   // key levels seen at each item level, for the confound line
   const charsAll=new Set();
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
@@ -7938,8 +7958,9 @@ function renderTrend(){
     const w=R.rbucket[i];
     // an undated row has no week but it does have a key level, so it is
     // usable on the key axis and only dropped on the time one
-    if(!keyAxis&&w>=999) continue;
+    if(!keyAxis&&!ilAxis&&w>=999) continue;
     if(keyAxis&&R.key[i]<TREND_KEY_FLOOR) continue;
+    if(ilAxis&&!(R.ilvl[i]>0)) continue;   // no item level, no place on this axis
     charsAll.add(R.char[i]);
     const v=useChars?R.char[i]:useDeaths?R.deaths[i]
            :dpsAt(i);
@@ -7949,7 +7970,15 @@ function renderTrend(){
              n:0,vals:[],chars:new Set()};
       tot.set(key,t)}
     t.n++; t.vals.push(v); t.chars.add(R.char[i]);
-    if(keyAxis){
+    if(ilAxis){
+      const iv=R.ilvl[i];
+      ilsSeen.add(iv);
+      ilTot.set(iv,(ilTot.get(iv)||0)+1);
+      let ik=ilKeys.get(iv); if(!ik){ik=[]; ilKeys.set(iv,ik)} ik.push(R.key[i]);
+      let gl=byIl.get(key*1000+iv);
+      if(!gl){gl=[]; byIl.set(key*1000+iv,gl)}
+      gl.push(v);
+    }else if(keyAxis){
       const kv=R.key[i];
       keysSeen.add(kv);
       kTot.set(kv,(kTot.get(kv)||0)+1);
@@ -7975,7 +8004,24 @@ function renderTrend(){
   // Buckets are decided BEFORE the top-N pass so the slope sort measures the
   // same points the chart draws, on whichever axis is selected.
   let daily=false, buckets, store, MINP, bLabel, bTip;
-  if(keyAxis){
+  let ilClipped=0, ilClipLo=0, ilClipHi=0;
+  if(ilAxis){
+    // the domain is where the players are: a level must hold TREND_ILVL_SHARE
+    // of this selection to be drawn, and the thin tail is counted, never
+    // silently dropped (a handful of parses at 296 would flatten the band)
+    const all=[...ilsSeen].sort((a,b)=>a-b);
+    const pool=all.reduce((a,v)=>a+ilTot.get(v),0);
+    buckets=all.filter(v=>ilTot.get(v)>=pool*TREND_ILVL_SHARE);
+    if(buckets.length<2) buckets=all;        // thin pool: draw what there is
+    const kept=new Set(buckets);
+    for(const v of all) if(!kept.has(v)){
+      ilClipped+=ilTot.get(v);
+      if(!ilClipLo||v<ilClipLo) ilClipLo=v;
+      if(v>ilClipHi) ilClipHi=v;
+    }
+    store=byIl; MINP=TREND_ILVL_MINP;
+    bLabel=b=>String(b); bTip=b=>"ilvl "+b;
+  }else if(keyAxis){
     buckets=[...keysSeen].sort((a,b)=>a-b);       // lowest key on the left
     store=byKey; MINP=TREND_KEY_MINP;
     bLabel=b=>"+"+b; bTip=b=>"key +"+b;
@@ -7990,10 +8036,11 @@ function renderTrend(){
   }
   if(!buckets.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
-      +(keyAxis?'No runs between +'+Math.max(state.klo,TREND_KEY_FLOOR)+' and +'
+      +(ilAxis?'No parse with an item level matches the current filters.'
+        :keyAxis?'No runs between +'+Math.max(state.klo,TREND_KEY_FLOOR)+' and +'
                +state.khi+(ilvlNarrowed()?' at '+ilvlText():'')+' match the current filters.'
                :'No dated runs match the current filters.')+'</div>';
-    $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
+    $("trend-caption").textContent=trendCap(mt,"",state.trendAxis); return;
   }
   // top groups by the selected metric itself ("best" respects its direction),
   // or — Sort: Slope — by the season's least-squares fit at the current lens
@@ -8030,7 +8077,7 @@ function renderTrend(){
       if(g&&g.length>=MINP){ const v=calc(g); if(v>0) retBase.set(k,v) }
     }
   }
-  const shTot=keyAxis?kTot:(daily?dTot:wTot);
+  const shTot=ilAxis?ilTot:keyAxis?kTot:(daily?dTot:wTot);
   const drawn=(key,b)=>{
     const g=store.get(key*1000+b);
     if(!g||g.length<MINP) return null;
@@ -8063,7 +8110,7 @@ function renderTrend(){
   if(!top.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
       +'minimum-runs threshold under the current filters.</div>';
-    $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
+    $("trend-caption").textContent=trendCap(mt,"",state.trendAxis); return;
   }
   const weeks=buckets;   // x positions are indices into buckets
   const W=Math.max(box.clientWidth||900,480), H=380;
@@ -8093,7 +8140,7 @@ function renderTrend(){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
       +'No group has a reading at '+esc(bLabel(buckets[0]))+' to index against, '
       +'so there is nothing to measure retention from.</div>';
-    $("trend-caption").textContent=trendCap(mt,"",keyAxis); return;
+    $("trend-caption").textContent=trendCap(mt,"",state.trendAxis); return;
   }
   const vfmt=norm==="rank"?(v=>"#"+Math.round(v))
     :norm==="share"?(v=>v.toFixed(1)+"%")
@@ -8130,6 +8177,26 @@ function renderTrend(){
     +(retDropped?" "+retDropped+" group"+(retDropped===1?"":"s")+" had no reading at "
       +bLabel(buckets[0])+" to index against and "+(retDropped===1?"is":"are")
       +" not shown.":"");
+  if(ilAxis){
+    const mk=b=>{const a=(ilKeys.get(b)||[]).slice().sort((x,y)=>x-y);
+                 return a.length?a[Math.floor((a.length-1)/2)]:NaN;};
+    const b0=buckets[0], b1=buckets[buckets.length-1], k0=mk(b0), k1=mk(b1);
+    extraCap+=" Item-level axis: one point per item level, "+b0+" to "+b1
+      +" — the levels holding enough of this selection to read"
+      +(ilClipped?", and "+fmtInt(ilClipped)+" parse"+(ilClipped===1?"":"s")+" at ilvl "
+        +ilClipLo+(ilClipHi>ilClipLo?"–"+ilClipHi:"")+" outside that band are not drawn":"")+"."
+      +(isFinite(k0)&&isFinite(k1)
+        ?(k0!==k1
+          ?" Median key rises from +"+k0+" at ilvl "+b0+" to +"+k1+" at ilvl "+b1
+            +", so part of every rise here is key level, not gear — narrow the key"
+            +" range to read gear alone."
+          :" Median key is +"+k0+" across the whole band, so the rise is gear, not key level.")
+        :"")
+      // the axis IS item level, so anything narrowing item level clips the curve itself
+      +(gearOn()?" The Gear compare axis is on, so this curve is item-level cohort A only ("
+          +ilvlAText()+") — the ghost side is not drawn here."
+        :ilvlNarrowed()?" The item-level range limits the band drawn ("+ilvlText()+")." : "");
+  }
   if(keyAxis) extraCap+=" Key-level axis: the chart spans the keys the slider"
     +" selects, so narrowing it zooms into the top of the ladder and every line"
     +" is re-indexed from the new low key; widening it shows the whole ramp."
@@ -8137,10 +8204,11 @@ function renderTrend(){
       +" slider says: the leaderboards below that are swept ~5x shallower, so a"
       +" character count there cannot sit on the same curve.":"");
   if(state.trajSort==="slope") extraCap+=" Sorted by slope — least-squares over the"
-    +" plotted points, "+(keyAxis?"so the specs that hold up best as keys rise come"
+    +" plotted points, "+(ilAxis?"so the specs that gain most per item level come first"
+      :keyAxis?"so the specs that hold up best as keys rise come"
       +" first and the fastest drop-offs last":"steepest riser first")+".";
   if(hasTune&&state.postTune) extraCap+=" Range truncated by the post-tuning filter.";
-  if(!keyAxis&&buckets.length){
+  if(!keyAxis&&!ilAxis&&buckets.length){
     // the chart's own day span, never every outage ever recorded
     const dlo=daily?buckets[0]:Math.min(...buckets.map(bucketLo));
     const dhi=daily?buckets[buckets.length-1]:Math.max(...buckets.map(bucketHi));
@@ -8149,11 +8217,11 @@ function renderTrend(){
   }
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv,
-                    keyAxis?(pt=>"at "+bLabel(pt.b)):(()=>"latest"));
-    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis,top.length,cand.length)
+                    (keyAxis||ilAxis)?(pt=>"at "+bLabel(pt.b)):(()=>"latest"));
+    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,state.trendAxis),state.trendAxis,top.length,cand.length)
       +extraCap
       +" Each card is one group, ranked best-first; all cards share one y-scale, "
-      +(keyAxis?"key level rising left → right.":"time running left → right.");
+      +(ilAxis?"item level rising left → right.":keyAxis?"key level rising left → right.":"time running left → right.");
     return;
   }
   let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
@@ -8168,7 +8236,7 @@ function renderTrend(){
       esc(bLabel(b))}</text>`;
   });
   // tuning-patch markers: vertical hairlines at each pass (hasTune-gated)
-  if(!keyAxis&&hasTune&&D.tuning&&D.tuning.date){
+  if(!keyAxis&&!ilAxis&&hasTune&&D.tuning&&D.tuning.date){
     const td=Math.floor((new Date(D.tuning.date+"T00:00:00Z")
       -new Date(D.epoch+"T00:00:00Z"))/864e5);
     let xi=-1;
@@ -8223,21 +8291,26 @@ function renderTrend(){
     el.addEventListener("mouseleave",()=>{hover=null; apply();});
   }
   apply();
-  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,keyAxis),keyAxis,top.length,cand.length)
+  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,state.trendAxis),state.trendAxis,top.length,cand.length)
     +extraCap
     +" Dash patterns distinguish specs of the same class. Hover a line or its "
     +"label to spotlight it.";
 }
-function trendCap(mt,span,keyAxis,shown,ofN){
-  return (keyAxis?TREND_CAP_KEY:TREND_CAP).replace("{metric}",mt.label.toLowerCase()).replace("{window}",retPhrase())
+function trendCap(mt,span,axis,shown,ofN){
+  return (axis==="ilvl"?TREND_CAP_ILVL:axis==="key"?TREND_CAP_KEY:TREND_CAP)
+    .replace("{metric}",mt.label.toLowerCase()).replace("{window}",retPhrase())
     +(mt.betterUp?"":" The best (lowest) groups are shown.")
     +(span?" "+span:"")
     // the group cap, stated like the Overview's (2026-09-09): 3 of 19 gated
     // groups went undrawn under the default filters with nothing saying so
     +(ofN>shown?" Showing "+shown+" of "+ofN+" groups that pass the gate.":"");
 }
-function trendSpan(daily,n,minp,keyAxis){
-  if(keyAxis)
+function trendSpan(daily,n,minp,axis){
+  if(axis==="ilvl")
+    return "Showing "+n+" item level"+(n===1?"":"s")+" with data under the current "
+      +"filters; one point per item level, and a point needs at least "+minp
+      +" parses.";
+  if(axis==="key")
     return "Showing "+n+" key level"+(n===1?"":"s")+" with data under the current "
       +"filters; one point per key level, and a point needs at least "+minp
       +" parses.";

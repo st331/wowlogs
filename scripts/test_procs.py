@@ -438,7 +438,7 @@ assert "gearPrev:gearPrevA," in html and 'gearPrevA=("gearPrev" in st)?st.gearPr
 assert 'the item-level range stays at "+(ilvlNarrowed()?ilvlAText():"any")' in html and '+(wasGear?" "+$("notice").textContent:""));' in html, "leaving the axis always speaks; the quick-compare chip keeps both lines"
 assert "const gc=gearCensus(), aHigh=state.ilo>state.ihib, aLow=state.ihi<state.ilob;" in html and '" In this selection "+fmtInt(gc.unk)+" parses with no item level sit in neither cohort."' in html and '" fall between the two ranges and sit in neither cohort.</b>"' in html and '" <b>Median item level "+gc.ilA+" in A vs "+gc.ilB+" in B · median key +"+gc.kA+" in A vs +"+gc.kB+" in B.</b>"' in html and '" — the key gap above is inside every badge"' in html, "the census: selection-scoped unknowns, the gap between the ranges, each cohort's median item level and key"
 assert '["⚡ Median split",' in html and '["⚡ Quartile split",' in html and '["⇄ Swap A and B",' in html and "gearTrack(hi,ILVL.max); state.ilo=hi; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=lo;" in html, "quick chips: median split, quartile split, swap"
-assert 'mil:(g.il.sort((a,b)=>a-b),g.il[Math.floor((g.il.length-1)/2)]),' in html and 'h+=row("Median item level", f(r.a,"mil",' in html and 'h+=row("Median key", f(r.a,"mkey",' in html, "the tooltip prints the spec's own cohort centres under Gear"
+assert 'mil:(g.il.sort((a,b)=>a-b),g.il[Math.floor((g.il.length-1)/2)]),' in html and "if(ILVL.has) g.il.push(R.ilvl[i]);" in html and 'h+=row("Median item level", f(r.a,"mil",' in html and 'h+=row("Median key", f(r.a,"mkey",' in html, "the tooltip prints the spec's own cohort centres under Gear"
 assert "thinB:!!(b&&b.chars<effMinB)});" in html and '">thin B</span>' in html, "a B side under the gate is badged, never hidden"
 assert 'scopeChip(box,"compare: gear vs "+ilvlBText(),"blockG")' in html, "the gear scope chip jumps to the B slider"
 assert "function gearSharedCharsNote(A,B)" in html and "charSet:charSeen," in html and "a character with parses in both item-level ranges counts in both columns" in html, "shared characters are said in the note and the tooltip"
@@ -447,6 +447,25 @@ assert 'notes.push("item-level cohort A only ("+ilvlAText()+") in both windows �
 assert 'cols.push(["a_n","Parses A"],["b_n","Parses B"],' in html and 'cols.push(["a_n","Parses"],' in html and '"Runs A"' not in html, "compare columns carry parses and say so"
 assert "#blockG .dual .fill{background:#8E8C86}" in html and '<b id="ilvlb-v" style="color:#D8D6CF">' in html, "B slider is the ghost side"
 assert "@media(max-width:955px){" in html and "@media(min-width:956px){aside{position:sticky;" in html, "the header wraps before the fourth button squeezes it"
+# Trajectory item-level axis (owner, 2026-09-19: "I want to be able to see how a class scales
+# with item level"). A third option beside Over: time and Key level, out of the same single walk:
+# one point per item level, domain = the levels holding at least TREND_ILVL_SHARE of the filtered
+# pool (item level is enormously skewed), whatever that clips counted and printed, the key-level
+# confound printed as the median key at each end, and time-only furniture (tuning hairline, outage
+# sentence) suppressed. Hidden, and never selected, on a payload without rows.ilvl.
+assert 'data-x="ilvl" id="trendaxis-ilvl"' in html, "the Trajectory axis segment offers item level"
+assert "const TREND_ILVL_MINP = 15;" in html and "const TREND_ILVL_SHARE = 0.005;" in html and "TREND_CAP_ILVL" in html, "its point floor, domain share and caption"
+assert 'const ilAxis=state.trendAxis==="ilvl"&&ILVL.has;' in html and "if(ilAxis&&!(R.ilvl[i]>0)) continue;" in html, "the axis needs item levels, and a parse without one has no place on it"
+assert "buckets=all.filter(v=>ilTot.get(v)>=pool*TREND_ILVL_SHARE);" in html and "if(buckets.length<2) buckets=all;" in html and "ilClipped+=ilTot.get(v);" in html, "the domain is where the players are, and it fails open"
+assert '" — the levels holding enough of this selection to read"' in html and '" outside that band are not drawn"' in html, "the caption says what the domain clipped"
+assert '" Median key rises from +"+k0+" at ilvl "+b0+" to +"+k1+" at ilvl "+b1' in html and "part of every rise here is key level, not gear" in html, "the key-level confound is printed on the chart that invites it"
+assert "const shTot=ilAxis?ilTot:keyAxis?kTot:(daily?dTot:wTot);" in html, "Share reads the item-level denominator"
+assert '" The Gear compare axis is on, so this curve is item-level cohort A only ("' in html and '" The item-level range limits the band drawn ("+ilvlText()+")."' in html, "the axis says when the item-level filter or the Gear cohort clips the very band it plots"
+assert "if(!keyAxis&&!ilAxis&&hasTune&&D.tuning&&D.tuning.date){" in html and "if(!keyAxis&&!ilAxis&&buckets.length){" in html, "tuning hairlines and outage spans are time-axis furniture"
+assert '$("trendaxis-ilvl").style.display=ILVL.has?"":"none";' in html and 'if(state.trendAxis==="ilvl"&&!ILVL.has){ state.trendAxis="time";' in html, "hidden without item levels, and never left selected"
+assert '"so the specs that gain most per item level come first"' in html and 'axis==="ilvl"?TREND_CAP_ILVL' in html and 'if(axis==="ilvl")' in html, "the slope sort, caption and span name the axis"
+print("client      : Trajectory item-level axis: one point per item level; domain = the populated band, clip counted; per-point floor 15; key confound printed; Share/Rank/Retention inherit; hidden without rows.ilvl")
+
 print("client      : Gear compare axis: Off|Time|Skill|Gear XOR; B = period A over the B item-level cohort; median split / complement / swap; period note, caption, chip, tooltip, table, frame; Archon park+restore; hidden without rows.ilvl")
 print("client      : retention note every build; presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
