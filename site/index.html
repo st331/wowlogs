@@ -7474,7 +7474,7 @@ function renderScopeChips(){
   if(DEF&&!state.elite&&(state.klo!==DEF.klo||state.khi!==DEF.khi))
     scopeChip(box,"keys +"+state.klo+"–+"+state.khi,"klo");
   if(!state.elite&&ilvlNarrowed())
-    scopeChip(box,ilvlText()+(ILVL.unknown?" (the "+fmtInt(ILVL.unknown)+" parses with no item level cannot match)":""),"ilo");
+    scopeChip(box,ilvlText()+(ILVL.unknown?" (the "+fmtInt(ILVL.unknown)+" parses in this build with no item level cannot match)":""),"ilo");
   if(SCOPE_DEF&&!state.elite&&!setsEqual(state.weeksA,SCOPE_DEF.weeksA))
     scopeChip(box,"period: "+describePeriod(state.weeksA),"presetA");
   if(state.timedOnly!==hasTimed)
