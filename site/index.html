@@ -176,6 +176,9 @@ input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
 .ilspark i{flex:1 1 0; min-height:2px; background:rgba(234,227,208,.13); border-radius:1px 1px 0 0}
 .ilspark i.a{background:var(--metal)}
 .ilspark i.b{background:#8E8C86}
+/* the dual form makes its inputs click-through so both thumbs stay reachable;
+   the single form has one thumb, so its whole track is a legal target */
+#ilvl-single input{pointer-events:auto}
 /* typed precision: a slider is for aiming, a number is for landing exactly —
    and it reaches the thin tail the drawn window trims away */
 .ilnum{width:64px; background:var(--surface2); color:var(--ink); border:1px solid var(--line2);
@@ -1722,6 +1725,12 @@ function ilvlSpan(lo,hi){
   return atLo&&atHi?"any":atHi?"≥ "+lo:atLo?"≤ "+hi:lo+"–"+hi;
 }
 function ilvlText(){return ilvlNarrowed()?"ilvl "+ilvlSpan(state.ilo,state.ihi):""}
+// Can ONE thumb say the item-level setting in force? Off the Gear axis that is
+// "≥ N"; on it, the same N as the complementary split. A band, or a cohort pair
+// that is not that exact complement, needs both ranges — and the two-range form
+// stays up rather than letting the readout print a cut nobody set.
+function ilvlOneSays(){return state.ihi>=ILVL.max
+  &&(!gearOn()||(state.ilob<=ILVL.min&&state.ihib===state.ilo-1))}
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
              klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
@@ -2515,7 +2524,8 @@ function buildControls(){
       const a=Math.max(w.lo,Math.min(lo,w.hi)), b=Math.max(w.lo,Math.min(hi,w.hi));
       f.style.left=((a-w.lo)/span*100)+"%"; f.style.width=((b-a)/span*100)+"%";};
     paintIlvl=()=>{
-      const gear=gearOn(), on=ilvlNarrowed()||gear, w=ilvlWindow(), band=state.ilBand;
+      const gear=gearOn(), on=ilvlNarrowed()||gear, w=ilvlWindow();
+      const band=state.ilBand||!ilvlOneSays();   // a band cannot be said with one thumb
       // one thumb under Gear IS the split, so the label says so instead of
       // repeating the A that the value already carries
       $("ilvl-lbl").textContent=gear?(band?"Item Level A (solid)":"Item Level split"):"Item Level";
@@ -2530,15 +2540,23 @@ function buildControls(){
       const hint=$("ilvl-hint");
       hint.textContent=(on?"· "+Math.round(shA.pct)+"% of the selection":"")
         +(on&&w.unk?" · "+fmtInt(w.unk)+" here carry no item level and "
-          +(gear?"sit in neither cohort":"are left out"):"");
-      hint.title=on?Math.round(shA.pct)+"% of the "+fmtInt(w.pool+w.unk)
-        +" parses the other filters select "+(gear?"are in cohort A":"match this item level")
-        +(w.unk?"; "+fmtInt(w.unk)+" of them carry no item level at all":"")
+          +(gear?"sit in neither cohort":"are left out"):"")
+        // the scale is drawn over the populated levels only: say so where it shows,
+        // not only in a tooltip, and say that the number box reaches past it
+        +((w.outLo||w.outHi)?(on?" · ":"· ")+"scale "+w.lo+"–"+w.hi+", "
+          +fmtInt(w.outLo+w.outHi)+" thinner parses outside it (type a number to reach them)":"");
+      hint.title=on?Math.round(shA.pct)+"% of the "+fmtInt(shA.pool)
+        +" parses the other filters select that carry an item level "
+        +(gear?"are in cohort A":"match this item level")
+        +(w.unk?"; a further "+fmtInt(w.unk)+" here carry none and are outside that percentage":"")
         +(ILVL.unknown?" ("+fmtInt(ILVL.unknown)+" parses in the whole build carry none)":""):"";
       // density: one bar per level in the window, so the shape of the population
       // is visible and the ends say what sits beyond them
       const sp=$("ilvl-spark"); let mx=0;
       for(let v=w.lo;v<=w.hi;v++) mx=Math.max(mx,w.counts.get(v)||0);
+      // a wide window (an unfiltered payload spans hundreds of levels) would draw
+      // bars thinner than their own gap: drop the gap once they crowd
+      sp.style.gap=(w.hi-w.lo)>60?"0":"1px";
       let h="";
       for(let v=w.lo;v<=w.hi;v++){
         const c=w.counts.get(v)||0;
@@ -2557,9 +2575,12 @@ function buildControls(){
       if(document.activeElement!==num) num.value=on?state.ilo:"";
       num.placeholder=gear?"split":"any";
       $("ilvl-mode").textContent=band?"◂▸ one value":"⇔ two ranges";
-      $("ilvl-mode").title=band
+      $("ilvl-mode").title=!ilvlOneSays()
+        ?"this setting is a band — one thumb cannot say it, so both ranges stay up"
+        :band
         ?"back to one thumb: a single item-level cut"+(gear?" that splits A from B":"")
-        :"two thumbs: pick both ends of a band"+(gear?", and both ends of cohort B":"");
+        :"two thumbs: pick both ends of a band"+(gear?", and both ends of cohort B":"")
+          +". The thumb's far left means any; type a number to sit exactly on the lowest drawn level.";
       const one=$("ilvl-one");
       one.min=gear?w.lo+1:w.lo; one.max=w.hi; one.step=1;
       one.value=Math.max(+one.min,Math.min(state.ilo>ILVL.min?state.ilo:w.lo,w.hi));
@@ -2588,7 +2609,8 @@ function buildControls(){
       }
       syncIlvlInputs(); render();
     };
-    $("ilvl-num").oninput=e=>{
+    let numTimer=null;
+    const numCommit=e=>{
       const raw=e.target.value.trim();
       if(raw===""){ if(!gearOn()){ state.ilo=ILVL.min; state.ihi=ILVL.max; syncIlvlInputs(); render(); } return; }
       let v=Math.round(+raw);
@@ -2602,8 +2624,26 @@ function buildControls(){
       }
       syncIlvlInputs(); render();   // the window covers a typed value on its own
     };
-    $("ilvl-num").onblur=()=>paintIlvl();
-    $("ilvl-mode").onclick=()=>{ state.ilBand=!state.ilBand; paintIlvl(); };
+    // typing "322" fires three input events; applying each one re-filters the whole
+    // page for "3" and "32" first. Settle briefly, and commit at once on Enter or blur.
+    $("ilvl-num").oninput=e=>{ clearTimeout(numTimer);
+      numTimer=setTimeout(()=>numCommit({target:$("ilvl-num")}),400); };
+    $("ilvl-num").onchange=e=>{ clearTimeout(numTimer); numCommit(e); };
+    $("ilvl-num").onkeydown=e=>{ if(e.key==="Enter"){ clearTimeout(numTimer); numCommit({target:e.target}); } };
+    $("ilvl-num").onblur=()=>{ clearTimeout(numTimer); numCommit({target:$("ilvl-num")}); paintIlvl(); };
+    $("ilvl-mode").onclick=()=>{
+      if(!ilvlOneSays()){
+        state.ilBand=true;   // the form is already forced; keep the flag with it
+        setNotice(gearOn()
+          ? "Item level: A "+ilvlAText()+" and B "+ilvlBText()+" are not one split — one thumb can "
+            +"only put A at or above a level and B everything below it. ⚡ Median split sets that "
+            +"shape in one click, or keep the two ranges."
+          : "Item level: "+ilvlAText()+" is a band, and one thumb can only say “≥ N” — open the top "
+            +"end to "+ILVL.max+" first, or keep the two ranges.");
+        paintIlvl(); return;
+      }
+      state.ilBand=!state.ilBand; paintIlvl();
+    };
     paintIlvl();
     $("ilo").oninput=e=>{state.ilo=Math.min(+e.target.value,state.ihi);
       e.target.value=state.ilo; paintIlvl(); render();};
@@ -2947,10 +2987,12 @@ function ilvlWindow(){
   }
   let lo=ILW.coreLo, hi=ILW.coreHi;
   // never strand a value the reader has already set outside the drawn domain
-  if(state.ilo>ILVL.min) lo=Math.min(lo,state.ilo);
-  if(state.ihi<ILVL.max) hi=Math.max(hi,state.ihi);
-  if(state.ilob>ILVL.min) lo=Math.min(lo,state.ilob);
-  if(state.ihib&&state.ihib<ILVL.max) hi=Math.max(hi,state.ihib);
+  if(state.ilo>ILVL.min){ lo=Math.min(lo,state.ilo); hi=Math.max(hi,state.ilo); }
+  if(state.ihi<ILVL.max){ hi=Math.max(hi,state.ihi); lo=Math.min(lo,state.ihi); }
+  if(gearOn()){   // B's ends belong to the Gear axis and must not outlive it
+    if(state.ilob>ILVL.min) lo=Math.min(lo,state.ilob);
+    if(state.ihib&&state.ihib<ILVL.max) hi=Math.max(hi,state.ihib);
+  }
   if(hi<=lo) hi=lo+1;
   ILW.lo=lo; ILW.hi=hi;
   ILW.outLo=ILW.all.filter(v=>v<lo).reduce((a,v)=>a+ILW.counts.get(v),0);
@@ -2961,7 +3003,7 @@ function ilvlWindow(){
 function ilvlShare(lo,hi){
   const w=ilvlWindow(); let k=0;
   for(const [v,c] of w.counts) if(v>=lo&&v<=hi) k+=c;
-  return {n:k, pct:w.pool?100*k/w.pool:0};
+  return {n:k, pool:w.pool, pct:w.pool?100*k/w.pool:0};   // pool = the parses that HAVE an item level
 }
 function gearIlvls(){   // sorted known item levels of the parses the other filters select for period A
   const m=baseMasks(); m.il=false;
@@ -8174,7 +8216,7 @@ function renderTrend(){
     // usable on the key axis and only dropped on the time one
     if(!keyAxis&&!ilAxis&&w>=999) continue;
     if(keyAxis&&R.key[i]<TREND_KEY_FLOOR) continue;
-    if(ilAxis&&!(R.ilvl[i]>0)) continue;   // no item level, no place on this axis
+    if(ilAxis&&!(R.ilvl[i]>0)){ ilNoLvl++; continue; }   // no item level, no place on this axis
     charsAll.add(R.char[i]);
     const v=useChars?R.char[i]:useDeaths?R.deaths[i]
            :dpsAt(i);
@@ -8218,20 +8260,23 @@ function renderTrend(){
   // Buckets are decided BEFORE the top-N pass so the slope sort measures the
   // same points the chart draws, on whichever axis is selected.
   let daily=false, buckets, store, MINP, bLabel, bTip;
-  let ilClipped=0, ilClipLo=0, ilClipHi=0;
+  let ilClipped=0, ilClipLo=0, ilClipHi=0, ilBelow=0, ilAbove=0, ilNoLvl=0;
   if(ilAxis){
     // the domain is where the players are: a level must hold TREND_ILVL_SHARE
     // of this selection to be drawn, and the thin tail is counted, never
     // silently dropped (a handful of parses at 296 would flatten the band)
     const all=[...ilsSeen].sort((a,b)=>a-b);
     const pool=all.reduce((a,v)=>a+ilTot.get(v),0);
-    buckets=all.filter(v=>ilTot.get(v)>=pool*TREND_ILVL_SHARE);
-    if(buckets.length<2) buckets=all;        // thin pool: draw what there is
-    const kept=new Set(buckets);
-    for(const v of all) if(!kept.has(v)){
-      ilClipped+=ilTot.get(v);
-      if(!ilClipLo||v<ilClipLo) ilClipLo=v;
-      if(v>ilClipHi) ilClipHi=v;
+    // the domain is a CONTIGUOUS span from the first populated level to the last:
+    // a thin level between two fat ones stays a point (it may simply draw no
+    // series), because closing the gap would make the x-axis lie about distance
+    const fat=all.filter(v=>ilTot.get(v)>=pool*TREND_ILVL_SHARE);
+    if(fat.length<2) buckets=all;            // thin pool: draw what there is
+    else { buckets=[]; for(let v=fat[0];v<=fat[fat.length-1];v++) if(ilsSeen.has(v)) buckets.push(v); }
+    const bLo=buckets[0], bHi=buckets[buckets.length-1];
+    for(const v of all){
+      if(v<bLo){ ilClipped+=ilTot.get(v); ilBelow+=ilTot.get(v); if(!ilClipLo||v<ilClipLo) ilClipLo=v; }
+      else if(v>bHi){ ilClipped+=ilTot.get(v); ilAbove+=ilTot.get(v); if(v>ilClipHi) ilClipHi=v; }
     }
     store=byIl; MINP=TREND_ILVL_MINP;
     bLabel=b=>String(b); bTip=b=>"ilvl "+b;
@@ -8352,8 +8397,10 @@ function renderTrend(){
   // definition, so the slope sort and the plotted line cannot disagree.
   if(!series.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
-      +'No group has a reading at '+esc(bLabel(buckets[0]))+' to index against, '
-      +'so there is nothing to measure retention from.</div>';
+      +(norm==="ret"
+        ?'No group has a reading at '+esc(bLabel(buckets[0]))+' to index against, '
+         +'so there is nothing to measure retention from.'
+        :'No group clears the '+MINP+'-parse floor at enough points to draw a line here.')+'</div>';
     $("trend-caption").textContent=trendCap(mt,"",state.trendAxis); return;
   }
   const vfmt=norm==="rank"?(v=>"#"+Math.round(v))
@@ -8395,16 +8442,25 @@ function renderTrend(){
     const mk=b=>{const a=(ilKeys.get(b)||[]).slice().sort((x,y)=>x-y);
                  return a.length?a[Math.floor((a.length-1)/2)]:NaN;};
     const b0=buckets[0], b1=buckets[buckets.length-1], k0=mk(b0), k1=mk(b1);
+    // the ends can agree while the middle does not, so the claim "no key gap"
+    // is made against EVERY drawn bucket, never against the two ends alone
+    let kLo=Infinity, kHi=-Infinity;
+    for(const b of buckets){ const k=mk(b); if(isFinite(k)){ if(k<kLo)kLo=k; if(k>kHi)kHi=k; } }
+    const flat=isFinite(kLo)&&kLo===kHi;
     extraCap+=" Item-level axis: one point per item level, "+b0+" to "+b1
       +" — the levels holding enough of this selection to read"
-      +(ilClipped?", and "+fmtInt(ilClipped)+" parse"+(ilClipped===1?"":"s")+" at ilvl "
-        +ilClipLo+(ilClipHi>ilClipLo?"–"+ilClipHi:"")+" outside that band are not drawn":"")+"."
+      +(ilClipped?", and "+[ilBelow?fmtInt(ilBelow)+" parse"+(ilBelow===1?"":"s")+" below it (down to ilvl "+ilClipLo+")":"",
+                            ilAbove?fmtInt(ilAbove)+" parse"+(ilAbove===1?"":"s")+" above it (up to ilvl "+ilClipHi+")":""]
+        .filter(Boolean).join(" and ")+" are not drawn":"")+"."
+      +(ilNoLvl?" A further "+fmtInt(ilNoLvl)+" parse"+(ilNoLvl===1?" carries":"s carry")
+        +" no item level and cannot sit on this axis at all.":"")
       +(isFinite(k0)&&isFinite(k1)
         ?(k0!==k1
           ?" Median key rises from +"+k0+" at ilvl "+b0+" to +"+k1+" at ilvl "+b1
             +", so part of every rise here is key level, not gear — narrow the key"
             +" range to read gear alone."
-          :" Median key is +"+k0+" across the whole band, so the rise is gear, not key level.")
+          :flat?" Median key is +"+k0+" at every point drawn, so the rise is gear, not key level."
+             :" Median key is +"+k0+" at both ends but ranges +"+kLo+" to +"+kHi+" in between, so part of the shape is key level, not gear.")
         :"")
       // the axis IS item level, so anything narrowing item level clips the curve itself
       +(gearOn()?" The Gear compare axis is on, so this curve is item-level cohort A only ("
