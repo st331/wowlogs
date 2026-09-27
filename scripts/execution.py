@@ -75,6 +75,64 @@ def bundle_paused(env=None, pause_file=None) -> bool:
     if flag in ("on", "1", "true", "yes"):
         return False
     return pathlib.Path(pause_file if pause_file is not None else PAUSE_FILE).exists()
+
+
+# BACKFILL MODE (owner, 2026-09-27: "use the next 18 hours to completely use
+# up my API limit and backfill all the data you need ... ignore quota
+# rules"). While data/backfill.json exists and its `until` is in the future:
+# the governor's ceiling is `share` of the client's limit (the standing 85 %
+# rule is ignored), the gate admits every run, and after the sweep the run
+# bundles the window's older unbundled runs (scripts/backfill.py) until the
+# wall clock or the budget says stop. After `until`, or with the file gone,
+# everything is back to the standing rules with nothing else to touch.
+# BUNDLE_BACKFILL=off in the environment forces it off (tests, a local run).
+BACKFILL_FILE = ROOT / "data" / "backfill.json"
+
+
+def _iso_to_epoch(v) -> float | None:
+    if not isinstance(v, str) or not v.strip():
+        return None
+    from datetime import datetime, timezone
+    txt = v.strip()
+    if txt.endswith("Z") or txt.endswith("z"):
+        txt = txt[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(txt)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def backfill_mode(now_s: float | None = None, path=None, env=None) -> dict | None:
+    """The backfill switch: {until, until_s, share, note} while it is in
+    force, else None. Never raises: an unreadable file is a switch that is
+    off. `share` is the fraction of the hourly limit the run may spend,
+    clamped to (0, 1] and 1.0 when missing or unparseable."""
+    env = os.environ if env is None else env
+    flag = str(env.get("BUNDLE_BACKFILL", "")).strip().lower()
+    if flag in ("off", "0", "false", "no"):
+        return None
+    p = pathlib.Path(path if path is not None else BACKFILL_FILE)
+    try:
+        doc = json.loads(p.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    until_s = _iso_to_epoch(doc.get("until"))
+    now_s = time.time() if now_s is None else float(now_s)
+    if until_s is None or until_s <= now_s:
+        return None
+    try:
+        share = float(doc.get("share", 1.0))
+    except (TypeError, ValueError):
+        share = 1.0
+    if not (0 < share <= 1) or share != share:
+        share = 1.0
+    return {"until": doc.get("until"), "until_s": until_s, "share": share,
+            "note": doc.get("note")}
 BAND = 2                  # key levels per band: b18 = 18-19
 CHAIN_WINDOW_MS = 5_000   # another party death within this many ms before own death
 EST_COST_BUNDLE = 7.5     # est_cost per bundled run (measured 6.5-8.5 cold)
@@ -501,11 +559,15 @@ class BundleGate:
     """
 
     def __init__(self, path=None, quota: int = QUOTA_ROWS, days: int = QUOTA_DAYS,
-                 now_ms: float | None = None, paused: bool | None = None):
+                 now_ms: float | None = None, paused: bool | None = None,
+                 admit_all: bool = False):
         self.path = pathlib.Path(path) if path else None
         self.quota = int(quota)
         self.days = int(days)
         self.paused = bundle_paused() if paused is None else bool(paused)
+        # backfill mode: every rostered run gets the bundle, the quota is
+        # not consulted (the counts still accumulate for when the mode ends)
+        self.admit_all = bool(admit_all)
         self.now_ms = float(now_ms) if now_ms is not None else time.time() * 1000
         self.today = int(self.now_ms // DAY_MS)
         self.cut_day = self.today - self.days + 1        # trailing `days` days inclusive
@@ -555,6 +617,9 @@ class BundleGate:
         if not roster or dungeon is None or level is None:
             self.stats["no_roster"] += 1
             return False
+        if self.admit_all:
+            self.stats["admitted"] += 1
+            return True
         under = any(self.count(sk, dungeon, level) < self.quota for sk in roster)
         self.stats["admitted" if under else "full"] += 1
         return under
@@ -587,6 +652,10 @@ class BundleGate:
         if not path.exists():
             return 0
         n = 0
+        # a backfilled run's rows REPLACE its earlier rows (append-only
+        # journal, last copy wins at export): one player row counts once
+        # however many copies of it the journal holds
+        seen: set = set()
         with path.open("rb") as fh:
             for raw in fh:
                 if not _EXEC_HINT.search(raw):
@@ -597,6 +666,12 @@ class BundleGate:
                     continue
                 if not r.get("exec"):
                     continue
+                ident = (r.get("report_code"), r.get("fight_id"), r.get("character"),
+                         r.get("server"))
+                if None not in ident:            # a row without its identity counts as itself
+                    if ident in seen:
+                        continue
+                    seen.add(ident)
                 self.record(spec_key(r.get("class"), r.get("spec")), r.get("dungeon"),
                             r.get("key_level"), r.get("started_at"))
                 n += 1

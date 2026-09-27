@@ -90,6 +90,13 @@ class _Quota:
         self.inflight = 0.0
         self.requests_made = 0
         self.fraction = quota_fraction()
+        # A wall-clock deadline (epoch seconds) set by a caller that runs on a
+        # clock of its own -- backfill mode (scripts/backfill.py) -- and, while
+        # set, REPLACES WCL_MAX_SLEEP_S as the cap on sleeping for the reset:
+        # the process sleeps to the window reset whenever the reset comes
+        # before the deadline, and stops cleanly (QuotaDeadline) when it does
+        # not. None = the environment's cap, as always.
+        self.deadline: float | None = None
         self.probe_lock = threading.Lock()
         self.probed = False
         # until a real reading lands we are guessing; the first response fixes
@@ -242,13 +249,23 @@ class WCLClient:
         if self.verbose:
             print(f"[wcl {time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
+    @staticmethod
+    def _sleep_cap() -> float:
+        """Seconds we may sleep waiting for the window: to QUOTA.deadline when
+        a caller set one (it overrides the environment), else WCL_MAX_SLEEP_S
+        (0 = no cap). Never 0 with a deadline set, so a passed deadline reads
+        as "stop now" rather than "sleep without limit"."""
+        if QUOTA.deadline is not None:
+            return max(1.0, QUOTA.deadline - time.time())
+        return float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
+
     def _sleep_for_reset(self) -> None:
         wait = max(self.reset_in, 30) + 20  # small cushion past the reset
         # A caller on a clock (a CI job with a timeout) must not burn its whole
         # slot asleep. WCL_MAX_SLEEP_S caps how long we are willing to wait;
         # past that we stop cleanly and the next run picks up from the journal
         # with a fresh budget, instead of being killed having fetched nothing.
-        cap = float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
+        cap = self._sleep_cap()
         if cap and wait > cap:
             self._log(f"budget ceiling reached ({self.spent:.0f}/{self.ceiling:.0f} "
                       f"pts, {QUOTA.fraction:.0%} of {self.limit:.0f}) and the reset "
@@ -313,7 +330,7 @@ class WCLClient:
                     # (2026-09-08: a drain run at the 100% ceiling drew a 429
                     # with the reset 35 min away and sat idle until it, holding
                     # the concurrency group and the chain with it)
-                    cap = float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
+                    cap = self._sleep_cap()
                     if cap and wait > cap:
                         self._log(f"HTTP 429 with the reset {wait:.0f}s away, over the "
                                   f"{cap:.0f}s cap; stopping so the next run can use a "
