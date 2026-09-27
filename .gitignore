@@ -49,6 +49,13 @@ docs/builds.json.gz
 # talent-tree document: same — rebuilt every run from the trait caches
 site/talents.json.gz
 docs/talents.json.gz
+
+# baselines sidecar + per-run store for the Key Level Logs site: rebuilt
+# every run from the CSV and the runs journal (scripts/build_baselines.py)
+site/baselines.json.gz
+docs/baselines.json.gz
+site/runs/
+docs/runs/
 site/procs.json.gz
 docs/procs.json.gz
 
