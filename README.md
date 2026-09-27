@@ -10,7 +10,7 @@ scripts/build_hero_map.py    trait-node → hero-talent mapping from SimC data
 scripts/fetch_data.py        checkpointed collection pipeline → data/mythic_runs.csv.gz
 scripts/execution.py         the execution bundle: five extra tables per gated run + the quota gate
 scripts/build_site_data.py   packs the CSV into site/data.json (+ sidecars)
-scripts/build_baselines.py   site/baselines.json.gz + site/runs/<c>.json.gz for the Key Level Logs site
+scripts/build_baselines.py   site/baselines.json.gz + site/runs/<hh>.json.gz for the Key Level Logs site
 scripts/fetch_abilities.py   per-ability damage breakdown (tuning projection)
 scripts/project_tuning.py    re-scores parses under an announced tuning pass
 scripts/hero_from_abilities.py  recovers hero talents from the abilities cast
@@ -196,11 +196,14 @@ ever pulled from Warcraft Logs twice (§1). What this repository adds:
   `build_site_data.py`, from the same retention-windowed frame; `site/**` deploys as before):
   `site/baselines.json.gz` (design doc §2: per spec x dungeon x level cell at three tiers,
   quantiles [5,10,25,50,75,90,95] of every measure over timed leaderboard runs, plus the
-  per-dungeon priority and dispellable tables) and `site/runs/<c>.json.gz` (§3: every run in
-  the window, sharded by the first character of the report code, with the stored per-player
-  rows). Health lines `baselines.*` land in `build_health.txt`, sizes included; the run
-  store is over the ~10 MB budget the design doc estimated (measured 16 MB gzipped on the
-  committed seed with no bundle yet fetched), and says so there.
+  per-dungeon priority and dispellable tables) and `site/runs/<hh>.json.gz` (§3: every run
+  in the window at +10 and up, whatever its medal, in 256 shards keyed by a hash of the
+  report code -- `h = (h*31 + ord(ch)) mod 256` over its first four characters, two
+  lowercase hex digits, the same arithmetic as the client's `charCodeAt` form -- every
+  shard written so a fetch never 404s, with the stored per-player rows; a field the
+  collector did not fetch is omitted and `"exec": false` says so). Health lines
+  `baselines.*` land in `build_health.txt`, sizes and the largest shard included, with a
+  flag when the set is over the ~10 MB budget the design doc estimated.
 
 ## Tests
 

@@ -13,11 +13,22 @@ the run-level journal the collector writes beside the player rows:
                            over dungeons), each shipped when n >= CELL_MIN_N;
                            the population's per-dungeon priority (Interrupts)
                            and dispellable (Dispels) tables.
-  site/runs/<c>.json.gz    every run in the window, sharded by the first
-                           character of its report code, with the per-player
-                           rows the collector stored -- the vetting site reads
-                           a run from here instead of pulling it from
-                           Warcraft Logs a second time.
+  site/runs/<hh>.json.gz   every run in the window at LEVEL_MIN and up,
+                           whatever its medal, in 256 shards keyed by a hash
+                           of the report code (shard_of: h = (h*31 + ord(ch))
+                           mod 256 over the code's first four characters, as
+                           two lowercase hex digits; the client computes the
+                           same with charCodeAt), with the per-player rows
+                           the collector stored -- the vetting site reads a
+                           run from here instead of pulling it from Warcraft
+                           Logs a second time. Every shard is written, an
+                           empty one as {"runs": {}}, so a fetch never 404s.
+                           Fields the collector did not fetch are omitted
+                           (the client reads a missing field as null);
+                           "exec": false says the bundle was not fetched.
+                           The run carries its dispel_spells; int_spells
+                           stay out (kicks_by plus the population priority
+                           table are what the client needs).
 
 Rates use the run's fight duration (`duration_s`, the Summary totalTime) --
 NOT the keystone clock the dashboard recomputes DPS on -- because the site
@@ -39,7 +50,6 @@ import json
 import math
 import os
 import pathlib
-import re
 import sys
 import time
 
@@ -73,7 +83,8 @@ EXEC_MEASURES = ("kicks_min", "kick_prio", "dispels_min", "avoid_dmg_min",
 TIMED_MEDALS = {"gold", "silver", "bronze", "timed"}
 POPULATION = ("timed leaderboard runs (fightRankings pages 1-20 by score per "
               "dungeon x level)")
-SHARD_CHAR = re.compile(r"^[A-Za-z0-9]$")
+N_SHARDS = 256                   # runs/00.json.gz .. runs/ff.json.gz, every one written
+SHARD_CHARS = 4                  # characters of the report code the hash reads
 SIZE_BUDGET_GZ = 10_000_000      # baselines + every shard, gzipped
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -319,20 +330,39 @@ def _str_or_none(v):
 
 
 def shard_of(code) -> str | None:
-    c = str(code)[:1] if code is not None else ""
-    return c if SHARD_CHAR.match(c) else None
+    """Two lowercase hex digits: h = (h * 31 + ord(ch)) mod 256 over the first
+    SHARD_CHARS characters of the report code. The client computes the same
+    with charCodeAt (codes are ASCII, so ord == charCode). None only for a
+    missing code, which is not a run at all."""
+    if code is None or (isinstance(code, float) and math.isnan(code)):
+        return None
+    s = str(code)
+    if not s or s == "nan":
+        return None
+    h = 0
+    for ch in s[:SHARD_CHARS]:
+        h = (h * 31 + ord(ch)) % N_SHARDS
+    return f"{h:02x}"
 
 
-def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str) -> tuple[dict, dict]:
-    """{shard char: document} covering every run in the frame (§3)."""
+def all_shards() -> list[str]:
+    return [f"{i:02x}" for i in range(N_SHARDS)]
+
+
+def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str,
+                    min_level: int = LEVEL_MIN) -> tuple[dict, dict]:
+    """{shard: document} for every run at min_level and up (§3), all N_SHARDS
+    shards present, an empty one with "runs": {}."""
     cols = ["report_code", "fight_id", "dungeon", "key_level", "started_at",
             "duration_s", "medal", "character", "server", "region", "class",
             "spec", "role", "dps", "deaths", "deaths_chain", "pots", "hs", "exec",
             "kicks", "kicks_by", "dispels", "dispels_by", "avoid_dmg",
             "def_casts", "heal_total", "heal_over"]
-    sub = df[cols]
-    shards: dict[str, dict] = {}
-    stats = {"runs": 0, "runs_exec": 0, "unsharded": 0, "players": 0}
+    lvl_num = _num(df["key_level"])
+    sub = df.loc[(lvl_num >= min_level).to_numpy(), cols]
+    shards: dict[str, dict] = {c: {"built": built, "runs": {}} for c in all_shards()}
+    stats = {"runs": 0, "runs_exec": 0, "unsharded": 0, "players": 0,
+             "below_level": int((~(lvl_num >= min_level)).sum())}
     seen: dict[str, dict] = {}
     for t in sub.itertuples(index=False, name=None):
         (code, fid, dun, lvl, start, dur, medal, name, server, region, cls, spec,
@@ -351,13 +381,10 @@ def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str) -> tupl
                    "timed": (medal_s in TIMED_MEDALS) if medal_s else None,
                    "exec": False, "players": []}
             rec = recs.get(key)
-            if rec and rec.get("exec"):
-                if isinstance(rec.get("int_spells"), dict):
-                    run["int_spells"] = rec["int_spells"]
-                if isinstance(rec.get("dispel_spells"), dict):
-                    run["dispel_spells"] = rec["dispel_spells"]
+            if rec and rec.get("exec") and isinstance(rec.get("dispel_spells"), dict):
+                run["dispel_spells"] = rec["dispel_spells"]
             seen[key] = run
-            shards.setdefault(c, {"built": built, "runs": {}})["runs"][key] = run
+            shards[c]["runs"][key] = run
             stats["runs"] += 1
         bundled = bool(_int_or_none(exec_))
         if bundled and not run["exec"]:
@@ -366,16 +393,19 @@ def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str) -> tupl
         p = {"name": _str_or_none(name), "server": _str_or_none(server),
              "region": _str_or_none(region), "class": _str_or_none(cls),
              "spec": _str_or_none(spec), "role": _str_or_none(role),
-             "dps": _float_or_none(dps), "deaths": _int_or_none(deaths),
-             "deaths_chain": _int_or_none(chain),
-             "pots": _int_or_none(pots), "hs": _int_or_none(hs)}
+             "dps": _float_or_none(dps), "deaths": _int_or_none(deaths)}
+        # the optional fields ride only when the collector has them: the
+        # Summary-derived three on rows written since the bundle landed, the
+        # bundle's eight when it was fetched for the run; a missing field
+        # reads as null on the client, so nothing is written as null
+        opt = {"deaths_chain": _int_or_none(chain), "pots": _int_or_none(pots),
+               "hs": _int_or_none(hs)}
         if bundled:
-            p.update({"kicks": _int_or_none(kicks), "kicks_by": ex.unpack_by(kicks_by),
-                      "dispels": _int_or_none(dispels), "dispels_by": ex.unpack_by(dispels_by),
-                      "avoid_dmg": _int_or_none(avoid), "def_casts": _int_or_none(defc),
-                      "heal_total": _int_or_none(htot), "heal_over": _int_or_none(hover)})
-        else:
-            p.update({k: None for k in ex.BUNDLE_COLUMNS})
+            opt.update({"kicks": _int_or_none(kicks), "kicks_by": ex.unpack_by(kicks_by),
+                        "dispels": _int_or_none(dispels), "dispels_by": ex.unpack_by(dispels_by),
+                        "avoid_dmg": _int_or_none(avoid), "def_casts": _int_or_none(defc),
+                        "heal_total": _int_or_none(htot), "heal_over": _int_or_none(hover)})
+        p.update({k: v for k, v in opt.items() if v is not None})
         run["players"].append(p)
         stats["players"] += 1
     return shards, stats
@@ -457,18 +487,23 @@ def build(csv: pathlib.Path = ROOT / "data" / B.SEASON["csv"],
     for d in site_dirs:
         base_gz = _gz_write(d / "baselines.json.gz", text)
 
-    # --- run store: every run in the window ----------------------------------
+    # --- run store: every run in the window at LEVEL_MIN and up ---------------
     shards, sstats = build_run_store(df, recs, built)
     shard_gz = 0
+    largest, largest_gz = None, 0
     for d in site_dirs:
         out = d / "runs"
         out.mkdir(parents=True, exist_ok=True)
         for old in out.glob("*.json.gz"):
-            old.unlink()                      # a shard with no run this build must not linger
+            old.unlink()                      # nothing from an earlier build may linger
         for c, sdoc in shards.items():
-            shard_gz += _gz_write(out / f"{c}.json.gz",
-                                  json.dumps(sdoc, ensure_ascii=False, separators=(",", ":")))
+            sz = _gz_write(out / f"{c}.json.gz",
+                           json.dumps(sdoc, ensure_ascii=False, separators=(",", ":")))
+            shard_gz += sz
+            if sz > largest_gz:
+                largest, largest_gz = c, sz
     shard_gz = shard_gz // max(len(site_dirs), 1)
+    empty = sum(1 for sdoc in shards.values() if not sdoc["runs"])
 
     # --- health --------------------------------------------------------------
     n_rows, n_exec = int(len(pop)), int(m["exec"].sum()) if len(m) else 0
@@ -493,7 +528,11 @@ def build(csv: pathlib.Path = ROOT / "data" / B.SEASON["csv"],
     health(f"{name}.runs_total={sstats['runs']}")
     health(f"{name}.runs_exec={sstats['runs_exec']}")
     health(f"{name}.runs_unsharded={sstats['unsharded']}")
+    health(f"{name}.runs_below_level_rows={sstats['below_level']}")
     health(f"{name}.runs_shards={len(shards)}")
+    health(f"{name}.runs_shards_empty={empty}")
+    health(f"{name}.runs_largest_shard={largest or 'none'}")
+    health(f"{name}.runs_largest_shard_gz={largest_gz}")
     health(f"{name}.runs_size_gz={shard_gz}")
     total = base_gz + shard_gz
     health(f"{name}.total_size_gz={total}")
@@ -505,10 +544,12 @@ def build(csv: pathlib.Path = ROOT / "data" / B.SEASON["csv"],
     append_health(site_dirs)
     print(f"[{name}] {len(cells):,} cells ({counts['exact']:,} exact / {counts['band']:,} band / "
           f"{counts['pooled']:,} pooled) from {n_rows:,} timed rows ({n_exec:,} bundled, "
-          f"{share:.1%}); {sstats['runs']:,} runs in {len(shards)} shards; "
+          f"{share:.1%}); {sstats['runs']:,} runs at +{LEVEL_MIN} and up in {len(shards)} shards "
+          f"({empty} empty; largest {largest} at {largest_gz / 1e3:.0f} KB); "
           f"{base_gz / 1e6:.2f} + {shard_gz / 1e6:.2f} MB gz; {wall:.1f}s", flush=True)
     return {"cells": cells, "counts": counts, "priority": priority, "dispellable": dispellable,
-            "shards": shards, "sizes": {"baselines": base_gz, "runs": shard_gz},
+            "shards": shards, "sizes": {"baselines": base_gz, "runs": shard_gz,
+                                        "largest_shard": largest, "largest_shard_gz": largest_gz},
             "rows": n_rows, "rows_exec": n_exec, "doc": doc, "run_stats": sstats}
 
 

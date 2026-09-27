@@ -10,11 +10,13 @@
   * rates are per duration_s; kick_prio weights kicks_by by the window's
     priority table (interrupted / begun, 0.5 unlisted); heal_eff_s is
     healers only;
-  * the population is timed runs at levels 10-30; the run store holds EVERY
-    run in the window (a depleted +9 included), sharded by the first
-    character of the report code, case-sensitive, one document per shard,
-    nulls where the bundle was not fetched, the run's spell tables when it
-    was; a stale shard from an earlier build is removed;
+  * the population is timed runs at levels 10-30; the run store holds every
+    run in the window at +10 and up whatever its medal (a depleted +10
+    included, a +9 not), in 256 shards keyed by the hash of the report
+    code's first four characters (pinned against the JS form's output), every
+    shard written (an empty one as "runs": {}), unfetched fields OMITTED
+    with "exec": false kept, the run's dispel_spells when bundled and never
+    its int_spells; a stale file from an earlier build is removed;
   * a round trip: a fixture CSV + runs journal -> both site directories,
     keys as the contract lists them, priority/dispellable summed over the
     journal, health lines APPENDED to build_health.txt.
@@ -116,28 +118,53 @@ check(bb.round_quantiles([0.123456, 99.9999, 100.4, 123456.6]) == [0.123, 100.0,
       "round_quantiles: 3 decimals under 100, whole numbers from 100")
 
 # --- 3. shards ------------------------------------------------------------------------
-check(bb.shard_of("P3j1myqhvQcMp6Tk") == "P" and bb.shard_of("p3j1") == "p" and bb.shard_of("9abc") == "9"
-      and bb.shard_of("-abc") is None and bb.shard_of("") is None and bb.shard_of(None) is None,
-      "shard_of: first character, case-sensitive, [A-Za-z0-9] only")
+# the JS form -- h = (h*31 + code.charCodeAt(i)) % 256 over i < 4, two hex digits -- run under node on these codes
+JS_SHARDS = {"P3j1myqhvQcMp6Tk": "2a", "gDZJMwmzvykQprcB": "ad", "abcd": "42", "ABCD": "42", "0000": "00",
+             "zzzz": "80", "9abcdef": "89", "a": "61", "PnKTGa9C2WtrDdyh": "07"}
+check(all(bb.shard_of(c) == h for c, h in JS_SHARDS.items()), "shard_of: identical to the client's hash on 9 pinned codes")
+check(bb.shard_of("abcdEFGH") == bb.shard_of("abcdzzzz") == "42", "shard_of: only the first four characters count")
+check(bb.shard_of("") is None and bb.shard_of(None) is None and bb.shard_of(float("nan")) is None,
+      "shard_of: no code -> None (not a run)")
+check(bb.all_shards()[0] == "00" and bb.all_shards()[-1] == "ff" and len(set(bb.all_shards())) == 256,
+      "all_shards: 00..ff")
 small = pd.DataFrame(rows("Warrior-Arms", ALTAR, 18, 2, prefix="S") + rows("Mage-Arcane", ALTAR, 9, 2, exec_=0, prefix="p", medal="none")
-                     + rows("Rogue-Assassination", MURDER, 12, 1, prefix="9") + rows("Hunter-Marksmanship", MURDER, 12, 1, prefix="-"))
+                     + rows("Rogue-Assassination", MURDER, 12, 1, prefix="9")
+                     + rows("Hunter-Marksmanship", MURDER, 10, 1, exec_=0, prefix="-", medal="none"))
 recs = {f"{small.report_code.iloc[0]}:1": {"exec": True, "int_spells": {"1": {"name": "Hiss", "begun": 3, "completed": 1, "interrupted": 2}},
                                             "dispel_spells": {"7": {"name": "Sting", "applied": 4, "dispelled": 3, "expired": 1}}}}
 shards, st = bb.build_run_store(small, recs, "2026-09-27T06:00:00Z")
-check(set(shards) == {"S", "p", "9"} and st == {"runs": 5, "runs_exec": 3, "unsharded": 1, "players": 5},
-      f"build_run_store: shards S/p/9, the '-' code unsharded ({st})")
-r0 = shards["S"]["runs"][f"{small.report_code.iloc[0]}:1"]
+stored = {k for s in shards.values() for k in s["runs"]}
+check(set(shards) == set(bb.all_shards()) and st == {"runs": 4, "runs_exec": 3, "unsharded": 0, "players": 4, "below_level": 2}
+      and all(s["built"] == "2026-09-27T06:00:00Z" for s in shards.values())
+      and stored == {f"{c}:1" for c in small.report_code if not c.startswith("p")},
+      f"build_run_store: all 256 shards with the built stamp; +9 rows left out, the depleted +10 kept ({st})")
+c0 = bb.shard_of(small.report_code.iloc[0])
+r0 = shards[c0]["runs"][f"{small.report_code.iloc[0]}:1"]
 check(r0["dun"] == ALTAR and r0["lvl"] == 18 and r0["dur_s"] == 1200.0 and r0["timed"] is True and r0["exec"] is True
-      and r0["int_spells"]["1"]["begun"] == 3 and r0["dispel_spells"]["7"]["dispelled"] == 3 and len(r0["players"]) == 1,
-      "stored run: dun/lvl/start/dur_s/timed/exec and the spell tables from the journal")
+      and "int_spells" not in r0 and r0["dispel_spells"]["7"]["dispelled"] == 3 and len(r0["players"]) == 1,
+      "stored run: dun/lvl/start/dur_s/timed/exec, dispel_spells from the journal, no int_spells")
 pl = r0["players"][0]
 check(pl["kicks"] == 10 and pl["kicks_by"] == {"1": 6, "2": 4} and pl["dispels_by"] == {} and pl["heal_over"] == 1_000_000
       and pl["deaths_chain"] == 0 and pl["pots"] == 2 and pl["hs"] == 0 and pl["class"] == "Warrior" and pl["role"] == "DPS",
       "stored player: the bundle fields, kicks_by / dispels_by as dicts")
-r1 = shards["p"]["runs"][f"{small.report_code.iloc[2]}:1"]
-check(r1["timed"] is False and r1["lvl"] == 9 and r1["exec"] is False
-      and all(r1["players"][0][k] is None for k in ex.BUNDLE_COLUMNS) and "int_spells" not in r1,
-      "a depleted +9 run is stored (no-repeat rule) with null bundle fields")
+c1 = bb.shard_of(small.report_code.iloc[5])
+r1 = shards[c1]["runs"][f"{small.report_code.iloc[5]}:1"]
+check(r1["timed"] is False and r1["lvl"] == 10 and r1["exec"] is False
+      and not any(k in r1["players"][0] for k in ex.BUNDLE_COLUMNS)
+      and set(r1["players"][0]) == {"name", "server", "region", "class", "spec", "role", "dps", "deaths",
+                                    "deaths_chain", "pots", "hs"},
+      "a depleted +10 run is stored with \"exec\": false and NO bundle keys (omitted, not null)")
+old = pd.DataFrame(rows("Warrior-Arms", ALTAR, 12, 1, prefix="O"))
+for k in ex.EXEC_COLUMNS:
+    old[k] = np.nan                                            # a pre-bundle row
+shards_o, _ = bb.build_run_store(old, {}, "x")
+po = shards_o[bb.shard_of(old.report_code.iloc[0])]["runs"][f"{old.report_code.iloc[0]}:1"]["players"][0]
+check(set(po) == {"name", "server", "region", "class", "spec", "role", "dps", "deaths"},
+      "a pre-bundle row: pots / hs / deaths_chain omitted too (the client reads a missing field as null)")
+empty_shards = [c for c, s in shards.items() if not s["runs"]]
+check(len(empty_shards) == 256 - len({bb.shard_of(c) for c in small.report_code if not c.startswith("p")})
+      and shards[empty_shards[0]] == {"built": "2026-09-27T06:00:00Z", "runs": {}},
+      f"{len(empty_shards)} empty shards carry the stamp and an empty runs object")
 
 # --- 4. the round trip --------------------------------------------------------------
 with tempfile.TemporaryDirectory() as tmp:
@@ -164,8 +191,9 @@ with tempfile.TemporaryDirectory() as tmp:
         (d / "build_health.txt").write_text("built=earlier\n")
     res = bb.build(csv, journal, [d1, d2], now=NOW)
     for d in (d1, d2):
-        check((d / "baselines.json.gz").exists() and (d / "runs" / "P.json.gz").exists()
-              and not (d / "runs" / "Z.json.gz").exists(), f"{d.name}/: sidecar + shards written, stale shard removed")
+        files = sorted(p.name for p in (d / "runs").glob("*.json.gz"))
+        check((d / "baselines.json.gz").exists() and files == [f"{c}.json.gz" for c in bb.all_shards()],
+              f"{d.name}/: sidecar + exactly the 256 shards written, the stale file removed")
     doc = json.load(gzip.open(d1 / "baselines.json.gz"))
     check(set(doc) >= {"built", "season", "window", "population", "lists_version", "quantiles", "measures",
                        "levels", "cells", "priority", "dispellable"}
@@ -184,22 +212,31 @@ with tempfile.TemporaryDirectory() as tmp:
     # 27 values sorted by i (small's i=0,1 duplicate frame's): the median is frame's i=11
     kp = doc["cells"]["Warrior-Arms|Altar of Fangs|18"]["kick_prio"]
     check(abs(kp[3] - (0.8 * (6 + 11) + 0.5 * 4) / 20) < 1e-3, f"kick_prio uses this build's priority table (p50 {kp[3]})")
-    sh = json.load(gzip.open(d2 / "runs" / "P.json.gz"))
-    p_runs = both[both.report_code.str.startswith("P")][["report_code", "fight_id"]].drop_duplicates().shape[0]
-    check(sh["built"] == doc["built"] and len(sh["runs"]) == p_runs == 25 + 19 + 25
-          and sh["runs"][f"{frame.report_code.iloc[0]}:1"]["int_spells"]["1"]["begun"] == 7,
-          f"runs/P.json.gz: built stamp, every P run in the window ({p_runs}), its own spell tables")
-    shard_set = {c for c in both.report_code.str[0] if bb.shard_of(c)}
+    first = frame.report_code.iloc[0]
+    sh = json.load(gzip.open(d2 / "runs" / f"{bb.shard_of(first)}.json.gz"))
+    lvl = pd.to_numeric(both.key_level)
+    same = both[(both.report_code.map(bb.shard_of) == bb.shard_of(first)) & (lvl >= 10)]
+    n_same = same[["report_code", "fight_id"]].drop_duplicates().shape[0]
+    check(sh["built"] == doc["built"] and len(sh["runs"]) == n_same >= 1
+          and "int_spells" not in sh["runs"][f"{first}:1"] and "dispel_spells" not in sh["runs"][f"{first}:1"],
+          f"runs/{bb.shard_of(first)}.json.gz: built stamp, every run hashed to it ({n_same}); a journal record "
+          f"with dispel_spells null adds nothing")
+    stored = {k for c in bb.all_shards() for k in json.load(gzip.open(d1 / "runs" / f"{c}.json.gz"))["runs"]}
+    want_keys = {f"{c}:{f}" for c, f in zip(both.report_code[lvl >= 10], both.fight_id[lvl >= 10])}
+    check(stored == want_keys and any(k.startswith("-") for k in stored),
+          f"the 256 shards together hold exactly the +10-and-up runs ({len(stored)}), a '-' code included")
     health = (d1 / "build_health.txt").read_text()
     check(health.startswith("built=earlier\n") and "baselines.rows=" in health and "baselines.cells_exact=" in health
-          and f"baselines.runs_shards={len(shard_set)}" in health and len(shard_set) == 6
+          and "baselines.runs_shards=256" in health and "baselines.runs_largest_shard_gz=" in health
+          and "baselines.runs_shards_empty=" in health
           and "baselines.total_size_gz=" in health and "baselines.bundled_share=" in health,
           "build_health.txt: the baselines lines are APPENDED after the site build's")
-    lvl = pd.to_numeric(both.key_level)
     want_rows = int(((both.medal == "gold") & (lvl >= 10)).sum())
-    want_runs = both[both.report_code.map(lambda c: bb.shard_of(c) is not None)][["report_code", "fight_id"]].drop_duplicates().shape[0]
-    check(res["rows"] == want_rows == 113 and res["run_stats"]["runs"] == want_runs == 114 and res["run_stats"]["unsharded"] == 1,
-          f"summary: {res['rows']} timed rows at +10 and up; {res['run_stats']['runs']} runs stored, 1 unsharded")
+    # 109 gold rows in `frame` + small's two +18 and one +12 gold rows; the depleted +10 is a run but not a timed row
+    check(res["rows"] == want_rows == 112 and res["run_stats"]["runs"] == len(want_keys) == 113
+          and res["run_stats"]["unsharded"] == 0 and res["run_stats"]["below_level"] == 2
+          and res["sizes"]["largest_shard"] in bb.all_shards() and res["sizes"]["largest_shard_gz"] > 0,
+          f"summary: {res['rows']} timed rows at +10 and up; {res['run_stats']['runs']} runs stored, 2 +9 rows left out")
     # size-budget flag is a health line, never a failure
     saved = bb.SIZE_BUDGET_GZ
     bb.SIZE_BUDGET_GZ = 1
