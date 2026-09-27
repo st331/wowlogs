@@ -526,8 +526,9 @@ class BundleGate:
             return self._cell_count(cell_key(spec, dungeon, level))
         suffix = f"|{dungeon}|b{band_of(level)}"
         prefix = f"{spec}-"
+        own = f"{spec}{suffix}"            # rows parsed without a spec land here
         return sum(self._cell_count(k) for k in self.cells
-                   if k.startswith(prefix) and k.endswith(suffix))
+                   if (k.startswith(prefix) and k.endswith(suffix)) or k == own)
 
     def admits(self, roster, dungeon: str, level) -> bool:
         roster = [r for r in (roster or []) if r]
