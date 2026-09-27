@@ -85,7 +85,7 @@ POPULATION = ("timed leaderboard runs (fightRankings pages 1-20 by score per "
               "dungeon x level)")
 N_SHARDS = 256                   # runs/00.json.gz .. runs/ff.json.gz, every one written
 SHARD_CHARS = 4                  # characters of the report code the hash reads
-SIZE_BUDGET_GZ = 10_000_000      # baselines + every shard, gzipped
+SIZE_BUDGET_GZ = 40_000_000      # baselines + every shard, gzipped (13 MB today at 0 % bundled; ~27 MB projected at 55 %)
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
 _HEALTH: list[str] = []

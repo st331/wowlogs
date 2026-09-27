@@ -203,7 +203,8 @@ ever pulled from Warcraft Logs twice (§1). What this repository adds:
   shard written so a fetch never 404s, with the stored per-player rows; a field the
   collector did not fetch is omitted and `"exec": false` says so). Health lines
   `baselines.*` land in `build_health.txt`, sizes and the largest shard included, with a
-  flag when the set is over the ~10 MB budget the design doc estimated.
+  flag when the set is over the 40 MB budget (13 MB gzipped today with no
+  bundled rows; ~27 MB projected once half the runs carry the bundle).
 
 ## Tests
 
