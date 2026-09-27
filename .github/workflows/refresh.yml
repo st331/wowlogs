@@ -110,6 +110,7 @@ permissions:
 
 jobs:
   refresh:
+    if: false  # STOPPED: every Warcraft Logs point is reserved for the vetting site (delete this line to resume)
     runs-on: ubuntu-latest
     # 50 for the scheduled path, so a run never bleeds into the next slot. A
     # gear refetch needs more than one hourly quota window by arithmetic, so it

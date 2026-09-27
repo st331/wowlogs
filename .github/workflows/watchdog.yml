@@ -55,6 +55,7 @@ env:
 
 jobs:
   watch:
+    if: false  # STOPPED: every Warcraft Logs point is reserved for the vetting site (delete this line to resume)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
