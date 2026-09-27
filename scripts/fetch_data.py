@@ -41,7 +41,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from wcl_client import WCLClient, QuotaDeadline
+from wcl_client import WCLClient, QuotaDeadline, QUOTA
 from retention import (RETENTION_DISK_DAYS, DATED, UNDATED, IMPLAUSIBLE, date_class,
                        disk_cut_ms, in_window, iso as _iso)
 import execution as ex
@@ -78,6 +78,13 @@ HERO_MAP_FILE = ROOT / "data" / "hero_talent_map.json"
 # cache) and is rebuilt from the players journal at every start anyway.
 LISTS: dict | None = None
 EXEC_GATE_FILE = PROCESSED / "exec_quota.json"
+# BACKFILL MODE (scripts/backfill.py; execution.backfill_mode reads
+# data/backfill.json): set by main() for the run. While on, the governor's
+# ceiling is the switch's share of the limit, the gate admits every run, and
+# after the sweep the run bundles the window's older unbundled runs until
+# the wall-clock deadline (JOB_START + BACKFILL_WALL_S, capped at `until`).
+BACKFILL: dict | None = None
+BACKFILL_WALL_S_DEFAULT = 7200.0
 # Run-level journal: one record per fetched run -- the exec flag and the
 # run's per-spell Interrupts / Dispels sums, which build_baselines.py sums
 # into the population priority and dispellable tables. Cache-only, pruned by
@@ -1299,7 +1306,7 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     # behind it -- updated as rows are written, saved with the checkpoints.
     # Lists come from main() (fetched, else cached, else vendored).
     t_gate = time.time()
-    gate = ex.BundleGate(EXEC_GATE_FILE)
+    gate = ex.BundleGate(EXEC_GATE_FILE, admit_all=bool(BACKFILL))
     gate_rows = gate.rebuild(PLAYERS_FILE)
     gate.save()
     print(f"[exec] quota gate: {gate_rows:,} bundled rows in the trailing "
@@ -1312,6 +1319,9 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
         print("[exec] bundle PAUSED (data/bundle.paused present or EXEC_BUNDLE=off): "
               "no run gets the bundle this run; the sweep goes on without it",
               flush=True)
+    elif gate.admit_all:
+        print("[exec] BACKFILL MODE: every newly swept run with a roster gets the "
+              "bundle; the quota is not consulted", flush=True)
     n_bundle = 0             # runs sent with the bundle this run
     n_exec_rows = 0          # bundled player rows journaled this run
 
@@ -1904,6 +1914,32 @@ def main() -> None:
     LISTS = ex.load_lists()
     write_outputs(**{"lists.version": LISTS.get("version", "?"),
                      "lists.source": LISTS.get("_source", "?")})
+    # BACKFILL MODE: the switch decides the governor's ceiling and the wall
+    # clock for the whole run -- the sweep and the summaries too, so a run
+    # whose predecessor spent the window sleeps to the reset and carries on
+    # rather than stopping with nothing. The deadline is the job's wall-clock
+    # budget (the workflow's JOB_START + BACKFILL_WALL_S) or the switch's
+    # `until`, whichever comes first; the job's timeout sits well past it.
+    global BACKFILL
+    BACKFILL = ex.backfill_mode()
+    if BACKFILL:
+        job_start = float(os.environ.get("JOB_START") or 0) or time.time()
+        try:
+            wall_s = float(os.environ.get("BACKFILL_WALL_S") or BACKFILL_WALL_S_DEFAULT)
+        except ValueError:
+            wall_s = BACKFILL_WALL_S_DEFAULT
+        QUOTA.fraction = BACKFILL["share"]
+        QUOTA.deadline = min(job_start + wall_s, BACKFILL["until_s"])
+        print(f"[backfill] MODE ON until {BACKFILL['until']}: ceiling {BACKFILL['share']:.0%} "
+              f"of the hourly limit (the standing 85 % rule is ignored), every run gets "
+              f"the bundle, this run's wall-clock deadline is "
+              f"{_iso(QUOTA.deadline * 1000)} ({(QUOTA.deadline - time.time()) / 60:.0f} min away)",
+              flush=True)
+        write_outputs(**{"backfill.on": 1, "backfill.until": BACKFILL["until"],
+                         "backfill.share": BACKFILL["share"],
+                         "backfill.deadline": _iso(QUOTA.deadline * 1000)})
+    else:
+        write_outputs(**{"backfill.on": 0})
     client = WCLClient()
 
     try:
@@ -1937,6 +1973,11 @@ def main() -> None:
                 release = re.compile(args.release_failed)
             fetch_summaries(regions, args.limit_fights, regear, release,
                             args.fresh_hours)
+            if BACKFILL and not STOP:
+                # the window's older unbundled runs, most useful first, until
+                # the budget or the wall clock says stop (scripts/backfill.py)
+                import backfill
+                backfill.run(regions, deadline_s=QUOTA.deadline)
     except QuotaDeadline as e:
         # Not a failure: the budget is spent and waiting would cost more than
         # the next run does. Keep everything fetched so far and exit 0 so the
