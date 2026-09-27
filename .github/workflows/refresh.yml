@@ -421,7 +421,7 @@ jobs:
           python -u scripts/build_site_data.py
           # Baselines + run store for the Key Level Logs site (scripts/
           # build_baselines.py; keylevel_addon design/baselines-from-wowlogs.md):
-          # site/baselines.json.gz and site/runs/<c>.json.gz from the same
+          # site/baselines.json.gz and site/runs/<hh>.json.gz from the same
           # retention-windowed frame, health lines appended to build_health.txt.
           # A failure here must never stop the dashboard publishing -- the
           # consumer feature-detects the sidecars and works without them.
