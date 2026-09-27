@@ -180,6 +180,13 @@ ever pulled from Warcraft Logs twice (§1). What this repository adds:
   dispel sums). The curated spell lists are the addon's
   `https://st331.github.io/keylevel_addon/data/lists.json`, fetched at the start of every
   refresh run with the last fetched copy, then the vendored `data/lists.json`, as fallbacks.
+* **Pausing the bundle.** Commit an empty `data/bundle.paused` (or set
+  `EXEC_BUNDLE=off` in the environment) and no run gets the bundle: the Summary
+  sweep, the baselines and the run store go on with what is already journaled,
+  and the WCL points the bundle was spending (about 2,900 an hour while the
+  cells fill) stay free for other clients. Delete the file to resume; the gate
+  picks up exactly where its counts left off. `exec.paused` in the health
+  lines says which state a run was in.
 * **The quota gate.** A run gets the bundle only while any of its five
   (spec, dungeon, 2-level band) cells holds fewer than 100 bundled player-rows over the
   trailing 14 days (specs from the sweep roster, class-level when the ranking carries no

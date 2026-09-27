@@ -59,6 +59,22 @@ LISTS_CACHE = ROOT / "data" / "processed" / "lists.json"      # last successful 
 
 QUOTA_ROWS = 100          # bundled player-rows per cell that count as "full"
 QUOTA_DAYS = 14           # trailing window the counter looks back over
+# The pause switch: while data/bundle.paused exists (committed, so the
+# workflow sees it) or EXEC_BUNDLE=off is in the environment, no run gets
+# the bundle -- the Summary sweep, the baselines and the run store go on
+# with what is already journaled. Delete the file (or set EXEC_BUNDLE=on)
+# to resume; the gate then picks up exactly where the counts left off.
+PAUSE_FILE = ROOT / "data" / "bundle.paused"
+
+
+def bundle_paused(env=None, pause_file=None) -> bool:
+    env = os.environ if env is None else env
+    flag = str(env.get("EXEC_BUNDLE", "")).strip().lower()
+    if flag in ("off", "0", "false", "no", "paused"):
+        return True
+    if flag in ("on", "1", "true", "yes"):
+        return False
+    return pathlib.Path(pause_file if pause_file is not None else PAUSE_FILE).exists()
 BAND = 2                  # key levels per band: b18 = 18-19
 CHAIN_WINDOW_MS = 5_000   # another party death within this many ms before own death
 EST_COST_BUNDLE = 7.5     # est_cost per bundled run (measured 6.5-8.5 cold)
@@ -485,10 +501,11 @@ class BundleGate:
     """
 
     def __init__(self, path=None, quota: int = QUOTA_ROWS, days: int = QUOTA_DAYS,
-                 now_ms: float | None = None):
+                 now_ms: float | None = None, paused: bool | None = None):
         self.path = pathlib.Path(path) if path else None
         self.quota = int(quota)
         self.days = int(days)
+        self.paused = bundle_paused() if paused is None else bool(paused)
         self.now_ms = float(now_ms) if now_ms is not None else time.time() * 1000
         self.today = int(self.now_ms // DAY_MS)
         self.cut_day = self.today - self.days + 1        # trailing `days` days inclusive
@@ -531,6 +548,9 @@ class BundleGate:
                    if (k.startswith(prefix) and k.endswith(suffix)) or k == own)
 
     def admits(self, roster, dungeon: str, level) -> bool:
+        if self.paused:
+            self.stats["paused"] += 1
+            return False
         roster = [r for r in (roster or []) if r]
         if not roster or dungeon is None or level is None:
             self.stats["no_roster"] += 1

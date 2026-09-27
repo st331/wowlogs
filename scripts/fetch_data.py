@@ -1308,6 +1308,10 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
           f"recounted in {time.time() - t_gate:.1f}s; lists "
           f"{_lists().get('version', '?')} ({_lists().get('_source', '?')})",
           flush=True)
+    if gate.paused:
+        print("[exec] bundle PAUSED (data/bundle.paused present or EXEC_BUNDLE=off): "
+              "no run gets the bundle this run; the sweep goes on without it",
+              flush=True)
     n_bundle = 0             # runs sent with the bundle this run
     n_exec_rows = 0          # bundled player rows journaled this run
 
@@ -1424,6 +1428,8 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
           f"{n_exec_rows:,} bundled rows journaled; {gate.cells_full():,} cells "
           f"full, {gate.cells_open():,} filling", flush=True)
     write_outputs(**{"exec.bundled_runs": n_bundle,
+                     "exec.paused": int(gate.paused),
+                     "exec.gated_paused": int(gate.stats["paused"]),
                      "exec.gated_full": int(gate.stats["full"]),
                      "exec.gated_no_roster": int(gate.stats["no_roster"]),
                      "exec.rows_journaled": n_exec_rows,

@@ -40,8 +40,19 @@ ROSTER = ["Warrior-Arms", "Rogue-Assassination", "Hunter-Marksmanship",
           "Shaman-Restoration", "DeathKnight-Blood"]
 DUN = "Altar of Fangs"
 
-g = ex.BundleGate(None, now_ms=NOW)
+g = ex.BundleGate(None, now_ms=NOW, paused=False)
 check(g.admits(ROSTER, DUN, 18) is True and g.stats["admitted"] == 1, "fresh counter: admitted")
+gp = ex.BundleGate(None, now_ms=NOW, paused=True)
+check(gp.admits(ROSTER, DUN, 18) is False and gp.stats["paused"] == 1 and gp.stats["admitted"] == 0,
+      "paused: nothing is admitted, and it is counted as paused, not full")
+import tempfile as _tf
+with _tf.TemporaryDirectory() as _d:
+    _pf = pathlib.Path(_d) / "bundle.paused"
+    check(ex.bundle_paused(env={}, pause_file=_pf) is False, "no file, no flag: bundling on")
+    _pf.write_text("paused\n")
+    check(ex.bundle_paused(env={}, pause_file=_pf) is True, "the pause file alone pauses")
+    check(ex.bundle_paused(env={"EXEC_BUNDLE": "on"}, pause_file=_pf) is False, "EXEC_BUNDLE=on overrides the file")
+    check(ex.bundle_paused(env={"EXEC_BUNDLE": "off"}, pause_file=pathlib.Path(_d) / "none") is True, "EXEC_BUNDLE=off pauses without the file")
 check(ex.band_of(18) == 18 and ex.band_of(19) == 18 and ex.band_of(20) == 20 and ex.band_of(11) == 10,
       "band_of: 2-level bands anchored on even levels (b18 = 18-19)")
 check(ex.cell_key("Warrior-Arms", DUN, 19) == "Warrior-Arms|Altar of Fangs|b18", "cell_key format")
@@ -62,11 +73,11 @@ check(g.admits(ROSTER[:1] + ["Mage-Arcane"], DUN, 18) is True, "a roster with on
 check(g.cells_full() == 5 and g.cells_open() == 0, f"cells_full={g.cells_full()}, cells_open={g.cells_open()}")
 
 # --- the trailing window ------------------------------------------------------
-g2 = ex.BundleGate(None, now_ms=NOW)
+g2 = ex.BundleGate(None, now_ms=NOW, paused=False)
 for i in range(ex.QUOTA_ROWS):
     g2.record("Mage-Arcane", DUN, 12, NOW - 13 * DAY)           # 13 days ago: in the window
 check(g2.count("Mage-Arcane", DUN, 12) == 100, "rows 13 days old count")
-g3 = ex.BundleGate(None, now_ms=NOW)
+g3 = ex.BundleGate(None, now_ms=NOW, paused=False)
 for i in range(ex.QUOTA_ROWS):
     g3.record("Mage-Arcane", DUN, 12, NOW - 15 * DAY)           # 15 days ago: out
 check(g3.count("Mage-Arcane", DUN, 12) == 0 and g3.admits(["Mage-Arcane"] * 5, DUN, 12),
@@ -75,12 +86,12 @@ g3.record("Mage-Arcane", DUN, 12, None)
 g3.record("Mage-Arcane", DUN, 12, 0)
 g3.record("Mage-Arcane", DUN, 12, NOW + 30 * DAY)
 check(g3.count("Mage-Arcane", DUN, 12) == 3, "undated / implausible rows count as today")
-later = ex.BundleGate(None, now_ms=NOW + 2 * DAY)
+later = ex.BundleGate(None, now_ms=NOW + 2 * DAY, paused=False)
 later.cells = g2.cells
 check(later.count("Mage-Arcane", DUN, 12) == 0, "the same counts read two days later have slid out")
 
 # --- class-level fallback ---------------------------------------------------------
-g4 = ex.BundleGate(None, now_ms=NOW)
+g4 = ex.BundleGate(None, now_ms=NOW, paused=False)
 for i in range(60):
     g4.record("Warrior-Arms", DUN, 14, NOW)
 for i in range(50):
@@ -109,7 +120,7 @@ with tempfile.TemporaryDirectory() as tmp:
             fh.write(json.dumps(r) + "\n")
         fh.write("\n")                                     # blank line
         fh.write(json.dumps(dict(base, exec=1))[:30])      # torn tail
-    g5 = ex.BundleGate(pathlib.Path(tmp) / "exec_quota.json", now_ms=NOW)
+    g5 = ex.BundleGate(pathlib.Path(tmp) / "exec_quota.json", now_ms=NOW, paused=False)
     n = g5.rebuild(jp)
     check(n == 13 and g5.count("Warrior-Arms", DUN, 18) == 10 and g5.count("Warrior-Fury", DUN, 18) == 2,
           f"rebuild: {n} bundled rows counted (1, 1.0, true), exec 0/null/absent and out-of-window ignored, "
@@ -125,7 +136,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check(ex.BundleGate.load(pathlib.Path(tmp) / "missing.json", now_ms=NOW).cells == {},
           "load: a missing file is an empty counter")
     # record_rows: only exec rows, by the PARSED class/spec
-    g7 = ex.BundleGate(None, now_ms=NOW)
+    g7 = ex.BundleGate(None, now_ms=NOW, paused=False)
     n = g7.record_rows([dict(base, exec=1), dict(base, exec=0), dict(base, exec=1, spec="Fury"),
                         dict(base, exec=1, spec=None)])
     check(n == 3 and g7.count("Warrior-Arms", DUN, 18) == 1 and g7.count("Warrior", DUN, 18) == 3,
