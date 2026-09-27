@@ -276,7 +276,7 @@ with tempfile.TemporaryDirectory() as tmp:
     with fd.PLAYERS_FILE.open("w") as fh:
         for r in j2:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
-    (fd.PROCESSED / bf.MARKERS_NAME).write_text("MarkedCode0004xx:8\tFAILED\tearlier\n")
+    (fd.PROCESSED / bf.MARKERS_NAME).write_text("MarkedCode0004xx:8\tFAILED\tThis report does not exist, or is private.\n")
     _real_fetch = fd._fetch_batch
     fd._fetch_batch = fake_fetch
     fd._OUTPUTS.clear()
@@ -390,6 +390,53 @@ with tempfile.TemporaryDirectory() as tmp:
           and bf.PERMANENT_REPORT.search("rate limit exceeded") is None,
           "only a message that says the report is gone is permanent")
     check(bf.MARKERS_NAME == "backfill_done_v2.txt", "v1 markers (1,312 false FAILED) are never read again")
+    # --- 10. markers: only a gone report is honoured; a parse-error FAILED is not
+    mk = tp / "markers_probe.txt"
+    mk.write_text("GoneRunCode008xx:8\tFAILED\tThis report does not exist.\n"
+                  "ParseRunCode001xx:3\tFAILED\tAttributeError: 'NoneType' object has no attribute 'resolve'\n"
+                  "EmptyRunCode09xx:8\tEMPTY\n"
+                  "NewRunCode0001xx:8\tOK\n")
+    check(bf.load_markers(mk) == {"GoneRunCode008xx:8", "EmptyRunCode09xx:8"},
+          "load_markers: gone report and EMPTY honoured, a parse-error FAILED and OK are not")
+    # --- 11. the sweep's resolver is None here (a second module copy): the backfill brings its own
+    with fd.PLAYERS_FILE.open("a") as fh:
+        for r in plain_rows("a1", "NewRunCode0001xx", 16, NOW_MS - 1 * DAY):
+            fh.write(json.dumps({**r, "report_code": "NoHeroRun00013xx"}, ensure_ascii=False) + "\n")
+    NODE_FOR["NoHeroRun00013xx"] = "a1"
+    NODE_FOR["UniformRun0011xx"] = NODE_FOR["UniformRun0012xx"] = "a1"   # left unmarked by test 9: selected again here
+    fd.fetch_summaries.hero = None
+    fd._fetch_batch = fake_fetch
+    fd._OUTPUTS.clear()
+    try:
+        res7 = bf.run(None, deadline_s=time.time() + 600, now_ms=NOW_MS, listed={})
+    finally:
+        fd._fetch_batch = _real_fetch
+        fd.fetch_summaries.hero = _Hero()
+    check(res7["backfill.bundled_runs"] >= 1 and res7["backfill.failed"] == 0 and res7["backfill.stop"] == "done",
+          f"with no sweep resolver the backfill still bundles ({ {k: v for k, v in res7.items() if k in ('backfill.bundled_runs', 'backfill.failed', 'backfill.transient', 'backfill.stop')} })")
+    # --- 12. a streak of parse failures aborts the run and marks nothing
+    for n in range(bf.PARSE_STREAK_ABORT + 4):
+        code = f"ParseRun{n:04d}xxxxx"[:16]
+        with fd.PLAYERS_FILE.open("a") as fh:
+            for r in plain_rows("a1", "NewRunCode0001xx", 16, NOW_MS - 1 * DAY):
+                fh.write(json.dumps({**r, "report_code": code}, ensure_ascii=False) + "\n")
+        NODE_FOR[code] = "a1"
+    _real_parse = fd.parse_node
+
+    def broken_parse(f, node, hero, run_out=None):
+        raise AttributeError("'NoneType' object has no attribute 'resolve'")
+
+    fd.parse_node = broken_parse
+    fd._fetch_batch = fake_fetch
+    fd._OUTPUTS.clear()
+    try:
+        res8 = bf.run(None, deadline_s=time.time() + 600, now_ms=NOW_MS, listed={})
+    finally:
+        fd.parse_node = _real_parse
+        fd._fetch_batch = _real_fetch
+    marks8 = (fd.PROCESSED / bf.MARKERS_NAME).read_text()
+    check(res8["backfill.stop"] == "parse" and res8["backfill.failed"] == 0 and "ParseRun" not in marks8,
+          f"a parse-failure streak: stop=parse, nothing marked ({ {k: v for k, v in res8.items() if k in ('backfill.stop', 'backfill.failed', 'backfill.transient')} })")
 
 print()
 if fails:

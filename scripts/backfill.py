@@ -57,9 +57,23 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import execution as ex                       # noqa: E402
-import fetch_data as fd                      # noqa: E402
+import fetch_data as _fetch_data_module      # noqa: E402
+
+# The collector runs as `python scripts/fetch_data.py`, so `import fetch_data`
+# from here would load a SECOND copy of the module -- one whose
+# fetch_summaries.hero is None, whose STOP flag never trips and whose health
+# outputs never reach fetch_health.txt (run 4269: every parse failed on the
+# copy's None resolver). Bind to the running module when that is fetch_data.
+_main = sys.modules.get("__main__")
+fd = (_main if getattr(_main, "fetch_summaries", None) is not None
+      and str(getattr(_main, "__file__", "")).endswith("fetch_data.py")
+      else _fetch_data_module)
 from retention import DAY_MS, iso as _iso    # noqa: E402
 from wcl_client import QuotaDeadline, QUOTA  # noqa: E402
+
+
+class ParseStreak(Exception):
+    """Too many parse failures in a row: a bug in this code, not the data."""
 
 WINDOW_DAYS = 14
 LEVEL_MIN = 10
@@ -79,6 +93,7 @@ PERMANENT_REPORT = re.compile(
     r"report.*(do(es)? not exist|not found|private|deleted|invalid)|"
     r"(do(es)? not exist|not found|private|deleted|invalid).*report", re.IGNORECASE)
 LOG_FAILURES = 8            # the first failure messages of a run go to the log
+PARSE_STREAK_ABORT = 20     # this many parse failures in a row = our bug: stop the run
 
 
 # --------------------------------------------------------------------------
@@ -86,14 +101,21 @@ LOG_FAILURES = 8            # the first failure messages of a run go to the log
 # --------------------------------------------------------------------------
 
 def load_markers(path: pathlib.Path) -> set[str]:
-    """Run keys an earlier attempt marked FAILED or EMPTY."""
+    """Run keys an earlier attempt marked EMPTY, or FAILED because the report
+    is gone. A FAILED marker with any other reason (a parse error is our
+    bug, not the report's: run 4269 wrote 2,267 of them with a None
+    resolver) is not honoured, so the run is selected again."""
     out: set[str] = set()
     if not path.exists():
         return out
     with path.open() as fh:
         for line in fh:
             parts = line.rstrip("\n").split("\t")
-            if len(parts) >= 2 and parts[1] in ("FAILED", "EMPTY") and ":" in parts[0]:
+            if len(parts) < 2 or ":" not in parts[0]:
+                continue
+            if parts[1] == "EMPTY":
+                out.add(parts[0])
+            elif parts[1] == "FAILED" and len(parts) >= 3 and PERMANENT_REPORT.search(parts[2] or ""):
                 out.add(parts[0])
     return out
 
@@ -307,6 +329,10 @@ def run(regions=None, deadline_s: float | None = None, now_ms: float | None = No
     stop = "done"
     n_done = 0
     t_fetch = time.time()
+    parse_streak = 0
+    # the sweep's resolver when the sweep ran in this process, else our own
+    # (run 4269: fetch_summaries.hero was None here and every parse failed)
+    hero = getattr(fd.fetch_summaries, "hero", None) or fd.HeroResolver()
     # The sweep may have spent the hour already. When one batch no longer
     # fits under the ceiling and the reset lies past this run's deadline,
     # there is nothing to gain from sending anything: stop here (the first
@@ -370,14 +396,21 @@ def run(regions=None, deadline_s: float | None = None, now_ms: float | None = No
                                 continue
                             run_rec: dict = {}
                             try:
-                                rows, gear_rows = fd.parse_node(f, node, fd.fetch_summaries.hero, run_rec)
+                                rows, gear_rows = fd.parse_node(f, node, hero, run_rec)
                             except (ValueError, KeyError, TypeError, AttributeError) as e:
-                                mark_fh.write(f"{key}\tFAILED\t{type(e).__name__}: {str(e)[:80]}\n")
-                                stats["failed"] += 1
+                                # a parse error is this code's problem, never the
+                                # report's: no marker, the run stays selectable
+                                stats["parse_failed"] += 1
+                                stats["transient"] += 1
+                                parse_streak += 1
                                 if stats["logged"] < LOG_FAILURES:
                                     stats["logged"] += 1
                                     log(f"[backfill] parse failed {key}: {type(e).__name__}: {str(e)[:120]}", flush=True)
+                                if parse_streak >= PARSE_STREAK_ABORT:
+                                    raise ParseStreak(f"{parse_streak} parse failures in a row "
+                                                      f"({type(e).__name__}: {str(e)[:80]})")
                                 continue
+                            parse_streak = 0
                             if not rows or not rows[0].get("exec"):
                                 # asked for, nothing came back: not a bundle,
                                 # and the old rows stand
@@ -415,6 +448,11 @@ def run(regions=None, deadline_s: float | None = None, now_ms: float | None = No
                 stop = "budget"
                 log(f"[backfill] budget: {e}; stopping this run's backfill "
                     f"(the next run continues from the frame)", flush=True)
+                pool.shutdown(wait=False, cancel_futures=True)
+            except ParseStreak as e:
+                stop = "parse"
+                log(f"[backfill] ABORT: {e}; the parser is broken for this data, nothing is "
+                    f"marked, the next run tries again", flush=True)
                 pool.shutdown(wait=False, cancel_futures=True)
     finally:
         rows_fh.close()
