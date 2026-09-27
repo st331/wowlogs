@@ -87,6 +87,18 @@ on:
         description: "Internal: 'fresh' or 'backfill' while draining a backlog; empty for an ordinary run"
         type: string
         default: ""
+      # BUNDLE BACKFILL (owner, 2026-09-27; scripts/backfill.py). The switch
+      # is data/backfill.json, read by the collector itself; this input only
+      # sizes the JOB: a run chained by a run that was in backfill mode gets
+      # the long timeout and the long wall-clock budget, so the chain covers
+      # the switch's whole span in successive runs. A cron-started run with
+      # the switch on backfills for its shorter budget and chains with this
+      # set. Passing it by hand on a dispatch is fine; it changes nothing
+      # once the switch's `until` has passed.
+      bundle_backfill:
+        description: "Internal: 'true' while data/backfill.json is in force (long job + long wall-clock budget for the bundle backfill)"
+        type: string
+        default: ""
   # NO push trigger, deliberately. Every chained run checks out the branch
   # head, so a pipeline change is live within one cadence tick anyway -- and
   # a push-triggered run competes for the single concurrency slot, where the
@@ -110,13 +122,16 @@ permissions:
 
 jobs:
   refresh:
-    if: false  # STOPPED: every Warcraft Logs point is reserved for the vetting site (delete this line to resume)
     runs-on: ubuntu-latest
     # 50 for the scheduled path, so a run never bleeds into the next slot. A
     # gear refetch needs more than one hourly quota window by arithmetic, so it
     # is allowed to sit through the reset rather than stop and wait to be
     # dispatched again.
-    timeout-minutes: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true') && 110 || 50 }}
+    # A bundle-backfill run (see the input) gets 170: it backfills for
+    # BACKFILL_WALL_S (2 h, sleeping to the hourly reset inside that when the
+    # budget is spent early) and still has ~50 minutes for the build, the
+    # deploy, the prune and the cache save before this limit.
+    timeout-minutes: ${{ inputs.bundle_backfill == 'true' && 170 || (inputs.regear_min_key != '' || inputs.drain == 'true') && 110 || 50 }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -311,6 +326,14 @@ jobs:
           # Headroom the client keeps below the ceiling. Nothing else is
           # competing during a deliberate refetch, so it can run to the line.
           WCL_BUDGET_MARGIN: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true') && '20' || '400' }}
+          # BUNDLE BACKFILL: the wall-clock budget, measured from JOB_START
+          # (the Pace step), the collector may spend in backfill mode before
+          # it stops and lets the run build, deploy, save and chain. 2 h in a
+          # run sized for it (170-minute job), 20 min in an ordinary 50-minute
+          # run that finds the switch on (it chains a long one). Only read
+          # while data/backfill.json is in force; the standing WCL_MAX_SLEEP_S
+          # cap above is replaced by this deadline for the same span.
+          BACKFILL_WALL_S: ${{ inputs.bundle_backfill == 'true' && '7200' || '1200' }}
         run: |
           test -n "$WCL_CLIENT_ID" || {
             echo "::error::WCL_CLIENT_ID / WCL_CLIENT_SECRET repository secrets are not set"
@@ -355,6 +378,10 @@ jobs:
           TRINKET_PTS: ${{ steps.drain.outputs.budget_pts }}
           TRINKET_S: ${{ steps.drain.outputs.budget_s }}
           IN_DRAIN: ${{ steps.drain.outputs.procs_drain }}
+          # a bundle-backfill run leaves every Warcraft Logs point to the
+          # backfill: the trinket and keystone collectors sit this run out
+          # (Raider.IO spends no WCL points and runs as always)
+          BUNDLE_BACKFILL: ${{ inputs.bundle_backfill }}
         run: |
           BG="$RUNNER_TEMP/bg"; mkdir -p "$BG"; echo "dir=$BG" >> "$GITHUB_OUTPUT"
           launch() {   # launch <name> <cmd...>: detached, log + exit code in $BG
@@ -362,8 +389,12 @@ jobs:
             setsid nohup bash -c "( $* ); echo \$? > '$BG/$n.rc'" > "$BG/$n.log" 2>&1 < /dev/null &
             echo "started $n (pid $!)"
           }
+          if [ "$BUNDLE_BACKFILL" = "true" ]; then
+            echo "bundle backfill run: trinket and keystone collectors skipped (every WCL point goes to the backfill)"
+          else
           launch trinket "WCL_QUOTA_FRACTION=$TRINKET_FRACTION WCL_BUDGET_MARGIN=$TRINKET_MARGIN python -u scripts/fetch_procs.py --budget-pts $TRINKET_PTS --budget-s $TRINKET_S --since-reset"
-          if [ "$IN_DRAIN" != "true" ]; then
+          fi
+          if [ "$IN_DRAIN" != "true" ] && [ "$BUNDLE_BACKFILL" != "true" ]; then
             # The clock backfill yields to the summaries backlog: while
             # thousands of listed runs are still unfetched after this run's
             # Fetch (summaries.left -- NOT sweep.ledger_only, which counts
@@ -685,11 +716,19 @@ jobs:
       # successor simply retries the restore. (A drain in flight ends on a
       # tripped run, because the empty BACKLOG reads as "done".)
       - name: Chain the next run
-        if: success() && (github.event_name == 'schedule' || inputs.chain == 'true' || inputs.drain == 'true')
+        if: success() && (github.event_name == 'schedule' || inputs.chain == 'true' || inputs.drain == 'true' || inputs.bundle_backfill == 'true')
         env:
           BACKLOG: ${{ steps.fetch.outputs.backlog }}
           RESET_AT: ${{ steps.fetch.outputs.quota_reset_at }}
+          # 1 while data/backfill.json was in force for this run's collector
+          # (fetch_health backfill.on): the successor is sized for a backfill
+          BACKFILL_ON: ${{ steps.fetch.outputs.backfill_on }}
         run: |
+          NEXT_BACKFILL=""
+          if [ "$BACKFILL_ON" = "1" ]; then
+            NEXT_BACKFILL="true"
+            echo "bundle backfill: the switch is in force -> successor is a long backfill run"
+          fi
           # Keep draining only while there is a backlog worth a full-budget
           # run; below the floor the successor is an ordinary chained run and
           # the standing 85% cap is back in force without anyone touching it.
@@ -720,7 +759,7 @@ jobs:
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/refresh.yml/dispatches" \
-            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"mode\":\"$NEXT_MODE\",\"prev_reset_at\":\"${RESET_AT:-}\"}}" \
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"mode\":\"$NEXT_MODE\",\"prev_reset_at\":\"${RESET_AT:-}\",\"bundle_backfill\":\"$NEXT_BACKFILL\"}}" \
             && echo "chained the next run" || echo "chain dispatch failed; the cron dead-man will revive the cadence"
 
       # A failed run does not chain (a deterministic fault would loop), but it
