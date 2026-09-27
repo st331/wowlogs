@@ -1,0 +1,204 @@
+{
+ "version": "12.1-provisional",
+ "generated": "2026-09-27T07:48:04.954Z",
+ "consumables": {
+  "healthstone": 6262,
+  "healing_potion": [
+   1295247
+  ],
+  "combat_potion": [
+   1236994,
+   1236616
+  ]
+ },
+ "dispel": {},
+ "specs": {
+  "Warrior-Arms": {
+   "role": "dps",
+   "kick": {
+    "id": 6552,
+    "name": "Pummel",
+    "cd": 15
+   },
+   "defensives": [
+    {
+     "id": 118038,
+     "name": "Die by the Sword",
+     "cd": 120,
+     "kind": "major",
+     "baseline": true
+    },
+    {
+     "id": 23920,
+     "name": "Spell Reflection",
+     "cd": 25,
+     "kind": "minor",
+     "baseline": true
+    },
+    {
+     "id": 97462,
+     "name": "Rallying Cry",
+     "cd": 180,
+     "kind": "major",
+     "baseline": true
+    },
+    {
+     "id": 386208,
+     "name": "Defensive Stance",
+     "cd": 3,
+     "kind": "minor",
+     "baseline": true
+    }
+   ],
+   "selfheals": [
+    {
+     "id": 202168,
+     "name": "Impending Victory",
+     "cd": 30
+    }
+   ],
+   "cc": [],
+   "active_mitigation": []
+  },
+  "Rogue-Assassination": {
+   "role": "dps",
+   "kick": {
+    "id": 1766,
+    "name": "Kick",
+    "cd": 15
+   },
+   "defensives": [
+    {
+     "id": 5277,
+     "name": "Evasion",
+     "cd": 120,
+     "kind": "major",
+     "baseline": true
+    },
+    {
+     "id": 31224,
+     "name": "Cloak of Shadows",
+     "cd": 120,
+     "kind": "immunity",
+     "baseline": true
+    },
+    {
+     "id": 1966,
+     "name": "Feint",
+     "cd": 15,
+     "kind": "minor",
+     "baseline": true
+    }
+   ],
+   "selfheals": [
+    {
+     "id": 185311,
+     "name": "Crimson Vial",
+     "cd": 30
+    }
+   ],
+   "cc": [],
+   "active_mitigation": []
+  },
+  "Hunter-Marksmanship": {
+   "role": "dps",
+   "kick": {
+    "id": 147362,
+    "name": "Counter Shot",
+    "cd": 24
+   },
+   "defensives": [
+    {
+     "id": 264735,
+     "name": "Survival of the Fittest",
+     "cd": 120,
+     "kind": "major",
+     "baseline": true
+    },
+    {
+     "id": 186265,
+     "name": "Aspect of the Turtle",
+     "cd": 180,
+     "kind": "immunity",
+     "baseline": true
+    }
+   ],
+   "selfheals": [
+    {
+     "id": 109304,
+     "name": "Exhilaration",
+     "cd": 120
+    }
+   ],
+   "cc": [],
+   "active_mitigation": []
+  },
+  "Shaman-Restoration": {
+   "role": "healer",
+   "kick": {
+    "id": 57994,
+    "name": "Wind Shear",
+    "cd": 12
+   },
+   "defensives": [
+    {
+     "id": 108271,
+     "name": "Astral Shift",
+     "cd": 120,
+     "kind": "major",
+     "baseline": true
+    }
+   ],
+   "selfheals": [],
+   "cc": [],
+   "active_mitigation": []
+  },
+  "DeathKnight-Blood": {
+   "role": "tank",
+   "kick": {
+    "id": 47528,
+    "name": "Mind Freeze",
+    "cd": 15
+   },
+   "defensives": [
+    {
+     "id": 48792,
+     "name": "Icebound Fortitude",
+     "cd": 180,
+     "kind": "major",
+     "baseline": true
+    },
+    {
+     "id": 48707,
+     "name": "Anti-Magic Shell",
+     "cd": 60,
+     "kind": "minor",
+     "baseline": true
+    },
+    {
+     "id": 55233,
+     "name": "Vampiric Blood",
+     "cd": 90,
+     "kind": "major",
+     "baseline": true
+    }
+   ],
+   "selfheals": [
+    {
+     "id": 48743,
+     "name": "Death Pact",
+     "cd": 120
+    }
+   ],
+   "cc": [],
+   "active_mitigation": [
+    {
+     "id": 195181,
+     "name": "Bone Shield",
+     "buff_id": 195181
+    }
+   ]
+  }
+ },
+ "dungeons": {}
+}
