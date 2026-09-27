@@ -8,7 +8,9 @@ and visualizes Mythic+ performance for **Midnight Season 2**, built on the
 scripts/wcl_client.py        quota-aware WCL GraphQL client
 scripts/build_hero_map.py    trait-node → hero-talent mapping from SimC data
 scripts/fetch_data.py        checkpointed collection pipeline → data/mythic_runs.csv.gz
+scripts/execution.py         the execution bundle: five extra tables per gated run + the quota gate
 scripts/build_site_data.py   packs the CSV into site/data.json (+ sidecars)
+scripts/build_baselines.py   site/baselines.json.gz + site/runs/<hh>.json.gz for the Key Level Logs site
 scripts/fetch_abilities.py   per-ability damage breakdown (tuning projection)
 scripts/project_tuning.py    re-scores parses under an announced tuning pass
 scripts/hero_from_abilities.py  recovers hero talents from the abilities cast
@@ -154,6 +156,55 @@ One row per player per run.
 | `item_level` | player max item level during the run |
 | `score`, `medal` | WCL points/medal for the run |
 | `report_code`, `fight_id`, `started_at` | provenance of the parse |
+| `exec` | 1 when the execution bundle was fetched for the run, 0 when not, empty on rows older than the bundle |
+| `pots`, `hs`, `deaths_chain` | potions and healthstones used; own deaths within 5 s of another party death (from the Summary; empty on older rows) |
+| `kicks`, `kicks_by` | interrupts landed, and per enemy spell id (`guid:n\|guid:n`, `none` when zero); empty unless `exec` = 1 |
+| `dispels`, `dispels_by` | dispels landed, same shape |
+| `avoid_dmg`, `def_casts` | damage taken from the dungeon's avoidable list; casts of the spec's defensives/self-heals/consumables |
+| `heal_total`, `heal_over` | healing done and overhealing |
+
+## Execution bundle and baselines sidecars
+
+The [Key Level Logs](https://st331.github.io/keylevel_addon/) vetting site scores an
+applicant's runs against this collector's population. Its contract is
+`keylevel_addon/design/baselines-from-wowlogs.md`; the rule it enforces is that no run is
+ever pulled from Warcraft Logs twice (§1). What this repository adds:
+
+* **The bundle** (`scripts/execution.py`, wired into `fetch_data.py`). For a gated run the
+  per-run request carries five more tables under the same alias as its Summary --
+  Interrupts, Dispels, DamageTaken filtered to the dungeon's avoidable list, Casts filtered
+  to the roster's defensive/self-heal/consumable kit, Healing (design doc §4, exact
+  GraphQL in `execution.bundle_subquery`). They parse into the per-player columns above
+  (zero-filled for a player a table omits, empty when the table was not fetched) and a
+  run-level record in `data/processed/runs.jsonl` (the run's per-spell interrupt and
+  dispel sums). The curated spell lists are the addon's
+  `https://st331.github.io/keylevel_addon/data/lists.json`, fetched at the start of every
+  refresh run with the last fetched copy, then the vendored `data/lists.json`, as fallbacks.
+* **The quota gate.** A run gets the bundle only while any of its five
+  (spec, dungeon, 2-level band) cells holds fewer than 100 bundled player-rows over the
+  trailing 14 days (specs from the sweep roster, class-level when the ranking carries no
+  spec). The counter is rebuilt from the players journal at every start, consulted per
+  batch as it is submitted, and saved beside the checkpoints (`data/processed/exec_quota.json`).
+  Measured on the CSV: ~4,600 of ~9,000 runs/day at key >= 10 are admitted, every cell the
+  population can fill reaches its quota, rare specs stay at ~100 % coverage.
+* **The cost.** +1.0 point per table per run inside the same request (6.0 warm, 6.5--8.5
+  cold for the six); the governor reserves `est_cost` 7.5 for a bundled run and 2.6 as
+  before for a Summary-only one. Expected load: **+≈960 points/hour**, ≈11,000/hour in
+  total against the standing 85 % ceiling of 15,300 -- the cap, the sweep cadence and the
+  retention policy are untouched.
+* **The sidecars** (`scripts/build_baselines.py`, run by the refresh workflow right after
+  `build_site_data.py`, from the same retention-windowed frame; `site/**` deploys as before):
+  `site/baselines.json.gz` (design doc §2: per spec x dungeon x level cell at three tiers,
+  quantiles [5,10,25,50,75,90,95] of every measure over timed leaderboard runs, plus the
+  per-dungeon priority and dispellable tables) and `site/runs/<hh>.json.gz` (§3: every run
+  in the window at +10 and up, whatever its medal, in 256 shards keyed by a hash of the
+  report code -- `h = (h*31 + ord(ch)) mod 256` over its first four characters, two
+  lowercase hex digits, the same arithmetic as the client's `charCodeAt` form -- every
+  shard written so a fetch never 404s, with the stored per-player rows; a field the
+  collector did not fetch is omitted and `"exec": false` says so). Health lines
+  `baselines.*` land in `build_health.txt`, sizes and the largest shard included, with a
+  flag when the set is over the 40 MB budget (13 MB gzipped today with no
+  bundled rows; ~27 MB projected once half the runs carry the bundle).
 
 ## Tests
 
@@ -168,5 +219,8 @@ for t in scripts/test_*.py; do python3 "$t" >/dev/null && echo "ok   $t" || echo
 `test_prune_journals.py` (the pruner), `test_procs.py` (the page's static contract),
 `test_builds_sidecar.py`, `test_stats_sidecar_roundtrip.py`, `test_spec_stats.py`,
 `test_trait_union.py`, `test_legacy_single_pass.py`, `test_names_scan.py`,
-`test_gear_parse.py`, `test_export_stream.py`, `test_quota_ceiling.py`, `test_build_entry.py`.
+`test_gear_parse.py`, `test_export_stream.py`, `test_quota_ceiling.py`, `test_build_entry.py`,
+`test_execution_bundle.py` (the bundle's parsers on the real fixture), `test_exec_gate.py`
+(the quota gate), `test_exec_wiring.py` (the request, the caller's path, export and seed),
+`test_build_baselines.py` (cells, tiers, shards, the round trip).
 

@@ -44,6 +44,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wcl_client import WCLClient, QuotaDeadline
 from retention import (RETENTION_DISK_DAYS, DATED, UNDATED, IMPLAUSIBLE, date_class,
                        disk_cut_ms, in_window, iso as _iso)
+import execution as ex
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
@@ -69,6 +70,20 @@ GEAR_CSV = ROOT / "data" / "gear.jsonl.gz"
 # and pandas reads/writes .csv.gz transparently
 CSV_FILE = ROOT / "data" / "mythic_runs.csv.gz"
 HERO_MAP_FILE = ROOT / "data" / "hero_talent_map.json"
+# The execution bundle (scripts/execution.py; keylevel_addon's
+# design/baselines-from-wowlogs.md). LISTS is the curated spell-list document,
+# loaded once per run by main() -- fetched from the addon's Pages, else the
+# last fetched copy, else the vendored data/lists.json. The gate's counter
+# lives beside the other checkpoints (data/processed rides the Actions
+# cache) and is rebuilt from the players journal at every start anyway.
+LISTS: dict | None = None
+EXEC_GATE_FILE = PROCESSED / "exec_quota.json"
+# Run-level journal: one record per fetched run -- the exec flag and the
+# run's per-spell Interrupts / Dispels sums, which build_baselines.py sums
+# into the population priority and dispellable tables. Cache-only, pruned by
+# run key like gear.jsonl; a cold start rebuilds it from nothing (the tables
+# refill as runs are fetched), the per-player columns ride the CSV seed.
+RUNS_FILE = PROCESSED / "runs.jsonl"
 
 # GraphQL error messages that mean a report can never be fetched (vs. a
 # transient server problem, which must NOT poison the checkpoint journal)
@@ -474,6 +489,12 @@ def load_fights(regions: set[str] | None) -> dict:
                 # IMPLAUSIBLE (kept, counted apart), never as "undated"
                 "start_time": (r.get("startTime") if r.get("startTime") is not None
                                else (prev or {}).get("start_time")),
+                # the roster's specs ("Class-Spec", class alone when the
+                # entry carries no spec): what the execution bundle's quota
+                # gate and its casts filter are decided from BEFORE the
+                # report is fetched. Ledger rows written before this existed
+                # lack it and are fetched Summary-only.
+                "specs": ex.roster_specs(r.get("team")),
             }
     load_fights.anon_skipped = anon
     if regions:
@@ -766,8 +787,30 @@ def pack_sets(counts: dict[str, int] | None) -> str | None:
     return "|".join(f"{k}:{v}" for k, v in sorted(counts.items()))
 
 
-def parse_summary(fight: dict, table: dict,
-                  hero: HeroResolver) -> tuple[list[dict], list[dict]]:
+def _bundle_columns(d: dict | None) -> dict:
+    """The eight bundle columns for one player row: None across the board
+    when the bundle was not fetched, the kicks_by / dispels_by dicts packed
+    as strings so the journal row and the CSV carry the same value."""
+    if not d:
+        return {c: None for c in ex.BUNDLE_COLUMNS}
+    out = {c: d.get(c) for c in ex.BUNDLE_COLUMNS}
+    out["kicks_by"] = ex.pack_by(d.get("kicks_by"))
+    out["dispels_by"] = ex.pack_by(d.get("dispels_by"))
+    return out
+
+
+def parse_summary(fight: dict, table: dict, hero: HeroResolver,
+                  bundle: dict | None = None,
+                  run_out: dict | None = None) -> tuple[list[dict], list[dict]]:
+    """Player rows (+ gear rows) from one run's Summary table.
+
+    `bundle` is the report node when the execution bundle was requested
+    (the five extra tables under their aliases, see execution.parse_tables);
+    the rows then carry exec = 1 and the eight bundle columns. Every row
+    written since the bundle landed carries the Summary-derived pots / hs /
+    deaths_chain regardless. `run_out`, when given, is filled with the
+    run-level record for the runs journal (exec flag, per-spell sums).
+    """
     data = table.get("data") if isinstance(table, dict) else None
     if not isinstance(data, dict):
         raise ValueError("no summary data")
@@ -789,6 +832,31 @@ def parse_summary(fight: dict, table: dict,
         # the dashboard measures damage and nothing else, so a summary table
         # without a damageDone section has nothing we can use
         raise ValueError("no damage data")
+
+    # the execution bundle (scripts/execution.py): party actor ids first,
+    # then the per-player tables (None for every player when a table did not
+    # come back) and the death chain off the Summary's own deathEvents
+    party_ids = [p.get("id") for rk in ("tanks", "healers", "dps")
+                 for p in details.get(rk) or [] if isinstance(p, dict)]
+    chain = ex.deaths_chain(data.get("deathEvents"), party_ids)
+    per_exec: dict = {}
+    int_spells: dict = {}
+    dispel_spells: dict = {}
+    exec_flag = 0
+    if bundle:
+        per_exec, int_spells, dispel_spells, present = ex.parse_tables(
+            bundle, party_ids, ex.pet_owners(bundle))
+        # requested but nothing came back (every alias errored): not fetched
+        exec_flag = int(any(present.values()))
+    if run_out is not None:
+        run_out.update({
+            "report_code": fight["code"], "fight_id": fight["fid"],
+            "started_at": fight.get("start_time"),
+            "dungeon": fight["dungeon"], "key_level": fight["key_level"],
+            "exec": bool(exec_flag),
+            "int_spells": int_spells if exec_flag else None,
+            "dispel_spells": dispel_spells if exec_flag else None,
+        })
 
     rows: list[dict] = []
     gear_rows: list[dict] = []
@@ -848,6 +916,13 @@ def parse_summary(fight: dict, table: dict,
                 # journal that --resweep wipes and a file committed once a day)
                 "keystone_s": (round(fight["rank_duration_ms"] / 1000, 1)
                                if fight.get("rank_duration_ms") else None),
+                # the execution bundle's columns, appended AFTER every column
+                # the CSV already had so the export's column order is
+                # unchanged (rows written before this lack the keys)
+                "exec": exec_flag,
+                **ex.summary_player_fields(p),
+                "deaths_chain": chain.get(p.get("id")),
+                **_bundle_columns(per_exec.get(p.get("id")) if exec_flag else None),
             })
     if not rows:
         raise ValueError("no players parsed")
@@ -857,9 +932,13 @@ def parse_summary(fight: dict, table: dict,
 _tls = threading.local()
 
 
-def parse_node(fight: dict, node: dict, hero: HeroResolver
-               ) -> tuple[list[dict], list[dict]]:
+def parse_node(fight: dict, node: dict, hero: HeroResolver,
+               run_out: dict | None = None) -> tuple[list[dict], list[dict]]:
     """The summary stage's ONLY way into parse_summary.
+
+    A node carrying any of the bundle's table aliases is a bundled run: the
+    node itself is handed down as the bundle (execution.parse_tables reads
+    the aliases it knows and treats a missing one as "not fetched").
 
     This seam exists because of a five-day outage. The flask removal (8c89701,
     2026-08-27) took the CombatantInfo-events argument off parse_summary but
@@ -872,7 +951,8 @@ def parse_node(fight: dict, node: dict, hero: HeroResolver
     suite now goes through this function with a node of the exact shape the
     batch query returns, so the caller's arity is under test.
     """
-    return parse_summary(fight, node["table"], hero)
+    bundle = node if any(k in node for k in ex.BUNDLE_TABLES) else None
+    return parse_summary(fight, node["table"], hero, bundle=bundle, run_out=run_out)
 
 
 # A parse exception that fires on EVERY report is a code bug, not a bad
@@ -1009,26 +1089,59 @@ def _worker_client() -> WCLClient:
     return _tls.client
 
 
-def batch_query(batch: list[dict]) -> str:
+def _lists() -> dict:
+    """The lists document main() loaded, or the fallback copy when a caller
+    (a test, --stage export) never went through main()."""
+    global LISTS
+    if LISTS is None:
+        LISTS = ex.load_lists(fetch=False)
+    return LISTS
+
+
+def batch_query(batch: list[dict], lists: dict | None = None) -> str:
     """The aliased GraphQL request for one batch of runs.
 
-    Per run: the Summary table alone -- damage, deaths, gear, talents. The
-    flask feature briefly added a CombatantInfo-events sub-query here (the
+    Per run: the Summary table alone -- damage, deaths, gear, talents -- or,
+    for a run the quota gate admitted (fight["_bundle"], set by the summary
+    stage just before the batch is submitted), the six-table execution
+    bundle (execution.bundle_subquery): Summary + Interrupts + Dispels +
+    DamageTaken filtered to the dungeon's avoidable list + Casts filtered to
+    the roster's kit + Healing, all under the same alias. The Summary keeps
+    its alias `table` either way, so the caller reads one node shape.
+
+    The flask feature briefly added a CombatantInfo-events sub-query here (the
     only place aura lists appear, ~1 pt/run more); the owner removed it, so
     re-enabling flask collection means restoring that sub-query -- see git
     history at 82fb19e -- not touching anything else.
     """
+    lists = lists if lists is not None else _lists()
     parts = []
     for i, f in enumerate(batch):
-        parts.append(
-            f'a{i}: report(code: "{f["code"]}") '
-            f'{{ table(fightIDs: [{f["fid"]}], dataType: Summary) }}'
-        )
+        if f.get("_bundle"):
+            parts.append(ex.bundle_subquery(
+                f"a{i}", f["code"], f["fid"],
+                ex.avoidable_ids(lists, f.get("dungeon")),
+                ex.kit_ids(lists, f.get("specs") or [])))
+        else:
+            parts.append(
+                f'a{i}: report(code: "{f["code"]}") '
+                f'{{ table(fightIDs: [{f["fid"]}], dataType: Summary) }}'
+            )
     return "{ reportData { " + " ".join(parts) + " } }"
 
 
+SUMMARY_EST_COST = 2.6      # per Summary-only run (measured 1.47 cold; 1.8x conservative)
+
+
+def batch_est_cost(batch: list[dict]) -> float:
+    """What the governor reserves for one request: the bundle's measured
+    cold cost for gated runs, the standing estimate for the rest."""
+    return sum(ex.EST_COST_BUNDLE if f.get("_bundle") else SUMMARY_EST_COST
+               for f in batch)
+
+
 def _fetch_batch(batch: list[dict]):
-    """Worker: fetch one aliased batch of Summary tables.
+    """Worker: fetch one aliased batch of Summary tables (+ bundles).
 
     Returns (batch, reportData|None, alias->error map, points).  reportData
     None means the whole request failed after retries -> requeue, don't
@@ -1036,7 +1149,7 @@ def _fetch_batch(batch: list[dict]):
     """
     client = _worker_client()
     try:
-        data = client.query(batch_query(batch), est_cost=2.6 * len(batch))
+        data = client.query(batch_query(batch), est_cost=batch_est_cost(batch))
     except RuntimeError as e:
         print(f"[summaries] batch failed, will requeue: {e}", flush=True)
         return batch, None, {}, client.spent
@@ -1175,9 +1288,38 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     _repair_tail(SUMMARIES_DONE)
     _repair_tail(PLAYERS_FILE)
     _repair_tail(GEAR_FILE)
+    _repair_tail(RUNS_FILE)
     done_fh = SUMMARIES_DONE.open("a")
     rows_fh = PLAYERS_FILE.open("a")
     gear_fh = GEAR_FILE.open("a")
+    runs_fh = RUNS_FILE.open("a")
+    # The execution bundle's quota gate (scripts/execution.py, design doc
+    # §4): recounted from the players journal now, consulted per batch AS IT
+    # IS SUBMITTED -- so a cell that fills mid-run closes for the batches
+    # behind it -- updated as rows are written, saved with the checkpoints.
+    # Lists come from main() (fetched, else cached, else vendored).
+    t_gate = time.time()
+    gate = ex.BundleGate(EXEC_GATE_FILE)
+    gate_rows = gate.rebuild(PLAYERS_FILE)
+    gate.save()
+    print(f"[exec] quota gate: {gate_rows:,} bundled rows in the trailing "
+          f"{gate.days} days across {len(gate.cells):,} cells "
+          f"({gate.cells_full():,} at the quota of {gate.quota}); "
+          f"recounted in {time.time() - t_gate:.1f}s; lists "
+          f"{_lists().get('version', '?')} ({_lists().get('_source', '?')})",
+          flush=True)
+    n_bundle = 0             # runs sent with the bundle this run
+    n_exec_rows = 0          # bundled player rows journaled this run
+
+    def gated(b: list[dict]) -> list[dict]:
+        """Decide the bundle per run the moment its batch is submitted."""
+        nonlocal n_bundle
+        for f in b:
+            f["_bundle"] = gate.admits(f.get("specs"), f.get("dungeon"),
+                                       f.get("key_level"))
+            n_bundle += int(f["_bundle"])
+        return b
+
     n_done, t0 = 0, time.time()
     n_ok = n_perm = n_parse = 0
     retry_round = 0
@@ -1192,7 +1334,7 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
         # Workers only do HTTP; all journal writes happen on this thread.
         with ThreadPoolExecutor(max_workers=SUMMARY_WORKERS) as pool:
             it = iter(batches)
-            futures = {pool.submit(_fetch_batch, b) for b in
+            futures = {pool.submit(_fetch_batch, gated(b)) for b in
                        (next(it, None) for _ in range(SUMMARY_WORKERS * 2)) if b}
             while futures:
                 fut = next(as_completed(futures))
@@ -1214,9 +1356,10 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
                             else:
                                 transient.append(f)
                             continue
+                        run_rec: dict = {}
                         try:
                             rows, gear_rows = parse_node(
-                                f, node, fetch_summaries.hero)
+                                f, node, fetch_summaries.hero, run_rec)
                         except (ValueError, KeyError, TypeError,
                                 AttributeError) as e:
                             # the exception CLASS is recorded so a systemic
@@ -1231,6 +1374,10 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
                         for row in gear_rows:
                             gear_fh.write(
                                 json.dumps(row, ensure_ascii=False) + "\n")
+                        if run_rec:
+                            runs_fh.write(
+                                json.dumps(run_rec, ensure_ascii=False) + "\n")
+                        n_exec_rows += gate.record_rows(rows)
                         done_fh.write(f"{key}\tOK\n")
                         n_ok += 1
                     # rows must hit disk before their OK markers: a kill
@@ -1240,6 +1387,7 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
                     # landed would never be refetched.
                     rows_fh.flush()
                     gear_fh.flush()
+                    runs_fh.flush()
                     done_fh.flush()
                 n_done += 1
                 if n_done % 20 == 0:
@@ -1250,10 +1398,11 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
                           f"{spent:.0f} pts this window", flush=True)
                 if n_done % EXPORT_EVERY == 0:
                     export()
+                    gate.save()
                 if not STOP:
                     nxt = next(it, None)
                     if nxt:
-                        futures.add(pool.submit(_fetch_batch, nxt))
+                        futures.add(pool.submit(_fetch_batch, gated(nxt)))
         pending = transient
         retry_round += 1
     if pending:
@@ -1262,11 +1411,28 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
     done_fh.close()
     rows_fh.close()
     gear_fh.close()
+    runs_fh.close()
+    gate.save()
     # Always printed, even when nothing was attempted, so a healthy run and a
     # silent one can be told apart from the log alone.
     parsed = n_ok + n_parse
     print(f"[summaries] outcome: {n_ok:,} journaled, {n_parse:,} failed to "
           f"parse, {n_perm:,} permanently unavailable", flush=True)
+    print(f"[exec] bundle: {n_bundle:,} runs requested with it "
+          f"({gate.stats['full']:,} gated out with every cell at quota, "
+          f"{gate.stats['no_roster']:,} without a roster), "
+          f"{n_exec_rows:,} bundled rows journaled; {gate.cells_full():,} cells "
+          f"full, {gate.cells_open():,} filling", flush=True)
+    write_outputs(**{"exec.bundled_runs": n_bundle,
+                     "exec.gated_full": int(gate.stats["full"]),
+                     "exec.gated_no_roster": int(gate.stats["no_roster"]),
+                     "exec.rows_journaled": n_exec_rows,
+                     "exec.rows_window": gate_rows + n_exec_rows,
+                     "exec.cells_full": gate.cells_full(),
+                     "exec.cells_open": gate.cells_open(),
+                     "exec.quota": gate.quota,
+                     "exec.lists_version": _lists().get("version", "?"),
+                     "exec.lists_source": _lists().get("_source", "?")})
     # what the next run still has to fetch (parse failures carry a FAILED
     # marker until released, so they leave the pending set too)
     write_outputs(**{"summaries.left":
@@ -1725,6 +1891,13 @@ def main() -> None:
     signal.signal(signal.SIGINT, _handle_stop)
     signal.signal(signal.SIGTERM, _handle_stop)
     fetch_summaries.hero = HeroResolver()
+    # The curated spell lists, at the start of every refresh run: the copy
+    # the addon publishes, else the last fetched copy, else the vendored
+    # one -- never a failed run (execution.load_lists never raises).
+    global LISTS
+    LISTS = ex.load_lists()
+    write_outputs(**{"lists.version": LISTS.get("version", "?"),
+                     "lists.source": LISTS.get("_source", "?")})
     client = WCLClient()
 
     try:

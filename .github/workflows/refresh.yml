@@ -419,6 +419,14 @@ jobs:
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         run: |
           python -u scripts/build_site_data.py
+          # Baselines + run store for the Key Level Logs site (scripts/
+          # build_baselines.py; keylevel_addon design/baselines-from-wowlogs.md):
+          # site/baselines.json.gz and site/runs/<hh>.json.gz from the same
+          # retention-windowed frame, health lines appended to build_health.txt.
+          # A failure here must never stop the dashboard publishing -- the
+          # consumer feature-detects the sidecars and works without them.
+          python -u scripts/build_baselines.py \
+            || echo "::warning::baselines/run-store build failed; site published without them"
           # Embellishment identity has now failed twice in
           # production, both times silently. The verdict token is
           # the first line of the [emb] block; surface it as an

@@ -274,6 +274,7 @@ def prune(d: pathlib.Path, now_s: float | None = None, days: int = RETENTION_DIS
 
     # non-players journals FIRST (a crash leaves them a subset of players)
     for name, fn in (("gear.jsonl", by_key), ("procs.jsonl", by_key),
+                     ("runs.jsonl", by_key),        # the execution bundle's run-level journal
                      ("procs_failed.txt", failed_keep), ("discovered.jsonl", ledger_keep)):
         k, dr = rewrite(d / name, fn, dry_run)
         counts[f"{name}_kept"], counts[f"{name}_dropped"] = k, dr
