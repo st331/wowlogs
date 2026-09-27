@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import sys
 import time
 from collections import Counter
@@ -58,15 +59,26 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import execution as ex                       # noqa: E402
 import fetch_data as fd                      # noqa: E402
 from retention import DAY_MS, iso as _iso    # noqa: E402
-from wcl_client import QuotaDeadline         # noqa: E402
+from wcl_client import QuotaDeadline, QUOTA  # noqa: E402
 
 WINDOW_DAYS = 14
 LEVEL_MIN = 10
 PASSES = (("band_lt20", "band", 20), ("band_lt100", "band", 100),
           ("exact_lt20", "exact", 20), ("exact_lt100", "exact", 100),
           ("rest", None, None))
-MARKERS_NAME = "backfill_done.txt"
+# v2: the first backfill run (2026-09-27 18:01Z) wrote 1,312 FAILED markers
+# in two minutes against an exhausted hourly window -- every alias came
+# back with an error, none of them about the report -- so v1 markers are
+# not read any more; a marker is only FAILED when the message names the
+# report as gone (PERMANENT_REPORT below).
+MARKERS_NAME = "backfill_done_v2.txt"
 IDENT = ["report_code", "fight_id", "character", "server"]
+# a per-alias error that really means the report is gone: it must mention
+# the report and say it does not exist / is private / was deleted
+PERMANENT_REPORT = re.compile(
+    r"report.*(do(es)? not exist|not found|private|deleted|invalid)|"
+    r"(do(es)? not exist|not found|private|deleted|invalid).*report", re.IGNORECASE)
+LOG_FAILURES = 8            # the first failure messages of a run go to the log
 
 
 # --------------------------------------------------------------------------
@@ -295,6 +307,18 @@ def run(regions=None, deadline_s: float | None = None, now_ms: float | None = No
     stop = "done"
     n_done = 0
     t_fetch = time.time()
+    # The sweep may have spent the hour already. When one batch no longer
+    # fits under the ceiling and the reset lies past this run's deadline,
+    # there is nothing to gain from sending anything: stop here (the first
+    # run churned through 1,312 runs against an exhausted window).
+    if batches and deadline_s is not None:
+        need = fd.batch_est_cost(batches[0])
+        if QUOTA.spent + need > QUOTA.ceiling and time.time() + QUOTA.reset_in + 20 > deadline_s:
+            it = iter(())
+            stop = "budget"
+            log(f"[backfill] budget: the hour is spent ({QUOTA.spent:.0f}/{QUOTA.ceiling:.0f} pts) "
+                f"and the reset ({QUOTA.reset_in:.0f}s away) lies past the deadline; nothing sent",
+                flush=True)
     try:
         with ThreadPoolExecutor(max_workers=fd.SUMMARY_WORKERS) as pool:
             futures = set()
@@ -319,16 +343,30 @@ def run(regions=None, deadline_s: float | None = None, now_ms: float | None = No
                     if rep is None:
                         stats["transient"] += len(batch)
                     else:
+                        # every alias failing with the same message is the
+                        # request's problem (budget, auth, a bad filter), not
+                        # the reports': transient, and logged
+                        msgs = {errmap.get(f"a{i}", "") for i in range(len(batch))}
+                        uniform = len(batch) > 1 and len(msgs) == 1 and next(iter(msgs))
+                        if uniform and stats["logged"] < LOG_FAILURES:
+                            stats["logged"] += 1
+                            log(f"[backfill] whole batch errored: {uniform[:160]}", flush=True)
                         for i, f in enumerate(batch):
                             key = f"{f['code']}:{f['fid']}"
                             node = rep.get(f"a{i}")
                             if not node or not node.get("table"):
                                 msg = errmap.get(f"a{i}", "")
-                                if msg and fd.PERMANENT_ERROR.search(msg):
+                                if msg and not uniform and PERMANENT_REPORT.search(msg):
                                     mark_fh.write(f"{key}\tFAILED\t{msg[:100]}\n")
                                     stats["failed"] += 1
+                                    if stats["logged"] < LOG_FAILURES:
+                                        stats["logged"] += 1
+                                        log(f"[backfill] failed {key}: {msg[:160]}", flush=True)
                                 else:
                                     stats["transient"] += 1
+                                    if msg and stats["logged"] < LOG_FAILURES:
+                                        stats["logged"] += 1
+                                        log(f"[backfill] transient {key}: {msg[:160]}", flush=True)
                                 continue
                             run_rec: dict = {}
                             try:
@@ -336,6 +374,9 @@ def run(regions=None, deadline_s: float | None = None, now_ms: float | None = No
                             except (ValueError, KeyError, TypeError, AttributeError) as e:
                                 mark_fh.write(f"{key}\tFAILED\t{type(e).__name__}: {str(e)[:80]}\n")
                                 stats["failed"] += 1
+                                if stats["logged"] < LOG_FAILURES:
+                                    stats["logged"] += 1
+                                    log(f"[backfill] parse failed {key}: {type(e).__name__}: {str(e)[:120]}", flush=True)
                                 continue
                             if not rows or not rows[0].get("exec"):
                                 # asked for, nothing came back: not a bundle,

@@ -347,6 +347,49 @@ with tempfile.TemporaryDirectory() as tmp:
     health = (fd.PROCESSED / "fetch_health.txt").read_text()
     check("backfill.stop=budget" in health and "backfill.selected=1" in health and "backfill.pass_rest=" in health,
           "backfill.* health lines land in fetch_health.txt")
+    # --- 8. the hour already spent by the sweep, reset past the deadline: nothing is sent
+    sent = []
+
+    def counting_fetch(batch):
+        sent.append(batch)
+        return fake_fetch(batch)
+
+    saved = (W.QUOTA.spent, W.QUOTA.reset_in, W.QUOTA.limit, W.QUOTA.fraction)
+    W.QUOTA.limit, W.QUOTA.fraction = 18000.0, 1.0
+    W.QUOTA.spent, W.QUOTA.reset_in = 17999.0, 3000.0
+    fd._fetch_batch = counting_fetch
+    fd._OUTPUTS.clear()
+    try:
+        res5 = bf.run(None, deadline_s=time.time() + 600, now_ms=NOW_MS, listed={})
+    finally:
+        fd._fetch_batch = _real_fetch
+        W.QUOTA.spent, W.QUOTA.reset_in, W.QUOTA.limit, W.QUOTA.fraction = saved
+    check(res5["backfill.stop"] == "budget" and not sent and res5["backfill.failed"] == 0 and res5["backfill.left"] == 1,
+          "a spent hour with the reset past the deadline: stop=budget before a single request, nothing marked")
+    # --- 9. every alias failing with one message is the request's problem: transient, never FAILED
+    def uniform_fetch(batch):
+        rep = {f"a{i}": None for i in range(len(batch))}
+        errs = {f"a{i}": "You do not have permission to view this report." for i in range(len(batch))}
+        return batch, rep, errs, 0.0
+
+    with fd.PLAYERS_FILE.open("a") as fh:
+        for code in ("UniformRun0011xx", "UniformRun0012xx"):
+            for r in plain_rows("a1", "NewRunCode0001xx", 16, NOW_MS - 1 * DAY):
+                fh.write(json.dumps({**r, "report_code": code}, ensure_ascii=False) + "\n")
+    fd._fetch_batch = uniform_fetch
+    fd._OUTPUTS.clear()
+    try:
+        res6 = bf.run(None, deadline_s=time.time() + 600, now_ms=NOW_MS, listed={})
+    finally:
+        fd._fetch_batch = _real_fetch
+    marks6 = (fd.PROCESSED / bf.MARKERS_NAME).read_text()
+    check(res6["backfill.failed"] == 0 and res6["backfill.transient"] >= 2 and "UniformRun" not in marks6,
+          f"a whole batch erroring alike is transient and unmarked ({ {k: v for k, v in res6.items() if k.startswith('backfill.') and k != 'backfill.stats'} })")
+    check(bf.PERMANENT_REPORT.search("This report does not exist, or is private.") is not None
+          and bf.PERMANENT_REPORT.search("You do not have permission to view this report.") is None
+          and bf.PERMANENT_REPORT.search("rate limit exceeded") is None,
+          "only a message that says the report is gone is permanent")
+    check(bf.MARKERS_NAME == "backfill_done_v2.txt", "v1 markers (1,312 false FAILED) are never read again")
 
 print()
 if fails:
