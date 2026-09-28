@@ -64,9 +64,9 @@ class _Hero:
 # --- 1. the switch ------------------------------------------------------------------
 with tempfile.TemporaryDirectory() as tmp:
     sw = pathlib.Path(tmp) / "backfill.json"
-    sw.write_text(json.dumps({"until": "2026-09-29T02:00:00Z", "share": 1.0, "note": "x"}))
+    sw.write_text(json.dumps({"until": "2026-09-28T10:40:00Z", "share": 1.0, "note": "x"}))
     on = ex.backfill_mode(now_s=1_790_000_000, path=sw, env={})      # 2026-09-21
-    check(on is not None and on["share"] == 1.0 and on["until"] == "2026-09-29T02:00:00Z"
+    check(on is not None and on["share"] == 1.0 and on["until"] == "2026-09-28T10:40:00Z"
           and abs(on["until_s"] - 1_790_592_000) < 1, f"switch on before `until` ({on})")
     check(ex.backfill_mode(now_s=1_790_635_200, path=sw, env={}) is None, "switch off once `until` has passed")
     check(ex.backfill_mode(now_s=1_790_000_000, path=pathlib.Path(tmp) / "absent.json", env={}) is None,
@@ -75,9 +75,9 @@ with tempfile.TemporaryDirectory() as tmp:
     check(ex.backfill_mode(now_s=1_790_000_000, path=sw, env={}) is None, "switch off when the file is unreadable")
     sw.write_text(json.dumps({"until": "2026-09-28T10:40:00+00:00", "share": 0.6}))
     check(ex.backfill_mode(now_s=1_790_000_000, path=sw, env={})["share"] == 0.6, "share read (offset form of until)")
-    sw.write_text(json.dumps({"until": "2026-09-29T02:00:00Z", "share": 7}))
+    sw.write_text(json.dumps({"until": "2026-09-28T10:40:00Z", "share": 7}))
     check(ex.backfill_mode(now_s=1_790_000_000, path=sw, env={})["share"] == 1.0, "share out of range -> 1.0")
-    sw.write_text(json.dumps({"until": "2026-09-29T02:00:00Z"}))
+    sw.write_text(json.dumps({"until": "2026-09-28T10:40:00Z"}))
     check(ex.backfill_mode(now_s=1_790_000_000, path=sw, env={})["share"] == 1.0, "share missing -> 1.0")
     check(ex.backfill_mode(now_s=1_790_000_000, path=sw, env={"BUNDLE_BACKFILL": "off"}) is None,
           "BUNDLE_BACKFILL=off forces it off")
