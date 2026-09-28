@@ -1942,6 +1942,15 @@ def main() -> None:
                          "backfill.deadline": _iso(QUOTA.deadline * 1000)})
     else:
         write_outputs(**{"backfill.on": 0})
+        if (os.environ.get("BUNDLE_BACKFILL") or "").strip().lower() == "true":
+            # A run the backfill chain dispatched after the switch expired
+            # (owner, 2026-09-28: "keep the hard stop at 16:10 IST", the full
+            # quota is theirs from 17:00 IST). Nothing to do and not one
+            # request to make: the site is rebuilt from the journals, the
+            # chain step sees backfill.on=0 and dispatches nothing more.
+            print("[backfill] the switch has expired and this run exists only for the "
+                  "backfill: no request is made; the chain ends here", flush=True)
+            return
     client = WCLClient()
 
     try:

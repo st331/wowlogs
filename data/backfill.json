@@ -1,5 +1,5 @@
 {
-  "until": "2026-09-29T02:00:00Z",
+  "until": "2026-09-28T10:40:00Z",
   "share": 1.0,
-  "note": "Owner, 2026-09-27 16:40Z: spend the whole hourly limit bundling the trailing two weeks (scripts/backfill.py); extended on 2026-09-28 04:55Z to 2026-09-29T02:00Z (07:30 IST) with the lean bundle, so the band and exact-cell passes finish. While this file exists and `until` is in the future the governor's ceiling is `share` of the limit, the quota gate admits every run, and every refresh run backfills the window's unbundled runs after its sweep. After `until` the standing 85 % ceiling, the 100-row gate and no backfill return by themselves; delete the file to end it early."
+  "note": "Owner, 2026-09-27 16:40Z: spend the whole hourly limit for 18 hours bundling the trailing two weeks (scripts/backfill.py). HARD STOP 2026-09-28T10:40Z (16:10 IST): the owner uses the addon from 17:00 IST and needs the full quota; nothing resumes until the owner says so. While this file exists and `until` is in the future the governor's ceiling is `share` of the limit, the quota gate admits every run, and every refresh run backfills the window's unbundled runs after its sweep. After `until` a backfill-chain run makes no request at all (fetch_data.main) and the chain ends."
 }
