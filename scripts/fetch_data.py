@@ -795,7 +795,7 @@ def pack_sets(counts: dict[str, int] | None) -> str | None:
 
 
 def _bundle_columns(d: dict | None) -> dict:
-    """The eight bundle columns for one player row: None across the board
+    """The nine bundle columns for one player row: None across the board
     when the bundle was not fetched, the kicks_by / dispels_by dicts packed
     as strings so the journal row and the CSV carry the same value."""
     if not d:
@@ -806,6 +806,13 @@ def _bundle_columns(d: dict | None) -> dict:
     return out
 
 
+def _spec_of(p: dict) -> str:
+    """A playerDetails entry's spec: specs[0], else the icon's suffix, else ''."""
+    specs = p.get("specs") or []
+    icon = p.get("icon") or ""
+    return specs[0] if specs else (icon.split("-", 1)[1] if "-" in icon else "")
+
+
 def parse_summary(fight: dict, table: dict, hero: HeroResolver,
                   bundle: dict | None = None,
                   run_out: dict | None = None) -> tuple[list[dict], list[dict]]:
@@ -813,10 +820,12 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver,
 
     `bundle` is the report node when the execution bundle was requested
     (the five extra tables under their aliases, see execution.parse_tables);
-    the rows then carry exec = 1 and the eight bundle columns. Every row
-    written since the bundle landed carries the Summary-derived pots / hs /
-    deaths_chain regardless. `run_out`, when given, is filled with the
-    run-level record for the runs journal (exec flag, per-spell sums).
+    the rows then carry exec = 1 and the nine bundle columns -- `stops`
+    counted against the spec's kick in the lists main() loaded (_lists()).
+    Every row written since the bundle landed carries the Summary-derived
+    pots / hs / deaths_chain regardless. `run_out`, when given, is filled
+    with the run-level record for the runs journal (exec flag, per-spell
+    sums, each None when its table was not fetched).
     """
     data = table.get("data") if isinstance(table, dict) else None
     if not isinstance(data, dict):
@@ -843,26 +852,35 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver,
     # the execution bundle (scripts/execution.py): party actor ids first,
     # then the per-player tables (None for every player when a table did not
     # come back) and the death chain off the Summary's own deathEvents
-    party_ids = [p.get("id") for rk in ("tanks", "healers", "dps")
-                 for p in details.get(rk) or [] if isinstance(p, dict)]
+    party = [p for rk in ("tanks", "healers", "dps")
+             for p in details.get(rk) or [] if isinstance(p, dict)]
+    party_ids = [p.get("id") for p in party]
     chain = ex.deaths_chain(data.get("deathEvents"), party_ids)
     per_exec: dict = {}
     int_spells: dict = {}
     dispel_spells: dict = {}
+    present: dict = {}
     exec_flag = 0
     if bundle:
+        # the player's kick by spec (lists.json), so the Interrupts table's
+        # per-ability breakdown splits into kicks and stops
+        lists = _lists()
+        kicks = {p.get("id"): ex.kick_names(lists, ex.spec_key(p.get("type"), _spec_of(p)))
+                 for p in party}
         per_exec, int_spells, dispel_spells, present = ex.parse_tables(
-            bundle, party_ids, ex.pet_owners(bundle))
+            bundle, party_ids, ex.pet_owners(bundle), kicks=kicks)
         # requested but nothing came back (every alias errored): not fetched
         exec_flag = int(any(present.values()))
     if run_out is not None:
+        # a spell table rides only when its table came back: the lean
+        # bundle has no Casts/Healing and a table that errored is not {}
         run_out.update({
             "report_code": fight["code"], "fight_id": fight["fid"],
             "started_at": fight.get("start_time"),
             "dungeon": fight["dungeon"], "key_level": fight["key_level"],
             "exec": bool(exec_flag),
-            "int_spells": int_spells if exec_flag else None,
-            "dispel_spells": dispel_spells if exec_flag else None,
+            "int_spells": int_spells if exec_flag and present.get("interrupts") else None,
+            "dispel_spells": dispel_spells if exec_flag and present.get("dispels") else None,
         })
 
     rows: list[dict] = []
@@ -872,9 +890,7 @@ def parse_summary(fight: dict, table: dict, hero: HeroResolver,
             ci = p.get("combatantInfo")
             tree = ci.get("talentTree") if isinstance(ci, dict) else None
             set_counts = gear_sets(ci)
-            specs = p.get("specs") or []
-            icon = p.get("icon") or ""
-            spec = specs[0] if specs else (icon.split("-", 1)[1] if "-" in icon else "")
+            spec = _spec_of(p)
             # after spec is resolved -- the gear record carries it
             gear = compact_gear(ci)
             talents = compact_talents(ci)
@@ -1113,8 +1129,10 @@ def batch_query(batch: list[dict], lists: dict | None = None) -> str:
     stage just before the batch is submitted), the six-table execution
     bundle (execution.bundle_subquery): Summary + Interrupts + Dispels +
     DamageTaken filtered to the dungeon's avoidable list + Casts filtered to
-    the roster's kit + Healing, all under the same alias. The Summary keeps
-    its alias `table` either way, so the caller reads one node shape.
+    the roster's kit + Healing, all under the same alias; with
+    fight["_lean"] (the backfill) the Summary + Interrupts + Dispels alone.
+    The Summary keeps its alias `table` either way, so the caller reads one
+    node shape.
 
     The flask feature briefly added a CombatantInfo-events sub-query here (the
     only place aura lists appear, ~1 pt/run more); the owner removed it, so

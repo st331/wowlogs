@@ -15,11 +15,14 @@ deadline), pinned:
   * runs_from_frame: the trailing 14 days at +10 and up, exec != 1, last copy
     of a row wins, marked runs and runs with any bundled row excluded, the
     counters seeded from the window's bundled rows;
+  * a backfilled run asks for the lean bundle -- Summary + Interrupts +
+    Dispels, exactly three tables -- and reserves EST_COST_BUNDLE_LEAN (3.0);
   * row replacement, end to end: a journal of Summary-only rows, run() with a
-    fake fetch returning the real fixture's bundle nodes, then the journal
-    holds both copies, export() keeps the bundled copy only, the runs journal
-    has the run record, the markers file has OK / FAILED / EMPTY, and the
-    gate's rebuild counts each player once;
+    fake fetch returning the real fixture's bundle nodes (one of them the
+    real lean node, fixtures/lean_bundle.json), then the journal holds both
+    copies, the backfilled rows carry `stops`, export() keeps the bundled
+    copy only, the runs journal has the run record, the markers file has
+    OK / FAILED / EMPTY, and the gate's rebuild counts each player once;
   * the wall-clock deadline stops submissions (stop=wall), a QuotaDeadline from
     the fetch ends the backfill as stop=budget with everything journaled.
 """
@@ -43,6 +46,7 @@ import wcl_client as W                       # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "scripts" / "fixtures" / "bundle_shape_f.json"
+LEAN_FIXTURE = ROOT / "scripts" / "fixtures" / "lean_bundle.json"
 NOW_S = time.time()
 NOW_MS = NOW_S * 1000
 DAY = ex.DAY_MS
@@ -189,6 +193,8 @@ check(bc2[("Druid-Feral", ALTAR, 18)] == 1 and bc2[("Mage-Arcane", ALTAR, 18)] =
 
 # --- 5. runs_from_frame --------------------------------------------------------------
 rd = json.loads(FIXTURE.read_text())["data"]["reportData"]
+rd["lean"] = json.loads(LEAN_FIXTURE.read_text())["data"]["reportData"]["a0"]   # the real lean node
+fd.LISTS = ex.load_lists(fetch=False, log=lambda *_: None)                       # the kick names
 
 
 def fight(alias, code, level, start, region="EU"):
@@ -216,10 +222,11 @@ journal += plain_rows("a6", "Undated0006xxxxx", 15, NOW_MS - 1 * DAY)
 for r in journal[-5:]:
     r["started_at"] = None                                                    # undated: not in the window
 journal += plain_rows("a7", "Newest0007xxxxxx", 12, NOW_MS - 0.2 * DAY)      # candidate, newest
+journal += plain_rows("lean", "LeanRunCode0014x", 18, NOW_MS - 0.5 * DAY)    # candidate: the real lean node's run
 frame = pd.DataFrame(journal)
 runs, bcount, ecount, facts = bf.runs_from_frame(frame, NOW_MS, skip={"MarkedCode0004xx:8"})
 keys = sorted(r["key"] for r in runs)
-check(keys == ["NewRunCode0001xx:8", "Newest0007xxxxxx:8"],
+check(keys == ["LeanRunCode0014x:8", "NewRunCode0001xx:8", "Newest0007xxxxxx:8"],
       f"candidates: in the window, +10 and up, no bundled row, not marked, dated ({keys})")
 r0 = next(r for r in runs if r["code"] == "NewRunCode0001xx")
 check(r0["level"] == 16 and r0["dungeon"] == ALTAR and sorted(r0["specs"]) == sorted(fight("a1", "x", 16, 0)["specs"])
@@ -235,12 +242,17 @@ f0 = bf.fight_of(r0, {"code": "NewRunCode0001xx", "fid": 8, "score": 555.0, "med
 check(f0["_bundle"] is True and f0["score"] == 555.0 and f0["medal"] == "silver" and f0["affixes"] == [1]
       and f0["specs"] == r0["specs"] and f0["key_level"] == 16 and f0["rank_duration_ms"] == r0["rank_duration_ms"],
       "fight_of: the batch machinery's fight dict, the leaderboard's fresher fields winning")
-check(f0["_lean"] is True and "casts:" not in fd.batch_query([f0]) and "healing:" not in fd.batch_query([f0])
-      and "dataType: Interrupts" in fd.batch_query([f0]) and fd.batch_est_cost([f0]) == ex.EST_COST_BUNDLE_LEAN,
-      "a backfilled run asks for the lean bundle and reserves its cost")
+q0 = fd.batch_query([f0])
+check(f0["_lean"] is True and q0.count("table(") == 3 and "dataType: Summary" in q0
+      and "dataType: Interrupts" in q0 and "dataType: Dispels" in q0
+      and "dmgTaken:" not in q0 and "casts:" not in q0 and "healing:" not in q0
+      and fd.batch_est_cost([f0]) == ex.EST_COST_BUNDLE_LEAN == 3.0,
+      "a backfilled run asks for the lean bundle -- Summary + Interrupts + Dispels, exactly three tables -- "
+      "and reserves 3.0")
 
 # --- 6. row replacement end to end, with a fake fetch -----------------------------------
-NODE_FOR = {"NewRunCode0001xx": "a1", "Newest0007xxxxxx": "a7", "GoneRunCode008xx": "a3", "EmptyRunCode09xx": "a4"}
+NODE_FOR = {"NewRunCode0001xx": "a1", "Newest0007xxxxxx": "a7", "GoneRunCode008xx": "a3", "EmptyRunCode09xx": "a4",
+            "LeanRunCode0014x": "lean"}
 
 
 def fake_fetch(batch):
@@ -287,37 +299,50 @@ with tempfile.TemporaryDirectory() as tmp:
         res = bf.run(None, deadline_s=time.time() + 600, now_ms=NOW_MS, listed={})
     finally:
         fd._fetch_batch = _real_fetch
-    check(res["backfill.selected"] == 4 and res["backfill.bundled_runs"] == 2 and res["backfill.rows"] == 10
+    check(res["backfill.selected"] == 5 and res["backfill.bundled_runs"] == 3 and res["backfill.rows"] == 15
           and res["backfill.failed"] == 1 and res["backfill.empty"] == 1 and res["backfill.left"] == 0
           and res["backfill.stop"] == "done",
-          f"run(): 4 selected, 2 bundled (10 rows), 1 gone, 1 empty, stop=done ({ {k: v for k, v in res.items() if k != 'stats'} })")
+          f"run(): 5 selected, 3 bundled (15 rows), 1 gone, 1 empty, stop=done ({ {k: v for k, v in res.items() if k != 'stats'} })")
     marks = (fd.PROCESSED / bf.MARKERS_NAME).read_text().splitlines()
     check(any(m.startswith("GoneRunCode008xx:8\tFAILED") for m in marks) and "EmptyRunCode09xx:8\tEMPTY" in marks
-          and "NewRunCode0001xx:8\tOK" in marks and "Newest0007xxxxxx:8\tOK" in marks,
+          and "NewRunCode0001xx:8\tOK" in marks and "Newest0007xxxxxx:8\tOK" in marks
+          and "LeanRunCode0014x:8\tOK" in marks,
           "markers: FAILED for the gone report, EMPTY for the tableless bundle, OK for the bundled")
     rows_all = list(fd._iter_journal(fd.PLAYERS_FILE))
     new = [r for r in rows_all if r["report_code"] == "NewRunCode0001xx"]
     check(len(new) == 10 and sum(1 for r in new if r["exec"] == 1) == 5 and new[-1]["exec"] == 1
           and isinstance(new[-1]["kicks"], int) and new[-1]["kicks_by"] is not None,
           "the journal holds the old five rows AND the five bundled rows appended after them")
+    lean = [r for r in rows_all if r["report_code"] == "LeanRunCode0014x" and r["exec"] == 1]
+    check([(r["character"], r["kicks"], r["stops"], r["dispels"]) for r in lean]
+          == [("男童", 29, 5, 0), ("桃君呐", 10, 6, 18), ("久仰", 17, 0, 0), ("Genjibb", 27, 4, 0), ("Anniecpt", 8, 0, 6)]
+          and all(r["avoid_dmg"] is None and r["def_casts"] is None and r["heal_total"] is None for r in lean)
+          and all(r.get("stops") is None for r in rows_all if r["report_code"] == "LeanRunCode0014x" and not r["exec"]),
+          "the backfilled run's rows journal `stops` (5/6/0/4/0) with kicks and dispels; the unfetched columns None; "
+          "the run's earlier Summary-only rows have no stops")
     recs = list(fd._iter_journal(fd.RUNS_FILE))
-    check([r["report_code"] for r in recs] == ["Newest0007xxxxxx", "NewRunCode0001xx"] and all(r["exec"] for r in recs)
-          and recs[0]["int_spells"], "runs.jsonl: one run record per bundled run (newest first), with its spell tables")
+    check([r["report_code"] for r in recs] == ["Newest0007xxxxxx", "LeanRunCode0014x", "NewRunCode0001xx"]
+          and all(r["exec"] for r in recs) and recs[0]["int_spells"] and len(recs[1]["dispel_spells"]) == 2,
+          "runs.jsonl: one run record per bundled run (newest first), with its spell tables")
     fd._OUTPUTS.clear()
     fd.export()
     csv = pd.read_csv(fd.CSV_FILE)
     per = csv.groupby("report_code")["exec"].agg(["size", "min", "max"])
     check(per.loc["NewRunCode0001xx"].tolist() == [5, 1.0, 1.0] and per.loc["Newest0007xxxxxx"].tolist() == [5, 1.0, 1.0]
+          and per.loc["LeanRunCode0014x"].tolist() == [5, 1.0, 1.0]
           and per.loc["DoneRunCode005xx"].tolist() == [5, 1.0, 1.0] and per.loc["OldRunCode0002xx"].tolist() == [5, 0.0, 0.0]
           and per.loc["EmptyRunCode09xx"].tolist() == [5, 0.0, 0.0],
           "export(): one row per player, the bundled copy wins, untouched runs keep exec 0")
     check(csv[csv.report_code == "NewRunCode0001xx"]["kicks"].notna().all(), "the CSV carries the bundle columns for the replaced rows")
+    check(sorted(csv[csv.report_code == "LeanRunCode0014x"]["stops"].astype(int)) == [0, 0, 4, 5, 6]
+          and csv[csv.report_code == "NewRunCode0001xx"]["stops"].isna().any(),
+          "the CSV carries `stops` for the lean run (NaN where a player's kick is not in the vendored lists)")
     g2 = ex.BundleGate(fd.EXEC_GATE_FILE, now_ms=NOW_MS, paused=False)
     n = g2.rebuild(fd.PLAYERS_FILE)
-    check(n == 15 and g2.count("DeathKnight-Blood", ALTAR, 16) == 1,
+    check(n == 20 and g2.count("DeathKnight-Blood", ALTAR, 16) == 1,
           f"BundleGate.rebuild: {n} bundled rows -- each player counted once")
     saved = json.loads(fd.EXEC_GATE_FILE.read_text())
-    check(sum(sum(c.values()) for c in saved["cells"].values()) == 10, "the gate's counter file gained the 10 backfilled rows")
+    check(sum(sum(c.values()) for c in saved["cells"].values()) == 15, "the gate's counter file gained the 15 backfilled rows")
     # a second run selects nothing: the two are bundled, one FAILED, one EMPTY
     fd._fetch_batch = fake_fetch
     fd._OUTPUTS.clear()

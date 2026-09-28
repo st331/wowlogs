@@ -23,9 +23,19 @@ Pinned here, against sums recomputed independently from the fixture:
     absent; pots / hs are None when the field is absent, never 0;
   * pack_by / unpack_by survive the CSV round trip with {} distinct from
     "not fetched"; bundle_subquery emits the six tables (the filtered two
-    omitted on an empty list) with the Summary under the `table` alias;
+    omitted on an empty list) with the Summary under the `table` alias, and
+    with lean=True EXACTLY three: Summary, Interrupts, Dispels;
   * kit_ids / avoidable_ids read the vendored lists.json; load_lists never
-    raises and falls back to the vendored copy.
+    raises and falls back to the vendored copy;
+  * stops, on the REAL lean node scripts/fixtures/lean_bundle.json (the
+    2026-09-27 probe's Summary + Interrupts + Dispels of P3j1myqhvQcMp6Tk
+    fight 8, combatantInfo stripped; its five specs are the vendored lists'
+    five): per player, the Interrupts details' abilities[] totals whose
+    name is not the spec's kick (lists.json kick.name) -- the Warrior's
+    Shockwave and Storm Bolt count, his Pummels do not, the Rogue with Kick
+    alone has 0; None for a player whose kick the lists cannot name; None
+    for everyone when the table is missing; kick_names resolves a listed
+    spec, falls back to the class, and is None for an unknown class.
 """
 import json
 import pathlib
@@ -37,6 +47,7 @@ import execution as ex                       # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "scripts" / "fixtures" / "bundle_shape_f.json"
+LEAN_FIXTURE = ROOT / "scripts" / "fixtures" / "lean_bundle.json"
 fails = 0
 
 
@@ -114,6 +125,13 @@ for alias, node in rd.items():
           f"{alias}: heal_total/heal_over per player{' (NPC row dropped)' if npc else ''}")
 check(zero_filled >= 5, f"zero-fill exercised on {zero_filled} absent Casts rows across the fixture")
 check(npc_dropped >= 1, f"NPC healing rows dropped: {npc_dropped}")
+ids0 = party(rd["a0"])
+per0, _, _, _ = ex.parse_tables(rd["a0"], ids0)
+check(all(per0[i]["stops"] is None and isinstance(per0[i]["kicks"], int) for i in ids0),
+      "no `kicks` map given: stops None for every player, kicks intact")
+per0, _, _, _ = ex.parse_tables(rd["a0"], ids0, kicks={i: {"kick"} for i in ids0})
+check(all(per0[i]["stops"] == 0 for i in ids0),
+      "this fixture's details carry no abilities lists: with a kick map, stops 0 (nothing is known to be a stop)")
 
 # --- 2. a missing table -> None for its column only ----------------------------
 node = rd["a1"]
@@ -265,14 +283,62 @@ with tempfile.TemporaryDirectory() as tmp:
             sys.modules.pop("requests", None)
 
 
-# --- lean bundle (the backfill): no Casts, no Healing --------------------------
+# --- 9. the lean bundle (the backfill): Summary + Interrupts + Dispels, nothing else ----
 _lean = ex.bundle_subquery("a0", "ABC", 3, [1, 2], [7, 8], lean=True)
 _full = ex.bundle_subquery("a0", "ABC", 3, [1, 2], [7, 8])
-check("dataType: Summary" in _lean and "dataType: Interrupts" in _lean and "dataType: Dispels" in _lean
-      and "dataType: DamageTaken" in _lean and "casts:" not in _lean and "healing:" not in _lean,
-      "lean bundle: Summary, Interrupts, Dispels, filtered DamageTaken; no Casts, no Healing")
-check("casts:" in _full and "healing:" in _full, "the full bundle still carries Casts and Healing")
-check(ex.EST_COST_BUNDLE_LEAN < ex.EST_COST_BUNDLE, "the lean bundle reserves less")
+check(_lean == 'a0: report(code: "ABC") { table: table(fightIDs: [3], dataType: Summary) '
+               'interrupts: table(fightIDs: [3], dataType: Interrupts) '
+               'dispels: table(fightIDs: [3], dataType: Dispels) }'
+      and _lean.count("table(") == 3,
+      "lean bundle: exactly three tables -- Summary (as `table`), Interrupts, Dispels -- even with lists to filter on")
+check(_full.count("table(") == 6 and "casts:" in _full and "healing:" in _full and "dmgTaken:" in _full,
+      "the full bundle still carries all six")
+check(ex.EST_COST_BUNDLE_LEAN == 3.0 and ex.EST_COST_BUNDLE == 7.5,
+      "the lean bundle reserves 3.0 a run (+1.0 per table), the full one 7.5")
+
+# --- 10. stops: the real lean node ---------------------------------------------------------
+lean_node = json.loads(LEAN_FIXTURE.read_text())["data"]["reportData"]["a0"]
+check(set(lean_node) == {"table", "interrupts", "dispels"}
+      and lean_node["table"]["data"]["totalTime"] == lean_node["interrupts"]["data"]["totalTime"] == 1603968,
+      "lean fixture: Summary + Interrupts + Dispels of one fight (totalTime 1603968)")
+roster = [p for rk in ("tanks", "healers", "dps") for p in lean_node["table"]["data"]["playerDetails"][rk]]
+by_name = {p["name"]: p["id"] for p in roster}
+kicks = {p["id"]: ex.kick_names(lists, ex.spec_key(p["type"], p["specs"][0])) for p in roster}
+check(kicks == {by_name["久仰"]: {"kick"}, by_name["Genjibb"]: {"pummel"}, by_name["男童"]: {"mind freeze"},
+                by_name["桃君呐"]: {"wind shear"}, by_name["Anniecpt"]: {"counter shot"}},
+      "kick_names: the vendored lists name the roster's five kicks (casefolded)")
+per, ints, disp, present = ex.parse_tables(lean_node, [p["id"] for p in roster], kicks=kicks)
+check(present == {"interrupts": True, "dispels": True, "dmgTaken": False, "casts": False, "healing": False},
+      "lean node: Interrupts and Dispels present, the other three missing")
+got = {n: (per[i]["kicks"], per[i]["stops"]) for n, i in by_name.items()}
+check(got["Genjibb"] == (27, 4) and got["男童"] == (29, 5) and got["桃君呐"] == (10, 6),
+      f"stops = the non-kick abilities' totals: Warrior 23 Pummel + 3 Shockwave + 1 Storm Bolt -> 27 kicks, 4 stops; "
+      f"DK 5 Blinding Sleet; Shaman 6 Capacitor Totem ({got})")
+check(got["久仰"] == (17, 0) and got["Anniecpt"] == (8, 0),
+      "a player who interrupted with the kick alone: kicks counted, stops 0 (fetched, none)")
+check(all(per[i]["dispels"] is not None and per[i]["avoid_dmg"] is None and per[i]["def_casts"] is None
+          and per[i]["heal_total"] is None and per[i]["heal_over"] is None for i in per)
+      and per[by_name["桃君呐"]]["dispels"] == 18 and per[by_name["Anniecpt"]]["dispels"] == 6
+      and len(ints) == 6 and len(disp) == 2,
+      "lean node: dispels parsed as before, the unfetched three None, both spell tables filled")
+half = dict(kicks)
+half[by_name["Genjibb"]] = None
+per, _, _, _ = ex.parse_tables(lean_node, [p["id"] for p in roster], kicks=half)
+check(per[by_name["Genjibb"]]["stops"] is None and per[by_name["Genjibb"]]["kicks"] == 27
+      and per[by_name["男童"]]["stops"] == 5,
+      "a player whose kick the lists cannot name: stops None, kicks intact, the others unaffected")
+per, _, _, _ = ex.parse_tables({"table": lean_node["table"]}, [p["id"] for p in roster], kicks=kicks)
+check(all(per[i]["stops"] is None and per[i]["kicks"] is None for i in per),
+      "Interrupts table missing: stops None like kicks")
+holy = {"specs": {"Priest-Holy": {"kick": None}, "Warrior-Arms": {"kick": {"id": 6552, "name": "Pummel"}}}}
+check(ex.kick_names(holy, "Priest-Holy") == set() and ex.kick_names(holy, "Warrior-Fury") == {"pummel"}
+      and ex.kick_names(holy, "Mage-Arcane") is None and ex.kick_names(holy, "") is None,
+      "kick_names: a listed spec without a kick -> {} (every interrupt is a stop); an unlisted spec -> "
+      "the class's kicks; an unknown class -> None")
+det = {"id": 1, "total": 4, "abilities": [{"name": "PUMMEL ", "total": 3}, {"name": "Storm Bolt", "total": 1}]}
+check(ex._stops_of(det, {"pummel"}) == 1 and ex._stops_of(det, set()) == 4
+      and ex._stops_of({"id": 1, "total": 4}, {"pummel"}) == 0,
+      "_stops_of: names compared casefolded and stripped; no kick -> everything; no abilities list -> 0")
 
 print()
 if fails:

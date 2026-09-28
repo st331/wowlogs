@@ -159,6 +159,7 @@ One row per player per run.
 | `exec` | 1 when the execution bundle was fetched for the run, 0 when not, empty on rows older than the bundle |
 | `pots`, `hs`, `deaths_chain` | potions and healthstones used; own deaths within 5 s of another party death (from the Summary; empty on older rows) |
 | `kicks`, `kicks_by` | interrupts landed, and per enemy spell id (`guid:n\|guid:n`, `none` when zero); empty unless `exec` = 1 |
+| `stops` | interrupts landed with anything but the spec's kick (stuns, knocks, incapacitates, silences...): the Interrupts table's per-ability breakdown minus the spec's `kick.name` in `lists.json`; 0 when fetched and none, empty when the table was not fetched or on rows older than the column (2026-09-28) |
 | `dispels`, `dispels_by` | dispels landed, same shape |
 | `avoid_dmg`, `def_casts` | damage taken from the dungeon's avoidable list; casts of the spec's defensives/self-heals/consumables |
 | `heal_total`, `heal_over` | healing done and overhealing |
@@ -180,6 +181,17 @@ ever pulled from Warcraft Logs twice (§1). What this repository adds:
   dispel sums). The curated spell lists are the addon's
   `https://st331.github.io/keylevel_addon/data/lists.json`, fetched at the start of every
   refresh run with the last fetched copy, then the vendored `data/lists.json`, as fallbacks.
+* **Kicks vs stops, and the lean bundle.** `kicks` is every interrupt the player landed;
+  `stops` is the part of it landed with anything but the spec's kick (the Interrupts table
+  names the interrupting ability per player; `lists.json` names the spec's kick, so a
+  Warrior's Shockwave counts and his Pummel does not). A spec the lists know without a kick
+  (Holy Priest, Restoration Druid) has every interrupt as a stop; a class the lists do not
+  know at all gets `stops` empty rather than a guess. The **lean bundle** the backfill
+  (`scripts/backfill.py`) asks for is the Summary + Interrupts + Dispels only -- kicks, stops
+  and the healers' dispels are what the vetting site scores -- at `est_cost` 3.0 a run
+  (`execution.EST_COST_BUNDLE_LEAN`) instead of the full bundle's 7.5; a backfilled row has
+  `avoid_dmg`, `def_casts`, `heal_total`, `heal_over` empty. The baselines carry `stops_min`
+  (per minute, better high) over the rows that carry `stops`, with `n_stops` on every cell.
 * **Pausing the bundle.** Commit an empty `data/bundle.paused` (or set
   `EXEC_BUNDLE=off` in the environment) and no run gets the bundle: the Summary
   sweep, the baselines and the run store go on with what is already journaled,

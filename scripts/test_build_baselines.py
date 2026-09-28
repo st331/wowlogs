@@ -9,7 +9,9 @@
     numpy's linear interpolation at [5,10,25,50,75,90,95];
   * rates are per duration_s; kick_prio weights kicks_by by the window's
     priority table (interrupted / begun, 0.5 unlisted); heal_eff_s is
-    healers only;
+    healers only; stops_min is over the rows that carry `stops` (a bundled
+    row journaled before the column has it null and stays out), and every
+    cell says how many of its rows did (n_stops);
   * the population is timed runs at levels 10-30; the run store holds every
     run in the window at +10 and up whatever its medal (a depleted +10
     included, a +9 not), in 256 shards keyed by the hash of the report
@@ -47,7 +49,7 @@ def check(cond, msg):
 
 
 def rows(spec, dungeon, level, n, *, exec_=1, prefix="P", role="DPS", dps0=100_000,
-         medal="gold", region="US"):
+         medal="gold", region="US", stops=True):
     cls, sp = spec.split("-")
     out = []
     for i in range(n):
@@ -64,6 +66,7 @@ def rows(spec, dungeon, level, n, *, exec_=1, prefix="P", role="DPS", dps0=100_0
             "dispels": 2 if e else None, "dispels_by": ex.pack_by({}) if e else None,
             "avoid_dmg": 1_000_000 if e else None, "def_casts": 20 if e else None,
             "heal_total": 5_000_000 if e else None, "heal_over": 1_000_000 if e else None,
+            "stops": (i % 3) if (e and stops) else None,        # stops=False: a bundled row older than the column
         })
     return out
 
@@ -72,7 +75,7 @@ ALTAR, MURDER = "Altar of Fangs", "Murder Row"
 frame = pd.DataFrame(
     rows("Warrior-Arms", ALTAR, 18, 25)                     # exact cell
     + rows("Warrior-Arms", ALTAR, 19, 19)                   # under 20 alone; band b18 = 44
-    + rows("Warrior-Arms", MURDER, 18, 20, prefix="Q")      # exact at the floor; pooled b18 = 64
+    + rows("Warrior-Arms", MURDER, 18, 20, prefix="Q", stops=False)   # exact at the floor; pooled b18 = 64; no stops
     + rows("Mage-Arcane", ALTAR, 20, 25, exec_=0)           # Summary-only cell
     + rows("Shaman-Restoration", ALTAR, 18, 20, role="Healer", prefix="R"))
 priority = {ALTAR: {"1": {"name": "Hiss", "begun": 10, "completed": 2, "interrupted": 8}}}
@@ -87,6 +90,11 @@ check(abs(m.loc[i0, "kicks_min"] - 10 / 20) < 1e-9 and abs(m.loc[i0, "deaths_30m
       and abs(m.loc[i0, "avoid_dmg_min"] - 1_000_000 / 20) < 1e-9 and m.loc[i0, "pots"] == 2,
       "measures: per-minute rates over duration_s; kick_prio = Σ (interrupted/begun | 0.5) × kicks ÷ min")
 check(m.loc[i0, "heal_eff_s"] != m.loc[i0, "heal_eff_s"], "measures: heal_eff_s NaN for a DPS")
+i1 = w.index[1]
+q = m[(m.spec == "Warrior-Arms") & (m.dungeon == MURDER)]
+check(m.loc[i0, "stops_min"] == 0 and abs(m.loc[i1, "stops_min"] - 1 / 20) < 1e-9 and (w["has_stops"] == 1).all()
+      and q["stops_min"].isna().all() and (q["has_stops"] == 0).all() and q["kicks_min"].notna().all(),
+      "measures: stops_min per minute; a bundled row without `stops` has kicks_min and no stops_min (has_stops 0)")
 h = m[m.spec == "Shaman-Restoration"]
 check(abs(h["heal_eff_s"].iloc[0] - (5_000_000 - 1_000_000) / 1200) < 1e-6, "measures: heal_eff_s for a healer")
 a = m[m.spec == "Mage-Arcane"]
@@ -97,8 +105,10 @@ check(a["kicks_min"].isna().all() and a["dps"].notna().all() and (a["exec"] == 0
 cells, counts = bb.build_cells(m)
 want = np.percentile([100_000 + i * 1000 for i in range(25)], bb.QUANTILES)
 c = cells["Warrior-Arms|Altar of Fangs|18"]
-check(c["n"] == 25 and c["n_exec"] == 25 and c["dps"] == [int(round(v)) for v in want],
-      f"exact cell: n 25, n_exec 25, dps quantiles = numpy linear ({c['dps']})")
+check(c["n"] == 25 and c["n_exec"] == 25 and c["n_stops"] == 25 and c["dps"] == [int(round(v)) for v in want],
+      f"exact cell: n 25, n_exec 25, n_stops 25, dps quantiles = numpy linear ({c['dps']})")
+want_stops = np.percentile([(i % 3) / 20 for i in range(25)], bb.QUANTILES)
+check(c["stops_min"] == [round(float(v), 3) for v in want_stops], f"exact cell: stops_min quantiles ({c['stops_min']})")
 check(all(k in c for k in bb.MEASURES if k != "heal_eff_s") and "heal_eff_s" not in c,
       "exact cell: every measure but heal_eff_s (healers only)")
 check("Warrior-Arms|Altar of Fangs|19" not in cells, "a 19-row cell is not shipped")
@@ -107,13 +117,18 @@ check(b["n"] == 44 and b["n_exec"] == 44, "band cell b18 pools levels 18 and 19 
 p = cells["Warrior-Arms|*|b18"]
 check(p["n"] == 64 and "Warrior-Arms|Murder Row|18" in cells and cells["Warrior-Arms|Murder Row|18"]["n"] == 20,
       "pooled cell over dungeons (64 rows); a 20-row exact cell ships")
+mr = cells["Warrior-Arms|Murder Row|18"]
+check(mr["n_exec"] == 20 and mr["n_stops"] == 0 and "kicks_min" in mr and "stops_min" not in mr
+      and p["n_stops"] == 44 and "stops_min" in p,
+      "a cell of bundled rows without `stops`: n_stops 0, kicks_min shipped, stops_min not; the pooled cell counts 44")
 mg = cells["Mage-Arcane|Altar of Fangs|20"]
-check(mg["n"] == 25 and mg["n_exec"] == 0 and "dps" in mg and "deaths_30m" in mg and "chain_30m" in mg
-      and "pots" in mg and not any(k in mg for k in bb.EXEC_MEASURES),
-      "Summary-only cell: n_exec 0, dps/deaths/chain/pots shipped, bundle measures omitted")
+check(mg["n"] == 25 and mg["n_exec"] == 0 and mg["n_stops"] == 0 and "dps" in mg and "deaths_30m" in mg
+      and "chain_30m" in mg and "pots" in mg and not any(k in mg for k in bb.EXEC_MEASURES),
+      "Summary-only cell: n_exec 0, n_stops 0, dps/deaths/chain/pots shipped, bundle measures omitted")
 sh = cells["Shaman-Restoration|Altar of Fangs|18"]
 check(sh["heal_eff_s"] == [3333.333] * 7 or sh["heal_eff_s"] == [3333] * 7, f"healer cell: heal_eff_s {sh['heal_eff_s'][0]}")
-check(counts == {"exact": 4, "band": 4, "pooled": 3, "exec_ready": 8, "exec_100": 0}, f"tier counts {counts}")
+check(counts == {"exact": 4, "band": 4, "pooled": 3, "exec_ready": 8, "exec_100": 0, "stops_ready": 6},
+      f"tier counts (stops_ready: the cells with 20 rows carrying stops) {counts}")
 check(bb.round_quantiles([0.123456, 99.9999, 100.4, 123456.6]) == [0.123, 100.0, 100, 123457],
       "round_quantiles: 3 decimals under 100, whole numbers from 100")
 
@@ -128,7 +143,7 @@ check(bb.shard_of("") is None and bb.shard_of(None) is None and bb.shard_of(floa
 check(bb.all_shards()[0] == "00" and bb.all_shards()[-1] == "ff" and len(set(bb.all_shards())) == 256,
       "all_shards: 00..ff")
 small = pd.DataFrame(rows("Warrior-Arms", ALTAR, 18, 2, prefix="S") + rows("Mage-Arcane", ALTAR, 9, 2, exec_=0, prefix="p", medal="none")
-                     + rows("Rogue-Assassination", MURDER, 12, 1, prefix="9")
+                     + rows("Rogue-Assassination", MURDER, 12, 1, prefix="9", stops=False)
                      + rows("Hunter-Marksmanship", MURDER, 10, 1, exec_=0, prefix="-", medal="none"))
 recs = {f"{small.report_code.iloc[0]}:1": {"exec": True, "int_spells": {"1": {"name": "Hiss", "begun": 3, "completed": 1, "interrupted": 2}},
                                             "dispel_spells": {"7": {"name": "Sting", "applied": 4, "dispelled": 3, "expired": 1}}}}
@@ -145,8 +160,13 @@ check(r0["dun"] == ALTAR and r0["lvl"] == 18 and r0["dur_s"] == 1200.0 and r0["t
       "stored run: dun/lvl/start/dur_s/timed/exec, dispel_spells from the journal, no int_spells")
 pl = r0["players"][0]
 check(pl["kicks"] == 10 and pl["kicks_by"] == {"1": 6, "2": 4} and pl["dispels_by"] == {} and pl["heal_over"] == 1_000_000
-      and pl["deaths_chain"] == 0 and pl["pots"] == 2 and pl["hs"] == 0 and pl["class"] == "Warrior" and pl["role"] == "DPS",
-      "stored player: the bundle fields, kicks_by / dispels_by as dicts")
+      and pl["deaths_chain"] == 0 and pl["pots"] == 2 and pl["hs"] == 0 and pl["class"] == "Warrior" and pl["role"] == "DPS"
+      and pl["stops"] == 0,
+      "stored player: the bundle fields, kicks_by / dispels_by as dicts, stops (0 kept as 0)")
+c9 = bb.shard_of(small.report_code.iloc[4])
+p9 = shards[c9]["runs"][f"{small.report_code.iloc[4]}:1"]["players"][0]
+check(p9["kicks"] == 10 and "stops" not in p9,
+      "a bundled row journaled before `stops` existed: kicks stored, stops omitted (null on the client)")
 c1 = bb.shard_of(small.report_code.iloc[5])
 r1 = shards[c1]["runs"][f"{small.report_code.iloc[5]}:1"]
 check(r1["timed"] is False and r1["lvl"] == 10 and r1["exec"] is False
@@ -199,12 +219,18 @@ with tempfile.TemporaryDirectory() as tmp:
                        "levels", "cells", "priority", "dispellable"}
           and doc["quantiles"] == [5, 10, 25, 50, 75, 90, 95] and doc["levels"] == {"min": 10, "max": 30, "band": 2}
           and doc["window"]["resets"] == 2 and doc["window"]["to"] == "2026-09-27" and doc["built"] == "2026-09-27T06:00:00Z"
-          and doc["measures"]["deaths_30m"] == {"unit": "per_30m", "better": "low"},
-          "baselines.json.gz: the contract's keys, quantiles, levels, window, measures")
+          and doc["measures"]["deaths_30m"] == {"unit": "per_30m", "better": "low"}
+          and doc["measures"]["stops_min"] == {"unit": "per_min", "better": "high"} and "stops_min" in doc["notes"],
+          "baselines.json.gz: the contract's keys, quantiles, levels, window, measures (stops_min per_min, better high)")
     # 25 from `frame` + the 2 timed Warrior-Arms +18 rows `small` adds
     check(doc["cells"]["Warrior-Arms|Altar of Fangs|18"]["n"] == 27 and "Mage-Arcane|Altar of Fangs|9" not in doc["cells"]
           and "Mage-Arcane|*|b8" not in doc["cells"],
           "cells: from timed runs at +10 and up (the +9 depleted rows are not a cell)")
+    check(doc["cells"]["Warrior-Arms|Altar of Fangs|18"]["n_stops"] == 27
+          and len(doc["cells"]["Warrior-Arms|Altar of Fangs|18"]["stops_min"]) == 7
+          and doc["cells"]["Warrior-Arms|Murder Row|18"]["n_stops"] == 0
+          and all("n_stops" in c for c in doc["cells"].values()),
+          "cells: n_stops on every cell, stops_min where 20 rows carry stops")
     # the two in-window records SUM (3+7 begun, 2+6 interrupted); the third is out of the window
     check(doc["priority"] == {ALTAR: {"1": {"name": "Hiss", "begun": 10, "completed": 2, "interrupted": 8}}}
           and doc["dispellable"] == {ALTAR: {"7": {"name": "Sting", "applied": 4, "dispelled": 3, "expired": 1}}},
@@ -229,8 +255,9 @@ with tempfile.TemporaryDirectory() as tmp:
     check(health.startswith("built=earlier\n") and "baselines.rows=" in health and "baselines.cells_exact=" in health
           and "baselines.runs_shards=256" in health and "baselines.runs_largest_shard_gz=" in health
           and "baselines.runs_shards_empty=" in health
-          and "baselines.total_size_gz=" in health and "baselines.bundled_share=" in health,
-          "build_health.txt: the baselines lines are APPENDED after the site build's")
+          and "baselines.total_size_gz=" in health and "baselines.bundled_share=" in health
+          and "baselines.rows_stops=" in health and "baselines.cells_stops_ready=" in health,
+          "build_health.txt: the baselines lines are APPENDED after the site build's (rows_stops, cells_stops_ready)")
     want_rows = int(((both.medal == "gold") & (lvl >= 10)).sum())
     # 109 gold rows in `frame` + small's two +18 and one +12 gold rows; the depleted +10 is a run but not a timed row
     check(res["rows"] == want_rows == 112 and res["run_stats"]["runs"] == len(want_keys) == 113

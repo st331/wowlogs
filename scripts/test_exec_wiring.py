@@ -21,7 +21,14 @@ and the cold-start seed:
     ones in the original order, the new columns after them, NaN where a row
     never carried them; kicks_by round-trips through pack/unpack;
   * seed_from_csv() rebuilds a journal the gate's rebuild() counts exactly;
-  * load_fights() carries the ranking's roster specs on the fight.
+  * load_fights() carries the ranking's roster specs on the fight;
+  * the lean bundle (a backfilled run, fight["_lean"]): batch_query asks
+    for Summary + Interrupts + Dispels and nothing else, batch_est_cost
+    reserves 3.0, and parse_node on the real lean node
+    (fixtures/lean_bundle.json) journals exec 1 with kicks / kicks_by /
+    stops / dispels and None in the other bundle columns; `stops` rides the
+    CSV export and the seed like kicks does; a run record's spell table is
+    None when its table was not fetched.
 """
 import gzip
 import json
@@ -39,6 +46,7 @@ import fetch_data as fd                      # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "scripts" / "fixtures" / "bundle_shape_f.json"
+LEAN_FIXTURE = ROOT / "scripts" / "fixtures" / "lean_bundle.json"
 ORIGINAL_COLUMNS = ["character", "server", "region", "class", "spec", "hero_talent", "role",
                     "dungeon", "key_level", "duration_s", "damage_done", "dps", "deaths",
                     "item_level", "set_counts", "score", "medal", "affixes", "report_code",
@@ -60,10 +68,12 @@ class _Hero:
 
 
 rd = json.loads(FIXTURE.read_text())["data"]["reportData"]
+rd["lean"] = json.loads(LEAN_FIXTURE.read_text())["data"]["reportData"]["a0"]
 lists = ex.load_lists(fetch=False, log=lambda *_: None)
+fd.LISTS = lists                       # what main() would have loaded: the kick names
 
 
-def fight_for(alias, i, bundle):
+def fight_for(alias, i, bundle, lean=False):
     node = rd[alias]
     comp = node["table"]["data"]["composition"]
     specs = [ex.spec_key(c["type"], c["specs"][0]["spec"]) for c in comp]
@@ -71,7 +81,7 @@ def fight_for(alias, i, bundle):
             "key_level": 14 + i, "region": "EU", "score": 400.0 + i, "medal": "gold",
             "affixes": [9, 10], "start_time": NOW_MS - i * 600_000,
             "rank_duration_ms": node["table"]["data"]["totalTime"] + 20_000,
-            "specs": specs, "_bundle": bundle}
+            "specs": specs, "_bundle": bundle, **({"_lean": True} if lean else {})}
 
 
 # --- 1. the request ----------------------------------------------------------------
@@ -116,6 +126,38 @@ check(all(r["exec"] == 0 and r["kicks"] is None for r in rows3),
       "parse_node: a bundle whose five aliases all errored is exec 0 (legacy 3-arg call)")
 rows4, _ = fd.parse_summary(fb, rd["a1"]["table"], _Hero())
 check(rows4[0]["exec"] == 0 and "kicks" in rows4[0], "parse_summary(fight, table, hero): still works, exec 0")
+# stops on the full bundle: this fixture's details carry no abilities lists, so a player whose
+# kick the vendored lists name (DeathKnight, Shaman) gets 0 and one they do not (Mage, Paladin) None
+check([(r["class"], r["stops"]) for r in rows] == [("DeathKnight", 0), ("Paladin", None), ("Shaman", 0),
+                                                   ("Mage", None), ("Mage", None)],
+      "parse_node (bundled): stops 0 for a class whose kick the lists name, None for one they do not")
+run5 = {}
+fd.parse_node(fb, {**rd["a1"], "dispels": None}, _Hero(), run5)
+check(run5["exec"] is True and len(run5["int_spells"]) == 6 and run5["dispel_spells"] is None,
+      "parse_node: a bundle whose Dispels alias errored -> dispel_spells None (not {}), int_spells intact")
+
+# --- 2b. the lean bundle: the backfill's request and the real lean node ------------------
+fl = fight_for("lean", 20, True, lean=True)
+ql = fd.batch_query([fl], lists)
+check(ql == '{ reportData { a0: report(code: "leanCode20xxxxxxxx") { table: table(fightIDs: [8], dataType: Summary) '
+            'interrupts: table(fightIDs: [8], dataType: Interrupts) dispels: table(fightIDs: [8], dataType: Dispels) } } }'
+      and fd.batch_est_cost([fl]) == 3.0 and fd.batch_est_cost([fl, fb, fp]) == 3.0 + 7.5 + 2.6,
+      "batch_query (lean): Summary + Interrupts + Dispels and nothing else; batch_est_cost reserves 3.0 for it")
+runl = {}
+lean_rows, lean_gear = fd.parse_node(fl, rd["lean"], _Hero(), runl)
+check(len(lean_rows) == 5 and list(lean_rows[0].keys())[22:] == list(ex.EXEC_COLUMNS)
+      and all(r["exec"] == 1 for r in lean_rows),
+      "parse_node (lean): five rows, exec 1, the bundle columns in order")
+check([(r["character"], r["kicks"], r["stops"], r["dispels"]) for r in lean_rows]
+      == [("男童", 29, 5, 0), ("桃君呐", 10, 6, 18), ("久仰", 17, 0, 0), ("Genjibb", 27, 4, 0), ("Anniecpt", 8, 0, 6)],
+      "parse_node (lean): kicks / stops / dispels per player off the real tables (kicks named by the lists)")
+check(all(r["kicks_by"] and r["dispels_by"] is not None and r["avoid_dmg"] is None and r["def_casts"] is None
+          and r["heal_total"] is None and r["heal_over"] is None and r["pots"] is not None for r in lean_rows),
+      "parse_node (lean): kicks_by / dispels_by packed, the unfetched three None, pots present")
+check(runl["exec"] is True and len(runl["int_spells"]) == 6
+      and runl["dispel_spells"] == {"1307571": {"name": "Envenom", "applied": 17, "expired": 6, "dispelled": 11},
+                                    "1294569": {"name": "Paralyzing Shots", "applied": 15, "expired": 2, "dispelled": 13}},
+      "parse_node (lean): the run record carries both spell tables")
 
 # --- 3. journal -> export -> CSV -----------------------------------------------------
 journal = []
@@ -127,6 +169,7 @@ bundled = []
 for i, alias in enumerate(("a1", "a3", "a4", "a5", "a6", "a7")):
     rr, _ = fd.parse_node(fight_for(alias, 10 + i, True), rd[alias], _Hero())
     bundled.extend(rr)
+bundled.extend(lean_rows)                                                        # a backfilled (lean) run
 journal.extend(bundled)
 with tempfile.TemporaryDirectory() as tmp:
     tp = pathlib.Path(tmp)
@@ -161,6 +204,12 @@ with tempfile.TemporaryDirectory() as tmp:
           and [ex.unpack_by(v) for v in bun["kicks_by"]] == [ex.unpack_by(r["kicks_by"]) for r in bundled[:5]]
           and list(bun["kicks"].astype(int)) == [r["kicks"] for r in bundled[:5]],
           "export: bundled rows exec 1, kicks_by round-trips through pack/unpack")
+    lean_csv = csv[csv.report_code == fl["code"]]
+    check(old["stops"].isna().all() and plain["stops"].isna().all()
+          and list(lean_csv["stops"].astype(int)) == [5, 6, 0, 4, 0] and lean_csv["dispels"].notna().all()
+          and lean_csv["avoid_dmg"].isna().all() and lean_csv["heal_total"].isna().all(),
+          "export: stops NaN on pre-bundle and Summary-only rows, the lean run's 5/6/0/4/0 with its dispels, "
+          "its unfetched columns NaN")
     # --- 4. the cold-start seed and the gate's recount --------------------------------
     fd.PLAYERS_FILE.unlink()
     fd.SUMMARIES_DONE.unlink(missing_ok=True)
@@ -169,6 +218,9 @@ with tempfile.TemporaryDirectory() as tmp:
     check(len(seeded) == len(journal) and sum(1 for r in seeded if r.get("exec")) == len(bundled)
           and all(r.get("exec") in (None, 0.0, 1.0) for r in seeded),
           "seed_from_csv: the journal carries exec as 1.0 / 0.0 / None")
+    check([r["stops"] for r in seeded if r["report_code"] == fl["code"]] == [5.0, 6.0, 0.0, 4.0, 0.0]
+          and all(r.get("stops") is None for r in seeded if r["report_code"] == rows2[0]["report_code"]),
+          "seed_from_csv: stops rides the seed like kicks (floats; None where the CSV had NaN)")
     gate = ex.BundleGate(fd.PROCESSED / "exec_quota.json")
     n = gate.rebuild(fd.PLAYERS_FILE)
     want_holy = sum(1 for r in bundled if r["class"] == "Paladin" and r["spec"] == "Holy"

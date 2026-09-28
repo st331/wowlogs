@@ -13,6 +13,10 @@ Healing (+1.0 point per table per run, 6.0 warm / 6.5-8.5 cold for the six).
 The parsers here turn those tables into per-player columns:
 
     kicks, kicks_by   interrupts landed, and per enemy spell id
+    stops             interrupts landed with anything but the spec's kick
+                      (stuns, knocks, incapacitates, silences...): the
+                      Interrupts table names the interrupting ability per
+                      player, and lists.json names the spec's kick
     dispels, dispels_by
     avoid_dmg         damage taken from the avoidable list
     def_casts         casts of the kit
@@ -20,7 +24,11 @@ The parsers here turn those tables into per-player columns:
 
 zero-filled for a player a table does not list (a player with no kicks is
 simply absent from Interrupts) and None for every player when a table is
-missing from the node. The Summary alone yields pots / hs (potionUse and
+missing from the node. The lean bundle (the backfill, `lean=True`) asks for
+the Summary, the Interrupts and the Dispels tables only -- kicks, stops and
+the healers' dispels are what the vetting site scores -- so a backfilled
+row carries kicks / kicks_by / stops / dispels / dispels_by and None in the
+other bundle columns. The Summary alone yields pots / hs (potionUse and
 healthstoneUse, None when the field is absent) and deaths_chain (own deaths
 with another party death in the previous CHAIN_WINDOW_MS).
 
@@ -136,23 +144,26 @@ def backfill_mode(now_s: float | None = None, path=None, env=None) -> dict | Non
 BAND = 2                  # key levels per band: b18 = 18-19
 CHAIN_WINDOW_MS = 5_000   # another party death within this many ms before own death
 EST_COST_BUNDLE = 7.5     # est_cost per bundled run (measured 6.5-8.5 cold)
-# The lean bundle (backfill): Summary + Interrupts + Dispels + the filtered
-# DamageTaken -- the four tables the vetting site's measures and baselines
-# read. Casts (def_casts) and Healing (heal_total/heal_over) are not read
-# by the site today, so the backfill leaves them out: two tables fewer is
-# about a third off the cost, a third more runs an hour.
-EST_COST_BUNDLE_LEAN = 5.0
+# The lean bundle (backfill): Summary + Interrupts + Dispels ONLY. The
+# site's Key fit keeps damage, kicks and stops, plus dispels for healers
+# (owner, 2026-09-28); kicks and stops come off the Interrupts table and
+# dispels off Dispels. DamageTaken, Casts and Healing are not read, so the
+# backfill leaves them out: three tables at +1.0 point each in the same
+# request, 3.0 a run instead of 5.0 -- two thirds more runs an hour.
+EST_COST_BUNDLE_LEAN = 3.0
 DAY_MS = 86_400_000
 
 BUNDLE_TABLES = ("interrupts", "dispels", "dmgTaken", "casts", "healing")
 # per-player columns, in the order they follow keystone_s on a journal row
 # and in the CSV. `exec` (1/0) says whether the bundle was fetched; the
 # Summary-derived three (pots, hs, deaths_chain) are present on every row
-# written since the bundle landed; the eight bundle columns are None unless
-# exec is 1 and their table came back.
+# written since the bundle landed; the nine bundle columns are None unless
+# exec is 1 and their table came back. `stops` (2026-09-28) is last so the
+# CSV's column order before it is unchanged; it is None on every row
+# journaled before it existed, whatever their exec.
 SUMMARY_COLUMNS = ("pots", "hs", "deaths_chain")
 BUNDLE_COLUMNS = ("kicks", "kicks_by", "dispels", "dispels_by", "avoid_dmg",
-                  "def_casts", "heal_total", "heal_over")
+                  "def_casts", "heal_total", "heal_over", "stops")
 EXEC_COLUMNS = ("exec",) + SUMMARY_COLUMNS + BUNDLE_COLUMNS
 
 
@@ -277,6 +288,39 @@ def kit_ids(lists: dict, spec_keys) -> list[int]:
     return sorted(ids)
 
 
+def _class_entries(lists: dict, sk: str) -> list[dict]:
+    """The lists entries a spec key names: the spec's own, else every spec
+    of its class (a key whose spec is unknown or not in the lists)."""
+    specs = lists.get("specs") or {}
+    entry = specs.get(sk)
+    if isinstance(entry, dict):
+        return [entry]
+    cls = (sk or "").split("-", 1)[0]
+    if not cls:
+        return []
+    return [v for k, v in specs.items()
+            if isinstance(v, dict) and k.split("-", 1)[0] == cls]
+
+
+def kick_names(lists: dict, sk: str) -> set[str] | None:
+    """The ability names that are the spec's kick, casefolded, from
+    specs["Class-Spec"].kick.name: a set of one for a listed spec; the empty
+    set for a listed spec without a kick (a healer with no interrupt: every
+    interrupt it lands is a stop); the union over the class's specs for a
+    key whose spec is unknown or unlisted; None when the lists know nothing
+    of the class at all (then kicks and stops cannot be told apart)."""
+    entries = _class_entries(lists, sk)
+    if not entries:
+        return None
+    names: set[str] = set()
+    for e in entries:
+        kick = e.get("kick")
+        name = kick.get("name") if isinstance(kick, dict) else kick
+        if isinstance(name, str) and name.strip():
+            names.add(name.strip().casefold())
+    return names
+
+
 def avoidable_ids(lists: dict, dungeon: str) -> list[int]:
     """The dungeon's curated avoidable-damage ids ([] when the lists have
     none for it -- the provisional file ships an empty dungeons block)."""
@@ -299,22 +343,24 @@ def bundle_subquery(alias: str, code: str, fid, avoidable, kit, lean: bool = Fal
     path and every existing test see the same node shape. The two filtered
     tables are omitted when their id list is empty -- a filter over nothing
     is not a table -- and parse as "missing" (None) downstream. `lean` (the
-    backfill) drops Casts and Healing as well: the vetting site reads
-    neither, and they are a third of the cost."""
+    backfill) is the Summary, the Interrupts and the Dispels tables alone:
+    kicks, stops and dispels are what the vetting site scores, and every
+    other table is a point a run the backfill does not need to spend."""
     f = f"fightIDs: [{int(fid)}]"
     parts = [f"table: table({f}, dataType: Summary)",
              f"interrupts: table({f}, dataType: Interrupts)",
              f"dispels: table({f}, dataType: Dispels)"]
+    if lean:
+        return f'{alias}: report(code: "{code}") {{ {" ".join(parts)} }}'
     if avoidable:
         ids = ",".join(str(int(i)) for i in avoidable)
         parts.append(f'dmgTaken: table({f}, dataType: DamageTaken, '
                      f'filterExpression: "ability.id in ({ids})")')
-    if kit and not lean:
+    if kit:
         ids = ",".join(str(int(i)) for i in kit)
         parts.append(f'casts: table({f}, dataType: Casts, '
                      f'filterExpression: "ability.id in ({ids})")')
-    if not lean:
-        parts.append(f"healing: table({f}, dataType: Healing)")
+    parts.append(f"healing: table({f}, dataType: Healing)")
     return f'{alias}: report(code: "{code}") {{ {" ".join(parts)} }}'
 
 
@@ -361,18 +407,38 @@ def _int(v) -> int:
         return 0
 
 
-def parse_tables(node: dict, player_ids, actors: dict | None = None):
+def _stops_of(det: dict, kick: set) -> int:
+    """Interrupts in one details row landed with anything but the kick: the
+    row's abilities[] {name, total}, names compared casefolded. A row with
+    no abilities list contributes nothing (nothing is known to be a stop)."""
+    n = 0
+    for a in det.get("abilities") or []:
+        if not isinstance(a, dict):
+            continue
+        name = str(a.get("name") or "").strip().casefold()
+        if name not in kick:
+            n += _int(a.get("total"))
+    return n
+
+
+def parse_tables(node: dict, player_ids, actors: dict | None = None,
+                 kicks: dict | None = None):
     """The five bundle tables -> (per_player, int_spells, dispel_spells, present).
 
-    per_player: {actor id: {kicks, kicks_by, dispels, dispels_by, avoid_dmg,
-    def_casts, heal_total, heal_over}} for every id in player_ids, zero-filled
-    where a table does not list the player and None where the table is
-    missing. present: {table: bool}. `actors` maps a pet/totem actor id to
-    its owner (pet_owners()); an unmapped non-party actor is dropped.
+    per_player: {actor id: {kicks, kicks_by, stops, dispels, dispels_by,
+    avoid_dmg, def_casts, heal_total, heal_over}} for every id in player_ids,
+    zero-filled where a table does not list the player and None where the
+    table is missing. present: {table: bool}. `actors` maps a pet/totem
+    actor id to its owner (pet_owners()); an unmapped non-party actor is
+    dropped. `kicks` is {player id: kick_names(...)}: the ability names that
+    are the player's kick; every other interrupting ability counts as a
+    stop. A player whose entry is None (or missing, or `kicks` not given)
+    gets stops None: kicks and stops cannot be told apart for them.
     """
     ids = [i for i in player_ids if i is not None]
     idset = set(ids)
     actors = actors or {}
+    kicks = kicks or {}
     out = {i: {} for i in ids}
     present = {}
 
@@ -395,11 +461,14 @@ def parse_tables(node: dict, player_ids, actors: dict | None = None):
                 out[i][by_col] = None
             if key == "interrupts":
                 int_spells = spells
+                for i in ids:
+                    out[i]["stops"] = None
             else:
                 dispel_spells = spells
             continue
         tot: Counter = Counter()
         by = {i: Counter() for i in ids}
+        stops: Counter = Counter()
         for sub in _spell_rows(d):
             guid = sub.get("guid")
             if guid is None:
@@ -420,11 +489,15 @@ def parse_tables(node: dict, player_ids, actors: dict | None = None):
                 n = _int(det.get("total"))
                 tot[o] += n
                 by[o][g] += n
+                if key == "interrupts" and kicks.get(o) is not None:
+                    stops[o] += _stops_of(det, kicks[o])
         for i in ids:
             out[i][total_col] = int(tot[i])
             out[i][by_col] = {k: int(v) for k, v in by[i].items() if v}
         if key == "interrupts":
             int_spells = spells
+            for i in ids:
+                out[i]["stops"] = int(stops[i]) if kicks.get(i) is not None else None
         else:
             dispel_spells = spells
 
