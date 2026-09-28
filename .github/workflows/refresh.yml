@@ -133,7 +133,15 @@ permissions:
 
 jobs:
   refresh:
-    if: false   # PAUSED by the owner (see the note above `on:`); delete this line to resume
+    # PAUSED by the owner for the dashboard's own refreshes (see the note
+    # above `on:`): the cron stays off and a plain dispatch is skipped.
+    # The one exception, on the owner's word of 2026-09-28 ("presume we can
+    # completely pause any activity being done for wowlogs" / make the
+    # vetting site's data faster): a run dispatched with bundle_backfill=true
+    # -- the Key Level Logs backfill, scripts/backfill.py, which needs this
+    # job's journals, build and deploy -- runs and chains itself while
+    # data/backfill.json is in force. Restore `if: false` to stop that too.
+    if: ${{ inputs.bundle_backfill == 'true' }}
     runs-on: ubuntu-latest
     # 50 for the scheduled path, so a run never bleeds into the next slot. A
     # gear refetch needs more than one hourly quota window by arithmetic, so it
