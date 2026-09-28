@@ -31,6 +31,11 @@ import requests
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRETS = ROOT / ".secrets"
+# how long a 429 may put the client to sleep before it asks again (see the
+# 429 branch in query()); a 429 costs no points
+RETRY_429_STEP_S = float(os.environ.get("WCL_RETRY_429_STEP_S", 60) or 60)
+
+
 class QuotaDeadline(Exception):
     """Raised instead of sleeping past a caller-supplied deadline.
 
@@ -325,19 +330,23 @@ class WCLClient:
                 if r.status_code == 429:
                     retry_after = float(r.headers.get("Retry-After", 0) or 0)
                     wait = retry_after if retry_after > 0 else max(self.reset_in, 60) + 20
-                    # the same clock the ceiling path honours: a caller on a CI
-                    # slot must not sleep to the next hour on a 429 either
-                    # (2026-09-08: a drain run at the 100% ceiling drew a 429
-                    # with the reset 35 min away and sat idle until it, holding
-                    # the concurrency group and the chain with it)
+                    # A 429 costs nothing, and its Retry-After is not to be
+                    # trusted for long sleeps: run 4275 (2026-09-28 00:59:27Z)
+                    # woke 20 s early for the window, drew a 429 with
+                    # Retry-After 3620 s, slept the hour and lost the whole
+                    # window. So a 429 is polled: sleep at most RETRY_429_STEP_S
+                    # and re-send, until the window opens or the deadline says
+                    # stop -- the same clock the ceiling path honours (a caller
+                    # on a CI slot must not sleep past its deadline).
+                    step = min(wait, RETRY_429_STEP_S)
                     cap = self._sleep_cap()
-                    if cap and wait > cap:
-                        self._log(f"HTTP 429 with the reset {wait:.0f}s away, over the "
-                                  f"{cap:.0f}s cap; stopping so the next run can use a "
-                                  f"fresh window")
+                    if cap and step > cap:
+                        self._log(f"HTTP 429 (Retry-After {wait:.0f}s) with {cap:.0f}s left "
+                                  f"before the deadline; stopping so the next run can use "
+                                  f"a fresh window")
                         raise QuotaDeadline(f"HTTP 429, reset {wait:.0f}s away, cap {cap:.0f}s")
-                    self._log(f"HTTP 429; sleeping {wait:.0f}s")
-                    time.sleep(wait)
+                    self._log(f"HTTP 429 (Retry-After {wait:.0f}s); re-trying in {step:.0f}s")
+                    time.sleep(step)
                     continue
                 if r.status_code >= 500:
                     self._log(f"HTTP {r.status_code}; retrying in {backoff}s")
