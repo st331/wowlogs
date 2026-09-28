@@ -39,6 +39,11 @@ kick_prio weights each kicked spell by the population's kick rate for it in
 this window (interrupted / begun from the priority table; 0.5 when the spell
 is not in the table), the same weight the client applies (measures.js).
 
+stops_min (2026-09-28) is the player's non-kick interrupts per minute over
+the bundled rows that carry `stops` -- rows journaled since the column
+existed; older bundled rows have it null and stay out of that measure --
+and a cell's `n_stops` says how many of its rows carried it.
+
 Health lines are appended to site/build_health.txt (this runs after
 build_site_data.py, which writes that file) and printed.
 """
@@ -72,13 +77,14 @@ MEASURES = {                 # unit + direction, so the client never guesses (§
     "chain_30m":     {"unit": "per_30m", "better": "low"},
     "kicks_min":     {"unit": "per_min", "better": "high"},
     "kick_prio":     {"unit": "per_min", "better": "high"},
+    "stops_min":     {"unit": "per_min", "better": "high"},
     "dispels_min":   {"unit": "per_min", "better": "high"},
     "avoid_dmg_min": {"unit": "per_min", "better": "low"},
     "def_casts_min": {"unit": "per_min", "better": "high"},
     "pots":          {"unit": "per_run", "better": "high"},
     "heal_eff_s":    {"unit": "per_s",   "better": "high"},
 }
-EXEC_MEASURES = ("kicks_min", "kick_prio", "dispels_min", "avoid_dmg_min",
+EXEC_MEASURES = ("kicks_min", "kick_prio", "stops_min", "dispels_min", "avoid_dmg_min",
                  "def_casts_min", "heal_eff_s")
 TIMED_MEDALS = {"gold", "silver", "bronze", "timed"}
 POPULATION = ("timed leaderboard runs (fightRankings pages 1-20 by score per "
@@ -237,6 +243,9 @@ def measures_frame(df: pd.DataFrame, priority: dict) -> pd.DataFrame:
     m["chain_30m"] = _num(df["deaths_chain"]) / dur * 1800.0
     m["kicks_min"] = _num(df["kicks"]) / minutes
     m["kick_prio"] = kick_prio_column(df, minutes, priority)
+    stops = _num(df["stops"]) if "stops" in df.columns else pd.Series(np.nan, index=df.index)
+    m["has_stops"] = stops.notna().astype(int)        # rows that carry `stops` (n_stops)
+    m["stops_min"] = stops / minutes
     m["dispels_min"] = _num(df["dispels"]) / minutes
     m["avoid_dmg_min"] = _num(df["avoid_dmg"]) / minutes
     m["def_casts_min"] = _num(df["def_casts"]) / minutes
@@ -257,11 +266,13 @@ def round_quantiles(vals) -> list:
 
 def build_cells(m: pd.DataFrame, min_n: int = CELL_MIN_N) -> tuple[dict, dict]:
     """The three tiers (§2): spec|dungeon|level, spec|dungeon|bNN, spec|*|bNN.
-    A cell ships at n >= min_n with n and n_exec; each measure's quantiles
-    ship when that measure has min_n values in the cell."""
+    A cell ships at n >= min_n with n, n_exec and n_stops (rows carrying
+    `stops`); each measure's quantiles ship when that measure has min_n
+    values in the cell."""
     measures = list(MEASURES)
     cells: dict[str, dict] = {}
-    counts = {"exact": 0, "band": 0, "pooled": 0, "exec_ready": 0, "exec_100": 0}
+    counts = {"exact": 0, "band": 0, "pooled": 0, "exec_ready": 0, "exec_100": 0,
+              "stops_ready": 0}
     qs = [q / 100 for q in QUANTILES]
     tiers = (("exact", ["spec", "dungeon", "level"], lambda s, d, l: f"{s}|{d}|{int(l)}"),
              ("band", ["spec", "dungeon", "band"], lambda s, d, b: f"{s}|{d}|b{int(b)}"),
@@ -273,6 +284,7 @@ def build_cells(m: pd.DataFrame, min_n: int = CELL_MIN_N) -> tuple[dict, dict]:
             continue
         idx = n.index
         n_exec = g["exec"].sum().reindex(idx).to_numpy()
+        n_stops = g["has_stops"].sum().reindex(idx).to_numpy()
         cnt = g[measures].count().reindex(idx)
         # one vectorised quantile pass per tier; (cells x 7) arrays per measure
         qt = g[measures].quantile(qs).unstack(level=-1).reindex(idx)
@@ -284,7 +296,7 @@ def build_cells(m: pd.DataFrame, min_n: int = CELL_MIN_N) -> tuple[dict, dict]:
             if size < min_n:
                 continue
             key_t = key if isinstance(key, tuple) else (key,)
-            cell = {"n": size, "n_exec": int(n_exec[pos])}
+            cell = {"n": size, "n_exec": int(n_exec[pos]), "n_stops": int(n_stops[pos])}
             for meas in measures:
                 if int(cnts[meas][pos]) < min_n:
                     continue
@@ -298,6 +310,8 @@ def build_cells(m: pd.DataFrame, min_n: int = CELL_MIN_N) -> tuple[dict, dict]:
                 counts["exec_ready"] += 1
             if cell["n_exec"] >= ex.QUOTA_ROWS:
                 counts["exec_100"] += 1
+            if cell["n_stops"] >= min_n:
+                counts["stops_ready"] += 1
     return cells, counts
 
 
@@ -357,7 +371,7 @@ def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str,
             "duration_s", "medal", "character", "server", "region", "class",
             "spec", "role", "dps", "deaths", "deaths_chain", "pots", "hs", "exec",
             "kicks", "kicks_by", "dispels", "dispels_by", "avoid_dmg",
-            "def_casts", "heal_total", "heal_over"]
+            "def_casts", "heal_total", "heal_over", "stops"]
     lvl_num = _num(df["key_level"])
     sub = df.loc[(lvl_num >= min_level).to_numpy(), cols]
     shards: dict[str, dict] = {c: {"built": built, "runs": {}} for c in all_shards()}
@@ -367,7 +381,7 @@ def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str,
     for t in sub.itertuples(index=False, name=None):
         (code, fid, dun, lvl, start, dur, medal, name, server, region, cls, spec,
          role, dps, deaths, chain, pots, hs, exec_, kicks, kicks_by, dispels,
-         dispels_by, avoid, defc, htot, hover) = t
+         dispels_by, avoid, defc, htot, hover, stops) = t
         key = f"{code}:{_int_or_none(fid) if _int_or_none(fid) is not None else fid}"
         run = seen.get(key)
         if run is None:
@@ -396,7 +410,8 @@ def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str,
              "dps": _float_or_none(dps), "deaths": _int_or_none(deaths)}
         # the optional fields ride only when the collector has them: the
         # Summary-derived three on rows written since the bundle landed, the
-        # bundle's eight when it was fetched for the run; a missing field
+        # bundle's nine when it was fetched for the run (a lean run's, or an
+        # older bundled row's `stops`, null and so omitted); a missing field
         # reads as null on the client, so nothing is written as null
         opt = {"deaths_chain": _int_or_none(chain), "pots": _int_or_none(pots),
                "hs": _int_or_none(hs)}
@@ -404,7 +419,8 @@ def build_run_store(df: pd.DataFrame, recs: dict[str, dict], built: str,
             opt.update({"kicks": _int_or_none(kicks), "kicks_by": ex.unpack_by(kicks_by),
                         "dispels": _int_or_none(dispels), "dispels_by": ex.unpack_by(dispels_by),
                         "avoid_dmg": _int_or_none(avoid), "def_casts": _int_or_none(defc),
-                        "heal_total": _int_or_none(htot), "heal_over": _int_or_none(hover)})
+                        "heal_total": _int_or_none(htot), "heal_over": _int_or_none(hover),
+                        "stops": _int_or_none(stops)})
         p.update({k: v for k, v in opt.items() if v is not None})
         run["players"].append(p)
         stats["players"] += 1
@@ -477,6 +493,8 @@ def build(csv: pathlib.Path = ROOT / "data" / B.SEASON["csv"],
         "notes": {
             "kick_prio": "sum over kicked spells of (interrupted / begun in this "
                          "window's priority table, 0.5 when unlisted) x kicks, per minute",
+            "stops_min": "interrupts landed with anything but the spec's kick, per "
+                         "minute, over the rows that carry `stops` (n_stops per cell)",
             "rates": "per duration_s (the Summary totalTime), not the keystone clock",
             "cells": f"shipped at n >= {CELL_MIN_N}; a measure's quantiles at "
                      f">= {CELL_MIN_N} values of it",
@@ -507,11 +525,13 @@ def build(csv: pathlib.Path = ROOT / "data" / B.SEASON["csv"],
 
     # --- health --------------------------------------------------------------
     n_rows, n_exec = int(len(pop)), int(m["exec"].sum()) if len(m) else 0
+    n_stops = int(m["has_stops"].sum()) if len(m) else 0
     share = (n_exec / n_rows) if n_rows else 0.0
     wall = time.perf_counter() - t0
     health(f"{name}.built={built}")
     health(f"{name}.rows={n_rows}")
     health(f"{name}.rows_exec={n_exec}")
+    health(f"{name}.rows_stops={n_stops}")
     health(f"{name}.bundled_share={share:.3f}")
     health(f"{name}.timed_share={(int(timed.sum()) / len(df)) if len(df) else 0:.3f}")
     health(f"{name}.cells_exact={counts['exact']}")
@@ -519,6 +539,7 @@ def build(csv: pathlib.Path = ROOT / "data" / B.SEASON["csv"],
     health(f"{name}.cells_pooled={counts['pooled']}")
     health(f"{name}.cells_exec_ready={counts['exec_ready']}")
     health(f"{name}.cells_exec_at_quota={counts['exec_100']}")
+    health(f"{name}.cells_stops_ready={counts['stops_ready']}")
     health(f"{name}.priority_dungeons={len(priority)}")
     health(f"{name}.priority_spells={sum(len(v) for v in priority.values())}")
     health(f"{name}.dispellable_spells={sum(len(v) for v in dispellable.values())}")
@@ -550,7 +571,8 @@ def build(csv: pathlib.Path = ROOT / "data" / B.SEASON["csv"],
     return {"cells": cells, "counts": counts, "priority": priority, "dispellable": dispellable,
             "shards": shards, "sizes": {"baselines": base_gz, "runs": shard_gz,
                                         "largest_shard": largest, "largest_shard_gz": largest_gz},
-            "rows": n_rows, "rows_exec": n_exec, "doc": doc, "run_stats": sstats}
+            "rows": n_rows, "rows_exec": n_exec, "rows_stops": n_stops, "doc": doc,
+            "run_stats": sstats}
 
 
 def main(argv=None) -> int:
