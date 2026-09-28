@@ -28,9 +28,13 @@ name: Refresh watchdog
 # stall, and every tick that does fire takes a full corrective action rather
 # than a single attempt that can itself fail.
 
+# PAUSED with the refresh (owner, 2026-09-28): this workflow's whole purpose is
+# to re-dispatch a refresh that has gone quiet, which is exactly the state the
+# owner asked for. Resume together with refresh.yml: restore `schedule:` and
+# delete the `if: false` on the job.
 on:
-  schedule:
-    - cron: "11,31,51 * * * *"
+  # schedule:
+  #   - cron: "11,31,51 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -55,6 +59,7 @@ env:
 
 jobs:
   watch:
+    if: false   # PAUSED by the owner (see the note above `on:`); delete this line to resume
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

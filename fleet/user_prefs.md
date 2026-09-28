@@ -623,3 +623,11 @@
       is missing, or when the anchor is > 30 days behind the clock; its first invocation is
       a dry run; the watchdog alerts on a row floor, a reset count other than 2, or STALE.
 
+37. **Data refreshes are PAUSED (owner, 2026-09-28: "pause data refreshes till I tell you to start
+    again.")** — until the owner says to start again, no collection runs: `refresh.yml` and
+    `watchdog.yml` have their crons commented out AND `if: false` on their only job, so even a
+    stray dispatch is a skipped, zero-cost run. The published site keeps serving the last build
+    and its dates age visibly; the page's own retention note says what window it holds. Resume
+    ONLY on the owner's word, by restoring both `schedule:` blocks, deleting both `if: false`
+    lines, pushing, and dispatching `refresh.yml` once by hand (the chain restarts from there).
+    Do not "helpfully" resume, and do not let a review or a follow-up undo the pause.

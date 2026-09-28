@@ -19,9 +19,20 @@ name: Refresh Season 2 data
 # journals that make the sweep incremental live in the Actions cache.
 # The CSV export IS committed once a day, so a cache eviction costs at most a
 # day of re-fetching rather than the whole season (see seed_from_csv()).
+# ---------------------------------------------------------------------------
+# PAUSED (owner, 2026-09-28: "pause data refreshes till I tell you to start
+# again."). Two things hold the pause, and BOTH must be undone to resume:
+#   1. the cron below is commented out, so no scheduled run starts;
+#   2. the `refresh` job carries `if: false`, so a dispatch that still arrives
+#      (the previous run's self-chain, the watchdog, a hand dispatch) is a
+#      skipped run that costs no API budget and collects nothing.
+# The watchdog is paused the same way (it would otherwise re-dispatch this).
+# Resume: restore `schedule:` here and in watchdog.yml, delete both `if: false`
+# lines, push, then dispatch this workflow once by hand to restart the chain.
+# ---------------------------------------------------------------------------
 on:
-  schedule:
-    - cron: "*/30 * * * *"
+  # schedule:
+  #   - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       resweep:
@@ -122,6 +133,7 @@ permissions:
 
 jobs:
   refresh:
+    if: false   # PAUSED by the owner (see the note above `on:`); delete this line to resume
     runs-on: ubuntu-latest
     # 50 for the scheduled path, so a run never bleeds into the next slot. A
     # gear refetch needs more than one hourly quota window by arithmetic, so it
