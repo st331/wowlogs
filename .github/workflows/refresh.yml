@@ -354,6 +354,11 @@ jobs:
           # while data/backfill.json is in force; the standing WCL_MAX_SLEEP_S
           # cap above is replaced by this deadline for the same span.
           BACKFILL_WALL_S: ${{ inputs.bundle_backfill == 'true' && '7200' || '1200' }}
+          # the collector must know it runs for the backfill: once the
+          # switch has expired such a run makes no request at all
+          # (fetch_data.main). Run 4288 (16:16 IST) lacked this and went
+          # into the normal sweep; only a spent window kept it from spending.
+          BUNDLE_BACKFILL: ${{ inputs.bundle_backfill }}
         run: |
           test -n "$WCL_CLIENT_ID" || {
             echo "::error::WCL_CLIENT_ID / WCL_CLIENT_SECRET repository secrets are not set"
