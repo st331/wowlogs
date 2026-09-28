@@ -136,6 +136,12 @@ def backfill_mode(now_s: float | None = None, path=None, env=None) -> dict | Non
 BAND = 2                  # key levels per band: b18 = 18-19
 CHAIN_WINDOW_MS = 5_000   # another party death within this many ms before own death
 EST_COST_BUNDLE = 7.5     # est_cost per bundled run (measured 6.5-8.5 cold)
+# The lean bundle (backfill): Summary + Interrupts + Dispels + the filtered
+# DamageTaken -- the four tables the vetting site's measures and baselines
+# read. Casts (def_casts) and Healing (heal_total/heal_over) are not read
+# by the site today, so the backfill leaves them out: two tables fewer is
+# about a third off the cost, a third more runs an hour.
+EST_COST_BUNDLE_LEAN = 5.0
 DAY_MS = 86_400_000
 
 BUNDLE_TABLES = ("interrupts", "dispels", "dmgTaken", "casts", "healing")
@@ -287,12 +293,14 @@ def avoidable_ids(lists: dict, dungeon: str) -> list[int]:
 # the request
 # --------------------------------------------------------------------------
 
-def bundle_subquery(alias: str, code: str, fid, avoidable, kit) -> str:
+def bundle_subquery(alias: str, code: str, fid, avoidable, kit, lean: bool = False) -> str:
     """One report alias carrying the six tables (§4). The Summary keeps the
     alias `table`, the name the summary stage has always read, so the caller
     path and every existing test see the same node shape. The two filtered
     tables are omitted when their id list is empty -- a filter over nothing
-    is not a table -- and parse as "missing" (None) downstream."""
+    is not a table -- and parse as "missing" (None) downstream. `lean` (the
+    backfill) drops Casts and Healing as well: the vetting site reads
+    neither, and they are a third of the cost."""
     f = f"fightIDs: [{int(fid)}]"
     parts = [f"table: table({f}, dataType: Summary)",
              f"interrupts: table({f}, dataType: Interrupts)",
@@ -301,11 +309,12 @@ def bundle_subquery(alias: str, code: str, fid, avoidable, kit) -> str:
         ids = ",".join(str(int(i)) for i in avoidable)
         parts.append(f'dmgTaken: table({f}, dataType: DamageTaken, '
                      f'filterExpression: "ability.id in ({ids})")')
-    if kit:
+    if kit and not lean:
         ids = ",".join(str(int(i)) for i in kit)
         parts.append(f'casts: table({f}, dataType: Casts, '
                      f'filterExpression: "ability.id in ({ids})")')
-    parts.append(f"healing: table({f}, dataType: Healing)")
+    if not lean:
+        parts.append(f"healing: table({f}, dataType: Healing)")
     return f'{alias}: report(code: "{code}") {{ {" ".join(parts)} }}'
 
 

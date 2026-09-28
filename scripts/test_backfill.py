@@ -84,8 +84,8 @@ with tempfile.TemporaryDirectory() as tmp:
     sw.write_text(json.dumps({"until": "not a date"}))
     check(ex.backfill_mode(now_s=1_790_000_000, path=sw, env={}) is None, "an unparseable `until` is off")
     real = ex.backfill_mode(now_s=1_790_000_000, env={})
-    check(real is not None and real["until"] == "2026-09-28T10:40:00Z" and real["share"] == 1.0,
-          "the committed data/backfill.json: until 2026-09-28T10:40:00Z, share 1.0")
+    check(real is not None and real["until"] == "2026-09-29T02:00:00Z" and real["share"] == 1.0,
+          "the committed data/backfill.json: until 2026-09-29T02:00:00Z, share 1.0")
 
 # --- 2. the gate in admit_all mode ------------------------------------------------------
 g = ex.BundleGate(None, now_ms=NOW_MS, paused=False, admit_all=True)
@@ -235,6 +235,9 @@ f0 = bf.fight_of(r0, {"code": "NewRunCode0001xx", "fid": 8, "score": 555.0, "med
 check(f0["_bundle"] is True and f0["score"] == 555.0 and f0["medal"] == "silver" and f0["affixes"] == [1]
       and f0["specs"] == r0["specs"] and f0["key_level"] == 16 and f0["rank_duration_ms"] == r0["rank_duration_ms"],
       "fight_of: the batch machinery's fight dict, the leaderboard's fresher fields winning")
+check(f0["_lean"] is True and "casts:" not in fd.batch_query([f0]) and "healing:" not in fd.batch_query([f0])
+      and "dataType: Interrupts" in fd.batch_query([f0]) and fd.batch_est_cost([f0]) == ex.EST_COST_BUNDLE_LEAN,
+      "a backfilled run asks for the lean bundle and reserves its cost")
 
 # --- 6. row replacement end to end, with a fake fetch -----------------------------------
 NODE_FOR = {"NewRunCode0001xx": "a1", "Newest0007xxxxxx": "a7", "GoneRunCode008xx": "a3", "EmptyRunCode09xx": "a4"}

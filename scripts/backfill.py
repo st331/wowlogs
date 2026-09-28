@@ -248,6 +248,7 @@ def fight_of(r: dict, listed: dict | None = None) -> dict:
             if v not in (None, "", []):
                 f[k] = v
     f["_bundle"] = True
+    f["_lean"] = True      # Summary + Interrupts + Dispels + DamageTaken: what the site reads
     return f
 
 

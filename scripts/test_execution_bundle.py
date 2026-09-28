@@ -264,6 +264,16 @@ with tempfile.TemporaryDirectory() as tmp:
         else:
             sys.modules.pop("requests", None)
 
+
+# --- lean bundle (the backfill): no Casts, no Healing --------------------------
+_lean = ex.bundle_subquery("a0", "ABC", 3, [1, 2], [7, 8], lean=True)
+_full = ex.bundle_subquery("a0", "ABC", 3, [1, 2], [7, 8])
+check("dataType: Summary" in _lean and "dataType: Interrupts" in _lean and "dataType: Dispels" in _lean
+      and "dataType: DamageTaken" in _lean and "casts:" not in _lean and "healing:" not in _lean,
+      "lean bundle: Summary, Interrupts, Dispels, filtered DamageTaken; no Casts, no Healing")
+check("casts:" in _full and "healing:" in _full, "the full bundle still carries Casts and Healing")
+check(ex.EST_COST_BUNDLE_LEAN < ex.EST_COST_BUNDLE, "the lean bundle reserves less")
+
 print()
 if fails:
     sys.exit(f"FAILED ({fails} failures)")

@@ -1128,7 +1128,8 @@ def batch_query(batch: list[dict], lists: dict | None = None) -> str:
             parts.append(ex.bundle_subquery(
                 f"a{i}", f["code"], f["fid"],
                 ex.avoidable_ids(lists, f.get("dungeon")),
-                ex.kit_ids(lists, f.get("specs") or [])))
+                ex.kit_ids(lists, f.get("specs") or []),
+                lean=bool(f.get("_lean"))))
         else:
             parts.append(
                 f'a{i}: report(code: "{f["code"]}") '
@@ -1143,7 +1144,8 @@ SUMMARY_EST_COST = 2.6      # per Summary-only run (measured 1.47 cold; 1.8x con
 def batch_est_cost(batch: list[dict]) -> float:
     """What the governor reserves for one request: the bundle's measured
     cold cost for gated runs, the standing estimate for the rest."""
-    return sum(ex.EST_COST_BUNDLE if f.get("_bundle") else SUMMARY_EST_COST
+    return sum((ex.EST_COST_BUNDLE_LEAN if f.get("_lean") else ex.EST_COST_BUNDLE)
+               if f.get("_bundle") else SUMMARY_EST_COST
                for f in batch)
 
 
