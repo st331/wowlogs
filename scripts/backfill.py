@@ -118,6 +118,10 @@ def load_markers(path: pathlib.Path) -> set[str]:
                 out.add(parts[0])
             elif parts[1] == "FAILED" and len(parts) >= 3 and PERMANENT_REPORT.search(parts[2] or ""):
                 out.add(parts[0])
+            elif parts[1] == "OK" and len(parts) >= 3 and parts[2] == "stops":
+                # bundled in the stops era (2026-09-28 11:41 IST on): done even
+                # when every player's kick was unknown and `stops` stayed null
+                out.add(parts[0])
     return out
 
 
@@ -134,8 +138,17 @@ def runs_from_frame(df, now_ms: float, days: int = WINDOW_DAYS, level_min: int =
     """(candidate runs, band counts, exact counts, facts) from a players frame.
 
     Candidates: runs dated in the trailing `days` at `level_min` and up with
-    no exec = 1 row and no marker in `skip`. The counters hold the bundled
-    rows of the same window per band cell and per exact cell.
+    no row that carries `stops` and no marker in `skip`. The counters hold
+    the rows with `stops` of the same window per band cell and per exact
+    cell.
+
+    Why `stops` and not exec = 1 (2026-09-28): the Key fit now scores kicks
+    and stops, and `stops` exists only on rows bundled since the Interrupts
+    parse learned it; a run bundled before that has kicks but no stops, so
+    the cells that were "full" of bundled rows had no stops rows at all --
+    and those are the popular cells the site consults most. Counting stops
+    rows sends the backfill back through them first. A frame without a
+    `stops` column at all (tests, an old export) falls back to exec = 1.
     """
     import pandas as pd
     facts = {"frame_rows": int(len(df))}
@@ -149,14 +162,18 @@ def runs_from_frame(df, now_ms: float, days: int = WINDOW_DAYS, level_min: int =
     win = dated & (st >= cut) & (lvl >= level_min)
     spec = df["class"].astype(str) + "-" + df["spec"].astype(str)
     dun = df["dungeon"].astype(str)
-    bundled = win & (ex_ > 0)
+    if "stops" in df.columns:
+        stops = pd.to_numeric(df["stops"], errors="coerce")
+        bundled = win & (ex_ > 0) & stops.notna()
+    else:
+        bundled = win & (ex_ > 0)
     band = (lvl // ex.BAND * ex.BAND)
     band_counts = Counter(zip(spec[bundled], dun[bundled], band[bundled].astype(int)))
     exact_counts = Counter(zip(spec[bundled], dun[bundled], lvl[bundled].astype(int)))
     has_exec = set(zip(df.loc[bundled, "report_code"].astype(str), df.loc[bundled, "fight_id"]))
     facts["window_rows"] = int(win.sum())
     facts["window_bundled_rows"] = int(bundled.sum())
-    sub = df[win & ~(ex_ > 0)].copy()
+    sub = df[win & ~bundled].copy()
     sub["_spec"] = spec[sub.index]
     sub["_key"] = sub["report_code"].astype(str) + ":" + sub["fight_id"].astype(str)
     runs: list[dict] = []
@@ -425,7 +442,7 @@ def run(regions=None, deadline_s: float | None = None, now_ms: float | None = No
                                 gear_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
                             if run_rec:
                                 runs_fh.write(json.dumps(run_rec, ensure_ascii=False) + "\n")
-                            mark_fh.write(f"{key}\tOK\n")
+                            mark_fh.write(f"{key}\tOK\tstops\n")
                             gate.record_rows(rows)
                             stats["bundled_runs"] += 1
                             stats["rows"] += len(rows)
