@@ -28,14 +28,15 @@ the frame's bundled rows and grow as runs are taken:
 newest first within every pass.
 
 FETCHING reuses the summary stage's machinery (_fetch_batch / batch_query
-with _bundle=True, the Summary under the alias `table`, parse_node), so the
-parse path is the tested one; re-fetching the Summary costs about one point
-per run and is accepted. The rows journaled for a backfilled run REPLACE the
-run's earlier rows -- the journal is append-only and every reader resolves a
-duplicate identity last-wins (export(), seed_from_csv via the exported CSV,
-BundleGate.rebuild) -- so the frame ends with exec = 1 rows carrying the
-bundle columns, the gear journal gets the run's gear rows again, and
-runs.jsonl its run-level record. A run whose report is gone (a permanent
+with _bundle=True and _lean=True -- the Summary under the alias `table`
+plus Interrupts and Dispels, execution.EST_COST_BUNDLE_LEAN a run --
+parse_node), so the parse path is the tested one; re-fetching the Summary
+costs about one point per run and is accepted. The rows journaled for a
+backfilled run REPLACE the run's earlier rows -- the journal is append-only
+and every reader resolves a duplicate identity last-wins (export(),
+seed_from_csv via the exported CSV, BundleGate.rebuild) -- so the frame
+ends with exec = 1 rows carrying the bundle columns, the gear journal gets
+the run's gear rows again, and runs.jsonl its run-level record. A run whose report is gone (a permanent
 GraphQL error) or whose bundle came back with no table at all is marked in
 data/processed/backfill_done.txt and never selected again.
 
@@ -248,7 +249,7 @@ def fight_of(r: dict, listed: dict | None = None) -> dict:
             if v not in (None, "", []):
                 f[k] = v
     f["_bundle"] = True
-    f["_lean"] = True      # Summary + Interrupts + Dispels + DamageTaken: what the site reads
+    f["_lean"] = True      # Summary + Interrupts + Dispels: kicks, stops, dispels -- what the site reads
     return f
 
 
