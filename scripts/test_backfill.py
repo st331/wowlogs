@@ -217,7 +217,10 @@ journal += plain_rows("a3", "LowKeyCode0003xx", 7, NOW_MS - 1 * DAY)         # b
 journal += plain_rows("a4", "MarkedCode0004xx", 14, NOW_MS - 2 * DAY)        # marked FAILED earlier
 journal += plain_rows("a5", "DoneRunCode005xx", 15, NOW_MS - 3 * DAY)        # replaced below by bundled rows
 brows, _ = fd.parse_node({**fight("a5", "DoneRunCode005xx", 15, NOW_MS - 3 * DAY), "_bundle": True}, rd["a5"], _Hero())
-journal += brows                                                              # the later copy: exec 1
+for r in brows:
+    if r.get("stops") is None:
+        r["stops"] = 0        # bundled in the stops era: a row with `stops` is what counts as done
+journal += brows                                                              # the later copy: exec 1, with stops
 journal += plain_rows("a6", "Undated0006xxxxx", 15, NOW_MS - 1 * DAY)
 for r in journal[-5:]:
     r["started_at"] = None                                                    # undated: not in the window
@@ -305,9 +308,9 @@ with tempfile.TemporaryDirectory() as tmp:
           f"run(): 5 selected, 3 bundled (15 rows), 1 gone, 1 empty, stop=done ({ {k: v for k, v in res.items() if k != 'stats'} })")
     marks = (fd.PROCESSED / bf.MARKERS_NAME).read_text().splitlines()
     check(any(m.startswith("GoneRunCode008xx:8\tFAILED") for m in marks) and "EmptyRunCode09xx:8\tEMPTY" in marks
-          and "NewRunCode0001xx:8\tOK" in marks and "Newest0007xxxxxx:8\tOK" in marks
-          and "LeanRunCode0014x:8\tOK" in marks,
-          "markers: FAILED for the gone report, EMPTY for the tableless bundle, OK for the bundled")
+          and "NewRunCode0001xx:8\tOK\tstops" in marks and "Newest0007xxxxxx:8\tOK\tstops" in marks
+          and "LeanRunCode0014x:8\tOK\tstops" in marks,
+          "markers: FAILED for the gone report, EMPTY for the tableless bundle, OK (stops era) for the bundled")
     rows_all = list(fd._iter_journal(fd.PLAYERS_FILE))
     new = [r for r in rows_all if r["report_code"] == "NewRunCode0001xx"]
     check(len(new) == 10 and sum(1 for r in new if r["exec"] == 1) == 5 and new[-1]["exec"] == 1
@@ -425,7 +428,9 @@ with tempfile.TemporaryDirectory() as tmp:
                   "EmptyRunCode09xx:8\tEMPTY\n"
                   "NewRunCode0001xx:8\tOK\n")
     check(bf.load_markers(mk) == {"GoneRunCode008xx:8", "EmptyRunCode09xx:8"},
-          "load_markers: gone report and EMPTY honoured, a parse-error FAILED and OK are not")
+          "load_markers: gone report and EMPTY honoured, a parse-error FAILED and a bare OK are not")
+    mk.write_text("StopsRunCode015xx:8\tOK\tstops\n")
+    check(bf.load_markers(mk) == {"StopsRunCode015xx:8"}, "load_markers: an OK from the stops era is done")
     # --- 11. the sweep's resolver is None here (a second module copy): the backfill brings its own
     with fd.PLAYERS_FILE.open("a") as fh:
         for r in plain_rows("a1", "NewRunCode0001xx", 16, NOW_MS - 1 * DAY):
