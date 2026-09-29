@@ -88,8 +88,8 @@ with tempfile.TemporaryDirectory() as tmp:
     sw.write_text(json.dumps({"until": "not a date"}))
     check(ex.backfill_mode(now_s=1_790_000_000, path=sw, env={}) is None, "an unparseable `until` is off")
     real = ex.backfill_mode(now_s=1_790_000_000, env={})
-    check(real is not None and real["until"] == "2026-09-28T10:40:00Z" and real["share"] == 1.0,
-          "the committed data/backfill.json: until 2026-09-28T10:40:00Z (16:10 IST, the owner's hard stop), share 1.0")
+    check(real is not None and real["until"] == "2026-10-01T00:00:00Z" and real["share"] == 1.0,
+          "the committed data/backfill.json: until 2026-10-01T00:00:00Z (the owner's 'till it is done'), share 1.0")
 
 # --- 2. the gate in admit_all mode ------------------------------------------------------
 g = ex.BundleGate(None, now_ms=NOW_MS, paused=False, admit_all=True)
