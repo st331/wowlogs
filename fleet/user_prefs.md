@@ -633,10 +633,10 @@
     Do not "helpfully" resume, and do not let a review or a follow-up undo the pause.
     SUPERSEDED BY THE OWNER (2026-09-29/30): through another session the owner said "restart data
     collection and use all quota. keep going till it is done or I tell you to pause." (2026-09-29
-    09:47 IST; `data/backfill.json` until 2026-10-01 00:00Z; `refresh.yml` runs bundle-backfill
-    dispatches while the standing cron stays off — see the workflow's own note), and told this
-    session on 2026-09-30 that the jobs were unpaused and made 4 h each. That other session owns
-    the collector state; this one left both workflows untouched.
+    09:47 IST), and told this session on 2026-09-30 that the jobs were unpaused and made 4 h
+    each — that is commit bbc3bf6 (#16, "Cadence: refresh every 4 hours, every collector capped at
+    70 % of the WCL quota; backfill switch removed"). That other session owns the collector state;
+    this one left every workflow untouched.
 
 38. **Trinket (and ring) pairs on the Character screen (owner, 2026-09-30).** "I need you to add
     the ability to the character screen, for me to see combinations of trinkets. So I want to know
