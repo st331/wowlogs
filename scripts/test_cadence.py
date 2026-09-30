@@ -359,6 +359,8 @@ probe = wsteps["Inspect the refresh workflow and the published site"]["run"]
 check("the runs list is stale" in probe and "OK_AGE=$BUILT_AGE" in probe and "STREAK=0" in probe
       and "NEXT_DUE=$(( BUILT_S - 600 + EVERY_HOURS * 3600 ))" in probe,
       "the probe takes the site's build stamp as a second witness: the younger age drives the revival, a stale list's streak is not believed")
+check(probe.index("RUNS_OK_AGE=$OK_AGE") > probe.index("OK_AGE=99999"),
+      "the runs list's age is kept only after OK_AGE exists (the probe runs under set -u; run #184 died on it)")
 check("workflows/timer.yml/runs" in probe and "NEXT_DUE=$(( $(date -u -d \"$LAST_OK_START\" +%s) + EVERY_HOURS * 3600 ))" in probe
       and 'echo "timer_pending=$TIMER_PENDING"' in probe, "the probe counts sleeping timers and computes the next slot")
 check(alert > stale and data > stale and data >= real["every_hours"] * 60 * 2,
