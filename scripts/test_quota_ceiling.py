@@ -3,8 +3,14 @@ import os, sys, threading
 sys.path.insert(0, 'scripts')
 os.environ['WCL_TOKEN'] = 'fake'
 os.environ['WCL_MAX_SLEEP_S'] = '1'      # refuse to sleep; stop instead
-FRACTION = float(os.environ.setdefault('WCL_QUOTA_FRACTION', '0.85'))
+import cadence
+# no WCL_QUOTA_FRACTION in the environment = the standing cap in data/cadence.json
+# (0.70), exactly the path a scheduled run's collectors take; START_SPENT=<pts>
+# simulates an hour the owner's own lookups already used, and WCL_QUOTA_FRACTION
+# a deliberate override
+FRACTION = float(os.environ.get('WCL_QUOTA_FRACTION') or cadence.read_cadence()['quota_fraction'])
 import wcl_client as W
+assert abs(W.quota_fraction() - FRACTION) < 1e-9, f'client resolves {W.quota_fraction()} != {FRACTION}'
 
 LIMIT, COST = 18000.0, 40.0
 st = {'spent': float(os.environ.get('START_SPENT', 0)), 'peak': 0.0, 'n': 0}

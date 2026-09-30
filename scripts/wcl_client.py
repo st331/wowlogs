@@ -2,9 +2,13 @@
 """Warcraft Logs v2 (GraphQL) client with quota management.
 
 Design goals:
-  * Never spend more than WCL_QUOTA_FRACTION of the hourly budget (default
-    0.85 -- the owner's standing cap since 2026-09-08, 0.70 before). The rest
-    of the hour belongs to whatever else the account is doing.
+  * Never spend more than a fixed share of the hourly budget: WCL_QUOTA_FRACTION
+    when the environment sets it, else data/cadence.json's quota_fraction
+    (0.70 -- the owner's cap since 2026-09-30, "never more than 70% of my API
+    quota"; it was 0.85 from 2026-09-08 and 0.70 before that), else
+    DEFAULT_QUOTA_FRACTION. The ceiling is measured against the ACCOUNT's live
+    spend, so the rest of the hour belongs to whatever else the account is
+    doing -- the owner's own lookups included.
   * Within that ceiling, spend without artificial pacing, then stop cleanly
     and sleep until the window resets.
   * Every query piggybacks `rateLimitData` so we always know the live spend
@@ -51,26 +55,49 @@ TOKEN_URL = "https://www.warcraftlogs.com/oauth/token"
 RATE_FIELD = "rateLimitData { limitPerHour pointsSpentThisHour pointsResetIn }"
 
 # Hard ceiling on the share of the hourly budget this process may spend, as a
-# fraction of whatever limitPerHour the API reports. Overridable per-run with
-# WCL_QUOTA_FRACTION, and clamped to 1.0 so it can never authorise more than
-# the account actually has.
-DEFAULT_QUOTA_FRACTION = 0.85
+# fraction of whatever limitPerHour the API reports. Resolved by
+# quota_fraction(): WCL_QUOTA_FRACTION when the environment sets it (a
+# deliberate one-off dispatch, a test), else the owner's standing knob in
+# data/cadence.json (scripts/cadence.py; 0.70 since 2026-09-30), else this
+# constant -- which therefore only ever applies when the cadence file cannot
+# be read. Clamped to (0, 1] everywhere so nothing can authorise more than the
+# account actually has. Every process on the account (the sweep, the trinket
+# and keystone collectors, a hand-run diagnostic) resolves it the same way and
+# the governor measures it against the account's LIVE spend, which is what
+# makes one fraction a cap on the TOTAL.
+DEFAULT_QUOTA_FRACTION = 0.70
+
+
+def cadence_quota_fraction() -> float:
+    """data/cadence.json's quota_fraction, else DEFAULT_QUOTA_FRACTION."""
+    here = str(pathlib.Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    try:
+        from cadence import read_cadence
+    except ImportError:
+        return DEFAULT_QUOTA_FRACTION
+    c = read_cadence(log=lambda m: print(f"[wcl] {m}", flush=True))
+    f = c.get("quota_fraction", DEFAULT_QUOTA_FRACTION)
+    return f if 0 < f <= 1 else DEFAULT_QUOTA_FRACTION
 
 
 def quota_fraction() -> float:
     raw = os.environ.get("WCL_QUOTA_FRACTION", "").strip()
     if not raw:
-        return DEFAULT_QUOTA_FRACTION
+        return cadence_quota_fraction()
     try:
         f = float(raw)
     except ValueError:
+        f = cadence_quota_fraction()
         print(f"[wcl] ignoring unparseable WCL_QUOTA_FRACTION={raw!r}; "
-              f"using {DEFAULT_QUOTA_FRACTION}", flush=True)
-        return DEFAULT_QUOTA_FRACTION
+              f"using the cadence cap {f}", flush=True)
+        return f
     if not 0 < f <= 1:
-        print(f"[wcl] WCL_QUOTA_FRACTION={f} out of range (0, 1]; "
-              f"using {DEFAULT_QUOTA_FRACTION}", flush=True)
-        return DEFAULT_QUOTA_FRACTION
+        f = cadence_quota_fraction()
+        print(f"[wcl] WCL_QUOTA_FRACTION={raw} out of range (0, 1]; "
+              f"using the cadence cap {f}", flush=True)
+        return f
     return f
 
 

@@ -41,9 +41,10 @@ it. Measured on run 829 (first events run): 192 wearer-fights for 430 points
 actor id; those cost one masterData sub-query per REPORT on top, memoised
 per run. The journal held ~73k wearer-fights on 2026-09-08 (7.6 % of
 gear-known parses) and grows ~30k a week. Every run spends at most
---budget-pts points and --budget-s seconds, under the client's standing 85 %
-ceiling, newest fights first, journals what it got and stops; the next run
-continues. --since-reset limits the work to each region's current reset
+--budget-pts points and --budget-s seconds, under the client's standing
+ceiling (data/cadence.json quota_fraction, 70 % since 2026-09-30, measured
+against the account's live spend), newest fights first, journals what it got
+and stops; the next run continues. --since-reset limits the work to each region's current reset
 (owner, 2026-09-08: "finish draining the trinket data for this entire reset.
 don't need data from the previous reset").
 
