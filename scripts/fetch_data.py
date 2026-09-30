@@ -42,6 +42,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from wcl_client import WCLClient, QuotaDeadline, QUOTA
+from cadence import read_cadence
 from retention import (RETENTION_DISK_DAYS, DATED, UNDATED, IMPLAUSIBLE, date_class,
                        disk_cut_ms, in_window, iso as _iso)
 import execution as ex
@@ -2020,6 +2021,18 @@ def main() -> None:
     if args.stage in ("all", "summaries"):
         write_outputs(backlog=backlog_size(regions),
                       quota_reset_at=int(time.time() + client.reset_in))
+    # The cadence and the cap this run ran under (data/cadence.json, or the
+    # backfill switch's share while it is in force), and the ACCOUNT's spend
+    # share of the hourly limit at the end -- the client's last live reading,
+    # so the owner's own lookups are in it. quota.share_at_end over
+    # cadence.quota_fraction is the number that must never happen.
+    cad = read_cadence(log=lambda m: print(m, flush=True))
+    write_outputs(**{"cadence.every_hours": cad["every_hours"],
+                     "cadence.quota_fraction": cad["quota_fraction"],
+                     "quota.fraction": QUOTA.fraction,
+                     "quota.limit": int(client.limit),
+                     "quota.spent_at_end": int(client.spent),
+                     "quota.share_at_end": f"{client.spent / max(client.limit, 1):.3f}"})
     print(f"[done] {client.requests_made} HTTP requests, "
           f"{client.spent:.0f} points spent this window "
           f"({client.spent / max(client.limit, 1):.1%} of the account budget; "

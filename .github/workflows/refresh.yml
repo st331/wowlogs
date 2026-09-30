@@ -1,17 +1,38 @@
 name: Refresh Season 2 data
 
-# Collection sidecar, every 20 minutes. Sweeps the Warcraft Logs leaderboards,
-# fetches the summaries for whatever is new, rebuilds the dashboard and
-# publishes it.
+# Collection sidecar, every 4 hours (data/cadence.json). Sweeps the Warcraft
+# Logs leaderboards, fetches the summaries and the execution bundle for
+# whatever is new, runs the trinket and keystone collectors in the background
+# of the build, rebuilds the dashboard and the vetting-site sidecars and
+# publishes them.
 #
-# The cadence is set by API budget, not by how fresh the data could be. Every
-# run re-scans all 232 leaderboard cursors for roughly 1,900 points whether or
-# not anything changed, so the sweep overhead is a function of how often we
-# run: six times an hour spent ~11,400 points/hour of an 18,000/hour account
-# budget purely on re-scanning. Twice a day per hour -- one run every two
-# hours -- costs ~950/hour and leaves the rest of the account free. Fetching
-# the summaries themselves costs the same either way, since it is priced per
-# new run rather than per sweep.
+# CADENCE AND CAP (owner, 2026-09-30, after the bundle backfill: "move to a
+# cadence of updating the data every 4 hours or so ... never end up using
+# more than 70% of my API quota"). Both knobs live in data/cadence.json
+# (scripts/cadence.py) and this workflow reads them in the Cadence step:
+#   * every_hours -> the cron below, `0 */4 * * *` UTC (05:30, 09:30, 13:30,
+#     17:30, 21:30, 01:30 IST). The hourly quota window resets at :00 UTC,
+#     so a scheduled run starts on a fresh window. The cron IS the cadence:
+#     a scheduled run dispatches no successor (the Chain step chains only
+#     while data/backfill.json is in force, or an explicitly dispatched
+#     drain still has a backlog); the watchdog revives a dropped tick after
+#     every_hours + 1 h. scripts/test_cadence.py pins the cron and the
+#     watchdog threshold to the file, so changing the period is: edit the
+#     file, the cron and watchdog.yml's STALE_SUCCESS_MIN, run the test.
+#   * quota_fraction -> WCL_QUOTA_FRACTION in every step that runs a client
+#     (Fetch, the background collectors), and the client reads the file
+#     itself when the variable is absent. The governor measures the ceiling
+#     against the ACCOUNT's live spend, so the sweep, the bundle, the
+#     collectors and the owner's own lookups from the vetting site together
+#     never pass 70 % of the limit (12,600 of 18,000). A run that starts
+#     with the hour already over it sleeps within its cap or stops cleanly.
+# A scheduled run spends roughly: a deep sweep ~2,000 points (every run is
+# deep at this period), ~4 hours of new runs' summaries with the bundle
+# where the gate admits (~1,700 runs, ~5,000-8,000 points), then the trinket
+# collector up to 1,500 and the keystone top-up ~400 -- ~9,000-12,000 in the
+# hour it starts, capped at 12,600 by the governor whatever the sum comes to.
+# The 2026-09-28 pause (cron commented out, `if: false` here and on the
+# watchdog) is lifted by this cadence, on the owner's word above.
 #
 # Nothing is committed on the periodic path: the built site is 29 MB and
 # committing each build would add gigabytes a month to the repository. The
@@ -19,20 +40,10 @@ name: Refresh Season 2 data
 # journals that make the sweep incremental live in the Actions cache.
 # The CSV export IS committed once a day, so a cache eviction costs at most a
 # day of re-fetching rather than the whole season (see seed_from_csv()).
-# ---------------------------------------------------------------------------
-# PAUSED (owner, 2026-09-28: "pause data refreshes till I tell you to start
-# again."). Two things hold the pause, and BOTH must be undone to resume:
-#   1. the cron below is commented out, so no scheduled run starts;
-#   2. the `refresh` job carries `if: false`, so a dispatch that still arrives
-#      (the previous run's self-chain, the watchdog, a hand dispatch) is a
-#      skipped run that costs no API budget and collects nothing.
-# The watchdog is paused the same way (it would otherwise re-dispatch this).
-# Resume: restore `schedule:` here and in watchdog.yml, delete both `if: false`
-# lines, push, then dispatch this workflow once by hand to restart the chain.
-# ---------------------------------------------------------------------------
 on:
-  # schedule:
-  #   - cron: "*/30 * * * *"
+  schedule:
+    # data/cadence.json every_hours=4 -- change the two together
+    - cron: "0 */4 * * *"
   workflow_dispatch:
     inputs:
       resweep:
@@ -52,9 +63,9 @@ on:
         type: boolean
         default: false
       quota_fraction:
-        description: "Share of the hourly API budget this run may spend. The standing cap is 0.85 (owner, 2026-09-08; it was 0.70); raise it only for a deliberate one-off."
+        description: "Share of the hourly API budget this run may spend. Blank = the standing cap in data/cadence.json (0.70, owner 2026-09-30); set it only for a deliberate one-off, never to exceed what the owner allowed."
         type: string
-        default: "0.85"
+        default: ""
       chain:
         description: "Internal: set by the previous run's self-chain dispatch"
         type: string
@@ -74,8 +85,10 @@ on:
       # ceiling, exports, builds and deploys, then chains a successor timed to
       # the quota window's reset. Each successor re-reads the backlog and
       # keeps draining only while it is real; the moment it is gone the chain
-      # continues as an ordinary standing-cap, 20-minute-paced run. The scheduled path
-      # never sets this, so the standing cap stands.
+      # ends and the cron cadence carries on under the standing cap. The
+      # scheduled path never sets this, so the standing cap stands. The
+      # ONE dispatch path that ignores data/cadence.json's cap; never
+      # scheduled, never chained into from a cadence run.
       drain:
         description: "One-off: spend the full hourly budget per run and chain at the window reset until the backlog is gone, then revert to the standing-cap cadence"
         type: string
@@ -90,9 +103,9 @@ on:
       #   fresh    -- full budget, but only runs from the last 12 hours; small,
       #               so it fetches in a minute or two and deploys straight
       #               away. Never waits for a quota window.
-      #   backfill -- the rest, newest first, capped at 80% of the hourly
-      #               budget so the fresh run that follows in the same window
-      #               always has points left to spend.
+      #   backfill -- the rest, newest first, capped at the standing cap
+      #               (data/cadence.json) so the fresh run that follows in
+      #               the same window always has points left to spend.
       # Empty = the ordinary run: everything pending, newest first, the standing cap.
       mode:
         description: "Internal: 'fresh' or 'backfill' while draining a backlog; empty for an ordinary run"
@@ -133,39 +146,38 @@ permissions:
 
 jobs:
   refresh:
-    # PAUSED by the owner for the dashboard's own refreshes (see the note
-    # above `on:`): the cron stays off and a plain dispatch is skipped.
-    # The one exception, on the owner's word of 2026-09-28 ("presume we can
-    # completely pause any activity being done for wowlogs" / make the
-    # vetting site's data faster): a run dispatched with bundle_backfill=true
-    # -- the Key Level Logs backfill, scripts/backfill.py, which needs this
-    # job's journals, build and deploy -- runs and chains itself while
-    # data/backfill.json is in force. Restore `if: false` to stop that too.
-    if: ${{ inputs.bundle_backfill == 'true' }}
+    # Runs on the schedule and on every dispatch: a hand dispatch, the
+    # watchdog's revival, a backfill chain's successor (bundle_backfill=true,
+    # scripts/backfill.py -- it needs this job's journals, build and deploy).
+    # To pause everything again: comment the cron out above AND put
+    # `if: false` here (a dispatch that still arrives is then a skipped run
+    # that spends nothing), and the same on watchdog.yml's job -- that is
+    # exactly how the 2026-09-28 pause was held.
     runs-on: ubuntu-latest
-    # 50 for the scheduled path, so a run never bleeds into the next slot. A
-    # gear refetch needs more than one hourly quota window by arithmetic, so it
-    # is allowed to sit through the reset rather than stop and wait to be
-    # dispatched again.
+    # 80 for the scheduled path: a 4-hourly run has four hours of new runs to
+    # fetch (~1,700, ~15 min with the bundle) and may sit up to 8 min waiting
+    # for a quota window before the build, the sidecars and the deploy; the
+    # next slot is hours away, so nothing is bled into. A gear refetch needs
+    # more than one hourly quota window by arithmetic, so it is allowed to sit
+    # through the reset rather than stop and wait to be dispatched again.
     # A bundle-backfill run (see the input) gets 170: it backfills for
     # BACKFILL_WALL_S (2 h, sleeping to the hourly reset inside that when the
     # budget is spent early) and still has ~50 minutes for the build, the
     # deploy, the prune and the cache save before this limit.
-    timeout-minutes: ${{ inputs.bundle_backfill == 'true' && 170 || (inputs.regear_min_key != '' || inputs.drain == 'true') && 110 || 50 }}
+    timeout-minutes: ${{ inputs.bundle_backfill == 'true' && 170 || (inputs.regear_min_key != '' || inputs.drain == 'true') && 110 || 80 }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      # GitHub throttles */30 cron badly (observed gaps up to 4.5 h), so each
-      # scheduled/chained run dispatches its own successor at the end and the
-      # cron survives only as a dead-man's restart (the watchdog is the
-      # other). A chained successor starts the moment its predecessor
-      # finishes; this step sleeps out the rest of the 20-minute slot (capped
-      # at ~17 min, inside the 50-min timeout) so run STARTS stay ~20 min
-      # apart. Concurrency holds one pending run at most, so cron ticks
-      # landing mid-chain self-cancel into it.
+      # Chained runs exist only while data/backfill.json is in force or an
+      # explicitly dispatched drain has a backlog (see the Chain step): a
+      # scheduled run is paced by the cron alone, and this step only records
+      # JOB_START for it (the backfill's wall clock, the health lines). The
+      # branches below pace a drain's successors. Concurrency holds one
+      # pending run at most, so a cron tick landing mid-chain self-cancels
+      # into it.
       - name: Pace the chain
         run: |
           echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
@@ -197,6 +209,14 @@ jobs:
             echo "chained: starting immediately ($(( $(date +%s) - PREV ))s after the previous start)"
           fi
 
+      # The owner's two knobs (data/cadence.json, scripts/cadence.py):
+      # every_hours (the cron's period, informational here) and
+      # quota_fraction, which every step that runs a Warcraft Logs client
+      # takes as WCL_QUOTA_FRACTION below. A missing or bad file is the
+      # defaults (4 h, 0.70), said in the log; never a failed run.
+      - name: Cadence
+        id: cadence
+        run: python3 scripts/cadence.py github-output
 
       - uses: actions/setup-python@v5
         with:
@@ -248,16 +268,20 @@ jobs:
       # data/procs_drain.json carries an `until` epoch; while the clock is
       # before it, Fetch is skipped and the collector runs at the whole hourly
       # budget. The file is inert afterwards -- nothing to revert by hand, and
-      # the standing 85% cap is back the moment the window closes. Every run
-      # re-reads it, so a chained successor needs no input to inherit it.
+      # the standing cap (data/cadence.json) is back the moment the window
+      # closes. Every run re-reads it, so a chained successor needs no input
+      # to inherit it.
       - name: Drain mode
         id: drain
+        env:
+          CADENCE_FRACTION: ${{ steps.cadence.outputs.quota_fraction }}
         run: |
           # outputs go to $GITHUB_OUTPUT (key=value ONLY -- a workflow command
           # in that file is an "Invalid format" error that fails the step, as
           # run 34207028988 found); the notice goes to stdout
           python3 - <<'EOF'
           import json, os, pathlib, time
+          standing = os.environ.get("CADENCE_FRACTION") or "0.70"
           p = pathlib.Path("data/procs_drain.json")
           cfg, on = {}, False
           if p.exists():
@@ -274,7 +298,7 @@ jobs:
               on = False
           out = {"until": cfg.get("until", 0),
                  "procs_drain": "true" if on else "false",
-                 "fraction": cfg.get("fraction", 1.0) if on else "0.85",
+                 "fraction": cfg.get("fraction", 1.0) if on else standing,
                  "margin": cfg.get("margin", 20) if on else "400",
                  "budget_pts": cfg.get("budget_pts", 18000) if on else "1500",
                  "budget_s": cfg.get("budget_s", 1200) if on else "480",
@@ -314,17 +338,22 @@ jobs:
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
           SWEEP_DEPTH: ${{ steps.depth.outputs.depth }}
           # Hard ceiling on the share of the hourly API budget this run may
-          # spend. The budget is per ACCOUNT, so the remaining 30% stays free
-          # for anything else using the same credentials. The client refuses to
-          # send a request that would cross it and stops cleanly instead.
-          # Raise ONLY on an explicit request; the client clamps it to 1.0.
-          # Standing cap is 0.85 (owner, 2026-09-08). A manual dispatch may raise it for a single
-          # run -- a gear refetch, say -- but the scheduled path never does:
-          # `inputs` is empty on a schedule, so this falls back to 0.85.
-          # Drain mode (see the input) is the one path that spends the whole
-          # budget; it is only ever set by an explicit dispatch or by a drain
-          # run's own successor while a backlog remains.
-          WCL_QUOTA_FRACTION: ${{ inputs.mode == 'backfill' && '0.85' || (inputs.drain == 'true' || inputs.mode == 'fresh') && '1.0' || inputs.quota_fraction || '0.85' }}
+          # spend: data/cadence.json's quota_fraction (0.70, owner 2026-09-30),
+          # read by the Cadence step. The budget is per ACCOUNT and the client
+          # measures the ceiling against the account's live spend, so the
+          # remaining 30 % stays free for the owner's own lookups on the same
+          # credentials -- and their lookups count against this run. The
+          # client refuses to send a request that would cross the ceiling and
+          # sleeps (WCL_MAX_SLEEP_S) or stops cleanly instead; a run that
+          # starts with the hour already over it never fetches past. The
+          # scheduled path never overrides it: `inputs` is empty on a
+          # schedule. A manual dispatch may set quota_fraction for a single
+          # deliberate run; a drain run (see the input) is capped like any
+          # other -- the owner's 70 % holds in every mode (2026-09-30), a
+          # drain just keeps chaining until its backlog is gone. The backfill
+          # switch overrides the value inside the collector
+          # (execution.backfill_mode's share).
+          WCL_QUOTA_FRACTION: ${{ inputs.quota_fraction || steps.cadence.outputs.quota_fraction }}
           # the fresh slice: only runs from the last 12 hours, so the run is
           # small and the deploy is minutes away; everything older waits for
           # the backfill run that follows
@@ -332,11 +361,11 @@ jobs:
           # the gear export (two passes over a multi-GB journal, ~3-4 min) only
           # when something will keep the result: a seed commit or a regear
           EXPORT_GEAR: ${{ (inputs.commit_export == true || inputs.regear_min_key != '') && '1' || '0' }}
-          # the job has 50 minutes; never spend more than 8 of them asleep
-          # waiting for a quota window that the next run will get for free
-          # Scheduled runs never wait more than 8 minutes for a quota window
-          # the next run gets for free. A refetch has nothing to hand off to,
-          # so it waits the window out.
+          # Scheduled runs never wait more than 8 minutes for a quota window:
+          # a run that finds the hour spent (the owner's lookups, say) stops
+          # cleanly with what it has, builds and deploys, and the next cron
+          # tick sweeps the rest on a fresh window. A refetch has nothing to
+          # hand off to, so it waits the window out.
           # A drain run never sleeps for the window: sleeping inside the job
           # buys nothing over stopping at the first ceiling, exporting,
           # deploying and chaining a successor timed to the reset -- and it
@@ -349,7 +378,7 @@ jobs:
           # BUNDLE BACKFILL: the wall-clock budget, measured from JOB_START
           # (the Pace step), the collector may spend in backfill mode before
           # it stops and lets the run build, deploy, save and chain. 2 h in a
-          # run sized for it (170-minute job), 20 min in an ordinary 50-minute
+          # run sized for it (170-minute job), 20 min in an ordinary 80-minute
           # run that finds the switch on (it chains a long one). Only read
           # while data/backfill.json is in force; the standing WCL_MAX_SLEEP_S
           # cap above is replaced by this deadline for the same span.
@@ -371,7 +400,7 @@ jobs:
           REGEAR=""
           if [ -n "${{ inputs.regear_min_key }}" ]; then
             REGEAR="--regear-min-key ${{ inputs.regear_min_key }} --regear-days ${{ inputs.regear_days || '3' }}"
-            echo "::notice::gear refetch: $REGEAR at quota fraction ${{ inputs.quota_fraction || '0.85' }}"
+            echo "::notice::gear refetch: $REGEAR at quota fraction $WCL_QUOTA_FRACTION"
           fi
           SWEEP="--resweep"
           [ "${{ inputs.resweep }}" = "false" ] && SWEEP=""
@@ -396,8 +425,15 @@ jobs:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
           WCL_MAX_SLEEP_S: "30"
-          # standing: 0.85 / 400; inside a drain window (data/procs_drain.json)
-          # the whole hourly budget with a 20-point margin -- trinket only
+          # every collector here runs under the cadence cap (data/cadence.json,
+          # the Cadence step) against the account's LIVE spend: what Fetch and
+          # the owner already spent this hour is already counted, so the
+          # collectors take only what is left under 70 % and stop cleanly
+          # (30 s sleep cap) when there is none
+          WCL_QUOTA_FRACTION: ${{ steps.cadence.outputs.quota_fraction }}
+          # standing: the cadence cap / 400; inside a drain window
+          # (data/procs_drain.json) the whole hourly budget with a 20-point
+          # margin -- trinket only
           TRINKET_FRACTION: ${{ steps.drain.outputs.fraction }}
           TRINKET_MARGIN: ${{ steps.drain.outputs.margin }}
           TRINKET_PTS: ${{ steps.drain.outputs.budget_pts }}
@@ -732,53 +768,44 @@ jobs:
           fi
           git push origin HEAD:${{ github.ref_name }}
 
-      # Self-chain: successful scheduled/chained runs dispatch the next one.
-      # Failures deliberately do not chain -- the cron dead-man revives the
-      # cadence within a tick instead of a tight failure loop. Manual and
-      # push runs do not chain either, so a one-off dispatch stays one-off.
-      # Runs after a tripped journal guard too: the gated steps are SKIPPED,
-      # not failed, so success() holds and the cadence continues; the
-      # successor simply retries the restore. (A drain in flight ends on a
-      # tripped run, because the empty BACKLOG reads as "done".)
+      # Chain the next run -- ONLY while something other than the cadence is
+      # driving: data/backfill.json in force (the successor is a long
+      # backfill run, so the chain covers the switch's whole span back to
+      # back), or an explicitly dispatched drain with a backlog (its
+      # fresh/backfill alternation). In cadence mode -- a scheduled run, a
+      # hand dispatch, the watchdog's revival -- a run dispatches NOTHING:
+      # the cron is the cadence (data/cadence.json every_hours), and a
+      # self-chain here would double the spend against the owner's 70 % cap.
+      # The decision is scripts/cadence.py chain_decision (tested in
+      # scripts/test_cadence.py). Failures deliberately do not chain -- the
+      # cron and the watchdog revive the cadence instead of a tight failure
+      # loop. When Fetch did not run (a tripped journal guard, a paused
+      # Fetch) BACKFILL_ON is empty and the decision consults the switch file
+      # itself, so a backfill chain survives a run that could not fetch.
       - name: Chain the next run
-        if: success() && (github.event_name == 'schedule' || inputs.chain == 'true' || inputs.drain == 'true' || inputs.bundle_backfill == 'true')
+        if: success()
         env:
           BACKLOG: ${{ steps.fetch.outputs.backlog }}
           RESET_AT: ${{ steps.fetch.outputs.quota_reset_at }}
           # 1 while data/backfill.json was in force for this run's collector
           # (fetch_health backfill.on): the successor is sized for a backfill
           BACKFILL_ON: ${{ steps.fetch.outputs.backfill_on }}
+          DRAIN: ${{ inputs.drain }}
+          MODE: ${{ inputs.mode }}
+          EVERY_HOURS: ${{ steps.cadence.outputs.every_hours }}
         run: |
-          NEXT_BACKFILL=""
-          if [ "$BACKFILL_ON" = "1" ]; then
-            NEXT_BACKFILL="true"
-            echo "bundle backfill: the switch is in force -> successor is a long backfill run"
-          fi
-          # Keep draining only while there is a backlog worth a full-budget
-          # run; below the floor the successor is an ordinary chained run and
-          # the standing 85% cap is back in force without anyone touching it.
-          NEXT_DRAIN=""; NEXT_MODE=""
-          DRAINING=""
-          { [ "${{ inputs.drain }}" = "true" ] || [ -n "${{ inputs.mode }}" ]; } && DRAINING=1
-          # A FRESH run cannot judge the backlog: its sweep and its pending set
-          # are the 12-hour slice, so the number it reports is the slice's
-          # remainder, not the season's (2026-09-06: a fresh run said 490
-          # while the backfill run that followed fetched for ten minutes).
-          # Gating the drain on that number would end it the first time the
-          # slice happened to be small. So a fresh run ALWAYS chains a
-          # backfill run, and only a backfill (or plain drain) run, which
-          # sees the whole pending set, decides whether draining continues.
-          if [ -n "$DRAINING" ] && [ "${{ inputs.mode }}" = "fresh" ]; then
-            NEXT_DRAIN="true"; NEXT_MODE="backfill"
-            echo "drain: fresh slice done (${BACKLOG:-0} left in it) -> successor is a backfill run, which judges the real backlog"
-          elif [ -n "$DRAINING" ] && [ "${BACKLOG:-0}" -gt 300 ] 2>/dev/null; then
-            NEXT_DRAIN="true"; NEXT_MODE="fresh"
-            # alternate: the backfill run's successor is fresh, so the present
-            # gets the next slot; the first successor of a plain drain run is
-            # fresh for the same reason
-            echo "drain: ${BACKLOG} runs still pending -> successor is a fresh run, starting immediately"
-          elif [ -n "$DRAINING" ]; then
-            echo "drain: backlog ${BACKLOG:-0} -> done; successor returns to the standing-cap cadence"
+          # A FRESH drain run cannot judge the backlog: its sweep and its
+          # pending set are the 12-hour slice, so the number it reports is
+          # the slice's remainder, not the season's (2026-09-06: a fresh run
+          # said 490 while the backfill run that followed fetched for ten
+          # minutes). So a fresh run always chains a backfill run, and only
+          # a backfill (or plain drain) run, which sees the whole pending
+          # set, decides whether draining continues -- see chain_decision.
+          eval "$(python3 scripts/cadence.py chain)"
+          echo "$REASON"
+          if [ "$CHAIN" != "true" ]; then
+            echo "no successor dispatched: the cron runs the next refresh (every ${EVERY_HOURS:-4} h, data/cadence.json)"
+            exit 0
           fi
           curl -sf -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \

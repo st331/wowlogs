@@ -2,20 +2,26 @@ name: Refresh watchdog
 
 # A second, independent heartbeat for the data pipeline.
 #
-# The refresh cadence is a self-chain: a successful run dispatches the next.
-# That is deliberate and it is fragile in one specific way -- ANY failure ends
-# the chain, and the */30 cron that is supposed to revive it is throttled by
-# GitHub under load (observed gaps of two hours and more). Worse, a
-# deterministic failure (an OOM, a code fault) makes every revival fail the
-# same way, so the site can sit stale indefinitely with every run either red
-# or absent. And a run can be GREEN while collection is dead: for five days in
-# August every summary failed to parse, was journaled as done, and the export
-# republished the same rows -- nothing in the system noticed; the owner did.
+# The refresh cadence is a cron, every 4 hours (data/cadence.json; before
+# 2026-09-30 it was a self-chain of 20-minute runs). GitHub throttles crons
+# under load (observed gaps of two hours and more), so a dropped tick alone
+# leaves the site stale for a whole period. Worse, a deterministic failure
+# (an OOM, a code fault) makes every run fail the same way, so the site can
+# sit stale indefinitely with every run either red or absent. And a run can
+# be GREEN while collection is dead: for five days in August every summary
+# failed to parse, was journaled as done, and the export republished the same
+# rows -- nothing in the system noticed; the owner did.
 #
 # This workflow watches OUTCOMES, not runs:
-#   1. liveness  -- has a refresh SUCCEEDED recently? If not and nothing is
-#                   queued or running, dispatch one (chain=true so the cadence
-#                   resumes from there).
+#   1. liveness  -- has a refresh SUCCEEDED within one cadence period plus an
+#                   hour (STALE_SUCCESS_MIN = every_hours x 60 + 60, pinned
+#                   to data/cadence.json by scripts/test_cadence.py)? If not
+#                   and nothing is queued or running, dispatch one. A healthy
+#                   4-hourly cadence never trips this, so the watchdog never
+#                   adds a run -- and the spend -- to a cadence that is
+#                   working; a dropped tick is revived within the hour. The
+#                   revived run is an ordinary cadence run: it dispatches no
+#                   successor (refresh.yml's Chain step), the cron carries on.
 #   2. recency   -- does the published site's build_health.txt say the newest
 #                   collected run is recent? A build that keeps landing while
 #                   newest_row stops advancing is the silent-outage signature.
@@ -28,13 +34,16 @@ name: Refresh watchdog
 # stall, and every tick that does fire takes a full corrective action rather
 # than a single attempt that can itself fail.
 
-# PAUSED with the refresh (owner, 2026-09-28): this workflow's whole purpose is
-# to re-dispatch a refresh that has gone quiet, which is exactly the state the
-# owner asked for. Resume together with refresh.yml: restore `schedule:` and
-# delete the `if: false` on the job.
+# Resumed with the refresh (owner, 2026-09-30: the 4-hour cadence). It was
+# paused with it on 2026-09-28 (cron commented out, `if: false` on the job),
+# because its whole purpose is to re-dispatch a refresh that has gone quiet;
+# pause it the same way again whenever the refresh is paused, or it will
+# revive what the owner stopped. Hourly is plenty for a 4-hour cadence:
+# every tick takes a full corrective action, and the thresholds below are
+# what keep it from acting on a cadence that is merely between runs.
 on:
-  # schedule:
-  #   - cron: "11,31,51 * * * *"
+  schedule:
+    - cron: "41 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -47,10 +56,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # thresholds, in minutes
-  STALE_SUCCESS_MIN: 75      # no successful refresh for this long -> dispatch
-  ALERT_SUCCESS_MIN: 180     # ... for this long -> also open the issue
-  STALE_DATA_MIN: 360        # newest collected run older than this -> issue
+  # thresholds, in minutes. The first three follow the cadence period
+  # (data/cadence.json every_hours = 4, pinned by scripts/test_cadence.py):
+  # a healthy cadence has a success at most ~4.5 h old (a period plus a
+  # run's length and GitHub's cron delay) and data a little older than that.
+  STALE_SUCCESS_MIN: 300     # every_hours x 60 + 60: no successful refresh for this long -> dispatch
+  ALERT_SUCCESS_MIN: 540     # two periods + 1 h without a success -> also open the issue
+  STALE_DATA_MIN: 600        # newest collected run older than this (2.5 periods) -> issue
   STUCK_QUEUE_MIN: 45        # queued/pending this long with NOTHING running -> cancel it
   MIN_ROWS: 200000           # published rows below this -> issue (retention steady state ~800k)
   EXPECT_RESETS: 2           # policy: the build ships the newest two resets (scripts/retention.py)
@@ -59,7 +71,7 @@ env:
 
 jobs:
   watch:
-    if: false   # PAUSED by the owner (see the note above `on:`); delete this line to resume
+    # to pause with the refresh: `if: false` here and the cron commented out above
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -165,12 +177,16 @@ jobs:
           sleep 10   # let the group actually release before the dispatch below
 
       - name: Revive the cadence if it has stopped
-        # Two triggers: the cadence has gone quiet, OR the last runs failed and
-        # nothing is queued -- a short streak (<= 3) is retried right away,
-        # because a failed run does not chain and the 75-minute rule alone let
-        # two three-minute failures leave the site stale for hours. Past three
-        # failures the fault is deterministic: the issue is open, and only the
-        # 75-minute rule keeps probing (once per tick, never a tight loop).
+        # Two triggers: the cadence has gone quiet (no success for
+        # STALE_SUCCESS_MIN, one period plus an hour), OR the last runs failed
+        # and nothing is queued -- a short streak (<= 3) is retried right
+        # away, because a failed run is otherwise a whole period of stale
+        # data (the old 75-minute rule alone let two three-minute failures
+        # leave the site stale for hours). Past three failures the fault is
+        # deterministic: the issue is open, and only the quiet rule keeps
+        # probing (once per tick, never a tight loop). The retry runs under
+        # the same 70 % cap as the run it replaces, against the account's
+        # live spend, so a retry never doubles the hour's spend.
         if: steps.probe.outputs.active == '0' && (steps.probe.outputs.stuck_id != '' || fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN) || (fromJSON(steps.probe.outputs.streak) >= 1 && fromJSON(steps.probe.outputs.streak) <= 3))
         env:
           GH_TOKEN: ${{ github.token }}
