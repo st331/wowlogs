@@ -64,6 +64,9 @@ MAX_TIMER_WAIT_S = 5 * 3600 + 1800
 # "fresh": the watchdog or a hand dispatch got there first, the timer stands
 # down (and that run armed its own timer)
 FRESH_SLACK_MIN = 30
+# a refresh publishes about this long after it starts; the timer's second
+# witness (the site's build stamp) is judged fresh a run's length earlier
+RUN_LENGTH_MIN = 15
 # an explicitly dispatched drain keeps alternating fresh/backfill runs only
 # while this many runs are still pending (refresh.yml's drain machinery)
 DRAIN_BACKLOG_FLOOR = 300
@@ -142,6 +145,15 @@ def fresh_min(every_hours: int, slack_min: int = FRESH_SLACK_MIN) -> int:
     a hand started shortly before the slot is not doubled, while one that
     started a period ago is due."""
     return max(1, int(every_hours) * 60 - int(slack_min))
+
+
+def built_fresh_min(every_hours: int, slack_min: int = FRESH_SLACK_MIN,
+                    run_min: int = RUN_LENGTH_MIN) -> int:
+    """The site's build stamp younger than this many minutes when the timer
+    fires makes the timer stand down: fresh_min less a run's length, since a
+    run publishes that long after it starts. The runs list can come back
+    stale (2026-09-30: ten days behind), so the timer asks both witnesses."""
+    return max(1, fresh_min(every_hours, slack_min) - int(run_min))
 
 
 def watchdog_stale_min(every_hours: int) -> int:
@@ -246,7 +258,8 @@ def main(argv=None) -> int:
         return 0
     if cmd == "timer":
         # shell assignments for timer.yml's sleep step to eval: WAIT_S,
-        # FIRE_AT (resolved: a blank input is now), EVERY_HOURS, FRESH_MIN
+        # FIRE_AT (resolved: a blank input is now), EVERY_HOURS, FRESH_MIN,
+        # BUILT_FRESH_MIN
         import time
         c = read_cadence()
         now = int(time.time())
@@ -256,6 +269,7 @@ def main(argv=None) -> int:
         print(f"FIRE_AT={now + wait}")
         print(f"EVERY_HOURS={c['every_hours']}")
         print(f"FRESH_MIN={fresh_min(c['every_hours'])}")
+        print(f"BUILT_FRESH_MIN={built_fresh_min(c['every_hours'])}")
         return 0
     if cmd == "chain":
         # shell assignments for the Chain step to eval: CHAIN, NEXT_BACKFILL,

@@ -109,6 +109,7 @@ jobs:
           else
             NEXT_DUE=$NOW
           fi
+          RUNS_OK_AGE=$OK_AGE
           # A run that is RUNNING is active. A run that is merely waiting for a
           # runner is not -- and treating it as active is how this workflow sat
           # and watched the pipeline die for 68 hours.
@@ -165,8 +166,34 @@ jobs:
           else
             DATA_AGE=-1      # health file predates the field; recency unknown
           fi
+          # The site's build stamp is a SECOND WITNESS to liveness: only a
+          # refresh run builds and publishes it (the UI-only deploy carries
+          # the file over unchanged). 2026-09-30 13:00Z the runs list came
+          # back ten days stale -- newest success 2026-09-19, while the site
+          # said built 10:40Z that day -- and this workflow dispatched a run
+          # on it and opened the alert. So the age that drives the revival
+          # and the alert is the younger of the two witnesses; a list older
+          # than the site is said so and its failure streak is not believed,
+          # and the next slot is counted from the site's build (a run starts
+          # ~10 min before it publishes).
+          if [ -n "$BUILT" ]; then
+            BUILT_S=$(date -u -d "$BUILT" +%s 2>/dev/null || echo "")
+          else
+            BUILT_S=""
+          fi
+          # (30 min of tolerance: a run's own end is minutes after its build)
+          if [ -n "$BUILT_S" ] && [ $(( (NOW - BUILT_S) / 60 + 30 )) -lt "$OK_AGE" ]; then
+            BUILT_AGE=$(( (NOW - BUILT_S) / 60 ))
+            if [ "$OK_AGE" -ne 99999 ]; then
+              echo "::warning::the runs list is stale: its newest success is ${OK_AGE} min old but the site was built ${BUILT_AGE} min ago; trusting the site"
+            fi
+            OK_AGE=$BUILT_AGE
+            STREAK=0
+            LAST_CONCLUSION="success (per the site's build stamp)"
+            NEXT_DUE=$(( BUILT_S - 600 + EVERY_HOURS * 3600 ))
+          fi
 
-          echo "last successful refresh : ${LAST_OK:-never} (${OK_AGE} min ago)"
+          echo "last successful refresh : ${LAST_OK:-never} (${RUNS_OK_AGE} min ago per the runs list; ${OK_AGE} min counting the site's build)"
           echo "timers sleeping         : $TIMER_PENDING (next slot $(date -u -d "@$NEXT_DUE" +'%H:%M UTC'))"
           echo "active refresh runs     : $ACTIVE (running $RUNNING, waiting $WAITING)"
           [ -n "$STUCK_ID" ] && echo "STUCK queued run        : #$STUCK_ID, ${STUCK_AGE} min with nothing running"

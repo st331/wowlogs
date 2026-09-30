@@ -127,6 +127,8 @@ check(cadence.timer_wait_s(str(T0 + 60) + ".0", T0) == 60, "timer_wait_s: a nume
 check(cadence.fresh_min(4) == 210 and cadence.fresh_min(1) == 30 and cadence.fresh_min(2, slack_min=200) == 1,
       "fresh_min: a period minus the 30-minute slack, never below a minute")
 check(cadence.FRESH_SLACK_MIN == 30, "the slack is half an hour")
+check(cadence.built_fresh_min(4) == 195 and cadence.built_fresh_min(1) == 15 and cadence.built_fresh_min(1, run_min=60) == 1,
+      "built_fresh_min: fresh_min less a run's length (15 min), never below a minute")
 
 # --- 2. the client's fraction ----------------------------------------------------------
 orig_file = cadence.CADENCE_FILE
@@ -237,8 +239,9 @@ for fire, want in ((str(int(time.time()) + 600), (595, 600)), ("", (0, 0)), (str
     lines = dict(l.split("=", 1) for l in r.stdout.strip().splitlines() if "=" in l)
     w = int(lines.get("WAIT_S", "-1"))
     check(r.returncode == 0 and want[0] <= w <= want[1] and lines.get("EVERY_HOURS") == "4"
-          and lines.get("FRESH_MIN") == "210" and abs(int(lines["FIRE_AT"]) - int(time.time()) - w) <= 2,
-          f"CLI timer FIRE_AT={fire!r}: WAIT_S={w}, FIRE_AT resolved to now+WAIT_S, EVERY_HOURS 4, FRESH_MIN 210")
+          and lines.get("FRESH_MIN") == "210" and lines.get("BUILT_FRESH_MIN") == "195"
+          and abs(int(lines["FIRE_AT"]) - int(time.time()) - w) <= 2,
+          f"CLI timer FIRE_AT={fire!r}: WAIT_S={w}, FIRE_AT resolved to now+WAIT_S, EVERY_HOURS 4, FRESH_MIN 210, BUILT_FRESH_MIN 195")
 r = subprocess.run(["bash", "-c", f'eval "$({sys.executable} scripts/cadence.py timer)"; echo "$WAIT_S|$FRESH_MIN"'],
                    cwd=ROOT, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
 check(r.returncode == 0 and r.stdout.strip() == "0|210", f"bash eval of the timer CLI: {r.stdout.strip()!r}")
@@ -318,6 +321,9 @@ tdisp = tsteps["Dispatch the refresh unless one is running or fresh"]["run"]
 check("/actions/workflows/refresh.yml/dispatches" in tdisp and r'\"chain\":\"true\"' in tdisp
       and 'if [ "$ACTIVE" != "0" ]' in tdisp and 'if [ "$LAST_AGE" -lt "$FRESH_MIN" ]' in tdisp,
       "the timer dispatches refresh.yml as a cadence run, and stands down for a running or fresh one")
+check('"$SITE_HEALTH?t=$NOW"' in tdisp and 'if [ "$BUILT_AGE" -lt "$BUILT_FRESH_MIN" ]' in tdisp
+      and timer["env"]["SITE_HEALTH"].endswith("/build_health.txt"),
+      "the timer asks the site's build stamp as a second witness before dispatching")
 check(tjob["steps"][0].get("uses", "").startswith("actions/checkout")
       and "data/cadence.json" in tjob["steps"][0]["with"]["sparse-checkout"]
       and "scripts/cadence.py" in tjob["steps"][0]["with"]["sparse-checkout"],
@@ -350,6 +356,9 @@ check("timer_pending == '0'" in warm["if"] and "active == '0'" in warm["if"]
 check("/actions/workflows/timer.yml/dispatches" in warm["run"] and warm["env"]["NEXT_DUE"] == "${{ steps.probe.outputs.next_due }}",
       "the watchdog's arm dispatches timer.yml for the last success's start plus a period")
 probe = wsteps["Inspect the refresh workflow and the published site"]["run"]
+check("the runs list is stale" in probe and "OK_AGE=$BUILT_AGE" in probe and "STREAK=0" in probe
+      and "NEXT_DUE=$(( BUILT_S - 600 + EVERY_HOURS * 3600 ))" in probe,
+      "the probe takes the site's build stamp as a second witness: the younger age drives the revival, a stale list's streak is not believed")
 check("workflows/timer.yml/runs" in probe and "NEXT_DUE=$(( $(date -u -d \"$LAST_OK_START\" +%s) + EVERY_HOURS * 3600 ))" in probe
       and 'echo "timer_pending=$TIMER_PENDING"' in probe, "the probe counts sleeping timers and computes the next slot")
 check(alert > stale and data > stale and data >= real["every_hours"] * 60 * 2,

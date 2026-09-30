@@ -278,8 +278,12 @@ cron**, and every collector runs under one cap. Both knobs are in **`data/cadenc
   plus a period (`EVERY_HOURS: 4`), and when no refresh has succeeded for `every_hours + 1 h`
   (`STALE_SUCCESS_MIN: 300`; alert at 540, stale data at 600) it dispatches a run itself. A
   healthy cadence never trips the second rule; a lost timer (a runner reclaimed, an arm that
-  failed) is re-armed on the watchdog's next tick. `scripts/test_cadence.py` pins the arm step,
-  the timer and these thresholds to the file.
+  failed) is re-armed on the watchdog's next tick. Both the watchdog and the timer take the
+  published site's `built=` stamp as a **second witness** next to the runs list, and act on the
+  younger of the two: on 2026-09-30 the runs API answered ten days stale (newest success
+  2026-09-19 while the site said built that morning), and the watchdog dispatched an extra run
+  and opened the alert on it. `scripts/test_cadence.py` pins the arm step, the timer, the
+  second witness and these thresholds to the file.
 * **To change either knob:** edit `data/cadence.json`; for the period also edit `EVERY_HOURS`
   and `STALE_SUCCESS_MIN` in `watchdog.yml` (the test tells you if they disagree); the
   fraction needs nothing else. A `workflow_dispatch` may set `quota_fraction` for one

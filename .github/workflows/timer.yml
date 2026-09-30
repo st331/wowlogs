@@ -16,7 +16,9 @@ name: Refresh timer
 # It never starts a refresh into one that is running or fresh: before it
 # dispatches, it looks at the refresh runs and stands down when one is active
 # or the newest one started less than a period minus half an hour ago (the
-# watchdog or a hand dispatch got there first). The watchdog is the backstop:
+# watchdog or a hand dispatch got there first), and it looks at the published
+# site's build stamp the same way, because the runs list can come back stale
+# (2026-09-30 13:00Z it was ten days behind). The watchdog is the backstop:
 # on each of its (throttled) ticks it arms a timer when none is sleeping, and
 # it still revives a cadence gone quiet for a period plus an hour.
 on:
@@ -42,6 +44,7 @@ concurrency:
 
 env:
   BRANCH: claude/wow-mythic-dashboard-jv235l
+  SITE_HEALTH: https://st331.github.io/wowlogs/build_health.txt
 
 jobs:
   wait:
@@ -62,14 +65,16 @@ jobs:
           FIRE_AT: ${{ inputs.fire_at }}
           ARMED_BY: ${{ inputs.armed_by }}
         run: |
-          # WAIT_S, FIRE_AT, EVERY_HOURS, FRESH_MIN from data/cadence.json and
-          # the input (scripts/cadence.py timer, tested in test_cadence.py)
+          # WAIT_S, FIRE_AT, EVERY_HOURS, FRESH_MIN, BUILT_FRESH_MIN from
+          # data/cadence.json and the input (scripts/cadence.py timer, tested
+          # in test_cadence.py)
           eval "$(python3 scripts/cadence.py timer)"
           echo "armed by ${ARMED_BY:-?}: firing at $(date -u -d "@$FIRE_AT" +'%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Kolkata date -d "@$FIRE_AT" +'%H:%M IST')), ${WAIT_S}s from now; a refresh younger than ${FRESH_MIN} min then stands it down"
           while [ "$WAIT_S" -gt 0 ]; do
             s=$(( WAIT_S > 300 ? 300 : WAIT_S )); sleep "$s"; WAIT_S=$(( WAIT_S - s ))
           done
           echo "FRESH_MIN=$FRESH_MIN" >> "$GITHUB_ENV"
+          echo "BUILT_FRESH_MIN=$BUILT_FRESH_MIN" >> "$GITHUB_ENV"
 
       - name: Dispatch the refresh unless one is running or fresh
         env:
@@ -89,9 +94,17 @@ jobs:
           if [ "$LAST_AGE" -lt "$FRESH_MIN" ]; then
             echo "the newest refresh started ${LAST_AGE} min ago (fresh under ${FRESH_MIN}): standing down, it armed its own timer"; exit 0
           fi
+          # the second witness: the site's own build stamp (only a refresh
+          # run writes it; a run publishes ~10 min after it starts)
+          BUILT=$(curl -sf -m 30 "$SITE_HEALTH?t=$NOW" | sed -n 's/^\[season\] built=//p;s/^built=//p' | head -1)
+          BUILT_AGE=99999
+          [ -n "$BUILT" ] && BUILT_AGE=$(( (NOW - $(date -u -d "$BUILT" +%s)) / 60 ))
+          if [ "$BUILT_AGE" -lt "$BUILT_FRESH_MIN" ]; then
+            echo "the site was built ${BUILT_AGE} min ago (fresh under ${BUILT_FRESH_MIN}): standing down, the run that built it armed its own timer"; exit 0
+          fi
           curl -sf -X POST \
             -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/dispatches" \
             -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"chain\":\"true\"}}" \
-            && echo "dispatched the refresh (the newest one started ${LAST_AGE} min ago)" \
+            && echo "dispatched the refresh (the newest one started ${LAST_AGE} min ago, the site was built ${BUILT_AGE} min ago)" \
             || echo "::warning::dispatch failed; the watchdog revives the cadence on its next tick"
