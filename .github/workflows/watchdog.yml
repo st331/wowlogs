@@ -2,10 +2,15 @@ name: Refresh watchdog
 
 # A second, independent heartbeat for the data pipeline.
 #
-# The refresh cadence is a cron, every 4 hours (data/cadence.json; before
-# 2026-09-30 it was a self-chain of 20-minute runs). GitHub throttles crons
-# under load (observed gaps of two hours and more), so a dropped tick alone
-# leaves the site stale for a whole period. Worse, a deterministic failure
+# The refresh cadence is a timer, every 4 hours (data/cadence.json; every
+# run arms timer.yml for one period after its start, and the timer
+# dispatches the next run; before 2026-09-30 it was a self-chain of
+# 20-minute runs). It is not a cron: GitHub fired this repository's
+# schedules 5-8 times a day with gaps of 2-6.5 h over 12-28 September, so
+# a cron cannot hold the period -- this workflow's own cron included, which
+# is why it acts as a backstop and never as the clock. A timer can still be
+# lost (a runner reclaimed, an arm that failed), and then the cadence
+# stops. Worse, a deterministic failure
 # (an OOM, a code fault) makes every run fail the same way, so the site can
 # sit stale indefinitely with every run either red or absent. And a run can
 # be GREEN while collection is dead: for five days in August every summary
@@ -13,15 +18,20 @@ name: Refresh watchdog
 # rows -- nothing in the system noticed; the owner did.
 #
 # This workflow watches OUTCOMES, not runs:
+#   0. the clock  -- is a timer sleeping (a timer.yml run queued or in
+#                   progress)? If none is, and no refresh is running, arm one
+#                   for the last success's start plus a period (EVERY_HOURS,
+#                   pinned to data/cadence.json by scripts/test_cadence.py) --
+#                   a slot already past fires at once, and the timer itself
+#                   stands down if a refresh turns out to be running or fresh.
 #   1. liveness  -- has a refresh SUCCEEDED within one cadence period plus an
 #                   hour (STALE_SUCCESS_MIN = every_hours x 60 + 60, pinned
-#                   to data/cadence.json by scripts/test_cadence.py)? If not
-#                   and nothing is queued or running, dispatch one. A healthy
-#                   4-hourly cadence never trips this, so the watchdog never
-#                   adds a run -- and the spend -- to a cadence that is
-#                   working; a dropped tick is revived within the hour. The
-#                   revived run is an ordinary cadence run: it dispatches no
-#                   successor (refresh.yml's Chain step), the cron carries on.
+#                   likewise)? If not and nothing is queued or running,
+#                   dispatch one. A healthy cadence never trips this, so the
+#                   watchdog never adds a run -- and the spend -- to a cadence
+#                   that is working. The revived run is an ordinary cadence
+#                   run: it dispatches no successor (refresh.yml's Chain
+#                   step) and arms the next timer from its own start.
 #   2. recency   -- does the published site's build_health.txt say the newest
 #                   collected run is recent? A build that keeps landing while
 #                   newest_row stops advancing is the silent-outage signature.
@@ -29,10 +39,10 @@ name: Refresh watchdog
 #                   issue titled "Refresh stalled" so a human is told, and
 #                   close it automatically once things are healthy again.
 #
-# It runs on its own cron, so it is subject to the same throttling as the
-# refresh cron -- but two independent clocks are far less likely to both
-# stall, and every tick that does fire takes a full corrective action rather
-# than a single attempt that can itself fail.
+# It runs on a cron, so its ticks are hours apart and irregular -- but the
+# timer and the cron are independent clocks, far less likely to both stall,
+# and every tick that does fire takes a full corrective action rather than
+# a single attempt that can itself fail.
 
 # Resumed with the refresh (owner, 2026-09-30: the 4-hour cadence). It was
 # paused with it on 2026-09-28 (cron commented out, `if: false` on the job),
@@ -56,10 +66,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # thresholds, in minutes. The first three follow the cadence period
+  # thresholds, in minutes. The first four follow the cadence period
   # (data/cadence.json every_hours = 4, pinned by scripts/test_cadence.py):
   # a healthy cadence has a success at most ~4.5 h old (a period plus a
-  # run's length and GitHub's cron delay) and data a little older than that.
+  # run's length) and data a little older than that.
+  EVERY_HOURS: 4             # data/cadence.json every_hours: the slot a re-armed timer is set to
   STALE_SUCCESS_MIN: 300     # every_hours x 60 + 60: no successful refresh for this long -> dispatch
   ALERT_SUCCESS_MIN: 540     # two periods + 1 h without a success -> also open the issue
   STALE_DATA_MIN: 600        # newest collected run older than this (2.5 periods) -> issue
@@ -88,6 +99,16 @@ jobs:
           # ---- 1. refresh runs: latest success age, anything active, failure streak
           RUNS=$(api "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/runs?branch=$BRANCH&per_page=25") || RUNS='{"workflow_runs":[]}'
           LAST_OK=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.conclusion=="success")] | sort_by(.updated_at) | last | .updated_at // empty')
+          # the last success's START, the slot a re-armed timer counts from
+          LAST_OK_START=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.conclusion=="success")] | sort_by(.updated_at) | last | .run_started_at // .created_at // empty')
+          # ---- 0. the clock: a timer.yml run sleeping (queued or in progress)?
+          TIMERS=$(api "https://api.github.com/repos/$REPO/actions/workflows/timer.yml/runs?branch=$BRANCH&per_page=10") || TIMERS='{"workflow_runs":[]}'
+          TIMER_PENDING=$(echo "$TIMERS" | jq -r '[.workflow_runs[] | select(.status=="in_progress" or .status=="queued" or .status=="pending" or .status=="waiting")] | length')
+          if [ -n "$LAST_OK_START" ]; then
+            NEXT_DUE=$(( $(date -u -d "$LAST_OK_START" +%s) + EVERY_HOURS * 3600 ))
+          else
+            NEXT_DUE=$NOW
+          fi
           # A run that is RUNNING is active. A run that is merely waiting for a
           # runner is not -- and treating it as active is how this workflow sat
           # and watched the pipeline die for 68 hours.
@@ -146,6 +167,7 @@ jobs:
           fi
 
           echo "last successful refresh : ${LAST_OK:-never} (${OK_AGE} min ago)"
+          echo "timers sleeping         : $TIMER_PENDING (next slot $(date -u -d "@$NEXT_DUE" +'%H:%M UTC'))"
           echo "active refresh runs     : $ACTIVE (running $RUNNING, waiting $WAITING)"
           [ -n "$STUCK_ID" ] && echo "STUCK queued run        : #$STUCK_ID, ${STUCK_AGE} min with nothing running"
           echo "failure streak          : $STREAK (last: $LAST_CONCLUSION)"
@@ -153,6 +175,7 @@ jobs:
           echo "newest collected run    : ${NEWEST:-unknown} (data age ${DATA_AGE} min)"
           {
             echo "ok_age=$OK_AGE"; echo "active=$ACTIVE"; echo "streak=$STREAK"
+            echo "timer_pending=$TIMER_PENDING"; echo "next_due=$NEXT_DUE"
             echo "stuck_id=$STUCK_ID"; echo "stuck_age=$STUCK_AGE"
             echo "last_conclusion=$LAST_CONCLUSION"; echo "data_age=$DATA_AGE"
             echo "built=${BUILT:-unknown}"; echo "newest=${NEWEST:-unknown}"; echo "rows=${ROWS:-?}"
@@ -198,6 +221,26 @@ jobs:
             "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/dispatches" \
             -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"chain\":\"true\"}}" \
             && echo "dispatched" || echo "::warning::dispatch failed"
+
+      # The clock itself: no timer sleeping, no refresh running, the cadence
+      # not (yet) stale -> arm a timer for the last success's start plus a
+      # period. A slot already past fires at once; the timer stands down by
+      # itself if a refresh turns out to be running or fresh. When the
+      # cadence IS stale the revive step above has dispatched a run, and that
+      # run arms the next timer from its own start.
+      - name: Arm the timer when none is sleeping
+        if: steps.probe.outputs.timer_pending == '0' && steps.probe.outputs.active == '0' && steps.probe.outputs.stuck_id == '' && fromJSON(steps.probe.outputs.ok_age) <= fromJSON(env.STALE_SUCCESS_MIN)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NEXT_DUE: ${{ steps.probe.outputs.next_due }}
+        run: |
+          echo "no timer is sleeping: arming one for $(date -u -d "@$NEXT_DUE" +'%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Kolkata date -d "@$NEXT_DUE" +'%H:%M IST'))"
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/timer.yml/dispatches" \
+            -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"fire_at\":\"$NEXT_DUE\",\"armed_by\":\"watchdog #${{ github.run_number }}\"}}" \
+            && echo "armed" || echo "::warning::arming the timer failed"
 
       - name: Raise or clear the alert
         env:

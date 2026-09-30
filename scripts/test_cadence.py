@@ -15,14 +15,23 @@
     backfill run; a fresh drain run chains a backfill run; a draining run
     with a backlog chains a fresh run, and without one chains nothing; an
     empty backfill_on (Fetch skipped) consults the switch file itself;
-  * the CLI the workflow calls: `chain` prints eval-able assignments,
-    `github-output` writes every_hours / quota_fraction / cron;
-  * the workflows: refresh.yml and watchdog.yml (and diagnose.yml) parse;
-    the refresh cron is `0 */<every_hours> * * *`; the refresh job and the
+  * the timer's arithmetic: next_fire_at is a period after a run's start;
+    timer_wait_s never sleeps into the past, past the cap, or on a bad
+    input; fresh_min is a period minus the slack;
+  * the CLI the workflows call: `chain` prints eval-able assignments,
+    `timer` prints WAIT_S / FIRE_AT / EVERY_HOURS / FRESH_MIN,
+    `github-output` writes every_hours / quota_fraction;
+  * the workflows: refresh.yml, watchdog.yml, timer.yml (and diagnose.yml)
+    parse; refresh.yml has NO cron (the timer is the cadence) and its last
+    step arms timer.yml for every_hours after JOB_START whatever the
+    outcome short of a cancellation; timer.yml is workflow_dispatch only,
+    newest-wins in its own concurrency group, may write actions, and
+    dispatches refresh.yml with chain=true; the refresh job and the
     watchdog job carry no `if:` pause; the Cadence step feeds Fetch and the
     background collectors; the Chain step runs on success() alone and
-    decides through cadence.py; the watchdog's STALE_SUCCESS_MIN is
-    every_hours x 60 + 60 with the alert and data thresholds above it;
+    decides through cadence.py; the watchdog's EVERY_HOURS is the file's,
+    its STALE_SUCCESS_MIN is every_hours x 60 + 60 with the alert and data
+    thresholds above it, and it arms a timer when none is sleeping;
   * the backfill switch is not committed (the cadence stands).
 """
 import json
@@ -99,10 +108,25 @@ with tempfile.TemporaryDirectory() as tmp:
     check(len(msgs) == 2 and "every_hours" in msgs[0] and "quota_fraction" in msgs[1],
           "a bad value is said once per knob")
 
-check(cadence.cron_expression(4) == "0 */4 * * *" and cadence.cron_expression(6) == "0 */6 * * *",
-      "cron_expression: on the hour, every N hours")
 check(cadence.watchdog_stale_min(4) == 300 and cadence.watchdog_stale_min(2) == 180,
       "watchdog_stale_min: every_hours x 60 + 60")
+check(not hasattr(cadence, "cron_expression"), "no cron_expression: the timer is the cadence, not a cron")
+
+# --- 1b. the timer's arithmetic ---------------------------------------------------------
+T0 = 1_790_750_000
+check(cadence.next_fire_at(T0, 4) == T0 + 4 * 3600 and cadence.next_fire_at(str(T0), 6) == T0 + 6 * 3600,
+      "next_fire_at: one period after the run's start, start to start")
+check(cadence.timer_wait_s(T0 + 900, T0) == 900, "timer_wait_s: the slot ahead -> sleep until it")
+check(cadence.timer_wait_s(T0 - 900, T0) == 0, "timer_wait_s: a slot already past -> fire at once")
+check(cadence.timer_wait_s(T0, T0) == 0, "timer_wait_s: the slot is now -> no sleep")
+check(cadence.timer_wait_s("", T0) == 0 and cadence.timer_wait_s(None, T0) == 0
+      and cadence.timer_wait_s("soon", T0) == 0, "timer_wait_s: blank or bad fire_at -> now")
+check(cadence.timer_wait_s(T0 + 10 * 3600, T0) == cadence.MAX_TIMER_WAIT_S == 5 * 3600 + 1800,
+      "timer_wait_s: capped at 5.5 h, under a job's 6-hour limit")
+check(cadence.timer_wait_s(str(T0 + 60) + ".0", T0) == 60, "timer_wait_s: a numeric string is read")
+check(cadence.fresh_min(4) == 210 and cadence.fresh_min(1) == 30 and cadence.fresh_min(2, slack_min=200) == 1,
+      "fresh_min: a period minus the 30-minute slack, never below a minute")
+check(cadence.FRESH_SLACK_MIN == 30, "the slack is half an hour")
 
 # --- 2. the client's fraction ----------------------------------------------------------
 orig_file = cadence.CADENCE_FILE
@@ -201,9 +225,23 @@ with tempfile.TemporaryDirectory() as tmp:
     r = subprocess.run([sys.executable, "scripts/cadence.py", "github-output"], cwd=ROOT, capture_output=True,
                        text=True, env={**env, "GITHUB_OUTPUT": str(out)})
     got = dict(l.split("=", 1) for l in out.read_text().splitlines() if "=" in l)
-    check(r.returncode == 0 and got == {"every_hours": "4", "quota_fraction": "0.7", "cron": "0 */4 * * *"}
+    check(r.returncode == 0 and got == {"every_hours": "4", "quota_fraction": "0.7"}
           and "::notice::" in r.stdout and not any(l.startswith("::") for l in out.read_text().splitlines()),
-          f"CLI github-output writes the knobs and the cron, no workflow command in the file ({got})")
+          f"CLI github-output writes the two knobs, no workflow command in the file ({got})")
+import time                                  # noqa: E402
+tenv = {k: v for k, v in env.items() if k != "FIRE_AT"}
+for fire, want in ((str(int(time.time()) + 600), (595, 600)), ("", (0, 0)), (str(int(time.time()) - 600), (0, 0)),
+                   ("nonsense", (0, 0))):
+    r = subprocess.run([sys.executable, "scripts/cadence.py", "timer"], cwd=ROOT, capture_output=True, text=True,
+                       env={**tenv, "FIRE_AT": fire})
+    lines = dict(l.split("=", 1) for l in r.stdout.strip().splitlines() if "=" in l)
+    w = int(lines.get("WAIT_S", "-1"))
+    check(r.returncode == 0 and want[0] <= w <= want[1] and lines.get("EVERY_HOURS") == "4"
+          and lines.get("FRESH_MIN") == "210" and abs(int(lines["FIRE_AT"]) - int(time.time()) - w) <= 2,
+          f"CLI timer FIRE_AT={fire!r}: WAIT_S={w}, FIRE_AT resolved to now+WAIT_S, EVERY_HOURS 4, FRESH_MIN 210")
+r = subprocess.run(["bash", "-c", f'eval "$({sys.executable} scripts/cadence.py timer)"; echo "$WAIT_S|$FRESH_MIN"'],
+                   cwd=ROOT, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
+check(r.returncode == 0 and r.stdout.strip() == "0|210", f"bash eval of the timer CLI: {r.stdout.strip()!r}")
 
 # --- 5. the workflows -----------------------------------------------------------------------
 import yaml                                  # noqa: E402
@@ -216,14 +254,14 @@ def on_block(doc):
 
 refresh = load("refresh.yml")
 watchdog = load("watchdog.yml")
+timer = load("timer.yml")
 diagnose = load("diagnose.yml")
-check(isinstance(refresh, dict) and isinstance(watchdog, dict) and isinstance(diagnose, dict), "the three workflows parse")
+check(all(isinstance(d, dict) for d in (refresh, watchdog, timer, diagnose)), "the four workflows parse")
 
-crons = [s.get("cron") for s in (on_block(refresh).get("schedule") or [])]
-check(crons == [cadence.cron_expression(real["every_hours"])],
-      f"refresh.yml cron {crons} is data/cadence.json's every_hours ({real['every_hours']})")
+check("schedule" not in on_block(refresh) and list(on_block(refresh)) == ["workflow_dispatch"],
+      "refresh.yml has no cron: the timer is the cadence (GitHub's schedules fire hours late here)")
 job = refresh["jobs"]["refresh"]
-check("if" not in job, "refresh job carries no `if:` (runs on the schedule and on every dispatch)")
+check("if" not in job, "refresh job carries no `if:` (runs on every dispatch)")
 inputs = on_block(refresh)["workflow_dispatch"]["inputs"]
 check(inputs["quota_fraction"]["default"] == "" and "cadence.json" in inputs["quota_fraction"]["description"],
       "quota_fraction dispatch input: blank = the cadence file")
@@ -246,6 +284,44 @@ check(chain["env"]["BACKFILL_ON"] == "${{ steps.fetch.outputs.backfill_on }}"
       "the Chain step hands Fetch's backfill_on and the drain inputs to the decision")
 timeout = str(job["timeout-minutes"])
 check(timeout.endswith("|| 80 }}"), f"the plain path has an 80-minute job ({timeout})")
+
+# the arm step: last but for the failure wake-up, on every outcome short of a cancellation
+arm = steps["Arm the timer for the next run"]
+names = [s.get("name") for s in job["steps"]]
+check(names.index("Arm the timer for the next run") == names.index("Chain the next run") + 1
+      and names[-1] == "Wake the watchdog on failure",
+      "the arm step follows the Chain step, before the failure wake-up")
+check("!cancelled()" in arm["if"] and "success()" not in arm["if"],
+      f"the arm step runs on success and failure alike ({arm['if']})")
+check(arm["env"]["EVERY_HOURS"] == "${{ steps.cadence.outputs.every_hours || 4 }}",
+      "the arm step's period is the Cadence step's, defaulting to 4 when it did not run")
+check("FIRE_AT=$(( ${JOB_START:-$(date +%s)} + EVERY_HOURS * 3600 ))" in arm["run"],
+      "the slot is JOB_START + every_hours (next_fire_at), start to start")
+check("/actions/workflows/timer.yml/dispatches" in arm["run"] and r'\"fire_at\":\"$FIRE_AT\"' in arm["run"]
+      and "armed_by" in arm["run"], "the arm step dispatches timer.yml with fire_at and armed_by")
+
+# timer.yml: dispatch only, newest wins, may write actions, sleeps through cadence.py, dispatches chain=true
+check(list(on_block(timer)) == ["workflow_dispatch"]
+      and set(on_block(timer)["workflow_dispatch"]["inputs"]) == {"fire_at", "armed_by"},
+      "timer.yml is workflow_dispatch only, with fire_at and armed_by")
+check(timer["concurrency"] == {"group": "wowlogs-timer", "cancel-in-progress": True},
+      "timer.yml: one timer sleeps at a time, the newest arm wins")
+check(timer["permissions"].get("actions") == "write", "timer.yml may dispatch workflows")
+tjob = timer["jobs"]["wait"]
+check(int(tjob["timeout-minutes"]) * 60 > cadence.MAX_TIMER_WAIT_S and int(tjob["timeout-minutes"]) <= 360,
+      "the timer job outlives the capped sleep and fits GitHub's 6-hour job limit")
+tsteps = {s.get("name") or s.get("uses"): s for s in tjob["steps"]}
+check('eval "$(python3 scripts/cadence.py timer)"' in tsteps["Sleep until the slot"]["run"]
+      and tsteps["Sleep until the slot"]["env"]["FIRE_AT"] == "${{ inputs.fire_at }}",
+      "the sleep step takes its wait from cadence.py timer and the fire_at input")
+tdisp = tsteps["Dispatch the refresh unless one is running or fresh"]["run"]
+check("/actions/workflows/refresh.yml/dispatches" in tdisp and r'\"chain\":\"true\"' in tdisp
+      and 'if [ "$ACTIVE" != "0" ]' in tdisp and 'if [ "$LAST_AGE" -lt "$FRESH_MIN" ]' in tdisp,
+      "the timer dispatches refresh.yml as a cadence run, and stands down for a running or fresh one")
+check(tjob["steps"][0].get("uses", "").startswith("actions/checkout")
+      and "data/cadence.json" in tjob["steps"][0]["with"]["sparse-checkout"]
+      and "scripts/cadence.py" in tjob["steps"][0]["with"]["sparse-checkout"],
+      "the timer checks out only the cadence file and module")
 import re                                    # noqa: E402
 
 def paused(name):
@@ -262,8 +338,20 @@ wcrons = [s.get("cron") for s in (on_block(watchdog).get("schedule") or [])]
 check(len(wcrons) == 1 and wcrons[0].split()[1] == "*", f"the watchdog runs hourly ({wcrons})")
 wenv = watchdog["env"]
 stale = int(wenv["STALE_SUCCESS_MIN"]); alert = int(wenv["ALERT_SUCCESS_MIN"]); data = int(wenv["STALE_DATA_MIN"])
+check(int(wenv["EVERY_HOURS"]) == real["every_hours"],
+      f"watchdog EVERY_HOURS={wenv['EVERY_HOURS']} is data/cadence.json's every_hours")
 check(stale == cadence.watchdog_stale_min(real["every_hours"]),
       f"watchdog STALE_SUCCESS_MIN={stale} is every_hours x 60 + 60 ({cadence.watchdog_stale_min(real['every_hours'])})")
+wsteps = {s.get("name"): s for s in wjob["steps"]}
+warm = wsteps["Arm the timer when none is sleeping"]
+check("timer_pending == '0'" in warm["if"] and "active == '0'" in warm["if"]
+      and "ok_age) <= fromJSON(env.STALE_SUCCESS_MIN)" in warm["if"],
+      "the watchdog arms a timer only when none is sleeping, nothing runs and the cadence is not stale")
+check("/actions/workflows/timer.yml/dispatches" in warm["run"] and warm["env"]["NEXT_DUE"] == "${{ steps.probe.outputs.next_due }}",
+      "the watchdog's arm dispatches timer.yml for the last success's start plus a period")
+probe = wsteps["Inspect the refresh workflow and the published site"]["run"]
+check("workflows/timer.yml/runs" in probe and "NEXT_DUE=$(( $(date -u -d \"$LAST_OK_START\" +%s) + EVERY_HOURS * 3600 ))" in probe
+      and 'echo "timer_pending=$TIMER_PENDING"' in probe, "the probe counts sleeping timers and computes the next slot")
 check(alert > stale and data > stale and data >= real["every_hours"] * 60 * 2,
       f"alert ({alert}) and stale-data ({data}) thresholds sit above the quiet threshold and two periods")
 check(not paused("watchdog.yml"), "no paused cron or `if: false` line left in watchdog.yml")

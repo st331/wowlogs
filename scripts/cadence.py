@@ -8,14 +8,20 @@ my API quota."
 
 The file holds the owner's two knobs and nothing else decides them:
 
-    every_hours     the refresh cron's period. refresh.yml's cron line is
-                    `0 */<every_hours> * * *` (UTC; the hourly quota window
-                    resets at :00 UTC, so every scheduled run starts on a
-                    fresh window) and the watchdog's quiet threshold is
-                    every_hours + 1 h -- both are pinned to this file by
+    every_hours     the refresh period. Every refresh run's last step arms
+                    timer.yml for every_hours after the run's own start
+                    (next_fire_at), and the timer sleeps until then
+                    (timer_wait_s) and dispatches the next run unless one is
+                    running or started less than a period minus half an hour
+                    ago (fresh_min). It is a timer and not a cron because
+                    GitHub fired this repository's schedules 5-8 times a day
+                    with gaps of 2-6.5 h over 12-28 September 2026, whatever
+                    the expression asked for; a dispatched run starts within
+                    seconds. The watchdog's EVERY_HOURS and its quiet
+                    threshold (every_hours + 1 h) are pinned to this file by
                     scripts/test_cadence.py, so changing the period is: edit
-                    the file, edit the cron, edit STALE_SUCCESS_MIN, run the
-                    test.
+                    the file, edit watchdog.yml's EVERY_HOURS and
+                    STALE_SUCCESS_MIN, run the test.
     quota_fraction  the share of the hourly Warcraft Logs limit ANY collector
                     process may spend. wcl_client.quota_fraction() reads it
                     whenever WCL_QUOTA_FRACTION is not in the environment,
@@ -36,7 +42,8 @@ both while its `until` is in the future: the governor runs at the switch's
 `share` and the Chain step dispatches a successor the moment a run ends, so
 the chain covers the switch's span back to back. chain_decision() is that
 step's whole decision: in cadence mode (no switch, no explicitly dispatched
-drain with a backlog) a run dispatches NOTHING -- the cron is the cadence.
+drain with a backlog) a run dispatches NOTHING of its own -- the timer is
+the cadence, and every run arms it whatever the decision.
 """
 from __future__ import annotations
 
@@ -49,7 +56,14 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CADENCE_FILE = ROOT / "data" / "cadence.json"
 DEFAULTS = {"every_hours": 4, "quota_fraction": 0.70}
-MAX_EVERY_HOURS = 24          # a cron `0 */N * * *` past a day is not a cadence
+MAX_EVERY_HOURS = 24          # a period past a day is not a cadence
+# the timer's sleep is capped below a job's 6-hour limit; a period longer
+# than the cap is simply armed again by the watchdog when the timer ends
+MAX_TIMER_WAIT_S = 5 * 3600 + 1800
+# a refresh that started within (period - this) of the timer's slot is
+# "fresh": the watchdog or a hand dispatch got there first, the timer stands
+# down (and that run armed its own timer)
+FRESH_SLACK_MIN = 30
 # an explicitly dispatched drain keeps alternating fresh/backfill runs only
 # while this many runs are still pending (refresh.yml's drain machinery)
 DRAIN_BACKLOG_FLOOR = 300
@@ -104,15 +118,37 @@ def read_cadence(path=None, log=print) -> dict:
     return out
 
 
-def cron_expression(every_hours: int) -> str:
-    """The refresh cron line for a period: every N hours on the hour, UTC."""
-    return f"0 */{int(every_hours)} * * *"
+def next_fire_at(start_s, every_hours: int) -> int:
+    """The timer's slot for the run after one that started at start_s: one
+    period later, start to start, so the cadence is every_hours whatever a
+    run's own length."""
+    return int(start_s) + int(every_hours) * 3600
+
+
+def timer_wait_s(fire_at, now_s, cap_s: int = MAX_TIMER_WAIT_S) -> int:
+    """How long the timer sleeps: until fire_at, never negative (a slot
+    already past fires at once; a blank or bad fire_at is "now"), never past
+    the cap (a job may run 6 h)."""
+    try:
+        f = int(float(fire_at))
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(int(cap_s), f - int(now_s)))
+
+
+def fresh_min(every_hours: int, slack_min: int = FRESH_SLACK_MIN) -> int:
+    """A refresh younger than this many minutes when the timer fires makes
+    the timer stand down: a period minus the slack, so a run the watchdog or
+    a hand started shortly before the slot is not doubled, while one that
+    started a period ago is due."""
+    return max(1, int(every_hours) * 60 - int(slack_min))
 
 
 def watchdog_stale_min(every_hours: int) -> int:
     """The watchdog's quiet threshold (STALE_SUCCESS_MIN): one period plus an
-    hour of slack for GitHub's cron delays, so a healthy cadence is never
-    re-dispatched and a dropped tick is revived within the hour."""
+    hour of slack for a run's length and a timer's own delay, so a healthy
+    cadence is never re-dispatched and a lost timer is revived within the
+    hour after its slot."""
     return int(every_hours) * 60 + 60
 
 
@@ -178,7 +214,7 @@ def chain_decision(backfill_on=None, draining=False, mode: str = "",
         reasons.append(f"drain: backlog {pending} -> done")
 
     if not out["chain"]:
-        reasons.append("cadence mode: no successor is dispatched; the cron is the cadence")
+        reasons.append("cadence mode: no successor is dispatched; the timer is the cadence")
     out["reason"] = "; ".join(reasons)
     return out
 
@@ -189,7 +225,7 @@ def main(argv=None) -> int:
     if cmd == "show":
         c = read_cadence()
         print(f"every_hours={c['every_hours']} quota_fraction={c['quota_fraction']} "
-              f"cron={cron_expression(c['every_hours'])!r} "
+              f"fresh_min={fresh_min(c['every_hours'])} "
               f"watchdog_stale_min={watchdog_stale_min(c['every_hours'])} "
               f"source={c['source']}")
         return 0
@@ -197,8 +233,7 @@ def main(argv=None) -> int:
         # key=value lines ONLY (a workflow command in $GITHUB_OUTPUT fails
         # the step); the notice goes to stdout
         c = read_cadence()
-        lines = {"every_hours": c["every_hours"], "quota_fraction": c["quota_fraction"],
-                 "cron": cron_expression(c["every_hours"])}
+        lines = {"every_hours": c["every_hours"], "quota_fraction": c["quota_fraction"]}
         path = os.environ.get("GITHUB_OUTPUT")
         if path:
             with open(path, "a") as fh:
@@ -208,6 +243,19 @@ def main(argv=None) -> int:
         print(f"::notice::cadence: a refresh every {c['every_hours']} h, every collector "
               f"capped at {c['quota_fraction']:.0%} of the hourly Warcraft Logs limit "
               f"({c['source']})")
+        return 0
+    if cmd == "timer":
+        # shell assignments for timer.yml's sleep step to eval: WAIT_S,
+        # FIRE_AT (resolved: a blank input is now), EVERY_HOURS, FRESH_MIN
+        import time
+        c = read_cadence()
+        now = int(time.time())
+        raw = (os.environ.get("FIRE_AT") or "").strip()
+        wait = timer_wait_s(raw, now)
+        print(f"WAIT_S={wait}")
+        print(f"FIRE_AT={now + wait}")
+        print(f"EVERY_HOURS={c['every_hours']}")
+        print(f"FRESH_MIN={fresh_min(c['every_hours'])}")
         return 0
     if cmd == "chain":
         # shell assignments for the Chain step to eval: CHAIN, NEXT_BACKFILL,
@@ -222,7 +270,7 @@ def main(argv=None) -> int:
         print(f"NEXT_MODE={d['next_mode']}")
         print(f"REASON={shlex.quote(d['reason'])}")
         return 0
-    print(f"usage: {sys.argv[0]} [show|github-output|chain]", file=sys.stderr)
+    print(f"usage: {sys.argv[0]} [show|github-output|timer|chain]", file=sys.stderr)
     return 2
 
 
