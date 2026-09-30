@@ -588,8 +588,10 @@ body.charscreen #lensbar .wordmark:hover{color:var(--accent)}
 #cs-doll .dbottom{grid-column:1/-1; grid-row:2; display:flex; justify-content:center;
   gap:6px 8px; flex-wrap:wrap}
 #cs-doll .dbottom .gtile{flex:0 1 340px; min-width:0}
-/* narrow measures: columns pair up, the fold-out drops to a full-width panel */
-@media(max-width:1150px){
+/* narrow measures: columns pair up, the fold-out drops to a full-width panel.
+   1400, not 1150 (2026-09-30): between the two the centre column is 80-320px,
+   too little for either fold-out face, and the owner's floor is 1920 anyway */
+@media(max-width:1400px){
   #cs-doll{grid-template-columns:1fr 1fr}
   #cs-doll .dcol.l{grid-column:1; grid-row:1}
   #cs-doll .dcol.r{grid-column:2; grid-row:1}
@@ -681,18 +683,18 @@ a.whico{display:inline-flex; color:inherit; text-decoration:none;
 /* the header WRAPS beside the control rather than ellipsizing: "in window" is
    part of what the number means, so it is never cut (pref #5) */
 #cs-fold .fh.pv .fht{min-width:0; flex:1 1 auto}
-#cs-fold .seg.csmode{margin:0 0 0 auto; height:22px; flex:0 0 auto; flex-wrap:nowrap}
-#cs-fold .seg.csmode button{height:20px; padding:0 .6rem; font-size:.72rem;
-  text-transform:none; letter-spacing:0; white-space:nowrap}
+#cs-fold .seg.csmode{margin:0 0 0 auto; height:26px; flex:0 0 auto; flex-wrap:nowrap}
+#cs-fold .seg.csmode button{height:24px; padding:0 .8rem; font-size:.75rem;
+  text-transform:none; letter-spacing:0; white-space:nowrap}   /* the same sizes as the section-header control (pref #10) */
 /* By-pair rows: two 28px icon tiles, two name lines, and an Each cell whose two
    lines share the names' rhythm; the row bar starts after BOTH icons. Type
    stays .84rem — fit is never bought with smaller type (pref #10). */
 .cs-fold td.fi2{width:62px; padding-right:7px; white-space:nowrap}
-.cs-fold td.fi2>*{display:inline-flex; vertical-align:middle}
+.cs-fold td.fi>*,.cs-fold td.fi2>*{display:inline-flex; vertical-align:middle}   /* a bare .gico (pinned rows) needs a box in either cell */
 .cs-fold td.fi2>*+*{margin-left:3px}
 .cs-fold.pair tbody tr{background-position:66px 100%}
 .cs-fold.pair .fnm,.cs-fold.pair td.fe div{line-height:1.1rem}
-.cs-fold td.fe{color:var(--ink3); font-size:.74rem; min-width:44px; vertical-align:top;
+.cs-fold td.fe{color:var(--ink3); font-size:.74rem; min-width:40px; vertical-align:top;
   padding-top:.16rem}
 .cs-fold td.fe div{white-space:nowrap}
 /* the fold-out is a REAL TABLE (pref #12, 3.4) — it was .frow divs, which
@@ -817,7 +819,7 @@ table.cs-lean{border-collapse:collapse; width:100%; font-size:.82rem}
    csGearPaneHTML; two lines there against eight in a 500px column */
 .cs-lean-foot{font-size:.72rem; color:var(--ink3); line-height:1.55;
   margin:.55rem 0 0; max-width:none}
-/* below 1151px .dcenter reflows under the columns, where a table adds real
+/* below 1401px .dcenter reflows under the columns, where a table adds real
    height — the same numbers degrade to a chip strip, switched by CSS alone
    (no resize listener, no second render path) */
 .cs-leanchips{display:none}
@@ -826,7 +828,7 @@ table.cs-lean{border-collapse:collapse; width:100%; font-size:.82rem}
   font-size:.72rem; color:var(--ink3); font-variant-numeric:tabular-nums}
 .cs-leanchips .lchip b{color:var(--ink); font-weight:650}
 .cs-leanchips .lchip.leanx{border-style:dashed}
-@media(max-width:1150px){
+@media(max-width:1400px){
   .cs-lean-wrap{display:none}
   .cs-leanchips{display:flex; flex-wrap:wrap; gap:4px}
 }
@@ -5260,9 +5262,14 @@ function csPairTR(r,lc){
     +(embOf(e)?' <span class="gemb">'+esc(embOf(e))+'</span>':'');
   const pre=e=>(e&&e.n)?esc(String(e.n).split(" ")[0])+" ":"";
   const ta=tagOf(r.a.e), tb=r.b?tagOf(r.b.e):"";
-  const tags=(ta&&tb)?pre(r.a.e)+ta+" · "+pre(r.b.e)+tb:(ta||tb);
+  // a chip names its member whenever two names share the row
+  const tags=r.b?[ta?pre(r.a.e)+ta:"", tb?pre(r.b.e)+tb:""].filter(Boolean).join(" · "):ta;
+  const nm=e=>(e&&e.n!=null)?String(e.n):"unnamed item";
+  const secondTxt=r.b?nm(r.b.e):(r.kind==="same"?"same "+lc+" in both slots":"other / none");
+  // the centre column is ~430px at 1920, so a long name can ellipsize where the
+  // By-trinket face shows it whole: the cell's title carries both names in full
   return '<tr style="--fw:'+w+'%"><td class="fi fi2">'+ico(r.a.e)+second+'</td>'
-    +'<td class="txt fn"><div class="fnm">'+itemNameHTML(r.a.e)+'</div>'
+    +'<td class="txt fn" title="'+escA(nm(r.a.e)+" + "+secondTxt)+'"><div class="fnm">'+itemNameHTML(r.a.e)+'</div>'
     +'<div class="fnm">'+(r.b?itemNameHTML(r.b.e):'<span class="na">'
       +(r.kind==="same"?"same "+esc(lc)+" in both slots":"other / none")+'</span>')+'</div>'
     +(tags?'<div class="fsub">'+tags+'</div>':'')+'</td>'
@@ -5491,7 +5498,7 @@ function csLeanTableHTML(LR){
     chips+='<span class="lchip'+(r.lean==null?" leanx":"")+'">'+esc(r.lab)
       +' <b>'+(r.lean==null?"–":r.lean.toFixed(0)+"%")+'</b></span>';
   }
-  // both are rendered; CSS alone swaps them at the 1151px breakpoint, where
+  // both are rendered; CSS alone swaps them at the 1401px breakpoint, where
   // .dcenter reflows under the columns and a table would add real height.
   // No resize listener, no second render path.
   return '<div class="cs-lean-wrap"><table class="cs-lean" data-sid="cs:lean">'
@@ -7023,7 +7030,11 @@ function wireScreen(host,ctx,d){
   // sits in .secbody, not the .sec header, so here stopPropagation is symmetry.
   // The pair table declares data-sid="cs:pair", so the loop above sorts it.
   host.querySelectorAll("#cs-poolview button[data-pv]").forEach(b=>{
-    b.onclick=e=>{ e.stopPropagation(); screenPoolView=b.dataset.pv; renderScreen() };
+    b.onclick=e=>{ e.stopPropagation(); screenPoolView=b.dataset.pv; renderScreen();
+      // a keyboard activation (Enter/Space arrives with e.detail===0) keeps its
+      // focus on the control the re-render just rebuilt, so Tab order never
+      // falls back to <body>; a mouse click leaves focus alone
+      if(e.detail===0){ const nb=host.querySelector("#cs-poolview button.on"); if(nb) nb.focus(); } };
   });
   host.querySelectorAll(".cs-ench tr.erow").forEach(tr=>{
     tr.onclick=()=>{
