@@ -48,6 +48,27 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/live /tmp/out
+          # Everything a refresh run generates into site/ (the UI files are
+          # git-tracked and come from the checkout below instead): the
+          # dashboard payloads, the Key Level Logs sidecar -- baselines.json.gz
+          # and the 256 run-store shards runs/00..ff.json.gz that site's Key
+          # fit reads -- and build_health.txt, which the watchdog reads for
+          # recency. Seeding only the five payloads (2026-09-30 11:59 IST,
+          # run 90) dropped the shards and the health file from the live site
+          # until the next refresh republished them. A file the live site
+          # does not have is skipped, never published empty.
+          seed_live() {
+            mkdir -p /tmp/out/runs
+            {
+              for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz \
+                       baselines.json.gz build_health.txt; do echo "$f"; done
+              for i in $(seq 0 255); do printf 'runs/%02x.json.gz\n' "$i"; done
+            } | xargs -P 16 -I{} sh -c \
+              'curl -sfL -o "/tmp/out/{}" "https://st331.github.io/wowlogs/{}" || rm -f "/tmp/out/{}"'
+            echo "  $1: $(ls /tmp/out/*.json.gz 2>/dev/null | wc -l) payloads," \
+                 "$(ls /tmp/out/runs 2>/dev/null | wc -l)/256 run shards," \
+                 "build_health.txt $([ -s /tmp/out/build_health.txt ] && echo present || echo missing)"
+          }
           # The artifact must come from the REFRESH pipeline's latest
           # successful run -- never "newest artifact by name". This workflow
           # publishes an artifact under the same name, so "newest" can be our
@@ -59,12 +80,20 @@ jobs:
           import sys, json, urllib.request, os
           runs = json.load(sys.stdin).get("workflow_runs", [])
           tok = os.environ["GH_TOKEN"]; api = os.environ["API"]
+          # stderr says what the lookup saw, so an empty result explains
+          # itself in the log instead of silently taking the fallback
+          print("refresh runs seen: %d" % len(runs), file=sys.stderr)
           for r in runs:
               req = urllib.request.Request(
-                  f"{api}/actions/runs/{r["id"]}/artifacts?name=github-pages",
-                  headers={"Authorization": f"Bearer {tok}"})
-              arts = json.load(urllib.request.urlopen(req)).get("artifacts", [])
+                  api + "/actions/runs/%s/artifacts?name=github-pages" % r["id"],
+                  headers={"Authorization": "Bearer " + tok})
+              try:
+                  arts = json.load(urllib.request.urlopen(req)).get("artifacts", [])
+              except Exception as e:
+                  print("  run %s: artifacts lookup failed: %s" % (r["id"], e), file=sys.stderr)
+                  continue
               live = [a for a in arts if not a["expired"]]
+              print("  run %s (#%s): %d artifact(s), %d live" % (r["id"], r.get("run_number"), len(arts), len(live)), file=sys.stderr)
               if live:
                   print(live[0]["archive_download_url"]); break')
           if [ -n "$url" ]; then
@@ -81,10 +110,7 @@ jobs:
             # branch below keeps, so the UI ships and the data cannot move
             # backwards. The checkout's own data files are never used.
             echo "::warning::no live refresh artifact found; seeding the data files from the live site"
-            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz baselines.json.gz; do
-              curl -sfL -o "/tmp/out/$f" "https://st331.github.io/wowlogs/$f" \
-                && echo "  seeded live $f" || rm -f "/tmp/out/$f"
-            done
+            seed_live "seeded live"
           fi
           # NEVER PUBLISH OLDER DATA THAN IS ALREADY LIVE. "Latest SUCCESSFUL
           # refresh run" excludes a run that is still finishing -- so a UI push
@@ -101,10 +127,7 @@ jobs:
           if [ -n "$live_built" ] && [ -n "$art_built" ] \
              && [ "$art_built" \< "$live_built" ]; then
             echo "::warning::artifact data (${art_built}) is OLDER than live (${live_built}); keeping the live data files"
-            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz baselines.json.gz; do
-              curl -sfL -o "/tmp/out/$f" "https://st331.github.io/wowlogs/$f" \
-                && echo "  kept live $f" || rm -f "/tmp/out/$f"
-            done
+            seed_live "kept live"
           fi
           # Overlay ONLY the UI. Every generated data file is git-tracked and
           # therefore present in the checkout as a stale copy -- a plain cp of
