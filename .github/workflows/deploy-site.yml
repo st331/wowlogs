@@ -73,7 +73,18 @@ jobs:
             tar -xf /tmp/live/artifact.tar -C /tmp/out
             echo "seeded from refresh pipeline artifact: $(du -sh /tmp/out | cut -f1)"
           else
-            echo "::warning::no live refresh artifact; deploying committed files only"
+            # 2026-09-30: the artifact lookup came back empty although the
+            # refresh runs' artifacts existed (run 36675572880), and the `ls`
+            # guard below then failed the deploy rather than publish a site
+            # with no data -- correct, but it left a shipped UI unpublished.
+            # Seed from what is LIVE instead: the same files the older-data
+            # branch below keeps, so the UI ships and the data cannot move
+            # backwards. The checkout's own data files are never used.
+            echo "::warning::no live refresh artifact found; seeding the data files from the live site"
+            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz baselines.json.gz; do
+              curl -sfL -o "/tmp/out/$f" "https://st331.github.io/wowlogs/$f" \
+                && echo "  seeded live $f" || rm -f "/tmp/out/$f"
+            done
           fi
           # NEVER PUBLISH OLDER DATA THAN IS ALREADY LIVE. "Latest SUCCESSFUL
           # refresh run" excludes a run that is still finishing -- so a UI push
@@ -90,7 +101,7 @@ jobs:
           if [ -n "$live_built" ] && [ -n "$art_built" ] \
              && [ "$art_built" \< "$live_built" ]; then
             echo "::warning::artifact data (${art_built}) is OLDER than live (${live_built}); keeping the live data files"
-            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz procs.json.gz baselines.json.gz; do
+            for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz baselines.json.gz; do
               curl -sfL -o "/tmp/out/$f" "https://st331.github.io/wowlogs/$f" \
                 && echo "  kept live $f" || rm -f "/tmp/out/$f"
             done
