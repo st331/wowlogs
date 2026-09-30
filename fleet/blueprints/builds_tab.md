@@ -756,8 +756,7 @@ surface of its own item), **Pair** (two name lines, sorts by the first then the 
 **Both** (share of the gear-known wearing exactly this pair; the row share bar), **Each** (each
 member's own prevalence — the By-trinket reading's number — on its name's line; sorts by the
 first line; the column the owner's "versus" asked for), **n**. No item level, no ids, no
-upgrade-lean columns (a pair has two `iup`s — a column that does not apply is ABSENT), no ⚗ beam
-sub-line (a per-wearer-set reading of ONE trinket; it stays on the By-trinket rows and the tile).
+upgrade-lean columns (a pair has two `iup`s — a column that does not apply is ABSENT).
 Header *"Trinkets — pairs worn together in window"*; caption, verbatim shape: *"share of the
 <n> gear-known players in this window by the two trinkets they wore together — either slot,
 either order. Every player is in exactly one row, so this column sums to 100%. The 10 most-worn

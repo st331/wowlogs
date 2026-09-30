@@ -22,7 +22,7 @@ The file holds the owner's two knobs and nothing else decides them:
                     and the workflow passes it into every step that runs a
                     client besides. The governor measures the ceiling against
                     the account's LIVE pointsSpentThisHour, so the sweep, the
-                    bundle, the trinket and keystone collectors and the
+                    bundle, the keystone collector and the
                     owner's own lookups from the vetting site together never
                     pass it; a process that starts with the hour already over
                     the ceiling sleeps to the reset within its cap or stops

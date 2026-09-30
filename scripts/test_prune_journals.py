@@ -6,8 +6,8 @@ must not, with an INJECTED clock (a prune that reads the wall clock cannot be
 tested for idempotence):
 
   * the first invocation is a DRY RUN: counts, state, nothing rewritten;
-  * the apply: runs dated before the cut leave players / gear / procs /
-    procs_failed / the ledger TOGETHER; undated and implausible runs stay; a
+  * the apply: runs dated before the cut leave players / gear / the ledger
+    TOGETHER; undated and implausible runs stay; a
     torn line and a line whose key cannot be parsed stay; a gear line whose
     run has no players row stays; summaries_done.txt is byte-identical;
   * the cut is anchored to the newest plausible ROW, not the clock: a future-
@@ -67,11 +67,6 @@ def build(d: pathlib.Path, future=True):
             fh.write(grow(code, fid) + "\n")
         fh.write(grow("ORPHAN", 99) + "\n")                       # no players row -> kept
         fh.write('{"garbage": true}\n')                            # unparseable key -> kept
-    with (d / "procs.jsonl").open("w") as fh:
-        for code, fid, _ in runs:
-            fh.write(json.dumps({"v": 2, "report_code": code, "fight_id": fid, "character": "A"}) + "\n")
-    with (d / "procs_failed.txt").open("w") as fh:
-        fh.write("OLD:4:Some:Name\t221\treason\n"); fh.write("NEW:1:A\t221\treason\n"); fh.write("weird\n")
     old_seen = int((CUT - 3 * DAY) / 1000); new_seen = int(NOW_S)
     with (d / "discovered.jsonl").open("w") as fh:
         fh.write(json.dumps({"code": "OLD", "fid": 4, "start_time": CUT - DAY, "first_seen": old_seen}) + "\n")
@@ -92,7 +87,7 @@ def keys(path, field="report_code"):
 
 with tempfile.TemporaryDirectory() as tmp:
     d = pathlib.Path(tmp); build(d)
-    before = {n: (d / n).read_bytes() for n in ("players.jsonl", "gear.jsonl", "procs.jsonl", "procs_failed.txt", "discovered.jsonl", "summaries_done.txt")}
+    before = {n: (d / n).read_bytes() for n in ("players.jsonl", "gear.jsonl", "discovered.jsonl", "summaries_done.txt")}
     done_ino = (d / "summaries_done.txt").stat().st_ino
 
     # ---- 1. first invocation: dry run
@@ -115,10 +110,6 @@ with tempfile.TemporaryDirectory() as tmp:
     gk = keys(d / "gear.jsonl")
     check(gk == {"NEW", "IN", "EDGE", "UND", "ZERO", "FUT", "ORPHAN", None},
           f"gear: pruned by run key; the orphan and the unparseable line stay: {sorted(map(str, gk))}")
-    check(keys(d / "procs.jsonl") == {"NEW", "IN", "EDGE", "UND", "ZERO", "FUT"}, "procs: same run set")
-    pf = (d / "procs_failed.txt").read_text()
-    check("OLD:4:Some:Name" not in pf and "NEW:1:A" in pf and "weird" in pf,
-          "procs_failed: OLD's marker left (code:fid prefix, colons in names tolerated), the rest stay")
     lk = keys(d / "discovered.jsonl")
     check(lk == {"NEW", "LEDUNDNEW"},
           f"ledger: dated-old rows and an undated row FIRST SEEN before the cut (seconds) leave; recent undated stays: {sorted(lk)}")
@@ -129,7 +120,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check(not list(d.glob("*.prune.tmp")), "no temp files left behind")
 
     # ---- 3. fixed point + no-op untouched
-    snap = {n: ((d / n).read_bytes(), (d / n).stat().st_ino) for n in ("players.jsonl", "gear.jsonl", "procs.jsonl", "discovered.jsonl")}
+    snap = {n: ((d / n).read_bytes(), (d / n).stat().st_ino) for n in ("players.jsonl", "gear.jsonl", "discovered.jsonl")}
     st = PJ.prune(d, now_s=NOW_S + 120, force=True)
     check(st["mode"] == "apply" and all((d / n).read_bytes() == b for n, (b, _) in snap.items()), "a second apply changes no byte")
     check(all((d / n).stat().st_ino == i for n, (_, i) in snap.items()),

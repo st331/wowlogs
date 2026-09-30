@@ -17,8 +17,6 @@ than the page in every case.
 WHAT IT TOUCHES, BY NAME (never data/processed/* by glob):
   players.jsonl      the ONLY dated journal -> the date oracle; rewritten LAST
   gear.jsonl         undated; pruned by run key against the drop set
-  procs.jsonl        undated; same
-  procs_failed.txt   "code:fid:character\\t..."; same, by the code:fid prefix
   discovered.jsonl   dated by start_time, or by first_seen (SECONDS) when undated
 EXEMPT: summaries_done.txt (no date, the only thing that stops an all-season
 board re-buying a refused run; 0.2% of the cache), rankings.jsonl (--resweep
@@ -84,7 +82,7 @@ NOTE = "retention.txt"
 
 
 def _key(raw: bytes):
-    """b'code:fid' from a players/gear/procs line, or None when unparseable."""
+    """b'code:fid' from a players/gear line, or None when unparseable."""
     m = _RC.search(raw)
     if not m:
         return None
@@ -265,17 +263,10 @@ def prune(d: pathlib.Path, now_s: float | None = None, days: int = RETENTION_DIS
             return False                          # first seen before the cut: proven old
         return True
 
-    def failed_keep(raw: bytes) -> bool:
-        head = raw.split(b"\t", 1)[0]
-        parts = head.split(b":")
-        if len(parts) < 2:
-            return True
-        return parts[0] + b":" + parts[1] not in drop
-
     # non-players journals FIRST (a crash leaves them a subset of players)
-    for name, fn in (("gear.jsonl", by_key), ("procs.jsonl", by_key),
+    for name, fn in (("gear.jsonl", by_key),
                      ("runs.jsonl", by_key),        # the execution bundle's run-level journal
-                     ("procs_failed.txt", failed_keep), ("discovered.jsonl", ledger_keep)):
+                     ("discovered.jsonl", ledger_keep)):
         k, dr = rewrite(d / name, fn, dry_run)
         counts[f"{name}_kept"], counts[f"{name}_dropped"] = k, dr
         if (d / name).exists():

@@ -281,7 +281,7 @@
     profile API, current gear only, own credentials and quota) could answer it; that
     is the owner's call, not a default.
 
-24. **⚗ Lightspire Core "in the light" (2026-09-08) — a Lab feature, off by default.**
+24. **⚗ Lightspire Core "in the light" (2026-09-08) — a Lab feature, off by default.** **REMOVED 2026-09-30 — see #39.**
     Owner's metric, verbatim: "of the time that the trinket was active, what percentage
     of time did the player stay in the buff to get its effect ... the uptime of the buff
     on the player as a percentage of when the buff was actually available." NOT classic
@@ -379,7 +379,7 @@
     done) -- re-dispatch drain by hand if it mattered. The guard is unit-tested over all
     eight key/files/fresh combinations plus the matched-key-but-empty-file case.
 
-26. **Trinket drain window (owner, 2026-09-08 08:38 UTC): "pause fresh runs, remove all
+26. **[REMOVED with the Lab, 2026-09-30 — #39]** **Trinket drain window (owner, 2026-09-08 08:38 UTC): "pause fresh runs, remove all
     limits and drain as much as you can over the next 3 hours. keep backfilling as the
     data keeps landing."** The per-operation relaxation the standing 70 % cap allows,
     scoped by a clock: `data/procs_drain.json` carries `until` = 2026-09-08 11:38:05 UTC
@@ -399,7 +399,7 @@
     12 % of payload wearer rows, median 34 %; the one-reset window held ~17.7k wearer-fights
     in total (56k older ones left alone).
 
-27. **No minimum-n floor on the Lightspire surfaces (owner, 2026-09-08): "I don't want data
+27. **No minimum-n floor on the Lightspire surfaces (owner, 2026-09-08; the surfaces are gone since 2026-09-30, #39 — the RULE stands everywhere): "I don't want data
     hidden from me, even if it is not statsig."** BEAM_MIN_N is gone: every spec with at
     least one measured wearer-parse is listed, and every tile/line/row prints its percent
     with its n beside it at any n. The reader judges significance from n; the page never
@@ -435,7 +435,7 @@
     relaxation rule (#21) is unchanged: 100 % only when the owner asks, and only for the
     operation named.
 
-31. **Trinket scope after the drain (owner, 2026-09-08): "once this drain is over, finish
+31. **[REMOVED with the Lab, 2026-09-30 — #39]** **Trinket scope after the drain (owner, 2026-09-08): "once this drain is over, finish
     draining the trinket data for this entire reset. don't need data from the previous reset.
     after this reset's data is backfilled for the trinket, resume the regular refreshes."**
     The collector now runs with `--since-reset`: only fights since each region's most recent
@@ -648,4 +648,18 @@
     every residual a named row, and `with #1 N%` on the rank-2 tile at rest. Two defaults the owner
     may flip, each one line: the reading resets to By trinket on a spec switch; the tile's `with #1`
     prints with no floor, 0% included. Checklist §AD; blueprint addendum 2026-09-30.
+
+39. **The Lightspire trinket Lab is GONE, and so is its collection (owner, 2026-09-30: "remove
+    the lightspire trinket labs feature and stop any data collection for it").** Removed in one
+    commit: the ⚗ Labs top-level section and the sidebar Lab card, the Spec Frame "in the light"
+    row, the Character screen band line, tile foot and fold-out sub-line, the procs sidecar loader
+    and every `beam*` function and its CSS; the builder's `procs_sidecar` and `site/procs.json.gz`;
+    the collector `scripts/fetch_procs.py`, `scripts/procs_spec.py`, the two `diag_lightspire*.py`;
+    the refresh workflow's Drain mode step, the trinket launch in the background collectors and the
+    drain-done marker; `data/procs_drain.json`; the pruner's `procs.jsonl` / `procs_failed.txt`
+    handling. The static page pins moved from `test_procs.py` to `scripts/test_site_contract.py`.
+    The ⚗ LAB_FEATURES manifest itself stays (the tuning projection and "Since latest tuning"
+    still live in it). Not resurrected without the owner's word; the blueprints stay as history
+    under a REMOVED banner. Leftover `procs.jsonl` / `procs_failed.txt` in the Actions cache are
+    inert: nothing reads, prunes or ships them.
 

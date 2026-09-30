@@ -3,7 +3,7 @@
 
 # The collection journals. They exist ONLY in the GitHub Actions cache
 # (refresh.yml restores and saves data/raw + data/processed every run); nothing
-# outside it holds gear.jsonl, procs.jsonl or discovered.jsonl, and they are NOT
+# outside it holds gear.jsonl or discovered.jsonl, and they are NOT
 # re-creatable -- that is the premise of scripts/journal_guard.sh. The only
 # off-cache copies are data/mythic_runs.csv.gz (player rows, windowed) and
 # data/checkpoints/summaries_done.txt.gz (the full done-set), both committed
@@ -56,8 +56,6 @@ site/baselines.json.gz
 docs/baselines.json.gz
 site/runs/
 docs/runs/
-site/procs.json.gz
-docs/procs.json.gz
 
 # agent scratch: verification agents serve site/ on ad-hoc ports and redirect
 # server output beside the repo root. Transient, never part of a build.

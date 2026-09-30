@@ -1,3 +1,9 @@
+> **REMOVED 2026-09-30** (owner: "remove the lightspire trinket labs feature and stop any data
+> collection for it"). The collector (`fetch_procs.py`, `procs_spec.py`), the sidecar
+> (`procs.json.gz`), the drain window (`data/procs_drain.json`), every client surface (the ⚗ Labs
+> section, the sidebar Lab card, the Spec Frame row, the Character screen band/tile/fold-out line)
+> and `test_procs.py` are gone from the tree. This document is kept as history only.
+
 # BLUEPRINT — Lightspire Core in-light share · UI SURFACES lens · 2026-09-08
 
 Scope of this document: WHERE the number lives, what it says, how it degrades, and how the

@@ -2,7 +2,7 @@ name: Refresh Season 2 data
 
 # Collection sidecar, every 4 hours (data/cadence.json). Sweeps the Warcraft
 # Logs leaderboards, fetches the summaries and the execution bundle for
-# whatever is new, runs the trinket and keystone collectors in the background
+# whatever is new, runs the keystone collector in the background
 # of the build, rebuilds the dashboard and the vetting-site sidecars and
 # publishes them.
 #
@@ -28,9 +28,10 @@ name: Refresh Season 2 data
 #     with the hour already over it sleeps within its cap or stops cleanly.
 # A scheduled run spends roughly: a deep sweep ~2,000 points (every run is
 # deep at this period), ~4 hours of new runs' summaries with the bundle
-# where the gate admits (~1,700 runs, ~5,000-8,000 points), then the trinket
-# collector up to 1,500 and the keystone top-up ~400 -- ~9,000-12,000 in the
-# hour it starts, capped at 12,600 by the governor whatever the sum comes to.
+# where the gate admits (~1,700 runs, ~5,000-8,000 points), then the keystone
+# top-up ~400 -- ~7,500-10,500 in the hour it starts, capped at 12,600 by the
+# governor whatever the sum comes to. (The Lightspire trinket collector that
+# spent up to 1,500 here was removed on 2026-09-30 on the owner's word.)
 # The 2026-09-28 pause (cron commented out, `if: false` here and on the
 # watchdog) is lifted by this cadence, on the owner's word above.
 #
@@ -263,57 +264,6 @@ jobs:
           FRESH_START: ${{ inputs.fresh_start }}
         run: bash scripts/journal_guard.sh
 
-      # Trinket drain window (owner, 2026-09-08 08:38 UTC: "pause fresh runs,
-      # remove all limits and drain as much as you can over the next 3 hours").
-      # data/procs_drain.json carries an `until` epoch; while the clock is
-      # before it, Fetch is skipped and the collector runs at the whole hourly
-      # budget. The file is inert afterwards -- nothing to revert by hand, and
-      # the standing cap (data/cadence.json) is back the moment the window
-      # closes. Every run re-reads it, so a chained successor needs no input
-      # to inherit it.
-      - name: Drain mode
-        id: drain
-        env:
-          CADENCE_FRACTION: ${{ steps.cadence.outputs.quota_fraction }}
-        run: |
-          # outputs go to $GITHUB_OUTPUT (key=value ONLY -- a workflow command
-          # in that file is an "Invalid format" error that fails the step, as
-          # run 34207028988 found); the notice goes to stdout
-          python3 - <<'EOF'
-          import json, os, pathlib, time
-          standing = os.environ.get("CADENCE_FRACTION") or "0.70"
-          p = pathlib.Path("data/procs_drain.json")
-          cfg, on = {}, False
-          if p.exists():
-              try:
-                  cfg = json.loads(p.read_text()); on = time.time() < float(cfg.get("until", 0))
-              except (ValueError, TypeError):
-                  cfg, on = {}, False
-          # ended early: the collector drained the whole window in an earlier
-          # run of THIS drain (marker carries the window's `until`), so pausing
-          # fresh runs any longer would collect nothing -- fetching resumes
-          marker = pathlib.Path("data/processed/procs_drain_done")
-          ended = on and marker.exists() and marker.read_text().strip() == str(cfg.get("until"))
-          if ended:
-              on = False
-          out = {"until": cfg.get("until", 0),
-                 "procs_drain": "true" if on else "false",
-                 "fraction": cfg.get("fraction", 1.0) if on else standing,
-                 "margin": cfg.get("margin", 20) if on else "400",
-                 "budget_pts": cfg.get("budget_pts", 18000) if on else "1500",
-                 "budget_s": cfg.get("budget_s", 1200) if on else "480",
-                 "pause_fetch": "true" if on and cfg.get("pause_fetch", True) else "false"}
-          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-              for k, v in out.items():
-                  fh.write(f"{k}={v}\n")
-          print(" ".join(f"{k}={v}" for k, v in out.items()))
-          if on:
-              left = (float(cfg["until"]) - time.time()) / 60
-              print(f"::notice::trinket drain window active for another {left:.0f} min: fresh runs paused, collector at the full hourly budget")
-          elif ended:
-              print("::notice::trinket drain ended early: the window was fully collected in an earlier run; fresh runs resumed")
-          EOF
-
       # Sweep depth (owner, 2026-09-09). Deep = every board to its cap, the
       # sweep the Coverage line describes, ~1,900 points; shallow = only where
       # a new run can appear (page 1 of a max-score board, the whole board
@@ -332,7 +282,7 @@ jobs:
 
       - name: Fetch
         id: fetch
-        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && steps.drain.outputs.pause_fetch != 'true'
+        if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
@@ -407,17 +357,17 @@ jobs:
           python -u scripts/fetch_data.py $SWEEP $REGEAR $FRESH_ARGS
 
       # Background collectors (owner, 2026-09-09: "minimum time, maximum
-      # frequency"). The trinket beam collector, the keystone clock backfill
-      # and the Raider.IO ratings sweep used to run one after another in the
-      # foreground -- fifteen minutes of Raider.IO alone -- and the chain
-      # waited on all of it. None of them feeds THIS run's build: the build
-      # reads the procs journal (its reader tolerates a torn tail), the clock
-      # map is consumed by the NEXT run's export, and Raider.IO replaces its
-      # file atomically. So they start here, run under the name resolution
-      # and the build, and the job only waits for them before the cache save.
-      # Budgets: trinket 1,500 pts / 8 min standing (the drain window's
-      # fraction inside a drain), keystone 400 reports, Raider.IO 180 s
-      # (96.4% of characters are rated; five runs an hour keep it there).
+      # frequency"). The keystone clock backfill and the Raider.IO ratings
+      # sweep used to run one after another in the foreground -- fifteen
+      # minutes of Raider.IO alone -- and the chain waited on all of it.
+      # Neither feeds THIS run's build: the clock map is consumed by the NEXT
+      # run's export, and Raider.IO replaces its file atomically. So they
+      # start here, run under the name resolution and the build, and the job
+      # only waits for them before the cache save. Budgets: keystone 400
+      # reports, Raider.IO 180 s (96.4% of characters are rated; five runs an
+      # hour keep it there). The Lightspire trinket collector that used to
+      # launch here (fetch_procs.py, 1,500 pts a run) was removed on
+      # 2026-09-30 on the owner's word: "stop any data collection for it".
       - name: Start background collectors
         id: bg
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh') && inputs.regear_min_key == ''
@@ -431,17 +381,9 @@ jobs:
           # collectors take only what is left under 70 % and stop cleanly
           # (30 s sleep cap) when there is none
           WCL_QUOTA_FRACTION: ${{ steps.cadence.outputs.quota_fraction }}
-          # standing: the cadence cap / 400; inside a drain window
-          # (data/procs_drain.json) the whole hourly budget with a 20-point
-          # margin -- trinket only
-          TRINKET_FRACTION: ${{ steps.drain.outputs.fraction }}
-          TRINKET_MARGIN: ${{ steps.drain.outputs.margin }}
-          TRINKET_PTS: ${{ steps.drain.outputs.budget_pts }}
-          TRINKET_S: ${{ steps.drain.outputs.budget_s }}
-          IN_DRAIN: ${{ steps.drain.outputs.procs_drain }}
           # a bundle-backfill run leaves every Warcraft Logs point to the
-          # backfill: the trinket and keystone collectors sit this run out
-          # (Raider.IO spends no WCL points and runs as always)
+          # backfill: the keystone collector sits this run out (Raider.IO
+          # spends no WCL points and runs as always)
           BUNDLE_BACKFILL: ${{ inputs.bundle_backfill }}
         run: |
           BG="$RUNNER_TEMP/bg"; mkdir -p "$BG"; echo "dir=$BG" >> "$GITHUB_OUTPUT"
@@ -451,11 +393,8 @@ jobs:
             echo "started $n (pid $!)"
           }
           if [ "$BUNDLE_BACKFILL" = "true" ]; then
-            echo "bundle backfill run: trinket and keystone collectors skipped (every WCL point goes to the backfill)"
+            echo "bundle backfill run: keystone collector skipped (every WCL point goes to the backfill)"
           else
-          launch trinket "WCL_QUOTA_FRACTION=$TRINKET_FRACTION WCL_BUDGET_MARGIN=$TRINKET_MARGIN python -u scripts/fetch_procs.py --budget-pts $TRINKET_PTS --budget-s $TRINKET_S --since-reset"
-          fi
-          if [ "$IN_DRAIN" != "true" ] && [ "$BUNDLE_BACKFILL" != "true" ]; then
             # The clock backfill yields to the summaries backlog: while
             # thousands of listed runs are still unfetched after this run's
             # Fetch (summaries.left -- NOT sweep.ledger_only, which counts
@@ -467,7 +406,7 @@ jobs:
             echo "keystone backfill: $KS reports this run (summaries still to fetch after this Fetch: ${LEFT:-?})"
             launch keystone python -u scripts/backfill_keystone.py --max-reports $KS
           fi
-          RIO=180; [ "$IN_DRAIN" = "true" ] && RIO=60
+          RIO=180
           launch rio python -u scripts/fetch_rio.py --budget-s "$RIO"
 
       # Item/enchant/crafted/embellishment names for the builds sidecar.
@@ -580,33 +519,18 @@ jobs:
       # step, or the ratings it fetches never reach the cache.
 
       # Wait for the background collectors before anything reads or saves
-      # their journals. Normally they finished under the build; inside a
-      # drain window the trinket collector may hold the full 20 minutes.
+      # their journals. Normally they finished under the build.
       - name: Wait for background collectors
         if: always() && steps.bg.outcome == 'success'
-        env:
-          IN_DRAIN: ${{ steps.drain.outputs.procs_drain }}
-          UNTIL: ${{ steps.drain.outputs.until }}
         run: |
           BG="${{ steps.bg.outputs.dir }}"; T0=$(date +%s)
-          for n in trinket keystone rio; do
+          for n in keystone rio; do
             [ -f "$BG/$n.log" ] || continue
             while [ ! -f "$BG/$n.rc" ] && [ $(( $(date +%s) - T0 )) -lt 1500 ]; do sleep 3; done
             RC=$(cat "$BG/$n.rc" 2>/dev/null || echo "still running after 25 min")
             echo "::group::$n (exit $RC, waited $(( $(date +%s) - T0 ))s)"; tail -n 40 "$BG/$n.log"; echo "::endgroup::"
             [ "$RC" = "0" ] || echo "::warning::background collector $n ended with '$RC'; building with the existing journal"
           done
-          # Inside a drain window: when the trinket collector stopped because it
-          # ran OUT OF WORK (no "stopped=" reason in its last fetch_health
-          # block), the window is drained -- leave a marker so the next run's
-          # Drain mode ends the drain and fresh runs resume.
-          if [ "$IN_DRAIN" = "true" ] && [ -f data/processed/fetch_health.txt ]; then
-            LAST=$(awk '/^procs\.lscore\.total=/{blk=""} {blk=blk $0 "\n"} END{printf "%s", blk}' data/processed/fetch_health.txt)
-            if echo "$LAST" | grep -q "^procs\.lscore\.ok=" && ! echo "$LAST" | grep -q "^procs\.lscore\.stopped="; then
-              echo "$UNTIL" > data/processed/procs_drain_done
-              echo "::notice::drain: the one-reset window is fully collected; the drain ends here and fresh runs resume on the next run"
-            fi
-          fi
 
       # RETENTION (owner, 2026-09-14): disk keeps RETENTION_DISK_DAYS (16)
       # measured from the newest row on disk -- strictly wider than the page's

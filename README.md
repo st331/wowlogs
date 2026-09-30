@@ -292,7 +292,7 @@ for t in scripts/test_*.py; do python3 "$t" >/dev/null && echo "ok   $t" || echo
 ```
 
 `test_retention.py` (the page's window), `test_retention_fetch.py` (the collector's),
-`test_prune_journals.py` (the pruner), `test_procs.py` (the page's static contract),
+`test_prune_journals.py` (the pruner), `test_site_contract.py` (the page's static contract),
 `test_builds_sidecar.py`, `test_stats_sidecar_roundtrip.py`, `test_spec_stats.py`,
 `test_trait_union.py`, `test_legacy_single_pass.py`, `test_names_scan.py`,
 `test_gear_parse.py`, `test_export_stream.py`, `test_quota_ceiling.py`, `test_build_entry.py`,

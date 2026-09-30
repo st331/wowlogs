@@ -236,9 +236,7 @@ check(fetch_frac.strip().endswith("|| steps.cadence.outputs.quota_fraction }}") 
 bg = steps["Start background collectors"]["env"]
 check(bg.get("WCL_QUOTA_FRACTION") == "${{ steps.cadence.outputs.quota_fraction }}",
       "the background collectors run under the Cadence step's fraction")
-check("standing" in steps["Drain mode"]["run"] and steps["Drain mode"]["env"]["CADENCE_FRACTION"]
-      == "${{ steps.cadence.outputs.quota_fraction }}" and '"0.85"' not in steps["Drain mode"]["run"],
-      "the trinket collector's standing fraction is the cadence's, not a literal")
+check("Drain mode" not in steps, "no Drain mode step: the Lightspire trinket collector and its drain window are gone (2026-09-30)")
 chain = steps["Chain the next run"]
 check(chain["if"].strip() == "success()" and "cadence.py chain" in chain["run"]
       and 'if [ "$CHAIN" != "true" ]' in chain["run"] and "schedule" not in chain["if"],

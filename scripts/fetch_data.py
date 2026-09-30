@@ -516,7 +516,7 @@ def load_fights(regions: set[str] | None) -> dict:
     # plausible listed start -- the data anchor, like the builder -- so a
     # stalled collector refuses nothing it would still display. UNDATED and
     # IMPLAUSIBLE entries are KEPT and counted apart: a missing startTime is a
-    # WCL schema fact, not proof of age (fetch_procs.py:243 is the precedent).
+    # WCL schema fact, not proof of age.
     now_ms = time.time() * 1000
     cut_ms, anchor_ms = disk_cut_ms((f.get("start_time") for f in fights.values()), now_ms)
     kept, old, undated, implaus = {}, 0, 0, 0

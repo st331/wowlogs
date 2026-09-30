@@ -219,7 +219,7 @@ class _Quota:
         The last reading is kept rather than zeroed -- it showed the ceiling
         reached, the safe assumption -- and not replaced with a synthetic
         value either, which would show up in the health lines and in
-        fetch_procs' rollover-safe "points used" accounting. Reservations are
+        the collectors' rollover-safe "points used" accounting. Reservations are
         kept too: query() releases every one on every path out, so `inflight`
         is exact, and a sibling admitted in the new window a second ago must
         keep its reservation."""

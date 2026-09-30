@@ -1,3 +1,9 @@
+> **REMOVED 2026-09-30** (owner: "remove the lightspire trinket labs feature and stop any data
+> collection for it"). The collector (`fetch_procs.py`, `procs_spec.py`), the sidecar
+> (`procs.json.gz`), the drain window (`data/procs_drain.json`), every client surface (the ⚗ Labs
+> section, the sidebar Lab card, the Spec Frame row, the Character screen band/tile/fold-out line)
+> and `test_procs.py` are gone from the tree. This document is kept as history only.
+
 # BLUEPRINT — Lightspire Core "in the light" (trinket benefit ratio) · SYNTHESIS · 2026-09-08
 
 Winner: the OWNER-FIRST design (`lightspire_owner_first.md`), built on HEAD b87aebf's events

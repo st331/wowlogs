@@ -1302,23 +1302,6 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
   aside{position:static; height:auto}
   #strip{top:0}
 }
-/* ⚗ beam — Lightspire Core, time in the light */
-#cs-band .csbeam{color:var(--ink3); font-size:.8rem}
-#cs-band .csbeam b{color:var(--ink); font-weight:650} #cs-band .csbeam i{font-style:normal; margin-left:.35rem}
-.gtile .gfoot.beam b{color:var(--ink); font-weight:650}
-.gtile .gfoot.beam i,.gbeam i{font-style:normal; color:var(--ink3); margin-left:.35rem}
-.gbeam{font-size:.7rem; color:var(--ink3)} .gbeam b{color:var(--ink); font-weight:650}
-.labpanel{border:1px dashed var(--line2); border-radius:var(--r2); padding:.8rem 1rem .7rem; margin:1rem 0 0}
-.labpanel .lphead{display:flex; align-items:baseline; gap:.6rem; flex-wrap:wrap}
-.labpanel .lpname{font-size:.86rem; font-weight:600; color:var(--ink)}
-.labpanel .lpsub{color:var(--ink3); font-size:.74rem; line-height:1.5; margin:.2rem 0 .5rem}
-.tblwrap.light{max-width:720px; margin-top:.2rem}
-table.beamtbl{width:100%; border-collapse:collapse; font-size:.8rem; margin-top:0}
-table.beamtbl th,table.beamtbl td{padding:.28rem .6rem; text-align:right; white-space:nowrap}
-table.beamtbl th.txt,table.beamtbl td.txt{text-align:left; overflow:hidden; text-overflow:ellipsis; max-width:16rem}
-table.beamtbl th{color:var(--ink3); font-weight:600; cursor:pointer}
-table.beamtbl td i{font-style:normal; color:var(--ink3)}
-table.beamtbl tr:hover td{background:var(--surface1)}
 </style>
 </head>
 <body>
@@ -1565,23 +1548,6 @@ table.beamtbl tr:hover td{background:var(--surface1)}
     <div class="caption" id="trend-caption"></div>
     </div>
 
-    <!-- ⚗ Labs — the LAST top-level section (owner, 2026-09-08): every Lab
-         surface that needs room lives here, each behind its toggle in the
-         sidebar's ⚗ Lab card. The wrapper stays hidden until a Lab sidecar
-         decodes, so with no Lab data there is no section at all. Collapsed or
-         expanded like every section, remembered per browser. -->
-    <div id="labs-sec" hidden>
-    <div class="sec" data-sec="labs"><span class="mk"></span><span class="t">⚗ Labs</span><span class="s" id="labs-sub"></span></div>
-    <div class="secbody" id="sec-labs">
-      <div id="light-card" class="labpanel" hidden>
-        <div class="lphead"><span class="lpname">✨ Lightspire Core · in the light</span><span class="labstamp">⚗ LAB</span></div>
-        <div class="lpsub" id="light-sub"></div>
-        <div id="beamtbl"></div>
-      </div>
-      <div class="hint" id="labs-off" hidden></div>
-    </div>
-    </div>
-
     <footer>
       DPS is per-player overall damage ÷ run duration; deaths are parsed from each report's
       death events. <span id="foot-src">Data is the top ~1,000 runs per dungeon × key level
@@ -1764,7 +1730,6 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
 
              postTune:true,    // default: only runs after the latest tuning
              proj:false,       // re-score every parse under the upcoming tuning
-             beam:false,       // ⚗ Lab: Lightspire Core time in the light surfaces
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"grid", timedOnly:true,
              pctl:50, elite:false,
@@ -1776,7 +1741,6 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              trendNorm:"dps", trajSort:"metric", trendAxis:"time",
              trustPrev:null};
 let hasTimed=false, hasTune=false, hasProj=false;
-let hasBeam=false, BEAMC=null;   // ⚗ procs sidecar: Lightspire Core time in the light
 let hasRating=false, CHARSCORE=[];
 let archonPrev=null;   // Archon-mode's "what you had before" snapshot
 // elite = the Archon-replica statistic path is active. Only the mode toggle
@@ -2000,15 +1964,6 @@ function initData(d,cfg){
   state.postTune=hasTune;
   hasProj=!!(D.projection&&R.tmul);
   if(!hasProj) state.proj=false;
-  // remembered across reloads at the owner's request (2026-09-08: "Keep the
-  // toggle remembered across reload") -- the one Lab control that persists,
-  // guarded like the collapsed sections and the lens; absent storage = off
-  state.beam=false;
-  try{ state.beam=localStorage.getItem(BEAM_LS)==="1" }catch(e){}
-  hasBeam=false; BEAMC=null;
-  if($("light-card")) $("light-card").hidden=true;
-  if($("labs-sec")) $("labs-sec").hidden=true;
-  loadProcsSidecar();   // tiny; its ⚗ control mounts itself when it lands (labMountLate)
   // ⚗ Lab manifest: render the entries whose gate() is true — a gated-off
   // feature renders NOTHING anywhere (feedback #3) — then wire what exists.
   renderLabCards();
@@ -3288,26 +3243,6 @@ const LAB_FEATURES=[
      +'<input type="checkbox" id="posttune"> Since latest tuning'
      +'<span class="hint" id="tunehint"></span></label>',
    scopeBits:()=>""},
-  /* Lightspire Core time in the light (owner, 2026-09-08): "of the time that the
-     trinket was active, what percentage of time did the player stay in the
-     buff" — NOT classic uptime. Data: procs.json.gz (fetch_procs.py). The
-     entry exists only while that sidecar decoded; off, it adds nothing
-     anywhere. stamp:false — it changes no existing number, so it never
-     badges the scope lines. Surfaces: the Character screen's Lightspire
-     trinket tile (+ its fold-out row) and the cross-spec table in this card,
-     both on the lens slice every screen section reads. */
-  {id:"beam", name:"✨ Lightspire Core · in the light", badge:"LIGHT",
-   mount:"labbox", card:true, stamp:false,   // the ⚗ Lab card, where every Lab toggle lives
-   gate:()=>hasBeam,
-   active:()=>hasBeam&&state.beam,
-   controlHTML:'<label class="small" id="beambox">'
-     +'<input type="checkbox" id="beamcb"> Show time in the light'
-     +'<span class="hint" id="beamhint"></span></label>',
-   scopeBits:()=>state.beam
-     ?"share of each Lightspire beam's 12 s its wearer spent standing in it — the "
-      +"Spec Frame's Overview row, the Character screen (identity line, trinket "
-      +"tile, fold-out row) and per spec below; follows every filter and the lens"
-     :"off — nothing added anywhere"},
 ];
 function labHas(id){return LAB_FEATURES.some(f=>f.id===id)}
 function renderLabCards(){
@@ -3332,36 +3267,7 @@ function labCardHTML(f){
       +(f.controlHTML||"")+'</div>'
     : (f.controlHTML||"");
 }
-// a Lab entry whose gate opens AFTER boot (a lazy sidecar landing) mounts its
-// own card alone: a full renderLabCards() would rebuild the proj/posttune
-// controls unchecked and drop their hints while state still says on
-function labMountLate(id){
-  const f=LAB_FEATURES.find(x=>x.id===id), host=f?$(f.mount):null;
-  if(!f||!host||!f.gate()||host.querySelector('[data-lab="'+id+'"]')) return;
-  host.insertAdjacentHTML("beforeend", labCardHTML(f));
-  const lg=$("lab-group"), lb=$("labbox");
-  if(lg&&lb) lg.style.display=lb.children.length?"":"none";
-  wireLabControls(); labScopeRefresh();
-}
 function wireLabControls(){
-  const setBeam=v=>{
-    state.beam=!!v;
-    try{ if(state.beam) localStorage.setItem(BEAM_LS,"1");
-         else localStorage.removeItem(BEAM_LS) }catch(e2){}
-    const el=$("beamcb"); if(el) el.checked=state.beam;
-    labScopeRefresh(); renderBeamTable(); renderFrame();
-    if(state.screen) renderScreen();
-    // turning a Lab on unfolds the Labs section it renders into (a folded
-    // section would make the toggle look dead); turning it off leaves the
-    // section as the reader left it
-    if(state.beam&&!state.screen) openSection("labs");
-  };
-  const bc=$("beamcb");
-  if(bc){ bc.checked=state.beam; bc.onchange=e=>setBeam(e.target.checked); }
-  const bh=$("beamhint");
-  if(bh&&BEAMC&&BEAMC.cov)
-    bh.textContent="("+fmtInt(BEAMC.cov.measured)+" of "+fmtInt(BEAMC.cov.wearers)
-      +" wearer-parses measured so far)";
   const pt=$("posttune");
   if(pt) pt.onchange=e=>{state.postTune=e.target.checked; render()};
   const pc=$("projcb");
@@ -3847,7 +3753,6 @@ function jumpToComps(k){
    anywhere); #frame-x is reached only by the user's own Tab. Zero hover
    behavior — the 450ms #tip owns hover, untouched. */
 let FRAME_A=null, FRAME_B=null, CHART_KEYS=[];
-let GATED_KEYS=new Set();   // every group past the minimum-characters gate this render
 let CHART_CUT="";           // which CHART_MAX the current sort drew, for the caption
 
 /* ---- live-stats sidecar (stats.json.gz) — per-parse stat ratings, ROW-ALIGNED
@@ -3940,10 +3845,9 @@ function frameLiveIdx(){return liveIdxFor(state.frameKey)}
 function liveIdxFor(key){
   return key==null?[]:(liveIdxMulti(new Set([key])).get(key)||[]);
 }
-/* the live row set of SEVERAL groups in ONE pass over the rows — the ⚗ beam
-   table asks for every spec with beam data at once, and a per-key pass would
-   cost keys × N on every render. Semantics are exactly the old single-key
-   walk's: elite mode needs the group's own floorK (a group missing from
+/* the live row set of SEVERAL groups in ONE pass over the rows — a caller
+   that needs many groups at once pays one walk, not keys × N per render.
+   Semantics are exactly the old single-key walk's: elite mode needs the group's own floorK (a group missing from
    FRAME_A yields nothing), standard mode is rowPass + periodPass + projSkip. */
 function liveIdxMulti(keys){
   const out=new Map();
@@ -4043,28 +3947,6 @@ function frameIdentityHTML(ctx){
     rows+=row("Deathless",ab(g.deathless,b?b.deathless:null,v=>v.toFixed(1)+"%",true));
   else rows+=row("Deathless",g.deathless.toFixed(1)+"%"
     +(skill?' <span class="fnote">(skill compare does not apply)</span>':""));
-  /* ⚗ beam — the primary surface: one click from every bar, a key/value
-     ledger row (sort-rule exempt), hidden with the rest of the frame while
-     the Character screen is open so two readings never show at once. Same
-     lens window as the Character screen's identity line. Under skill compare
-     the second figure is the vs-percentile window of the same rows. */
-  if(hasBeam&&state.beam){
-    const L=frameLensSlice(), s=beamStatsWin(L.inWin,L.idx);
-    if(s.n+s.nb>0){
-      let v=beamInline(s);
-      if(skill){
-        const sB=beamStatsWin(lensWindow(L.idx,state.pctlB).inWin,L.idx);
-        const f=x=>'<b>'+beamPct(x.p50)+'</b>';
-        v='in the light '+f(s)+' · '+f(sB)+' of beam time';
-      }
-      rows+=row('<span title="'+escA(beamTitle(s))+'">'+esc(BEAMC.name)+'</span>',
-        v+'<div class="fnote">median · n='+fmtInt(s.n)
-        +(s.all?' · every parse in the filters (none with beam data around p'+state.pctl+', lens ±10)'
-               :' around p'+state.pctl+(skill?' · p'+state.pctlB:'')+' (lens ±10)')
-        +(s.nb?' · '+fmtInt(s.nb)+' got no beam':'')
-        +(state.compare?' · period A':gearOn()?' · item-level cohort A':'')+'</div>');
-    }
-  }
   if(hasRating&&g.rn)
     rows+=row("Med player rating (Raider.IO season)",
       fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated · a season total, not limited to the window</span>");
@@ -4469,191 +4351,6 @@ let screenSecClosed=new Set(["crafted"]);   // §15.9 collapse; crafted starts c
 let __screenRemapPres=null;       // merge-toggle remap request (class*100+spec to re-find)
 let __csCopy=[];                  // import strings behind the rendered copy buttons
                                   // (hash-identified builds never enter it)
-
-/* ---- procs sidecar (procs.json.gz) — ⚗ Lab "beam": Lightspire Core time in
-   the light per parse, ROW-ALIGNED with the payload like stats.json.gz. Tens of
-   KB, so it is fetched at boot rather than lazily; while absent the Lab card
-   does not exist and no surface changes. Shape (build_site_data.procs_sidecar):
-   {kind:"procs", n, enc:"sparse", idxdelta:true,
-    trk:[{key,item,name,buff,buff_name,window_ms}],
-    cols:{lscore:{idx,r,a,b,p}}}
-   idx: delta-coded u32 payload rows. r: u8 percent, 255 = the wearer never got
-   a beam that run (no evidence — excluded from every statistic, counted
-   separately). a/b: u16 seconds available / inside. p: u8 beams. Everything is
-   feature-detected; anything unexpected ⇒ null ⇒ the feature does not exist. */
-const BEAM_KEY="lscore";
-const BEAM_LS="wowlogs.lab.beam";     // localStorage: "1" = the toggle was left on
-// no minimum-n floor (owner, 2026-09-08: "I don't want data hidden from me, even
-// if it is not statsig") -- every surface prints its percent with its n beside it
-function loadProcsSidecar(){
-  (async()=>{
-    if(typeof DecompressionStream!=="function") return;
-    const gz=await fetch("procs.json.gz",{cache:"no-cache"});
-    if(!gz.ok) return;
-    const j=await new Response(
-      gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
-    const dec=decodeProcsSidecar(j);
-    if(!dec) return;
-    BEAMC=dec; hasBeam=true;
-    labMountLate("beam");
-    const lab=$("labs-sec"); if(lab) lab.hidden=false;   // the Labs section exists now
-    renderBeamTable();                     // shows the card if the toggle was left on
-    // a remembered ON toggle: the other surfaces render the moment the data
-    // lands (renderFrame re-slices the whole screen itself when one is open)
-    if(state.beam) renderFrame();
-  })().catch(()=>{});
-}
-function decodeProcsSidecar(j){
-  try{
-    if(!j||j.kind!=="procs"||!j.cols||!j.cols[BEAM_KEY]) return null;
-    if((j.n>>>0)!==N){   // row-alignment is the whole contract — never guess past it
-      console.warn("procs sidecar ignored: n="+j.n+" does not match the payload's "+N+" rows");
-      return null;
-    }
-    const c=j.cols[BEAM_KEY];
-    const b64=s=>{const bin=atob(s), b=new Uint8Array(bin.length);
-      for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return b};
-    const ib=b64(c.idx), M=(ib.byteLength/4)|0;
-    const d32=new Uint32Array(ib.buffer,0,M);
-    const map=new Int32Array(N).fill(-1);
-    let acc=0;
-    for(let k=0;k<M;k++){
-      const row=j.idxdelta?(acc+=d32[k]):d32[k];
-      if(row>=N) return null;
-      map[row]=k;
-    }
-    const r=b64(c.r), pb=b64(c.p), ab=b64(c.a), bb=b64(c.b);
-    if(r.length<M||pb.length<M||ab.byteLength<2*M||bb.byteLength<2*M) return null;
-    const trk=(Array.isArray(j.trk)?j.trk:[]).find(t=>t&&t.key===BEAM_KEY)||{};
-    return {map, r, p:pb, a:new Uint16Array(ab.buffer,0,M), b:new Uint16Array(bb.buffer,0,M),
-      M, item:+trk.item||0, name:trk.name||"Lightspire Core",
-      buff:trk.buff_name||"Light's Blessing",
-      window:Math.round((+trk.window_ms||12000)/1000),
-      cov:(trk.cov&&typeof trk.cov==="object")?trk.cov:null};
-  }catch(e){ return null }
-}
-// per-parse benefit percentages over a set of payload rows → one summary.
-// Covered rows are wearers by construction (the collector only journals
-// wearers), so a caller passes its window and the map does the rest.
-function beamStats(rows){
-  const v=[]; let sa=0,sb=0,nb=0;
-  for(const i of rows){
-    const k=BEAMC.map[i]; if(k<0) continue;
-    const r=BEAMC.r[k]; if(r===255){ nb++; continue }
-    v.push(r); sa+=BEAMC.a[k]; sb+=BEAMC.b[k];
-  }
-  v.sort((x,y)=>x-y);
-  const q=p=>{ if(!v.length) return null;
-    const t=p*(v.length-1), lo=Math.floor(t), hi=Math.ceil(t);
-    return v[lo]+(v[hi]-v[lo])*(t-lo); };
-  return {n:v.length, nb, p50:q(.5), p25:q(.25), p75:q(.75), pooled:sa?100*sb/sa:null, all:false};
-}
-/* stats over the lens window; when that band holds no wearer-parse with beam
-   data, over EVERY parse in the current filters instead, flagged `all` so the
-   label says so. A thin band (a spec with eleven +20 parses has three in a
-   ±10 band) must never make a measured spec vanish -- owner, 2026-09-08:
-   "when I filter to +20s and above, the hunters disappear from the list". */
-function beamStatsWin(win,all){
-  const s=beamStats(win);
-  if(!s.n&&!s.nb&&all){ const a=beamStats(all); if(a.n||a.nb){ a.all=true; return a; } }
-  return s;
-}
-const beamPct=x=>x==null?"–":Math.round(x)+"%";
-// the definition, ONCE, behind every place the number appears
-function beamTitle(s){
-  const T=BEAMC;
-  return "In the light: of the seconds a "+T.name+" beam was available to these "
-    +"wearers, the share they spent standing in it ("+T.buff+" active). A beam "
-    +"lasts "+T.window+" s from where it spawns; overlapping beams count once; only "
-    +"the wearer's own beams count as available. Median over "+fmtInt(s.n)
-    +" wearer-parses in this window with beam data"
-    +(s.n?" (p25 "+beamPct(s.p25)+" · p75 "+beamPct(s.p75)
-      +" · time-weighted "+beamPct(s.pooled)+")":"")
-    +(s.nb?"; "+fmtInt(s.nb)+" more got no beam that run and are not counted":"")
-    +(s.all?". The p"+state.pctl+" lens band held none, so this is every parse in the current filters":"")
-    +". Not classic uptime.";
-}
-// the compact reading — the denominator rides in the words so it can never be
-// mistaken for the classic measure: "in the light 38% of beam time · n=143 of 312"
-function beamInline(s,wearers){
-  const n='n='+fmtInt(s.n)+(wearers?' of '+fmtInt(wearers):'')+(s.all?' · all parses in filters':'');
-  return 'in the light <b>'+beamPct(s.p50)+'</b> of beam time <i>'+n+'</i>';
-}
-/* the ⚗ card's cross-spec table: every spec with beam data, on the SAME slice
-   the Spec Frame and the Character screen read — the usual knobs plus the
-   lens window, per spec (lensSliceFor). Sorted, like every table. */
-function renderBeamTable(){
-  const host=$("beamtbl"), sub=$("light-sub"), card=$("light-card"); if(!host||!card) return;
-  const lsub=$("labs-sub"), loff=$("labs-off");
-  if(!hasBeam||!D){ card.hidden=true; host.innerHTML=""; if(sub) sub.textContent=""; return; }
-  if(lsub) lsub.textContent="experimental surfaces, each behind its toggle in the sidebar's ⚗ Lab card"
-    +" · Lightspire Core: "+(state.beam?"on":"off");
-  if(!state.beam){
-    card.hidden=true; host.innerHTML=""; if(sub) sub.textContent="";
-    if(loff){ loff.hidden=false; loff.textContent="✨ Lightspire Core · in the light is off — turn it on in the ⚗ Lab card in the sidebar to list, per spec, the share of each beam's 12 s its wearers spend standing in it."; }
-    return;
-  }
-  if(loff) loff.hidden=true;
-  card.hidden=false;
-  const T=BEAMC, covTxt=T.cov?" · "+fmtInt(T.cov.measured)+" of "+fmtInt(T.cov.wearers)
-    +" wearer-parses measured so far":"";
-  if(sub) sub.textContent="per spec, the share of each "+T.name+" beam's "
-    +T.window+" s its wearers spent standing in it ("+T.buff+" active) · "
-    +frameScope()+" · every wearer-parse in the current filters (the lens column is the "
-    +"p"+state.pctl+" ±10 band the Spec Frame reads) · specs past the "
-    +"minimum-characters gate, as in the Overview"+covTxt;
-  // only groups the trust gate lets through (GATED_KEYS, set by render());
-  // no minimum on n itself -- a listed spec shows whatever it has
-  const keys=new Set();
-  for(let i=0;i<N;i++) if(BEAMC.map[i]>=0){ const k=groupKey(i); if(GATED_KEYS.has(k)) keys.add(k); }
-  const rows=[];
-  for(const [k,idx] of liveIdxMulti(keys)){     // ONE pass for every spec
-    // every wearer-parse in the filters is the row; the lens band (what the
-    // Spec Frame reads) rides beside it and may legitimately be empty
-    const st=beamStats(idx);
-    if(!st.n) continue;
-    const ln=beamStats(lensWindow(idx).inWin);
-    const pk=state.merge?k:Math.floor(k/200);
-    const cls=D.classes[Math.floor(pk/100)], spec=D.specs[pk%100];
-    const hero=state.merge?"":(D.heroes[k%200]||"");
-    rows.push({k, cls, spec, hero:(hero&&hero!=="Unknown")?hero:"", s:st, l:ln});
-  }
-  const shown=rows;                              // every spec with a measured parse
-  const cols=[["spec","Spec","txt"],
-    ["p50","In the light","","median of the per-parse share of beam time spent in the light, every wearer-parse in the current filters"],
-    ["iqr","p25 – p75","","the middle half of those parses"],
-    ["pool","Time-weighted","","all seconds in the light ÷ all seconds a beam was available, every parse in the filters"],
-    ["n","n","","wearer-parses with beam data in the current filters"],
-    ["lens","p"+state.pctl+" lens","","the same median over only the parses in the Spec Frame's lens band (p"+state.pctl+" ±10 by DPS), with its own n; – when the band holds none"]];
-  const st=sortState("beam:tbl","p50",cols);
-  const val=(r,c)=>c==="spec"?r.spec+" "+r.hero:c==="p50"?r.s.p50:c==="iqr"?r.s.p25
-    :c==="pool"?r.s.pooled:c==="n"?r.s.n:c==="lens"?(r.l.p50==null?-1:r.l.p50):null;
-  let h="";
-  if(!shown.length){
-    h='<div class="hint">no spec past the minimum-characters gate has beam data in the current filters</div>';
-  }else{
-    h='<div class="tblwrap light"><table class="beamtbl" data-sid="beam:tbl">'+sortHead(cols,st)+'<tbody>';
-    for(const r of sortRows(shown,st,val))
-      h+='<tr title="'+escA(beamTitle(r.s))+'"><td class="txt"><span class="classdot" '
-        +'style="background:'+(CLASS_COLORS[r.cls]||"#999")+'"></span>'+esc(r.spec)
-        +(r.hero?' <i>'+esc(r.hero)+'</i>':'')+'</td>'
-        +'<td><b>'+beamPct(r.s.p50)+'</b></td>'
-        +'<td><i>'+beamPct(r.s.p25)+' – '+beamPct(r.s.p75)+'</i></td>'
-        +'<td>'+beamPct(r.s.pooled)+'</td><td>'+fmtInt(r.s.n)+'</td>'
-        +'<td>'+beamPct(r.l.p50)+(r.l.n?' <i>n='+fmtInt(r.l.n)+'</i>':'')+'</td></tr>';
-    h+='</tbody></table></div>';
-  }
-  h+='<div class="hint">In the light = of the seconds a '+esc(T.name)+' beam was available '
-    +'to a wearer (12 s from each of their own beams, overlaps counted once), the share they '
-    +'spent standing in it. One value per parse; the table shows the median over every '
-    +'wearer-parse in the current filters, at any n; the lens column repeats the Spec Frame\'s '
-    +'p'+state.pctl+' ±10 band and is – when that band holds no measured parse. '
-    +'Specs are the ones the minimum-characters gate lists in the Overview. '
-    +'Not classic uptime. The same reading sits on the Spec Frame\'s Overview and on the '
-    +'Character screen.</div>';
-  host.innerHTML=h;
-  wireSort(host.querySelector("table"),st,renderBeamTable);
-}
 
 /* ---- builds sidecar (builds.json.gz, §1) — the second lazy sidecar. Mirrors
    loadStatsSidecar (cached promise, DecompressionStream guard, no-cache fetch);
@@ -5196,23 +4893,9 @@ function csBandHTML(ctx,d){
         +"% · builds known "+Math.round(100*d.bldIdx.length/wN)+"%":"";
     h+='<div class="cssub"><span>players around p'+state.pctl+" (lens ±10) · n="
       +fmtInt(wN)+" of "+fmtInt(d.L.Y)+" in view"+cov+'</span>'
-      +csDigestHTML(d)+csBeamBandHTML(d)+'</div>';
+      +csDigestHTML(d)+'</div>';
   }
   return h+'</div>';
-}
-/* ⚗ beam: the Character screen's always-visible reading. The pooled trinket
-   tiles show only the #1/#2 trinket, and on the default window Lightspire Core
-   is neither for any of its big wearer specs (verified 2026-09-08 on the live
-   payload) — so a tile-only surface would be invisible most of the time. This
-   line sits in the identity band, once per spec, over the same gear-known
-   window the tiles count; the tile and the fold-out row repeat it when the
-   item is present. Nothing renders without covered wearers in the window. */
-function csBeamBandHTML(d){
-  if(!(hasBeam&&state.beam&&d)) return "";
-  const s=beamStatsWin(d.win,d.L?d.L.idx:null);   // the lens window, every parse when it is empty: the Spec Frame row prints the same figure
-  if(!s.n&&!s.nb) return "";
-  return '<span class="csbeam" title="'+escA(beamTitle(s))+'">✨ '+esc(BEAMC.name)+': '
-    +beamInline(s)+'</span>';
 }
 /* The sidecars cover a window of resets (builder BUILDS_WINDOW_RESETS /
    SIDECAR_WINDOW_RESETS); rows older than a region's cut have no gear, stats
@@ -5497,12 +5180,6 @@ function csFoldHTML(d,fid,M,P){
   const pr=CS_POOL_SLOTS[fid];
   return csPoolFoldHTML(d,fid,M||csPoolModel(d,pr[0],pr[1]),P);
 }
-// ⚗ beam: the tracked trinket's fold-out row carries the same reading as its tile
-function csBeamSub(e,d){
-  if(!(hasBeam&&state.beam&&e&&+e.id===BEAMC.item)) return {};
-  const s=beamStatsWin(d.win,d.L?d.L.idx:null);
-  return {sub:' <span class="gbeam" title="'+escA(beamTitle(s))+'">'+beamInline(s)+'</span>'};
-}
 /* the item level a slot's lean is measured against, straight from the sidecar
    (specs[sk].ibase, parallel to BUILDS_SLOTS). A pooled pair prints both when
    its two physical columns disagree, because their two leans then do too. */
@@ -5534,8 +5211,7 @@ function csIbaseTxt(d,sis){
    Identity, asserted by the harness: sum(shown) + tailN + belowN + uu == M.n,
    and c <= min(a.c, b.c) on every row. Not on this reading, on purpose: the
    upgrade-lean columns (a pair has two iups — a column that does not apply is
-   ABSENT, 3.2.4) and the ⚗ beam sub-line (it is a per-wearer-set reading of ONE
-   trinket and stays on the By-trinket rows and the tile). ---- */
+   ABSENT, 3.2.4). ---- */
 const csPairKey=(a,b)=>a<b?a+"\u0000"+b:b+"\u0000"+a;
 function csPairModel(M){
   const rank=new Map(M.ent.map((x,i)=>[x.k,i])), ent=new Map(M.ent.map(x=>[x.k,x]));
@@ -5556,7 +5232,8 @@ function csPairModel(M){
     if(b&&rank.get(b.k)<rank.get(a.k)) [a,b]=[b,a];        // the more-worn member first
     named.push({kind:o.kind, a, b, c:o.c, ra:rank.get(a.k), rb:b?rank.get(b.k):1e9});
   }
-  named.sort((x,y)=>y.c-x.c||x.ra-y.ra||x.rb-y.rb);         // a total order: no flicker on ties
+  named.sort((x,y)=>y.c-x.c||x.ra-y.ra||x.rb-y.rb
+    ||(x.kind<y.kind?-1:x.kind>y.kind?1:0));                  // a total order: no flicker on ties
   // the cap is applied BEFORE the display sort ON PURPOSE (the documented
   // residual-row exception, exactly as the By-trinket panel): its complement is
   // itself a rendered row, so which rows survive is decided by prevalence and
@@ -5574,7 +5251,7 @@ const csPairVal=(r,k)=>r.pin?null
   :null;
 // one By-pair row: two 28px icon tiles (each the wowhead surface of its own
 // item), the two names line for line with the two Each shares, Both, n.
-// No item level, no ids, no lean, no beam — see the block comment above.
+// No item level, no ids, no lean columns — see the block comment above.
 function csPairTR(r,lc){
   const w=Math.min(100,Math.max(0,r.s)).toFixed(1);
   const ico=e=>csIcoHTML(e,csFoldPh(e),true);
@@ -5625,8 +5302,9 @@ function csPairBodyHTML(d,p,M,P){
   const cap="share of the "+fmtInt(M.n)+" gear-known players in this window by the two "+lc
     +"s they wore together — either slot, either order. Every player is in exactly one row, so this column sums to 100%. "
     +(P.shown.length
-      ?"The "+CS_PAIR_ROWS+" most-worn pairs are listed by name"
-        +(P.tailK>0?"; the next "+fmtInt(P.tailK)+" pair"+(P.tailK===1?" is":"s are")+" summarised in one row":"")
+      ?(P.tailK>0
+          ?"The "+CS_PAIR_ROWS+" most-worn pairs are listed by name; the next "+fmtInt(P.tailK)+" pair"+(P.tailK===1?" is":"s are")+" summarised in one row"
+          :(P.shown.length===1?"The one named pair is listed":"All "+P.shown.length+" named pairs are listed"))
         +(P.belowN>0?"; pairs worn by fewer than "+CS_ENTRY_MIN+" people are one row":"")+". "
       :"No pair of listed "+lc+"s is worn by "+CS_ENTRY_MIN+" or more players in this window. ")
     +"“other / none” is a "+lc+" outside the "+capTxt+" listed for its slot, or an empty slot. "
@@ -5681,8 +5359,7 @@ function csPoolFoldHTML(d,p,M,P){
   const slots=BUILDSC.slots, pr=CS_POOL_SLOTS[p];
   const sis=[slots.indexOf(pr[0]),slots.indexOf(pr[1])];
   const list=shown.map(x=>Object.assign({e:x.e, nm:itemNameHTML(x.e),
-    s:100*x.c/total, c:x.c, ph:csFoldPh(x.e)}, csFoldField(x.e,sis,d.sk),
-    csBeamSub(x.e,d)));
+    s:100*x.c/total, c:x.c, ph:csFoldPh(x.e)}, csFoldField(x.e,sis,d.sk)));
   const pinned=[];
   if(tailRows>0) pinned.push({pin:true, ph:"+",
     nm:'<span class="na">'+fmtInt(tailSeen.size)+' more listed '+lc
@@ -5941,16 +5618,6 @@ function csGearPaneHTML(ctx,d){
   const poolTile=(p,rank)=>{
     const M=poolOf(p), x=M.ent[rank-1]||null, lab=CS_POOL_LABEL[p];
     const e=x?x.e:null, c=x?x.c:0, share=100*c/(M.n||1);
-    // ⚗ beam: the tracked trinket's tile carries its wearers' time in the
-    // light over the lens window (covered rows are wearers by construction),
-    // with ONE n — "n=143 of 312" against the tile's own wearer count; the
-    // definition rides the tile's tooltip
-    let bfoot="", btitle="";
-    if(hasBeam&&state.beam&&e&&+e.id===BEAMC.item){
-      const s=beamStatsWin(d.win,d.L?d.L.idx:null);
-      bfoot='<div class="gfoot beam">'+beamInline(s,c)+'</div>';
-      btitle=" — "+escA(beamTitle(s));
-    }
     // the owner's literal question, answered at rest: the rank-2 tile says
     // how many wear the #1 AND the #2 together, against the SAME denominator
     // as the tile's own share. No floor — 0% is the informative case (the top
@@ -5964,9 +5631,9 @@ function csGearPaneHTML(ctx,d){
         +" together (n="+fmtInt(c12)+") — open the tile and pick By pair for every combination")
         +'">with #1 '+pct.toFixed(0)+'%</i>';
     }
-    return cell({fid:p, foot:bfoot,
+    return cell({fid:p,
       title:lab+"s — "+CS_POOL_RANK[rank]+" across both "+lab.toLowerCase()
-        +" slots"+(embOf(e)?" — "+escA(embOf(e)):"")+btitle
+        +" slots"+(embOf(e)?" — "+escA(embOf(e)):"")
         +" · click to unfold: each "+lab.toLowerCase()+", or the pairs worn together",
       ph:CS_POOL_ABBR[p], e, share,
       slab:esc(lab+" · "+CS_POOL_RANKS[rank]),
@@ -7756,11 +7423,6 @@ function render(){
     view=[...view].sort((x,y)=>(x.cls+x.spec+x.hero).localeCompare(y.cls+y.spec+y.hero));
   CHART_CUT=cutWord;
   CHART_KEYS=view.map(r=>r.key);   // Spec Frame arrow-stepping walks chart order
-  // the gate, not the chart's top-N cap: the ⚗ Lightspire table lists exactly
-  // the groups the trust gate lets through (owner, 2026-09-08: "if a spec
-  // doesn't have enough minimum characters to match, it shouldn't show up in
-  // the trinket uptime list either"); lowering the gate widens both together
-  GATED_KEYS=new Set(ranked.map(r=>r.key));
 
   // shared x-scale
   let lo=0, hi=1;
@@ -7897,7 +7559,6 @@ function render(){
   renderTable(rows,tab);
   renderStrip(rows,A);
   renderFrame();   // last: every control refresh reaches an open frame through this one path
-  renderBeamTable();   // ⚗ beam's per-spec table follows every knob; reads FRAME_A in elite mode
 }
 
 /* -------- context strip: compressed KPIs · shown-count · scope chips -------- */
