@@ -648,6 +648,10 @@
     every residual a named row, and `with #1 N%` on the rank-2 tile at rest. Two defaults the owner
     may flip, each one line: the reading resets to By trinket on a spec switch; the tile's `with #1`
     prints with no floor, 0% included. Checklist §AD; blueprint addendum 2026-09-30.
+    FLOOR IS ONE (owner, same day: "for pairs, reduce the minimum n to 1. it is still useful to see
+    if even one person is using a trinket pair."): `CS_PAIR_MIN=1`; a pair's members come from the
+    unfiltered tally, so a pair of two rare trinkets is named even where the By-trinket face (which
+    keeps n≥3) folds those trinkets into "other / none".
 
 39. **The Lightspire trinket Lab is GONE, and so is its collection (owner, 2026-09-30: "remove
     the lightspire trinket labs feature and stop any data collection for it").** Removed in one

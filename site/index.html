@@ -4613,6 +4613,10 @@ const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into 
 const CS_EMB_CAP=10;                    // named embellishment rows before the tail folds
 const CS_PAIR_ROWS=10;                  // named rows on the pooled fold-out's By-pair reading;
                                         // the cap is printed in that reading's caption
+const CS_PAIR_MIN=1;                    // wearers a pair needs to be a named row (owner,
+                                        // 2026-09-30: "reduce the minimum n to 1. it is still
+                                        // useful to see if even one person is using a trinket
+                                        // pair."); the By-trinket face keeps CS_ENTRY_MIN
 /* upgrade lean (Part 2) floors. The cell floor is 40, not CS_THIN's 10,
    because lean is a proportion of a proportion. A cell below it renders "-"
    and KEEPS its row: unknown must be visibly not cold, and a table that
@@ -5076,16 +5080,19 @@ function csPoolModel(d,idA,idB){
   // so this must be a deterministic pick — never an average.
   const entOf=k=>{const o=rep.get(k);
     return (o.cB>o.cA&&o.eB)?o.eB:(o.eA||o.eB)};
-  const ent=[];
+  const ent=[], all=[];
   for(const [k,c] of cnt){
+    const x={k,c,e:entOf(k)};
+    all.push(x);                                   // every key, for the By-pair reading (floor 1)
     if(c<CS_ENTRY_MIN) continue;                   // same floor as the per-slot fold
-    ent.push({k,c,e:entOf(k)});
+    ent.push(x);
   }
   // a TOTAL order, so the #1 / #2 tiles never flicker between renders on a tie
-  ent.sort((a,b)=>b.c-a.c
+  const by=(a,b)=>b.c-a.c
     ||(((b.e&&b.e.ilvl)||0)-((a.e&&a.e.ilvl)||0))
-    ||(a.k<b.k?-1:a.k>b.k?1:0));
-  return {ent, rowKeys, rowRaw, n:d.gearIdx.length, ok:sa>=0&&sb>=0};
+    ||(a.k<b.k?-1:a.k>b.k?1:0);
+  ent.sort(by); all.sort(by);
+  return {ent, all, rowKeys, rowRaw, n:d.gearIdx.length, ok:sa>=0&&sb>=0};
 }
 // one fold-out row, shared byte-for-byte by the per-slot and pooled panels:
 // 28px icon tile + name + share/n, crafted/emb sub-line. The panel USED to be
@@ -5208,15 +5215,20 @@ function csIbaseTxt(d,sis){
      "same"  the same item in both sockets (0 on trinkets today; rings, and the
              identity below, are why it exists);
      uu      neither socket listed — pinned.
-   Named rows need CS_ENTRY_MIN wearers, which guarantees both members sit in
-   M.ent (c >= 3 => each member's prevalence >= 3) with a name, icon and count.
-   Identity, asserted by the harness: sum(shown) + tailN + belowN + uu == M.n,
+   Named rows need CS_PAIR_MIN wearers — one, on the owner's word: a pair worn
+   by a single player is still worth seeing — so members are looked up in
+   M.all, the UNFILTERED per-item tally (a pair's members can sit below the
+   By-trinket face's n>=3 floor, where that face folds them into "other /
+   none"). A member missing from M.all cannot happen (every key of a row is
+   tallied); the below-floor branch is kept only so the identity can never
+   break silently. Identity, asserted by the harness: sum(shown) + tailN + belowN + uu == M.n,
    and c <= min(a.c, b.c) on every row. Not on this reading, on purpose: the
    upgrade-lean columns (a pair has two iups — a column that does not apply is
    ABSENT, 3.2.4). ---- */
 const csPairKey=(a,b)=>a<b?a+"\u0000"+b:b+"\u0000"+a;
 function csPairModel(M){
-  const rank=new Map(M.ent.map((x,i)=>[x.k,i])), ent=new Map(M.ent.map(x=>[x.k,x]));
+  const src=M.all||M.ent;
+  const rank=new Map(src.map((x,i)=>[x.k,i])), ent=new Map(src.map(x=>[x.k,x]));
   const P=new Map(); let uu=0;
   const add=(pk,o)=>{ const q=P.get(pk); if(q) q.c++; else P.set(pk,Object.assign({c:1},o)) };
   for(let r=0;r<M.rowKeys.length;r++){
@@ -5228,9 +5240,9 @@ function csPairModel(M){
   const named=[]; let belowK=0, belowN=0;
   for(const o of P.values()){
     let a=ent.get(o.a), b=o.b?ent.get(o.b):null;
-    // below the floor — or (unreachable by the c>=3 argument above, kept so the
-    // identity can never break silently) a member missing from M.ent
-    if(o.c<CS_ENTRY_MIN||!a||(o.b&&!b)){ belowK++; belowN+=o.c; continue }
+    // below the floor — or (unreachable, see the block comment; kept so the
+    // identity can never break silently) a member missing from the tally
+    if(o.c<CS_PAIR_MIN||!a||(o.b&&!b)){ belowK++; belowN+=o.c; continue }
     if(b&&rank.get(b.k)<rank.get(a.k)) [a,b]=[b,a];        // the more-worn member first
     named.push({kind:o.kind, a, b, c:o.c, ra:rank.get(a.k), rb:b?rank.get(b.k):1e9});
   }
@@ -5303,20 +5315,21 @@ function csPairBodyHTML(d,p,M,P){
     +'<td class="txt fn"><div class="fnm">'+nm+'</div></td>'
     +'<td class="fsh"><b>'+(100*c/n).toFixed(1)+'%</b></td><td class="na">–</td>'
     +'<td>n='+fmtInt(c)+'</td></tr>';
-  if(P.tailK>0) rows+=pin("+",'<span class="na">'+fmtInt(P.tailK)+' more pair'+(P.tailK===1?'':'s')+', each n≥'+CS_ENTRY_MIN+'</span>',P.tailN);
-  if(P.belowN>0) rows+=pin("–",'<span class="na">'+fmtInt(P.belowK)+' pair'+(P.belowK===1?'':'s')+' below the n≥'+CS_ENTRY_MIN+' floor</span>',P.belowN);
+  if(P.tailK>0) rows+=pin("+",'<span class="na">'+fmtInt(P.tailK)+' more pair'+(P.tailK===1?'':'s')+'</span>',P.tailN);
+  if(P.belowN>0) rows+=pin("–",'<span class="na">'+fmtInt(P.belowK)+' pair'+(P.belowK===1?'':'s')+' below the n≥'+CS_PAIR_MIN+' floor</span>',P.belowN);
   if(P.uu>0) rows+=pin("–",'<span class="na">other / none in both slots</span>',P.uu);
   const cap="share of the "+fmtInt(M.n)+" gear-known players in this window by the two "+lc
     +"s they wore together — either slot, either order. Every player is in exactly one row, so this column sums to 100%. "
+    +"Every pair worn by at least one player counts"
     +(P.shown.length
       ?(P.tailK>0
-          ?"The "+CS_PAIR_ROWS+" most-worn pairs are listed by name; the next "+fmtInt(P.tailK)+" pair"+(P.tailK===1?" is":"s are")+" summarised in one row"
-          :(P.shown.length===1?"The one named pair is listed":"All "+P.shown.length+" named pairs are listed"))
-        +(P.belowN>0?"; pairs worn by fewer than "+CS_ENTRY_MIN+" people are one row":"")+". "
-      :"No pair of listed "+lc+"s is worn by "+CS_ENTRY_MIN+" or more players in this window. ")
+          ?": the "+CS_PAIR_ROWS+" most-worn are listed by name and the next "+fmtInt(P.tailK)+" pair"+(P.tailK===1?" is":"s are")+" summarised in one row"
+          :(P.shown.length===1?": the one pair worn is listed":": all "+P.shown.length+" pairs worn are listed"))
+        +(P.belowN>0?"; "+fmtInt(P.belowK)+" pair"+(P.belowK===1?"":"s")+" below the n≥"+CS_PAIR_MIN+" floor are one row":"")+". "
+      :"; no pair of listed "+lc+"s was worn in this window. ")
     +"“other / none” is a "+lc+" outside the "+capTxt+" listed for its slot, or an empty slot. "
-    +"Each is that "+lc+"'s own share of the same "+fmtInt(M.n)+" players, worn with anything — the By-"+lc
-    +" reading's number — so Both can never exceed the smaller of the two.";
+    +"Each is that "+lc+"'s own share of the same "+fmtInt(M.n)+" players, worn with anything (the By-"+lc
+    +" reading's number for the "+lc+"s it lists by name) — so Both can never exceed the smaller of the two.";
   return '<div class="caption">'+esc(cap)+'</div>'
     +'<div class="fold-w"><table class="cs-fold pair" data-sid="cs:pair">'
     +sortHead(cols,st)+'<tbody>'+rows+'</tbody></table></div>';

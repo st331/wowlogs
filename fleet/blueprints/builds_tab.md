@@ -742,12 +742,14 @@ column its **Both** column sums to 100%: `"pair"` = two listed items, either slo
 `"un"` = one listed item + an unlisted/empty socket, a REAL class that competes for a named row
 (*"A + other / none"*, tested BEFORE length so a raw one-key row is never "same item twice");
 `"same"` = the same item in both sockets (0 on trinkets today; rings and the identity are why it
-exists); `uu` = neither socket listed, pinned. Named rows need `CS_ENTRY_MIN` wearers, which
-guarantees both members sit in `M.ent` with a name, icon and count; the more-worn member is
+exists); `uu` = neither socket listed, pinned. Named rows need `CS_PAIR_MIN` = **1** wearer
+(owner, 2026-09-30: *"reduce the minimum n to 1. it is still useful to see if even one person is
+using a trinket pair."*), so members are looked up in `csPoolModel`'s new unfiltered `all` tally,
+not `ent` (the By-trinket face keeps its `CS_ENTRY_MIN` = 3 floor); the more-worn member is
 printed first. Sort (c desc, rank A, rank B) is total; the `CS_PAIR_ROWS`=10 cap is applied
 BEFORE the display sort (the residual-row exception), and the residuals are three separate pinned
-rows, outside the sort, in this order: *"N more pairs, each n≥3"*, *"N pairs below the n≥3
-floor"*, *"other / none in both slots"*. Identity, asserted by the harness on every spec tried:
+rows, outside the sort, in this order: *"N more pairs"*, *"N pairs below the n≥1 floor"* (never
+rendered at floor 1; kept for the identity), *"other / none in both slots"*. Identity, asserted by the harness on every spec tried:
 Σ shown + tailN + belowN + uu = M.n, and Both ≤ min(Each) on every row.
 
 *The table* (`table.cs-fold.pair`, registry id `cs:pair`, default Both descending; its own id so
@@ -759,11 +761,12 @@ first line; the column the owner's "versus" asked for), **n**. No item level, no
 upgrade-lean columns (a pair has two `iup`s — a column that does not apply is ABSENT).
 Header *"Trinkets — pairs worn together in window"*; caption, verbatim shape: *"share of the
 <n> gear-known players in this window by the two trinkets they wore together — either slot,
-either order. Every player is in exactly one row, so this column sums to 100%. The 10 most-worn
-pairs are listed by name; the next N pairs are summarised in one row; pairs worn by fewer than 3
-people are one row. "other / none" is a trinket outside the <cap> listed for its slot, or an empty
-slot. Each is that trinket's own share of the same <n> players, worn with anything — the
-By-trinket reading's number — so Both can never exceed the smaller of the two."* — `<cap>` is read
+either order. Every player is in exactly one row, so this column sums to 100%. Every pair worn by
+at least one player counts: the 10 most-worn are listed by name and the next N pairs are
+summarised in one row. "other / none" is a trinket outside the <cap> listed for its slot, or an
+empty slot. Each is that trinket's own share of the same <n> players, worn with anything (the
+By-trinket reading's number for the trinkets it lists by name) — so Both can never exceed the
+smaller of the two."* — `<cap>` is read
 from the live vocab lengths ("40", or "40 / 24" should the two sockets ever differ). The
 By-trinket header and caption are unchanged (the header text is now wrapped in `span.fht` and
 WRAPS beside the control rather than ellipsizing — "in window" is part of what the number means).
