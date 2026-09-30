@@ -348,11 +348,12 @@ jobs:
           # starts with the hour already over it never fetches past. The
           # scheduled path never overrides it: `inputs` is empty on a
           # schedule. A manual dispatch may set quota_fraction for a single
-          # deliberate run; drain mode (see the input) is the one path that
-          # spends the whole budget, and only an explicit dispatch or a drain
-          # run's own successor sets it. The backfill switch overrides the
-          # value inside the collector (execution.backfill_mode's share).
-          WCL_QUOTA_FRACTION: ${{ inputs.mode == 'backfill' && steps.cadence.outputs.quota_fraction || (inputs.drain == 'true' || inputs.mode == 'fresh') && '1.0' || inputs.quota_fraction || steps.cadence.outputs.quota_fraction }}
+          # deliberate run; a drain run (see the input) is capped like any
+          # other -- the owner's 70 % holds in every mode (2026-09-30), a
+          # drain just keeps chaining until its backlog is gone. The backfill
+          # switch overrides the value inside the collector
+          # (execution.backfill_mode's share).
+          WCL_QUOTA_FRACTION: ${{ inputs.quota_fraction || steps.cadence.outputs.quota_fraction }}
           # the fresh slice: only runs from the last 12 hours, so the run is
           # small and the deploy is minutes away; everything older waits for
           # the backfill run that follows
