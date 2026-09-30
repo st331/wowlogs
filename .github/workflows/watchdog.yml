@@ -109,7 +109,6 @@ jobs:
           else
             NEXT_DUE=$NOW
           fi
-          RUNS_OK_AGE=$OK_AGE
           # A run that is RUNNING is active. A run that is merely waiting for a
           # runner is not -- and treating it as active is how this workflow sat
           # and watched the pipeline die for 68 hours.
@@ -176,6 +175,7 @@ jobs:
           # than the site is said so and its failure streak is not believed,
           # and the next slot is counted from the site's build (a run starts
           # ~10 min before it publishes).
+          RUNS_OK_AGE=$OK_AGE
           if [ -n "$BUILT" ]; then
             BUILT_S=$(date -u -d "$BUILT" +%s 2>/dev/null || echo "")
           else
