@@ -10,15 +10,21 @@ name: Refresh Season 2 data
 # cadence of updating the data every 4 hours or so ... never end up using
 # more than 70% of my API quota"). Both knobs live in data/cadence.json
 # (scripts/cadence.py) and this workflow reads them in the Cadence step:
-#   * every_hours -> the cron below, `0 */4 * * *` UTC (05:30, 09:30, 13:30,
-#     17:30, 21:30, 01:30 IST). The hourly quota window resets at :00 UTC,
-#     so a scheduled run starts on a fresh window. The cron IS the cadence:
-#     a scheduled run dispatches no successor (the Chain step chains only
-#     while data/backfill.json is in force, or an explicitly dispatched
-#     drain still has a backlog); the watchdog revives a dropped tick after
-#     every_hours + 1 h. scripts/test_cadence.py pins the cron and the
-#     watchdog threshold to the file, so changing the period is: edit the
-#     file, the cron and watchdog.yml's STALE_SUCCESS_MIN, run the test.
+#   * every_hours -> the timer (timer.yml). Every run's last step arms it
+#     for every_hours after the run's own start, and it dispatches the next
+#     run then; the run it dispatches arms the next. There is NO cron here:
+#     GitHub fired this repository's schedules 5-8 times a day with gaps of
+#     2-6.5 h over 12-28 September, whatever the expression asked for, and
+#     a freshly enabled schedule missed its first ticks on 2026-09-30, so a
+#     cron cannot hold a 4-hour cadence. A dispatched run starts within
+#     seconds. The timer IS the cadence: a run dispatches no successor of
+#     its own (the Chain step chains only while data/backfill.json is in
+#     force, or an explicitly dispatched drain still has a backlog); the
+#     watchdog arms a timer when none is sleeping and revives a cadence
+#     quiet for every_hours + 1 h. scripts/test_cadence.py pins the arm
+#     step and the watchdog thresholds to the file, so changing the period
+#     is: edit the file and watchdog.yml's EVERY_HOURS / STALE_SUCCESS_MIN,
+#     run the test.
 #   * quota_fraction -> WCL_QUOTA_FRACTION in every step that runs a client
 #     (Fetch, the background collectors), and the client reads the file
 #     itself when the variable is absent. The governor measures the ceiling
@@ -26,7 +32,7 @@ name: Refresh Season 2 data
 #     collectors and the owner's own lookups from the vetting site together
 #     never pass 70 % of the limit (12,600 of 18,000). A run that starts
 #     with the hour already over it sleeps within its cap or stops cleanly.
-# A scheduled run spends roughly: a deep sweep ~2,000 points (every run is
+# A cadence run spends roughly: a deep sweep ~2,000 points (every run is
 # deep at this period), ~4 hours of new runs' summaries with the bundle
 # where the gate admits (~1,700 runs, ~5,000-8,000 points), then the keystone
 # top-up ~400 -- ~7,500-10,500 in the hour it starts, capped at 12,600 by the
@@ -42,9 +48,7 @@ name: Refresh Season 2 data
 # The CSV export IS committed once a day, so a cache eviction costs at most a
 # day of re-fetching rather than the whole season (see seed_from_csv()).
 on:
-  schedule:
-    # data/cadence.json every_hours=4 -- change the two together
-    - cron: "0 */4 * * *"
+  # no schedule: the timer (timer.yml) dispatches the cadence, see above
   workflow_dispatch:
     inputs:
       resweep:
@@ -174,11 +178,11 @@ jobs:
 
       # Chained runs exist only while data/backfill.json is in force or an
       # explicitly dispatched drain has a backlog (see the Chain step): a
-      # scheduled run is paced by the cron alone, and this step only records
-      # JOB_START for it (the backfill's wall clock, the health lines). The
-      # branches below pace a drain's successors. Concurrency holds one
-      # pending run at most, so a cron tick landing mid-chain self-cancels
-      # into it.
+      # cadence run is paced by the timer alone, and this step only records
+      # JOB_START for it (the timer's next slot, the backfill's wall clock,
+      # the health lines). The branches below pace a drain's successors.
+      # Concurrency holds one pending run at most, so a timer's dispatch
+      # landing mid-chain self-cancels into it.
       - name: Pace the chain
         run: |
           echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
@@ -211,7 +215,7 @@ jobs:
           fi
 
       # The owner's two knobs (data/cadence.json, scripts/cadence.py):
-      # every_hours (the cron's period, informational here) and
+      # every_hours (the timer's period, armed at the end of this job) and
       # quota_fraction, which every step that runs a Warcraft Logs client
       # takes as WCL_QUOTA_FRACTION below. A missing or bad file is the
       # defaults (4 h, 0.70), said in the log; never a failed run.
@@ -696,14 +700,15 @@ jobs:
       # driving: data/backfill.json in force (the successor is a long
       # backfill run, so the chain covers the switch's whole span back to
       # back), or an explicitly dispatched drain with a backlog (its
-      # fresh/backfill alternation). In cadence mode -- a scheduled run, a
-      # hand dispatch, the watchdog's revival -- a run dispatches NOTHING:
-      # the cron is the cadence (data/cadence.json every_hours), and a
-      # self-chain here would double the spend against the owner's 70 % cap.
-      # The decision is scripts/cadence.py chain_decision (tested in
-      # scripts/test_cadence.py). Failures deliberately do not chain -- the
-      # cron and the watchdog revive the cadence instead of a tight failure
-      # loop. When Fetch did not run (a tripped journal guard, a paused
+      # fresh/backfill alternation). In cadence mode -- a timer's dispatch, a
+      # hand dispatch, the watchdog's revival -- a run dispatches NOTHING
+      # here: the timer is the cadence (data/cadence.json every_hours, armed
+      # by the step after this one), and a self-chain would double the spend
+      # against the owner's 70 % cap. The decision is scripts/cadence.py
+      # chain_decision (tested in scripts/test_cadence.py). Failures
+      # deliberately do not chain -- the timer and the watchdog revive the
+      # cadence instead of a tight failure loop. When Fetch did not run (a
+      # tripped journal guard, a paused
       # Fetch) BACKFILL_ON is empty and the decision consults the switch file
       # itself, so a backfill chain survives a run that could not fetch.
       - name: Chain the next run
@@ -728,7 +733,7 @@ jobs:
           eval "$(python3 scripts/cadence.py chain)"
           echo "$REASON"
           if [ "$CHAIN" != "true" ]; then
-            echo "no successor dispatched: the cron runs the next refresh (every ${EVERY_HOURS:-4} h, data/cadence.json)"
+            echo "no successor dispatched: the timer runs the next refresh (every ${EVERY_HOURS:-4} h, data/cadence.json)"
             exit 0
           fi
           curl -sf -X POST \
@@ -736,14 +741,37 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/refresh.yml/dispatches" \
             -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"mode\":\"$NEXT_MODE\",\"prev_reset_at\":\"${RESET_AT:-}\",\"bundle_backfill\":\"$NEXT_BACKFILL\"}}" \
-            && echo "chained the next run" || echo "chain dispatch failed; the cron dead-man will revive the cadence"
+            && echo "chained the next run" || echo "chain dispatch failed; the timer and the watchdog will revive the cadence"
+
+      # The cadence's clock. Arm timer.yml for every_hours after THIS run's
+      # start, whatever the outcome short of a cancellation: a failed run
+      # still owes the next slot (the watchdog's immediate retry of a short
+      # failure streak re-arms from its own start and cancels this one), and
+      # a chained drain successor re-arms from its own start the same way.
+      # A hand dispatch therefore resets the clock too: the next cadence run
+      # is every_hours after it. If arming fails, the watchdog arms a timer
+      # on its next tick when none is sleeping.
+      - name: Arm the timer for the next run
+        if: ${{ !cancelled() }}
+        env:
+          EVERY_HOURS: ${{ steps.cadence.outputs.every_hours || 4 }}
+        run: |
+          FIRE_AT=$(( ${JOB_START:-$(date +%s)} + EVERY_HOURS * 3600 ))
+          echo "arming the timer for $(date -u -d "@$FIRE_AT" +'%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Kolkata date -d "@$FIRE_AT" +'%H:%M IST')), ${EVERY_HOURS} h after this run started"
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/timer.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"fire_at\":\"$FIRE_AT\",\"armed_by\":\"refresh #${{ github.run_number }}\"}}" \
+            && echo "armed" || echo "::warning::arming the timer failed; the watchdog arms one on its next tick"
 
       # A failed run does not chain (a deterministic fault would loop), but it
       # must not go quiet either: it wakes the watchdog directly, which
       # evaluates the outcome, revives the cadence if nothing else is running
-      # and opens the alert on a streak. This path does not depend on either
-      # cron firing, which is the point -- GitHub delays scheduled workflows
-      # under load and a freshly added schedule can take hours to start.
+      # and opens the alert on a streak. This path does not depend on the
+      # watchdog's cron firing, which is the point -- GitHub delays scheduled
+      # workflows under load and a freshly added schedule can take hours to
+      # start.
       - name: Wake the watchdog on failure
         if: failure()
         run: |

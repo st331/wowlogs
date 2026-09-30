@@ -1,0 +1,97 @@
+name: Refresh timer
+
+# The clock of the cadence (data/cadence.json every_hours).
+#
+# GitHub's cron is not a clock in this repository. Over 12-28 September its
+# schedules fired 5-8 times a day with gaps of two to six and a half hours,
+# whatever the expression asked for (the watchdog's `11,31,51 * * * *` fired
+# every 3-4 h), and a freshly enabled schedule went two ticks without firing
+# at all (2026-09-30). A dispatched run, by contrast, starts within seconds.
+# So a refresh run arms THIS workflow for one period after its own start
+# (refresh.yml's "Arm the timer" step), and this workflow sleeps until then
+# and dispatches the next refresh. One timer sleeps at a time: arming a new
+# one cancels the one sleeping (the concurrency group), so a drain chain or a
+# hand dispatch always resets the clock to its own start.
+#
+# It never starts a refresh into one that is running or fresh: before it
+# dispatches, it looks at the refresh runs and stands down when one is active
+# or the newest one started less than a period minus half an hour ago (the
+# watchdog or a hand dispatch got there first). The watchdog is the backstop:
+# on each of its (throttled) ticks it arms a timer when none is sleeping, and
+# it still revives a cadence gone quiet for a period plus an hour.
+on:
+  workflow_dispatch:
+    inputs:
+      fire_at:
+        description: "Epoch seconds at which to dispatch the next refresh (blank = now)"
+        type: string
+        default: ""
+      armed_by:
+        description: "Who armed it, for the log (a refresh run number, the watchdog, a hand)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: write
+
+# newest wins: arming a timer cancels the one sleeping
+concurrency:
+  group: wowlogs-timer
+  cancel-in-progress: true
+
+env:
+  BRANCH: claude/wow-mythic-dashboard-jv235l
+
+jobs:
+  wait:
+    runs-on: ubuntu-latest
+    # a job may run 6 h; the sleep is capped at 5.5 h by cadence.py, and a
+    # period longer than that is simply armed again by the watchdog
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            data/cadence.json
+            scripts/cadence.py
+          sparse-checkout-cone-mode: false
+
+      - name: Sleep until the slot
+        env:
+          FIRE_AT: ${{ inputs.fire_at }}
+          ARMED_BY: ${{ inputs.armed_by }}
+        run: |
+          # WAIT_S, FIRE_AT, EVERY_HOURS, FRESH_MIN from data/cadence.json and
+          # the input (scripts/cadence.py timer, tested in test_cadence.py)
+          eval "$(python3 scripts/cadence.py timer)"
+          echo "armed by ${ARMED_BY:-?}: firing at $(date -u -d "@$FIRE_AT" +'%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Kolkata date -d "@$FIRE_AT" +'%H:%M IST')), ${WAIT_S}s from now; a refresh younger than ${FRESH_MIN} min then stands it down"
+          while [ "$WAIT_S" -gt 0 ]; do
+            s=$(( WAIT_S > 300 ? 300 : WAIT_S )); sleep "$s"; WAIT_S=$(( WAIT_S - s ))
+          done
+          echo "FRESH_MIN=$FRESH_MIN" >> "$GITHUB_ENV"
+
+      - name: Dispatch the refresh unless one is running or fresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -u
+          api() { curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          NOW=$(date -u +%s)
+          RUNS=$(api "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/runs?branch=$BRANCH&per_page=15") || RUNS='{"workflow_runs":[]}'
+          ACTIVE=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="in_progress" or .status=="queued" or .status=="pending" or .status=="waiting")] | length')
+          # minutes since the newest refresh that was not cancelled started (a cancelled run did no work)
+          LAST_AGE=$(echo "$RUNS" | jq -r --argjson now "$NOW" '[.workflow_runs[] | select(.conclusion != "cancelled")] | sort_by(.created_at) | last | if . then (($now - (.created_at | fromdateiso8601)) / 60 | floor) else 99999 end')
+          if [ "$ACTIVE" != "0" ]; then
+            echo "a refresh is running or queued ($ACTIVE): standing down, it arms the next timer itself"; exit 0
+          fi
+          if [ "$LAST_AGE" -lt "$FRESH_MIN" ]; then
+            echo "the newest refresh started ${LAST_AGE} min ago (fresh under ${FRESH_MIN}): standing down, it armed its own timer"; exit 0
+          fi
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/dispatches" \
+            -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"chain\":\"true\"}}" \
+            && echo "dispatched the refresh (the newest one started ${LAST_AGE} min ago)" \
+            || echo "::warning::dispatch failed; the watchdog revives the cadence on its next tick"

@@ -228,22 +228,31 @@ ever pulled from Warcraft Logs twice (§1). What this repository adds:
 ## Cadence and quota
 
 Since 2026-09-30 (owner: "a cadence of updating the data every 4 hours or so ... never end
-up using more than 70% of my API quota") the refresh is a **cron, not a self-chain**, and
-every collector runs under one cap. Both knobs are in **`data/cadence.json`**
+up using more than 70% of my API quota") the refresh is a **timer, not a self-chain and not a
+cron**, and every collector runs under one cap. Both knobs are in **`data/cadence.json`**
 (`scripts/cadence.py` reads it; a missing or bad value is its default, said in the log):
 
 ```json
 {"every_hours": 4, "quota_fraction": 0.70}
 ```
 
-* **Every 4 hours.** `refresh.yml` runs on `cron: "0 */4 * * *"` (UTC: 00, 04, 08, 12, 16,
-  20 -- 05:30, 09:30, 13:30, 17:30, 21:30, 01:30 IST). The hourly Warcraft Logs window resets
-  at :00 UTC, so a scheduled run starts on a fresh window. A scheduled run (or a hand
-  dispatch, or the watchdog's revival) dispatches **no successor**: the "Chain the next run"
-  step chains only while `data/backfill.json` is in force or an explicitly dispatched
-  `drain` still has a backlog (`cadence.chain_decision`). Every run at this period sweeps
-  deep (~2,000 points) and fetches ~4 hours of new runs with the bundle where the gate admits;
-  the trinket and keystone collectors run in the background of the build as before.
+* **Every 4 hours, by timer.** Every refresh run's last step arms **`timer.yml`** for
+  `every_hours` after the run's own start (`cadence.next_fire_at`), whatever the outcome short
+  of a cancellation; the timer sleeps until then (`cadence.timer_wait_s`, capped at 5.5 h) and
+  dispatches the next refresh, which arms the next timer. One timer sleeps at a time (its
+  concurrency group cancels the previous one when a new one is armed), so a hand dispatch or a
+  drain chain resets the clock to its own start. Before it dispatches, the timer stands down
+  if a refresh is running or the newest one started less than a period minus 30 min ago
+  (`cadence.fresh_min`), so the watchdog's revival or a hand dispatch is never doubled. It is
+  a timer and **not a cron** because GitHub fired this repository's schedules 5-8 times a day
+  with gaps of 2-6.5 h over 12-28 September 2026, whatever the expression asked for, and a
+  freshly enabled schedule missed its first ticks; a dispatched run starts within seconds. A
+  cadence run (a timer's dispatch, a hand dispatch, the watchdog's revival) dispatches **no
+  successor of its own**: the "Chain the next run" step chains only while
+  `data/backfill.json` is in force or an explicitly dispatched `drain` still has a backlog
+  (`cadence.chain_decision`). Every run at this period sweeps deep (~2,000 points) and fetches
+  ~4 hours of new runs with the bundle where the gate admits; the keystone collector runs in
+  the background of the build as before.
 * **Never above 70 %.** `quota_fraction` is the share of the hourly limit (18,000 points, so
   12,600) **any** process on the account may spend. `wcl_client.quota_fraction()` reads it
   whenever `WCL_QUOTA_FRACTION` is not in the environment, and `refresh.yml` passes it into
@@ -264,16 +273,19 @@ every collector runs under one cap. Both knobs are in **`data/cadence.json`**
   `fetch.quota.fraction` (the ceiling the run ran under) and `fetch.quota.share_at_end` (the
   account's spend share of the limit when Fetch ended; over `quota_fraction` is the number
   that must never happen).
-* **The watchdog** (`watchdog.yml`) stays on, hourly, with its quiet threshold at
-  `every_hours + 1 h` (`STALE_SUCCESS_MIN: 300`; alert at 540, stale data at 600): a healthy
-  cadence never trips it, a dropped cron tick is revived within the hour, and the revived run
-  is an ordinary cadence run. `scripts/test_cadence.py` pins the cron and these thresholds to
-  the file.
-* **To change either knob:** edit `data/cadence.json`; for the period also edit the cron in
-  `refresh.yml` and `STALE_SUCCESS_MIN` in `watchdog.yml` (the test tells you if they
-  disagree); the fraction needs nothing else. A `workflow_dispatch` may set `quota_fraction`
-  for one deliberate run; the scheduled path never does. To pause everything: comment the cron
-  out and put `if: false` on the job in both workflows (how the 2026-09-28 pause was held).
+* **The watchdog** (`watchdog.yml`) is the backstop, on its own (throttled, hours-apart) cron:
+  when no timer is sleeping and nothing is running it arms one for the last success's start
+  plus a period (`EVERY_HOURS: 4`), and when no refresh has succeeded for `every_hours + 1 h`
+  (`STALE_SUCCESS_MIN: 300`; alert at 540, stale data at 600) it dispatches a run itself. A
+  healthy cadence never trips the second rule; a lost timer (a runner reclaimed, an arm that
+  failed) is re-armed on the watchdog's next tick. `scripts/test_cadence.py` pins the arm step,
+  the timer and these thresholds to the file.
+* **To change either knob:** edit `data/cadence.json`; for the period also edit `EVERY_HOURS`
+  and `STALE_SUCCESS_MIN` in `watchdog.yml` (the test tells you if they disagree); the
+  fraction needs nothing else. A `workflow_dispatch` may set `quota_fraction` for one
+  deliberate run; the timer's dispatch never does. To pause everything: cancel the sleeping
+  timer run, comment the watchdog's cron out and put `if: false` on both jobs (the 2026-09-28
+  pause was held the same way, with the then-cron commented out).
 * **The backfill switch overrides it.** A committed `data/backfill.json` with a future
   `until` (`execution.backfill_mode`, `scripts/backfill.py`) puts every run at its `share` of
   the limit instead of `quota_fraction`, admits every run to the bundle, backfills the
