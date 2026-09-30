@@ -1,5 +1,0 @@
-{
-  "until": "2026-10-01T00:00:00Z",
-  "share": 1.0,
-  "note": "Owner, 2026-09-29 09:47 IST: \"restart data collection and use all quota. keep going till it is done or I tell you to pause.\" While this file exists and `until` is in the future the governor's ceiling is `share` of the limit, the quota gate admits every run, and every refresh run backfills the window's unbundled runs (no stops row yet) after its sweep, most useful cells first. Delete the file to pause; after `until` a backfill-chain run makes no request (fetch_data.main) and the chain ends."
-}
