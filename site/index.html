@@ -674,6 +674,27 @@ a.whico{display:inline-flex; color:inherit; text-decoration:none;
   color:var(--ink3); margin-bottom:.35rem}
 /* the pooled fold-out's denominator caveat sits directly under its header */
 #cs-fold .caption{margin:-.1rem 0 .45rem}
+/* the pooled fold-out's two readings: header text and the By trinket | By pair
+   control share one line; the control is the sanctioned .seg.csmode recipe,
+   sized for the panel (the .fh is uppercase and tracked — the control is not) */
+#cs-fold .fh.pv{display:flex; align-items:center; gap:.6rem}
+/* the header WRAPS beside the control rather than ellipsizing: "in window" is
+   part of what the number means, so it is never cut (pref #5) */
+#cs-fold .fh.pv .fht{min-width:0; flex:1 1 auto}
+#cs-fold .seg.csmode{margin:0 0 0 auto; height:22px; flex:0 0 auto; flex-wrap:nowrap}
+#cs-fold .seg.csmode button{height:20px; padding:0 .6rem; font-size:.72rem;
+  text-transform:none; letter-spacing:0; white-space:nowrap}
+/* By-pair rows: two 28px icon tiles, two name lines, and an Each cell whose two
+   lines share the names' rhythm; the row bar starts after BOTH icons. Type
+   stays .84rem — fit is never bought with smaller type (pref #10). */
+.cs-fold td.fi2{width:62px; padding-right:7px; white-space:nowrap}
+.cs-fold td.fi2>*{display:inline-flex; vertical-align:middle}
+.cs-fold td.fi2>*+*{margin-left:3px}
+.cs-fold.pair tbody tr{background-position:66px 100%}
+.cs-fold.pair .fnm,.cs-fold.pair td.fe div{line-height:1.1rem}
+.cs-fold td.fe{color:var(--ink3); font-size:.74rem; min-width:44px; vertical-align:top;
+  padding-top:.16rem}
+.cs-fold td.fe div{white-space:nowrap}
 /* the fold-out is a REAL TABLE (pref #12, 3.4) — it was .frow divs, which
    cannot satisfy a standing "every table sorts" rule. The old .fbar share bar
    survives UNCHANGED IN GEOMETRY: it is painted on the <tr>, so its
@@ -4420,6 +4441,11 @@ let screenReturnY=0;
 let screenTab="gear";             // active pane — persists across exit/re-enter (session)
 let screenFold=null;              // open fold-out: a cell fold id
                                   // ("s<si>" | "ring" | "trk"), or null
+let screenPoolView="each";        // the pooled fold-out's reading: "each" (one
+                                  // row per ring/trinket) | "pair" (one row per
+                                  // pair worn together). A per-spec reading like
+                                  // gearMode; it survives lens moves and the
+                                  // arrow walk while the screen is open.
 let gearMode="share";             // Gear pane reading: "share" | "lean" (Part 2).
                                   // A mode is a per-spec reading, not a session
                                   // identity, so resetScreenPerSpec clears it.
@@ -4886,6 +4912,8 @@ const ENCH_DEAD_SLOT=0.05;              // below this enchanted share, the slot
                                         // is not enchantable this expansion
 const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into "other"
 const CS_EMB_CAP=10;                    // named embellishment rows before the tail folds
+const CS_PAIR_ROWS=10;                  // named rows on the pooled fold-out's By-pair reading;
+                                        // the cap is printed in that reading's caption
 /* upgrade lean (Part 2) floors. The cell floor is 40, not CS_THIN's 10,
    because lean is a proportion of a proportion. A cell below it renders "-"
    and KEEPS its row: unknown must be visibly not cold, and a table that
@@ -4985,6 +5013,10 @@ function resetScreenPerSpec(){          // active tab alone persists (§3.2.3)
   screenEnchOpen=new Set();
   screenSecClosed=new Set(["crafted"]);
   gearMode="share";
+  // the pooled fold-out's reading resets with the fold it belongs to (the
+  // blueprint's "reset on spec switch"); deleting this one line is the whole
+  // change if the owner wants By pair to follow the spec ladder instead
+  screenPoolView="each";
   __csPendingLean=false;
   sortReset("cs:");   // 3.5.2 — every character-screen table's sort, one line
 }
@@ -5460,10 +5492,10 @@ const csFoldField=(e,sis,sk)=>gearMode==="lean"
   ?csFieldIup(e,sis,sk):{field:null,fieldN:0};
 // fold-out dispatcher on the cell's fold id: "s<si>" = one physical column,
 // "ring"/"trk" = the pooled distribution behind a pair of tiles
-function csFoldHTML(d,fid,M){
+function csFoldHTML(d,fid,M,P){
   if(fid.charAt(0)==="s") return csSlotFoldHTML(d,+fid.slice(1));
   const pr=CS_POOL_SLOTS[fid];
-  return csPoolFoldHTML(d,fid,M||csPoolModel(d,pr[0],pr[1]));
+  return csPoolFoldHTML(d,fid,M||csPoolModel(d,pr[0],pr[1]),P);
 }
 // ⚗ beam: the tracked trinket's fold-out row carries the same reading as its tile
 function csBeamSub(e,d){
@@ -5480,8 +5512,143 @@ function csIbaseTxt(d,sis){
   const v=[...new Set(sis.map(si=>ib[si]).filter(x=>x!=null))];
   return v.length?v.join(" / "):"";
 }
-function csPoolFoldHTML(d,p,M){
+/* ---- the pooled fold-out's SECOND READING (owner, 2026-09-30: "I want to
+   know how many people have trinket 1 AND trinket 2 equipped, versus just what
+   percentage have trinket 1 and what percentage have trinket 2").
+   By pair = one row per PAIR worn together, a pure function of the pooled
+   model's per-row keys: no new decode, no builder change, the same gear-known
+   denominator as every doll tile. The rows are a PARTITION of the gear-known
+   players — each lands in exactly one class — so, unlike the By-trinket
+   column, Both sums to 100%:
+     "pair"  two listed items, either slot, either order (csPairKey is
+             order-free; NUL-joined because an embellishment name could carry
+             "+" or "|");
+     "un"    one listed item + an unlisted/empty socket — a REAL class that
+             competes for a named row (tested BEFORE length: a raw row with one
+             key is "A + other / none", never "same item twice");
+     "same"  the same item in both sockets (0 on trinkets today; rings, and the
+             identity below, are why it exists);
+     uu      neither socket listed — pinned.
+   Named rows need CS_ENTRY_MIN wearers, which guarantees both members sit in
+   M.ent (c >= 3 => each member's prevalence >= 3) with a name, icon and count.
+   Identity, asserted by the harness: sum(shown) + tailN + belowN + uu == M.n,
+   and c <= min(a.c, b.c) on every row. Not on this reading, on purpose: the
+   upgrade-lean columns (a pair has two iups — a column that does not apply is
+   ABSENT, 3.2.4) and the ⚗ beam sub-line (it is a per-wearer-set reading of ONE
+   trinket and stays on the By-trinket rows and the tile). ---- */
+const csPairKey=(a,b)=>a<b?a+"\u0000"+b:b+"\u0000"+a;
+function csPairModel(M){
+  const rank=new Map(M.ent.map((x,i)=>[x.k,i])), ent=new Map(M.ent.map(x=>[x.k,x]));
+  const P=new Map(); let uu=0;
+  const add=(pk,o)=>{ const q=P.get(pk); if(q) q.c++; else P.set(pk,Object.assign({c:1},o)) };
+  for(let r=0;r<M.rowKeys.length;r++){
+    const ks=M.rowKeys[r], raw=M.rowRaw[r];
+    if(ks.length===0){ uu++; continue }
+    if(ks.length===1){ add(ks[0]+"\u0000"+(raw?"?":"="),{a:ks[0],b:null,kind:raw?"un":"same"}); continue }
+    add(csPairKey(ks[0],ks[1]),{a:ks[0]<ks[1]?ks[0]:ks[1], b:ks[0]<ks[1]?ks[1]:ks[0], kind:"pair"});
+  }
+  const named=[]; let belowK=0, belowN=0;
+  for(const o of P.values()){
+    let a=ent.get(o.a), b=o.b?ent.get(o.b):null;
+    // below the floor — or (unreachable by the c>=3 argument above, kept so the
+    // identity can never break silently) a member missing from M.ent
+    if(o.c<CS_ENTRY_MIN||!a||(o.b&&!b)){ belowK++; belowN+=o.c; continue }
+    if(b&&rank.get(b.k)<rank.get(a.k)) [a,b]=[b,a];        // the more-worn member first
+    named.push({kind:o.kind, a, b, c:o.c, ra:rank.get(a.k), rb:b?rank.get(b.k):1e9});
+  }
+  named.sort((x,y)=>y.c-x.c||x.ra-y.ra||x.rb-y.rb);         // a total order: no flicker on ties
+  // the cap is applied BEFORE the display sort ON PURPOSE (the documented
+  // residual-row exception, exactly as the By-trinket panel): its complement is
+  // itself a rendered row, so which rows survive is decided by prevalence and
+  // never by the sort
+  const shown=named.slice(0,CS_PAIR_ROWS), tail=named.slice(CS_PAIR_ROWS);
+  let tailN=0; for(const t of tail) tailN+=t.c;
+  return {shown, tailK:tail.length, tailN, belowK, belowN, uu, n:M.n, P};
+}
+// accessors: Number / String / null, never a dash; pinned rows sort on nothing
+const csPairVal=(r,k)=>r.pin?null
+  :k==="pair"?((r.a.e&&r.a.e.n!=null)?r.a.e.n+" + "+(r.b?((r.b.e&&r.b.e.n!=null)?r.b.e.n:""):(r.kind==="same"?"same":"other")):null)
+  :k==="both"?r.s
+  :k==="each"?r.sa
+  :k==="n"?r.c
+  :null;
+// one By-pair row: two 28px icon tiles (each the wowhead surface of its own
+// item), the two names line for line with the two Each shares, Both, n.
+// No item level, no ids, no lean, no beam — see the block comment above.
+function csPairTR(r,lc){
+  const w=Math.min(100,Math.max(0,r.s)).toFixed(1);
+  const ico=e=>csIcoHTML(e,csFoldPh(e),true);
+  const second=r.b?ico(r.b.e):(r.kind==="same"?ico(r.a.e):csIcoHTML(null,"–",true));
+  const tagOf=e=>((e&&e.cr)?'<span class="gtag">crafted</span>':'')
+    +(embOf(e)?' <span class="gemb">'+esc(embOf(e))+'</span>':'');
+  const pre=e=>(e&&e.n)?esc(String(e.n).split(" ")[0])+" ":"";
+  const ta=tagOf(r.a.e), tb=r.b?tagOf(r.b.e):"";
+  const tags=(ta&&tb)?pre(r.a.e)+ta+" · "+pre(r.b.e)+tb:(ta||tb);
+  return '<tr style="--fw:'+w+'%"><td class="fi fi2">'+ico(r.a.e)+second+'</td>'
+    +'<td class="txt fn"><div class="fnm">'+itemNameHTML(r.a.e)+'</div>'
+    +'<div class="fnm">'+(r.b?itemNameHTML(r.b.e):'<span class="na">'
+      +(r.kind==="same"?"same "+esc(lc)+" in both slots":"other / none")+'</span>')+'</div>'
+    +(tags?'<div class="fsub">'+tags+'</div>':'')+'</td>'
+    +'<td class="fsh"><b>'+r.s.toFixed(1)+'%</b></td>'
+    +'<td class="fe"><div>'+r.sa.toFixed(1)+'%</div>'+(r.b?'<div>'+r.sb.toFixed(1)+'%</div>':'')+'</td>'
+    +'<td>n='+fmtInt(r.c)+'</td></tr>';
+}
+function csPairBodyHTML(d,p,M,P){
+  const n=M.n||1, lab=CS_POOL_LABEL[p], lc=lab.toLowerCase();
+  const slots=BUILDSC.slots, pr=CS_POOL_SLOTS[p];
+  // the vocabulary cap, read from the live vocab lengths (prints "40", or
+  // "40 / 24" should the two sockets' lists ever differ), where "other / none"
+  // is defined — never a constant that a ladder rung could silently move
+  const capTxt=[...new Set(pr.map(id=>((d.vocab.items||[])[slots.indexOf(id)]||[]).length))].join(" / ");
+  const list=P.shown.map(r=>({kind:r.kind, a:r.a, b:r.b, c:r.c,
+    s:100*r.c/n, sa:100*r.a.c/n, sb:r.b?100*r.b.c/n:null}));
+  const cols=[[null,"","fi fi2"],
+    ["pair","Pair","txt","the two "+lc+"s worn together, the more-worn one on the first line; sorts by the first name, then the second"],
+    ["both","Both","","share of the "+fmtInt(M.n)+" gear-known players in this window wearing exactly this pair"],
+    ["each","Each","","each "+lc+"'s own share of the same "+fmtInt(M.n)+" players, worn with anything — the By-"+lc+" reading's number, on its name's line; sorts by the first line"],
+    ["n","n"]];
+  // its own registry id: a different column set, so switching readings never
+  // clobbers cs:fold's sort or vice versa; the "cs:" prefix resets it per spec
+  const st=sortState("cs:pair","both",cols);
+  let rows="";
+  for(const r of sortRows(list,st,csPairVal)) rows+=csPairTR(r,lc);
+  // the residuals are three separate pinned rows, outside the sort, in this
+  // order: named pairs past the cap, pairs below the floor, neither listed
+  const pin=(ph,nm,c)=>'<tr style="--fw:'+Math.min(100,100*c/n).toFixed(1)+'%">'
+    +'<td class="fi fi2">'+csIcoHTML(null,ph,true)+'</td>'
+    +'<td class="txt fn"><div class="fnm">'+nm+'</div></td>'
+    +'<td class="fsh"><b>'+(100*c/n).toFixed(1)+'%</b></td><td class="na">–</td>'
+    +'<td>n='+fmtInt(c)+'</td></tr>';
+  if(P.tailK>0) rows+=pin("+",'<span class="na">'+fmtInt(P.tailK)+' more pair'+(P.tailK===1?'':'s')+', each n≥'+CS_ENTRY_MIN+'</span>',P.tailN);
+  if(P.belowN>0) rows+=pin("–",'<span class="na">'+fmtInt(P.belowK)+' pair'+(P.belowK===1?'':'s')+' below the n≥'+CS_ENTRY_MIN+' floor</span>',P.belowN);
+  if(P.uu>0) rows+=pin("–",'<span class="na">other / none in both slots</span>',P.uu);
+  const cap="share of the "+fmtInt(M.n)+" gear-known players in this window by the two "+lc
+    +"s they wore together — either slot, either order. Every player is in exactly one row, so this column sums to 100%. "
+    +(P.shown.length
+      ?"The "+CS_PAIR_ROWS+" most-worn pairs are listed by name"
+        +(P.tailK>0?"; the next "+fmtInt(P.tailK)+" pair"+(P.tailK===1?" is":"s are")+" summarised in one row":"")
+        +(P.belowN>0?"; pairs worn by fewer than "+CS_ENTRY_MIN+" people are one row":"")+". "
+      :"No pair of listed "+lc+"s is worn by "+CS_ENTRY_MIN+" or more players in this window. ")
+    +"“other / none” is a "+lc+" outside the "+capTxt+" listed for its slot, or an empty slot. "
+    +"Each is that "+lc+"'s own share of the same "+fmtInt(M.n)+" players, worn with anything — the By-"+lc
+    +" reading's number — so Both can never exceed the smaller of the two.";
+  return '<div class="caption">'+esc(cap)+'</div>'
+    +'<div class="fold-w"><table class="cs-fold pair" data-sid="cs:pair">'
+    +sortHead(cols,st)+'<tbody>'+rows+'</tbody></table></div>';
+}
+function csPoolFoldHTML(d,p,M,P){
   const total=M.n||1, lab=CS_POOL_LABEL[p], lc=lab.toLowerCase();
+  // the shared head: the panel's header text and its By trinket | By pair
+  // control on one line. The control is emitted ONLY here — a per-slot fold
+  // (csSlotFoldHTML) has one reading and never shows it dormant.
+  const pair=screenPoolView==="pair";
+  const head='<div id="cs-fold"><span class="caret"></span>'
+    +'<div class="fh pv"><span class="fht">'+lab
+    +(pair?'s — pairs worn together in window':'s — combined distribution in window')+'</span>'
+    +'<span class="seg csmode" id="cs-poolview">'
+    +'<button data-pv="each"'+(pair?'':' class="on"')+'>By '+lc+'</button>'
+    +'<button data-pv="pair"'+(pair?' class="on"':'')+'>By pair</button></span></div>';
+  if(pair) return head+csPairBodyHTML(d,p,M,P||csPairModel(M))+'</div>';
   // the top-10 cap is applied BEFORE the display sort ON PURPOSE: its
   // complement defines the rendered "other / none" CARDINALITY below, so
   // which rows survive is decided by prevalence and never by the sort
@@ -5523,8 +5690,7 @@ function csPoolFoldHTML(d,p,M){
     s:100*tailRows/total, c:tailRows});
   if(other>0) pinned.push({pin:true, nm:'<span class="na">other / none</span>',
     s:100*other/total, c:other, ph:"–"});
-  return '<div id="cs-fold"><span class="caret"></span>'
-    +'<div class="fh">'+lab+'s — combined distribution in window</div>'
+  return head
     +'<div class="caption">'+esc("share of the "+fmtInt(M.n)
       +" gear-known players in this window who wore this "+lc+" in either "+lc
       +" slot. A player wearing two different "+lc+"s appears in two rows, so "
@@ -5678,6 +5844,10 @@ function csGearPaneHTML(ctx,d){
   const POOLS={};
   const poolOf=p=>POOLS[p]||(POOLS[p]=csPoolModel(d,CS_POOL_SLOTS[p][0],
     CS_POOL_SLOTS[p][1]));
+  // the By-pair reading of the same pooled rows, memoised beside POOLS: the
+  // rank-2 tile's "with #1" fragment and the open fold-out read ONE model
+  const PAIRS={};
+  const pairOf=p=>PAIRS[p]||(PAIRS[p]=csPairModel(poolOf(p)));
   /* the doll's cells, decided ONCE. The tiles, the fold-id universe and the
      lean ranking all read this one list, so the three surfaces cannot
      disagree about which slots exist, which pair is pooled, or whether the
@@ -5781,23 +5951,37 @@ function csGearPaneHTML(ctx,d){
       bfoot='<div class="gfoot beam">'+beamInline(s,c)+'</div>';
       btitle=" — "+escA(beamTitle(s));
     }
+    // the owner's literal question, answered at rest: the rank-2 tile says
+    // how many wear the #1 AND the #2 together, against the SAME denominator
+    // as the tile's own share. No floor — 0% is the informative case (the top
+    // two are alternatives, not a pair). Inert text; the tile keeps its height.
+    let with1="";
+    if(rank===2&&e&&M.ent[0]){
+      const q=pairOf(p).P.get(csPairKey(M.ent[0].k,x.k)), c12=q?q.c:0;
+      const pct=100*c12/(M.n||1);
+      with1='<i title="'+escA(pct.toFixed(0)+"% of the "+fmtInt(M.n)
+        +" gear-known wear both the most used and the 2nd most used "+lab.toLowerCase()
+        +" together (n="+fmtInt(c12)+") — open the tile and pick By pair for every combination")
+        +'">with #1 '+pct.toFixed(0)+'%</i>';
+    }
     return cell({fid:p, foot:bfoot,
       title:lab+"s — "+CS_POOL_RANK[rank]+" across both "+lab.toLowerCase()
-        +" slots"+(embOf(e)?" — "+escA(embOf(e)):"")+btitle,
+        +" slots"+(embOf(e)?" — "+escA(embOf(e)):"")+btitle
+        +" · click to unfold: each "+lab.toLowerCase()+", or the pairs worn together",
       ph:CS_POOL_ABBR[p], e, share,
       slab:esc(lab+" · "+CS_POOL_RANKS[rank]),
       name:(e?itemNameHTML(e):'<span class="na">'+esc("no "
         +(rank===2?"second ":"")+lab.toLowerCase()+" above the n≥"
         +CS_ENTRY_MIN+" floor")+'</span>'),
       meta:(e?('<b>'+share.toFixed(0)+'%</b><i>n='+fmtInt(c)+'</i>'
-        +(e.cr?'<span class="gtag">crafted</span>':'')):'<b>—</b>')});
+        +(e.cr?'<span class="gtag">crafted</span>':'')+with1):'<b>—</b>')});
   };
   const draw=cs=>cs.map(c=>c.p?poolTile(c.p,c.rank):tile(c.si)).join("");
   const L=draw(CL), Rr=draw(CR), B=draw(CB);
   // only a fold id this render actually emitted can open — subsumes the
   // suppressed-Off-Hand case and any spec whose vocab lacks a column
   const fold=(screenFold!=null&&foldIds.has(screenFold))
-    ?csFoldHTML(d,screenFold,POOLS[screenFold]):"";
+    ?csFoldHTML(d,screenFold,POOLS[screenFold],PAIRS[screenFold]):"";
   // the ranking lands in .dcenter, a cell that is EMPTY at rest, so the pane's
   // bounding box does not grow. Clicking a tile swaps the ranking for the
   // fold-out and closing restores it: alternates, never neighbours.
@@ -7167,6 +7351,12 @@ function wireScreen(host,ctx,d){
      without it every mode switch also collapses the Gear section. */
   host.querySelectorAll("#cs-gearmode button[data-gm]").forEach(b=>{
     b.onclick=e=>{ e.stopPropagation(); gearMode=b.dataset.gm; renderScreen() };
+  });
+  // the pooled fold-out's By trinket | By pair reading — same recipe. The fold
+  // sits in .secbody, not the .sec header, so here stopPropagation is symmetry.
+  // The pair table declares data-sid="cs:pair", so the loop above sorts it.
+  host.querySelectorAll("#cs-poolview button[data-pv]").forEach(b=>{
+    b.onclick=e=>{ e.stopPropagation(); screenPoolView=b.dataset.pv; renderScreen() };
   });
   host.querySelectorAll(".cs-ench tr.erow").forEach(tr=>{
     tr.onclick=()=>{

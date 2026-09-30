@@ -631,3 +631,21 @@
     ONLY on the owner's word, by restoring both `schedule:` blocks, deleting both `if: false`
     lines, pushing, and dispatching `refresh.yml` once by hand (the chain restarts from there).
     Do not "helpfully" resume, and do not let a review or a follow-up undo the pause.
+    SUPERSEDED BY THE OWNER (2026-09-29/30): through another session the owner said "restart data
+    collection and use all quota. keep going till it is done or I tell you to pause." (2026-09-29
+    09:47 IST; `data/backfill.json` until 2026-10-01 00:00Z; `refresh.yml` runs bundle-backfill
+    dispatches while the standing cron stays off — see the workflow's own note), and told this
+    session on 2026-09-30 that the jobs were unpaused and made 4 h each. That other session owns
+    the collector state; this one left both workflows untouched.
+
+38. **Trinket (and ring) pairs on the Character screen (owner, 2026-09-30).** "I need you to add
+    the ability to the character screen, for me to see combinations of trinkets. So I want to know
+    how many people have trinket 1 AND trinket 2 equipped, versus just what percentage have
+    trinket 1 and what percentage have trinket 2. Figure out where this should fit and implement
+    the feature." Built as the pooled fold-out's second reading, By trinket | By pair
+    (`#cs-poolview`): Both (the AND, against the same gear-known denominator as every tile) beside
+    Each (each member's own share — the "versus"), one row per pair so the column sums to 100%,
+    every residual a named row, and `with #1 N%` on the rank-2 tile at rest. Two defaults the owner
+    may flip, each one line: the reading resets to By trinket on a spec switch; the tile's `with #1`
+    prints with no floor, 0% included. Checklist §AD; blueprint addendum 2026-09-30.
+

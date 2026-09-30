@@ -366,6 +366,24 @@ assert "let view=pool.slice(0,CHART_MAX)" in html and "CHART_CUT=cutWord" in htm
 assert "function bucketLo(w)" in html and "usB0-7*w" not in html.split("function bucketLo")[1][:4000].split("function renderTrend")[0].replace("return s?s.lo:usB0-7*w","").replace("return s?s.hi:usB0-7*w+7",""), "week labels read bucketSpan, not the US bound"
 assert "function resetNote()" in html and "no runs there in this reset yet" in html, "per-region reset straddle note"
 assert "more listed '+lc" in html and "const E=new Set(M.ent.map(x=>x.k))" in html, "pooled fold names its tail"
+# 2026-09-30 (owner: "how many people have trinket 1 AND trinket 2 equipped, versus just what
+# percentage have trinket 1 and what percentage have trinket 2"): the pooled fold-out's By-pair
+# reading — a partition of the gear-known rows, its own sortable table, every residual a named row
+assert 'let screenPoolView="each";' in html and html.index('screenPoolView="each";', html.index("function resetScreenPerSpec(")) < html.index("function setScreenSpec("), "pair reading is a per-spec reading, reset with the fold"
+assert 'id="cs-poolview"' in html and 'data-pv="each"' in html and 'data-pv="pair"' in html and '#cs-poolview button[data-pv]' in html, "By trinket | By pair control, wired"
+assert ">By pair</button>" in html and ">By '+lc+'</button>" in html, "seg labels name the unit"
+assert "function csPairModel(M)" in html and 'const csPairKey=(a,b)=>a<b?a+"\\u0000"+b:b+"\\u0000"+a;' in html, "pair key is order-free and NUL-joined"
+assert "const CS_PAIR_ROWS=10;" in html and ".slice(0,CS_PAIR_ROWS)" in html and html.index(".slice(0,CS_PAIR_ROWS)") < html.index('sortState("cs:pair"'), "pair cap applied BEFORE the sort; its complement is a rendered row"
+assert 'data-sid="cs:pair"' in html and 'sortState("cs:pair","both",cols)' in html and "const csPairVal=(r,k)=>r.pin?null" in html, "pair table sorts under its own registry id; pinned rows outside the sort"
+assert '["both","Both",""' in html and '["each","Each",""' in html and '["pair","Pair","txt"' in html, "pair columns: Pair · Both · Each · n"
+assert "pairs worn together in window" in html and "Every player is in exactly one row, so this column sums to 100%" in html and "so Both can never exceed the smaller of the two" in html, "pair caption states the partition and the marginals"
+assert "' more pair'" in html and " below the n≥'+CS_ENTRY_MIN+' floor</span>" in html and "other / none in both slots</span>" in html and '" in both slots":"other / none"' in html, "every residual is a named row; A + other / none and same-item are ranked classes"
+assert " listed for its slot, or an empty slot" in html and "const capTxt=[...new Set(pr.map(id=>((d.vocab.items||[])[slots.indexOf(id)]||[]).length))]" in html, "vocab cap named where other/none is defined, read from the live vocab lengths"
+assert "with #1 " in html and "wear both the most used and the 2nd most used " in html and "const pairOf=p=>PAIRS[p]||(PAIRS[p]=csPairModel(poolOf(p)));" in html and "PAIRS[screenFold]" in html, "rank-2 pooled tile carries the #1+#2 pair share with its denominator, from the one memoised model"
+assert "or the pairs worn together" in html and "s — combined distribution in window" in html, "pooled tile names the reading; the By-trinket header is verbatim"
+_pt = html[html.index("function csPairTR"):html.index("function csPairBodyHTML")]
+assert "ilvl" not in _pt and "csBeamSub(" not in _pt and "csFoldCols(" not in _pt, "no item level, no per-pair beam, no lean columns on a pair row"
+assert ".cs-fold td.fi2{width:62px" in html and "#cs-fold .fh.pv .fht{min-width:0; flex:1 1 auto}" in html, "pair CSS: two-icon cell; the header wraps, never ellipsizes"
 assert "showing the top \"+COMPS_MAX+\" on this sort" in html and "Showing \"+shown+\" of \"+ofN+\" groups that pass the gate" in html, "comps + trajectory caps state N of M"
 assert "ratings rounded to steps of" in html and "not published in this build (size ladder)" in html, "stats scale / withheld labels"
 _b = (ROOT / "scripts" / "build_site_data.py").read_text()

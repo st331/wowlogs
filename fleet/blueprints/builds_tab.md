@@ -725,6 +725,58 @@ definition absorbs all four fold-in paths (vocab value 0, an unresolvable entry,
 `CS_ENTRY_MIN`, beyond the top 10): the count of rows carrying an unlisted socket or any
 key outside the rendered set.
 
+**ADDENDUM 2026-09-30 — the pooled panel's SECOND READING, "By pair"** (owner: *"I want to
+know how many people have trinket 1 AND trinket 2 equipped, versus just what percentage have
+trinket 1 and what percentage have trinket 2"*). The pooled fold-out (`trk` / `ring`) now has a
+two-segment `.seg.csmode` control in its header line — `#cs-poolview`, **By trinket | By pair**
+(**By ring | By pair**) — emitted ONLY by `csPoolFoldHTML`; a per-slot fold never shows it. State
+`screenPoolView` ("each" | "pair") is a per-spec reading like `gearMode`: reset in
+`resetScreenPerSpec` (entry, spec switch, merge remap), kept across lens moves, filter re-slices
+and the ←/→ walk (it is simply not read at a per-slot stop), never in the hash. Deleting the one
+reset line is the whole change if the owner wants the reading to follow the spec ladder.
+
+*The model* (`csPairModel(M)`, a pure function of `csPoolModel`'s `rowKeys`/`rowRaw`/`ent`/`n`;
+no new decode, no builder change) is a PARTITION of the gear-known rows, so unlike the By-trinket
+column its **Both** column sums to 100%: `"pair"` = two listed items, either slot, either order
+(`csPairKey` is order-free and NUL-joined — an embellishment name could carry `+` or `|`);
+`"un"` = one listed item + an unlisted/empty socket, a REAL class that competes for a named row
+(*"A + other / none"*, tested BEFORE length so a raw one-key row is never "same item twice");
+`"same"` = the same item in both sockets (0 on trinkets today; rings and the identity are why it
+exists); `uu` = neither socket listed, pinned. Named rows need `CS_ENTRY_MIN` wearers, which
+guarantees both members sit in `M.ent` with a name, icon and count; the more-worn member is
+printed first. Sort (c desc, rank A, rank B) is total; the `CS_PAIR_ROWS`=10 cap is applied
+BEFORE the display sort (the residual-row exception), and the residuals are three separate pinned
+rows, outside the sort, in this order: *"N more pairs, each n≥3"*, *"N pairs below the n≥3
+floor"*, *"other / none in both slots"*. Identity, asserted by the harness on every spec tried:
+Σ shown + tailN + belowN + uu = M.n, and Both ≤ min(Each) on every row.
+
+*The table* (`table.cs-fold.pair`, registry id `cs:pair`, default Both descending; its own id so
+switching readings never clobbers `cs:fold`'s sort): a two-icon cell (each 28px tile the wowhead
+surface of its own item), **Pair** (two name lines, sorts by the first then the second),
+**Both** (share of the gear-known wearing exactly this pair; the row share bar), **Each** (each
+member's own prevalence — the By-trinket reading's number — on its name's line; sorts by the
+first line; the column the owner's "versus" asked for), **n**. No item level, no ids, no
+upgrade-lean columns (a pair has two `iup`s — a column that does not apply is ABSENT), no ⚗ beam
+sub-line (a per-wearer-set reading of ONE trinket; it stays on the By-trinket rows and the tile).
+Header *"Trinkets — pairs worn together in window"*; caption, verbatim shape: *"share of the
+<n> gear-known players in this window by the two trinkets they wore together — either slot,
+either order. Every player is in exactly one row, so this column sums to 100%. The 10 most-worn
+pairs are listed by name; the next N pairs are summarised in one row; pairs worn by fewer than 3
+people are one row. "other / none" is a trinket outside the <cap> listed for its slot, or an empty
+slot. Each is that trinket's own share of the same <n> players, worn with anything — the
+By-trinket reading's number — so Both can never exceed the smaller of the two."* — `<cap>` is read
+from the live vocab lengths ("40", or "40 / 24" should the two sockets ever differ). The
+By-trinket header and caption are unchanged (the header text is now wrapped in `span.fht` and
+WRAPS beside the control rather than ellipsizing — "in window" is part of what the number means).
+
+*At rest*: the rank-2 pooled tile's meta line gains `with #1 N%` — the share of the same
+gear-known wearing the most-used AND the 2nd-most-used together, its n and definition in the
+title, no floor (0% is the informative case: the top two are alternatives). The pooled tile title
+ends *"· click to unfold: each trinket, or the pairs worn together"*. Rejected, so nobody re-adds
+them: separate A/B columns (names ellipsize at 1920), inline "worn by" text, one lumped
+"unlisted / none" bucket, a hidden `p` key, a hash suffix, a third `#cs-gearmode` segment, an
+"expected if independent" / lift / synergy column or wording, shrinking type to buy height.
+
 **enchants** (Gear pane, under the grid). Table: one row per eslot with any data:
 slot label · top enchant name · share of enchant-known · n · a trailing FIXED-WIDTH
 expander column holding the static −/+ marker with a hover state (marker --ink3 →
