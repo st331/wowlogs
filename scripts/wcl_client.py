@@ -10,9 +10,13 @@ Design goals:
     spend, so the rest of the hour belongs to whatever else the account is
     doing -- the owner's own lookups included.
   * Within that ceiling, spend without artificial pacing, then stop cleanly
-    and sleep until the window resets.
+    and sleep until the window resets -- and trust WCL, not the clock, that
+    it has: after the sleep the client re-reads the live spend and sleeps
+    again while the old hour is still being reported (pointsResetIn
+    under-reports by tens of seconds).
   * Every query piggybacks `rateLimitData` so we always know the live spend
-    without extra requests.
+    without extra requests; until the first reading lands (a failed starting
+    probe) the governor is blind and admits one request at a time.
   * Survive 429s, transient network errors and GraphQL quota errors.
 
 Credentials are resolved in this order:
@@ -38,6 +42,20 @@ SECRETS = ROOT / ".secrets"
 # how long a 429 may put the client to sleep before it asks again (see the
 # 429 branch in query()); a 429 costs no points
 RETRY_429_STEP_S = float(os.environ.get("WCL_RETRY_429_STEP_S", 60) or 60)
+# after sleeping to the reported reset, how much longer (cumulative seconds)
+# a worker may keep polling WCL for the new window before it stops cleanly
+# (QuotaDeadline). pointsResetIn under-reports by tens of seconds (run 4275,
+# see the 429 branch in query()), so a woken worker re-reads the live spend
+# and sleeps again rather than assuming the hour rolled; this bounds how
+# long, so a window that never opens cannot hold a job hostage.
+RESET_GRACE_S = float(os.environ.get("WCL_RESET_GRACE_S", 300) or 300)
+# a worker with no reading yet (blind, see _Quota.admit) looks this often for
+# the reading that the one admitted sibling's response brings
+BLIND_POLL_S = 0.5
+# the cheap rateLimitData probe: attempts, and the seconds between the first
+# two (doubling after)
+PROBE_ATTEMPTS = 3
+PROBE_BACKOFF_S = 2.0
 
 
 class QuotaDeadline(Exception):
@@ -112,6 +130,12 @@ class _Quota:
     `inflight` is the estimated cost of requests admitted but not yet returned.
     Without it a burst of workers all pass the same check against the same
     stale `spent` and go through together.
+
+    `observed` says whether `spent` is a reading from WCL at all. Until it is
+    (the starting probe failed; a re-probe after sleeping for the reset
+    failed) the governor is BLIND and admits one request at a time, so that
+    the account's true spend arrives with one response instead of after a
+    wave of workers was admitted against a guess.
     """
 
     def __init__(self) -> None:
@@ -134,14 +158,31 @@ class _Quota:
         # until a real reading lands we are guessing; the first response fixes
         # both the true limit and what the rest of the account already spent
         self.observed = False
+        # readings landed so far; a worker that slept for the reset compares
+        # it with the count it went to sleep on (see lost_track)
+        self.readings = 0
 
     @property
     def ceiling(self) -> float:
         return self.limit * self.fraction
 
     def admit(self, est_cost: float, margin: float) -> bool:
-        """Reserve est_cost against the ceiling, or refuse."""
+        """Reserve est_cost against the ceiling, or refuse.
+
+        Blind (no reading yet): the ceiling check would run against a guess
+        -- 0 at a start whose probe failed, a stale reading after a failed
+        re-probe -- and every worker would pass it together. So a blind
+        governor admits ONE request at a time: its response carries the real
+        spend, and the rest wait for it (query() polls BLIND_POLL_S, it does
+        not sleep to the reset). A blind start therefore sends at most one
+        request before the ceiling is enforced against the truth.
+        """
         with self.lock:
+            if not self.observed:
+                if self.inflight > 0:
+                    return False
+                self.inflight += est_cost
+                return True
             if self.spent + self.inflight + est_cost + margin >= self.ceiling:
                 return False
             self.inflight += est_cost
@@ -157,16 +198,36 @@ class _Quota:
             self.spent = float(rl["pointsSpentThisHour"])
             self.reset_in = float(rl["pointsResetIn"])
             self.observed = True
+            self.readings += 1
 
     def count_request(self) -> None:
         with self.lock:
             self.requests_made += 1
 
-    def rolled_over(self) -> None:
+    def lost_track(self, readings_at_sleep: int) -> bool:
+        """A worker's re-probe after sleeping for the reset failed, so whether
+        the hour rolled is unknown to IT. Process-wide it may not be: a
+        sibling's probe or blind request may have landed a reading since this
+        worker went to sleep (`readings` moved on), and that reading stands --
+        the worker returns False and judges by it. Only when nothing landed
+        does the governor go blind (True): admit one request at a time until a
+        real reading lands. Atomic under the lock, so a reading that lands
+        between the worker's check and its call cannot be thrown away -- that
+        race gave every waking worker a blind request of its own, a wave
+        billed to the old hour, in the test's scenario 5.
+
+        The last reading is kept rather than zeroed -- it showed the ceiling
+        reached, the safe assumption -- and not replaced with a synthetic
+        value either, which would show up in the health lines and in
+        fetch_procs' rollover-safe "points used" accounting. Reservations are
+        kept too: query() releases every one on every path out, so `inflight`
+        is exact, and a sibling admitted in the new window a second ago must
+        keep its reservation."""
         with self.lock:
-            self.spent = 0.0
-            self.reset_in = 3600.0
-            self.inflight = 0.0
+            if self.readings != readings_at_sleep:
+                return False
+            self.observed = False
+            return True
 
 
 QUOTA = _Quota()
@@ -222,6 +283,36 @@ class WCLClient:
         self.verbose = verbose
         self._probe_quota()
 
+    def _probe(self, what: str) -> bool:
+        """One reading of the account's live spend: rateLimitData alone (~0
+        points), PROBE_ATTEMPTS attempts with PROBE_BACKOFF_S doubling between
+        them; a payload without rateLimitData is a failure like a network
+        error or a 5xx. Deliberately bypasses the budget guard: it is the call
+        that makes the guard meaningful, and refusing it would deadlock. True
+        when a reading landed (QUOTA.observe), False when none did."""
+        backoff = PROBE_BACKOFF_S
+        for attempt in range(1, PROBE_ATTEMPTS + 1):
+            try:
+                r = self.session.post(API_URL, json={"query": "{ " + RATE_FIELD + " }"},
+                                      timeout=60)
+                rl = ((r.json() or {}).get("data") or {}).get("rateLimitData")
+                if not rl:
+                    raise ValueError(f"HTTP {r.status_code} without rateLimitData")
+                QUOTA.observe(rl)
+                return True
+            except (requests.RequestException, ValueError, KeyError, TypeError,
+                    AttributeError) as e:
+                if attempt < PROBE_ATTEMPTS:
+                    self._log(f"could not read the {what} quota ({e}); "
+                              f"attempt {attempt}/{PROBE_ATTEMPTS}, retrying in "
+                              f"{backoff:.0f}s")
+                    time.sleep(backoff)
+                    backoff *= 2
+                    continue
+                self._log(f"could not read the {what} quota in {PROBE_ATTEMPTS} "
+                          f"attempts ({e})")
+        return False
+
     def _probe_quota(self) -> None:
         """Learn what the account has already spent, before spending anything.
 
@@ -229,24 +320,19 @@ class WCLClient:
         yet. Without this, the first request of a process goes out no matter
         what the rest of the account did in this hour -- which is precisely the
         case the ceiling exists to catch. One cheap query (rateLimitData alone)
-        closes it. Deliberately bypasses the budget guard: it is the call that
-        makes the guard meaningful, and refusing it would deadlock the start.
+        closes it. When even the retried probe fails the governor stays BLIND
+        (_Quota.admit): one request at a time until the first response brings
+        the reading, so a start with the hour already over the ceiling costs
+        at most one request, not a wave of shard workers.
         """
         with QUOTA.probe_lock:
             if QUOTA.probed:
                 return
             QUOTA.probed = True
-        try:
-            r = self.session.post(API_URL, json={"query": "{ " + RATE_FIELD + " }"},
-                                  timeout=60)
-            rl = ((r.json() or {}).get("data") or {}).get("rateLimitData")
-        except (requests.RequestException, ValueError, AttributeError) as e:
-            self._log(f"could not read starting quota ({e}); "
-                      f"the first response will set it")
+        if not self._probe("starting"):
+            self._log("no starting reading: blind until the first response lands "
+                      "(one request at a time)")
             return
-        if not rl:
-            return
-        QUOTA.observe(rl)
         self._log(f"quota at start: {QUOTA.spent:.0f}/{QUOTA.limit:.0f} pts spent "
                   f"this hour; ceiling {QUOTA.ceiling:.0f} "
                   f"({QUOTA.fraction:.0%}), {QUOTA.ceiling - QUOTA.spent:.0f} available")
@@ -292,23 +378,63 @@ class WCLClient:
         return float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
 
     def _sleep_for_reset(self) -> None:
-        wait = max(self.reset_in, 30) + 20  # small cushion past the reset
-        # A caller on a clock (a CI job with a timeout) must not burn its whole
-        # slot asleep. WCL_MAX_SLEEP_S caps how long we are willing to wait;
-        # past that we stop cleanly and the next run picks up from the journal
-        # with a fresh budget, instead of being killed having fetched nothing.
-        cap = self._sleep_cap()
-        if cap and wait > cap:
-            self._log(f"budget ceiling reached ({self.spent:.0f}/{self.ceiling:.0f} "
-                      f"pts, {QUOTA.fraction:.0%} of {self.limit:.0f}) and the reset "
-                      f"is {wait:.0f}s away, over the {cap:.0f}s cap; stopping so the "
-                      f"next run can use a fresh window")
-            raise QuotaDeadline(f"quota reset {wait:.0f}s away, cap {cap:.0f}s")
-        self._log(f"budget ceiling reached ({self.spent:.0f}/{self.ceiling:.0f} pts, "
-                  f"{QUOTA.fraction:.0%} of {self.limit:.0f}); sleeping {wait:.0f}s "
-                  f"until the window resets")
-        time.sleep(wait)
-        QUOTA.rolled_over()
+        """Sleep until WCL reports the new window, or stop (QuotaDeadline).
+
+        The sleep runs to the reported reset plus a cushion, and then the
+        client RE-READS the live spend before it trusts the hour to have
+        rolled: pointsResetIn under-reports (run 4275 woke 20 s early, see the
+        429 branch in query()), and a governor that zeroed its spend on waking
+        admitted every worker against nothing -- a wave charged to the old
+        hour, past the ceiling, that a 100 % drain used to meet as a free 429
+        and a 70 % cap meets as served, billed requests. So: sleep, probe, and
+        while the reading still shows the ceiling reached, sleep again -- each
+        sleep under the cap, the extra polling as a whole under RESET_GRACE_S.
+        Only the probe's own failure, with no sibling's reading landed since
+        the sleep began, goes blind (QUOTA.lost_track): one request at a time,
+        process-wide, until a real reading lands.
+        """
+        slept, budget = 0.0, None
+        while True:
+            wait = max(self.reset_in, 30) + 20  # small cushion past the reset
+            # A caller on a clock (a CI job with a timeout) must not burn its
+            # whole slot asleep. WCL_MAX_SLEEP_S caps how long we are willing to
+            # wait; past that we stop cleanly and the next run picks up from the
+            # journal with a fresh budget, instead of being killed having
+            # fetched nothing.
+            cap = self._sleep_cap()
+            if cap and wait > cap:
+                self._log(f"budget ceiling reached ({self.spent:.0f}/{self.ceiling:.0f} "
+                          f"pts, {QUOTA.fraction:.0%} of {self.limit:.0f}) and the reset "
+                          f"is {wait:.0f}s away, over the {cap:.0f}s cap; stopping so the "
+                          f"next run can use a fresh window")
+                raise QuotaDeadline(f"quota reset {wait:.0f}s away, cap {cap:.0f}s")
+            if budget is None:
+                budget = wait + RESET_GRACE_S
+            elif slept + wait > budget:
+                self._log(f"the window has not opened {slept:.0f}s after the reported "
+                          f"reset ({self.spent:.0f}/{self.ceiling:.0f} pts still spent); "
+                          f"stopping so the next run can use a fresh window")
+                raise QuotaDeadline(f"window not open {slept:.0f}s after the reset")
+            self._log(f"budget ceiling reached ({self.spent:.0f}/{self.ceiling:.0f} pts, "
+                      f"{QUOTA.fraction:.0%} of {self.limit:.0f}); sleeping {wait:.0f}s "
+                      f"until the window resets")
+            readings_at_sleep = QUOTA.readings
+            time.sleep(wait)
+            slept += wait
+            if not self._probe("post-reset"):
+                if QUOTA.lost_track(readings_at_sleep):
+                    self._log("blind after the sleep: one request at a time until a "
+                              "reading lands")
+                    return
+                self._log("a sibling's reading landed while this worker slept; "
+                          "judging by it")
+            if self.spent + self.budget_margin < self.ceiling:
+                self._log(f"window open: {self.spent:.0f}/{self.ceiling:.0f} pts spent, "
+                          f"reset in {self.reset_in:.0f}s")
+                return
+            self._log(f"the window has not reset: {self.spent:.0f}/{self.ceiling:.0f} "
+                      f"pts still spent, reset reported {self.reset_in:.0f}s away; "
+                      f"sleeping again")
 
     def _update_rate(self, data: dict) -> None:
         rl = data.get("rateLimitData")
@@ -337,6 +463,12 @@ class WCLClient:
             # same check on the same stale reading. Refused means the ceiling is
             # reached: sleep to the window reset (or stop, under a deadline).
             if not QUOTA.admit(est_cost, self.budget_margin):
+                if not QUOTA.observed:
+                    # blind: a sibling's request is out and its response brings
+                    # the first reading; look again shortly (a refusal here is
+                    # "one at a time", not "the ceiling is reached")
+                    time.sleep(BLIND_POLL_S)
+                    continue
                 self._sleep_for_reset()
                 continue
             # The reservation is released on every way out of this iteration --

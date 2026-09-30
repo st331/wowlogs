@@ -252,7 +252,14 @@ every collector runs under one cap. Both knobs are in **`data/cadence.json`**
   `pointsSpentThisHour`, so the sweep, the bundle, the trinket and keystone collectors and
   the owner's own lookups from the vetting site add up under the one cap; a process that
   starts with the hour already over it sleeps to the reset within its cap (8 min for Fetch,
-  30 s for the collectors) or stops cleanly with what it has -- it never pushes past. The
+  30 s for the collectors) or stops cleanly with what it has -- it never pushes past. Two
+  details make that hold at the edges: a worker that slept for the reset **re-reads the live
+  spend** before it sends anything (WCL's `pointsResetIn` under-reports by tens of seconds;
+  the old hour is still being billed when the sleep ends) and sleeps again while the old hour
+  is reported, at most `WCL_RESET_GRACE_S` (5 min) past the first sleep; and a process whose
+  starting reading fails (the probe is retried three times) is **blind**, admitting one
+  request at a time until a response brings the reading, so a blind start costs one request,
+  never a wave. `scripts/test_quota_ceiling.py` drives all of it against a fake WCL. The
   health lines say what happened: `fetch.cadence.every_hours`, `fetch.cadence.quota_fraction`,
   `fetch.quota.fraction` (the ceiling the run ran under) and `fetch.quota.share_at_end` (the
   account's spend share of the limit when Fetch ended; over `quota_fraction` is the number
