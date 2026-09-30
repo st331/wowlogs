@@ -208,9 +208,9 @@ ever pulled from Warcraft Logs twice (§1). What this repository adds:
   population can fill reaches its quota, rare specs stay at ~100 % coverage.
 * **The cost.** +1.0 point per table per run inside the same request (6.0 warm, 6.5--8.5
   cold for the six); the governor reserves `est_cost` 7.5 for a bundled run and 2.6 as
-  before for a Summary-only one. Expected load: **+≈960 points/hour**, ≈11,000/hour in
-  total against the standing 85 % ceiling of 15,300 -- the cap, the sweep cadence and the
-  retention policy are untouched.
+  before for a Summary-only one. Measured at the 20-minute cadence: **+≈960 points/hour**,
+  ≈11,000/hour in total; at the 4-hour cadence (below) the same work lands in the hour a
+  run starts, under the standing 70 % ceiling of 12,600 -- the retention policy is untouched.
 * **The sidecars** (`scripts/build_baselines.py`, run by the refresh workflow right after
   `build_site_data.py`, from the same retention-windowed frame; `site/**` deploys as before):
   `site/baselines.json.gz` (design doc §2: per spec x dungeon x level cell at three tiers,
@@ -224,6 +224,56 @@ ever pulled from Warcraft Logs twice (§1). What this repository adds:
   `baselines.*` land in `build_health.txt`, sizes and the largest shard included, with a
   flag when the set is over the 40 MB budget (13 MB gzipped today with no
   bundled rows; ~27 MB projected once half the runs carry the bundle).
+
+## Cadence and quota
+
+Since 2026-09-30 (owner: "a cadence of updating the data every 4 hours or so ... never end
+up using more than 70% of my API quota") the refresh is a **cron, not a self-chain**, and
+every collector runs under one cap. Both knobs are in **`data/cadence.json`**
+(`scripts/cadence.py` reads it; a missing or bad value is its default, said in the log):
+
+```json
+{"every_hours": 4, "quota_fraction": 0.70}
+```
+
+* **Every 4 hours.** `refresh.yml` runs on `cron: "0 */4 * * *"` (UTC: 00, 04, 08, 12, 16,
+  20 -- 05:30, 09:30, 13:30, 17:30, 21:30, 01:30 IST). The hourly Warcraft Logs window resets
+  at :00 UTC, so a scheduled run starts on a fresh window. A scheduled run (or a hand
+  dispatch, or the watchdog's revival) dispatches **no successor**: the "Chain the next run"
+  step chains only while `data/backfill.json` is in force or an explicitly dispatched
+  `drain` still has a backlog (`cadence.chain_decision`). Every run at this period sweeps
+  deep (~2,000 points) and fetches ~4 hours of new runs with the bundle where the gate admits;
+  the trinket and keystone collectors run in the background of the build as before.
+* **Never above 70 %.** `quota_fraction` is the share of the hourly limit (18,000 points, so
+  12,600) **any** process on the account may spend. `wcl_client.quota_fraction()` reads it
+  whenever `WCL_QUOTA_FRACTION` is not in the environment, and `refresh.yml` passes it into
+  every step that runs a client (the Cadence step -> Fetch, the background collectors)
+  besides. The governor measures the ceiling against the account's **live**
+  `pointsSpentThisHour`, so the sweep, the bundle, the trinket and keystone collectors and
+  the owner's own lookups from the vetting site add up under the one cap; a process that
+  starts with the hour already over it sleeps to the reset within its cap (8 min for Fetch,
+  30 s for the collectors) or stops cleanly with what it has -- it never pushes past. The
+  health lines say what happened: `fetch.cadence.every_hours`, `fetch.cadence.quota_fraction`,
+  `fetch.quota.fraction` (the ceiling the run ran under) and `fetch.quota.share_at_end` (the
+  account's spend share of the limit when Fetch ended; over `quota_fraction` is the number
+  that must never happen).
+* **The watchdog** (`watchdog.yml`) stays on, hourly, with its quiet threshold at
+  `every_hours + 1 h` (`STALE_SUCCESS_MIN: 300`; alert at 540, stale data at 600): a healthy
+  cadence never trips it, a dropped cron tick is revived within the hour, and the revived run
+  is an ordinary cadence run. `scripts/test_cadence.py` pins the cron and these thresholds to
+  the file.
+* **To change either knob:** edit `data/cadence.json`; for the period also edit the cron in
+  `refresh.yml` and `STALE_SUCCESS_MIN` in `watchdog.yml` (the test tells you if they
+  disagree); the fraction needs nothing else. A `workflow_dispatch` may set `quota_fraction`
+  for one deliberate run; the scheduled path never does. To pause everything: comment the cron
+  out and put `if: false` on the job in both workflows (how the 2026-09-28 pause was held).
+* **The backfill switch overrides it.** A committed `data/backfill.json` with a future
+  `until` (`execution.backfill_mode`, `scripts/backfill.py`) puts every run at its `share` of
+  the limit instead of `quota_fraction`, admits every run to the bundle, backfills the
+  window's unbundled runs after the sweep and chains runs back to back until `until`; once it
+  passes (or the file is deleted) the cadence and the cap are back with nothing else to touch.
+  The 2026-09-27..30 backfill's file was deleted when it finished; a future backfill is one
+  file away.
 
 ## Tests
 
@@ -241,5 +291,7 @@ for t in scripts/test_*.py; do python3 "$t" >/dev/null && echo "ok   $t" || echo
 `test_gear_parse.py`, `test_export_stream.py`, `test_quota_ceiling.py`, `test_build_entry.py`,
 `test_execution_bundle.py` (the bundle's parsers on the real fixture), `test_exec_gate.py`
 (the quota gate), `test_exec_wiring.py` (the request, the caller's path, export and seed),
-`test_build_baselines.py` (cells, tiers, shards, the round trip).
+`test_build_baselines.py` (cells, tiers, shards, the round trip), `test_backfill.py` (the
+backfill switch and mode), `test_cadence.py` (the cadence file, the cap every client
+resolves, the Chain step's decision, the cron and the watchdog threshold pinned to the file).
 
