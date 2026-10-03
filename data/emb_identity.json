@@ -101,9 +101,9 @@
   "13771": "Hunter's Ritual Stone"
  },
  "run": {
-  "ok": false,
+  "ok": true,
   "fetched": 0,
-  "failures": 1,
+  "failures": 0,
   "migrated": 0,
   "dropped_nulls": 83,
   "markers": [
@@ -127,6 +127,7 @@
   "by_marker": {
    "8960": 50,
    "13555": 3
-  }
+  },
+  "intrinsic": 6
  }
 }
