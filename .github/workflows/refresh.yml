@@ -24,6 +24,9 @@ name: Refresh Season 2 data
 #     quiet for every_hours + 1 h. scripts/test_cadence.py pins the arm
 #     step and the watchdog thresholds to the file, so changing the period
 #     is: edit the file and watchdog.yml's EVERY_HOURS / STALE_SUCCESS_MIN,
+#     A time-boxed `burst` {every_minutes, until} in the file overrides the
+#     period alone until `until` (owner, 2026-10-07: every 30 min for two
+#     days); the cap and the watchdog's backstop stay as they are. Changing it
 #     run the test.
 #   * quota_fraction -> WCL_QUOTA_FRACTION in every step that runs a client
 #     (Fetch, the background collectors), and the client reads the file
@@ -722,6 +725,7 @@ jobs:
           DRAIN: ${{ inputs.drain }}
           MODE: ${{ inputs.mode }}
           EVERY_HOURS: ${{ steps.cadence.outputs.every_hours }}
+          PERIOD_MIN: ${{ steps.cadence.outputs.period_min }}
         run: |
           # A FRESH drain run cannot judge the backlog: its sweep and its
           # pending set are the 12-hour slice, so the number it reports is
@@ -733,7 +737,7 @@ jobs:
           eval "$(python3 scripts/cadence.py chain)"
           echo "$REASON"
           if [ "$CHAIN" != "true" ]; then
-            echo "no successor dispatched: the timer runs the next refresh (every ${EVERY_HOURS:-4} h, data/cadence.json)"
+            echo "no successor dispatched: the timer runs the next refresh (every ${PERIOD_MIN:-240} min, data/cadence.json)"
             exit 0
           fi
           curl -sf -X POST \
@@ -743,8 +747,9 @@ jobs:
             -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"chain\":\"true\",\"prev_start\":\"$JOB_START\",\"drain\":\"$NEXT_DRAIN\",\"mode\":\"$NEXT_MODE\",\"prev_reset_at\":\"${RESET_AT:-}\",\"bundle_backfill\":\"$NEXT_BACKFILL\"}}" \
             && echo "chained the next run" || echo "chain dispatch failed; the timer and the watchdog will revive the cadence"
 
-      # The cadence's clock. Arm timer.yml for every_hours after THIS run's
-      # start, whatever the outcome short of a cancellation: a failed run
+      # The cadence's clock. Arm timer.yml for one period (period_min: the
+      # file's every_hours, or its burst's every_minutes while that is in
+      # force) after THIS run's start, whatever the outcome short of a cancellation: a failed run
       # still owes the next slot (the watchdog's immediate retry of a short
       # failure streak re-arms from its own start and cancels this one), and
       # a chained drain successor re-arms from its own start the same way.
@@ -754,10 +759,10 @@ jobs:
       - name: Arm the timer for the next run
         if: ${{ !cancelled() }}
         env:
-          EVERY_HOURS: ${{ steps.cadence.outputs.every_hours || 4 }}
+          PERIOD_MIN: ${{ steps.cadence.outputs.period_min || 240 }}
         run: |
-          FIRE_AT=$(( ${JOB_START:-$(date +%s)} + EVERY_HOURS * 3600 ))
-          echo "arming the timer for $(date -u -d "@$FIRE_AT" +'%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Kolkata date -d "@$FIRE_AT" +'%H:%M IST')), ${EVERY_HOURS} h after this run started"
+          FIRE_AT=$(( ${JOB_START:-$(date +%s)} + PERIOD_MIN * 60 ))
+          echo "arming the timer for $(date -u -d "@$FIRE_AT" +'%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Kolkata date -d "@$FIRE_AT" +'%H:%M IST')), ${PERIOD_MIN} min after this run started"
           curl -sf -X POST \
             -H "Authorization: Bearer ${{ github.token }}" \
             -H "Accept: application/vnd.github+json" \

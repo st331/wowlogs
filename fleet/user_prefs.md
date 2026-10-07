@@ -667,3 +667,13 @@
     under a REMOVED banner. Leftover `procs.jsonl` / `procs_failed.txt` in the Actions cache are
     inert: nothing reads, prunes or ships them.
 
+40. **A two-day 30-minute burst under the 70% cap (owner, 2026-10-07 23:09 IST: "over the next 2
+    days, keep refreshing every 30 minutes, starting now. adhere to the 70% wcl quota maximum.")**
+    Done as a time-boxed `burst` block in `data/cadence.json` (`every_minutes: 30`, `until:
+    2026-10-09T17:45:00Z`) that `scripts/cadence.py` turns into `period_min`; every refresh arms the
+    timer that many minutes after its own start and re-reads the file, so the 4-hour cadence resumes
+    on its own when `until` passes. `quota_fraction` stays 0.70 — the governor measures it against
+    the account's live spend, so the burst cannot pass the cap however many runs it makes. Earlier
+    the same day the owner asked for two one-off force refreshes at the full quota (dispatched with
+    `quota_fraction=1.0`; they spent 4,118 and 5,582 points — the cap was never the limit).
+

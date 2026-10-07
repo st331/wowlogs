@@ -127,6 +127,45 @@ check(cadence.timer_wait_s(str(T0 + 60) + ".0", T0) == 60, "timer_wait_s: a nume
 check(cadence.fresh_min(4) == 210 and cadence.fresh_min(1) == 30 and cadence.fresh_min(2, slack_min=200) == 1,
       "fresh_min: a period minus the 30-minute slack, never below a minute")
 check(cadence.FRESH_SLACK_MIN == 30, "the slack is half an hour")
+# --- 1c. the burst (owner, 2026-10-07: every 30 min for two days, cap unchanged) ----------
+check(cadence.fresh_min_p(240) == 210 and cadence.fresh_min_p(30) == 15 and cadence.fresh_min_p(60) == 30
+      and cadence.fresh_min_p(5) == 3, "fresh_min_p: the slack never exceeds half the period (240 -> 210 as before, 30 -> 15)")
+check(cadence.built_fresh_min_p(240) == 195 and cadence.built_fresh_min_p(30) == 1, "built_fresh_min_p: a run's length less, never below a minute")
+check(cadence.next_fire_at_min(T0, 30) == T0 + 1800 and cadence.next_fire_at_min(T0, 240) == T0 + 4 * 3600,
+      "next_fire_at_min: period in minutes")
+with tempfile.TemporaryDirectory() as tmp:
+    f = pathlib.Path(tmp) / "cadence.json"
+    base = {"every_hours": 4, "quota_fraction": 0.70}
+    f.write_text(json.dumps({**base, "burst": {"every_minutes": 30, "until": "2026-10-09T17:45:00Z"}}))
+    c = cadence.read_cadence(path=f, log=quiet, now_s=1791000000)          # 2026-10-03: ahead of until
+    check(c["period_min"] == 30 and c["burst_active"] and c["burst_until"] == 1791567900 and c["every_hours"] == 4,
+          f"an active burst sets period_min=30, every_hours untouched ({c})")
+    c = cadence.read_cadence(path=f, log=quiet, now_s=1791567900)          # exactly until -> over
+    check(c["period_min"] == 240 and not c["burst_active"] and c["burst_until"] == 1791567900,
+          "at `until` the burst is over: period_min is every_hours x 60 again")
+    msgs = []
+    c = cadence.read_cadence(path=f, log=msgs.append, now_s=1791567900 + 1)
+    check(c["period_min"] == 240 and len(msgs) == 1 and "expired" in msgs[0], "an expired burst is said once, standing period stands")
+    f.write_text(json.dumps({**base, "burst": {"every_minutes": "30", "until": 1791567900}}))
+    c = cadence.read_cadence(path=f, log=quiet, now_s=1791000000)
+    check(c["period_min"] == 30 and c["burst_active"], "a numeric-string every_minutes and an epoch until are read")
+    f.write_text(json.dumps({**base, "burst": {"every_minutes": 30, "until": "2026-10-09T17:45:00+00:00"}}))
+    check(cadence.read_cadence(path=f, log=quiet, now_s=1791000000)["burst_until"] == 1791567900, "an ISO until with an offset is read")
+    for bad in ({"every_minutes": 2, "until": "2026-10-09T17:45:00Z"}, {"every_minutes": 30}, {"until": "2026-10-09T17:45:00Z"},
+                {"every_minutes": 30, "until": "soon"}, {"every_minutes": 1441, "until": 1791567900}, {"every_minutes": True, "until": 1791567900},
+                "30 minutes", 30, [30, 1791567900]):
+        f.write_text(json.dumps({**base, "burst": bad}))
+        msgs = []
+        c = cadence.read_cadence(path=f, log=msgs.append, now_s=1791000000)
+        check(c["period_min"] == 240 and not c["burst_active"] and c["burst_until"] is None and len(msgs) == 1 and "ignored" in msgs[0],
+              f"burst={bad!r} is ignored, said once, the standing period stands")
+    f.write_text(json.dumps(base))
+    c = cadence.read_cadence(path=f, log=quiet, now_s=1791000000)
+    check(c["period_min"] == 240 and c["burst_until"] is None and not c["burst_active"], "no burst block: period_min is every_hours x 60")
+    f.write_text(json.dumps({"every_hours": 2, "quota_fraction": 0.5, "burst": {"every_minutes": 45, "until": 1791567900}}))
+    c = cadence.read_cadence(path=f, log=quiet, now_s=1791567900 + 10)
+    check(c["period_min"] == 120 and c["every_hours"] == 2 and c["quota_fraction"] == 0.5, "after a burst the standing knobs are the file's")
+    check(cadence.read_cadence(path=f, log=quiet, now_s=1791000000)["period_min"] == 45, "a burst overrides the period, never the cap")
 check(cadence.built_fresh_min(4) == 195 and cadence.built_fresh_min(1) == 15 and cadence.built_fresh_min(1, run_min=60) == 1,
       "built_fresh_min: fresh_min less a run's length (15 min), never below a minute")
 
@@ -227,9 +266,11 @@ with tempfile.TemporaryDirectory() as tmp:
     r = subprocess.run([sys.executable, "scripts/cadence.py", "github-output"], cwd=ROOT, capture_output=True,
                        text=True, env={**env, "GITHUB_OUTPUT": str(out)})
     got = dict(l.split("=", 1) for l in out.read_text().splitlines() if "=" in l)
-    check(r.returncode == 0 and got == {"every_hours": "4", "quota_fraction": "0.7"}
+    want_out = {"every_hours": "4", "quota_fraction": "0.7", "period_min": str(real["period_min"]),
+                "burst_until": str(real["burst_until"] if real["burst_until"] is not None else "")}
+    check(r.returncode == 0 and got == want_out
           and "::notice::" in r.stdout and not any(l.startswith("::") for l in out.read_text().splitlines()),
-          f"CLI github-output writes the two knobs, no workflow command in the file ({got})")
+          f"CLI github-output writes the knobs and the burst-aware period, no workflow command in the file ({got})")
 import time                                  # noqa: E402
 tenv = {k: v for k, v in env.items() if k != "FIRE_AT"}
 for fire, want in ((str(int(time.time()) + 600), (595, 600)), ("", (0, 0)), (str(int(time.time()) - 600), (0, 0)),
@@ -238,13 +279,15 @@ for fire, want in ((str(int(time.time()) + 600), (595, 600)), ("", (0, 0)), (str
                        env={**tenv, "FIRE_AT": fire})
     lines = dict(l.split("=", 1) for l in r.stdout.strip().splitlines() if "=" in l)
     w = int(lines.get("WAIT_S", "-1"))
+    pm = real["period_min"]; fm = cadence.fresh_min_p(pm); bfm = cadence.built_fresh_min_p(pm)
     check(r.returncode == 0 and want[0] <= w <= want[1] and lines.get("EVERY_HOURS") == "4"
-          and lines.get("FRESH_MIN") == "210" and lines.get("BUILT_FRESH_MIN") == "195"
+          and lines.get("PERIOD_MIN") == str(pm)
+          and lines.get("FRESH_MIN") == str(fm) and lines.get("BUILT_FRESH_MIN") == str(bfm)
           and abs(int(lines["FIRE_AT"]) - int(time.time()) - w) <= 2,
-          f"CLI timer FIRE_AT={fire!r}: WAIT_S={w}, FIRE_AT resolved to now+WAIT_S, EVERY_HOURS 4, FRESH_MIN 210, BUILT_FRESH_MIN 195")
+          f"CLI timer FIRE_AT={fire!r}: WAIT_S={w}, FIRE_AT resolved to now+WAIT_S, EVERY_HOURS 4, PERIOD_MIN {pm}, FRESH_MIN {fm}, BUILT_FRESH_MIN {bfm}")
 r = subprocess.run(["bash", "-c", f'eval "$({sys.executable} scripts/cadence.py timer)"; echo "$WAIT_S|$FRESH_MIN"'],
                    cwd=ROOT, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
-check(r.returncode == 0 and r.stdout.strip() == "0|210", f"bash eval of the timer CLI: {r.stdout.strip()!r}")
+check(r.returncode == 0 and r.stdout.strip() == f"0|{cadence.fresh_min_p(real['period_min'])}", f"bash eval of the timer CLI: {r.stdout.strip()!r}")
 
 # --- 5. the workflows -----------------------------------------------------------------------
 import yaml                                  # noqa: E402
@@ -296,9 +339,9 @@ check(names.index("Arm the timer for the next run") == names.index("Chain the ne
       "the arm step follows the Chain step, before the failure wake-up")
 check("!cancelled()" in arm["if"] and "success()" not in arm["if"],
       f"the arm step runs on success and failure alike ({arm['if']})")
-check(arm["env"]["EVERY_HOURS"] == "${{ steps.cadence.outputs.every_hours || 4 }}",
-      "the arm step's period is the Cadence step's, defaulting to 4 when it did not run")
-check("FIRE_AT=$(( ${JOB_START:-$(date +%s)} + EVERY_HOURS * 3600 ))" in arm["run"],
+check(arm["env"]["PERIOD_MIN"] == "${{ steps.cadence.outputs.period_min || 240 }}",
+      "the arm step's period is the Cadence step's burst-aware period_min, defaulting to 240 when it did not run")
+check("FIRE_AT=$(( ${JOB_START:-$(date +%s)} + PERIOD_MIN * 60 ))" in arm["run"],
       "the slot is JOB_START + every_hours (next_fire_at), start to start")
 check("/actions/workflows/timer.yml/dispatches" in arm["run"] and r'\"fire_at\":\"$FIRE_AT\"' in arm["run"]
       and "armed_by" in arm["run"], "the arm step dispatches timer.yml with fire_at and armed_by")

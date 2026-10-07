@@ -236,6 +236,14 @@ cron**, and every collector runs under one cap. Both knobs are in **`data/cadenc
 {"every_hours": 4, "quota_fraction": 0.70}
 ```
 
+A time-boxed **`burst`** in the same file overrides the period alone: `{"burst": {"every_minutes": 30,
+"until": "2026-10-09T17:45:00Z"}}` makes every run arm the timer 30 minutes after its own start
+until `until`, after which the next arm is `every_hours` again with nothing to revert by hand
+(`cadence.read_cadence` reports `period_min`; every run and every timer re-read the file). The
+cap is untouched, and the watchdog keeps `every_hours` as its backstop throughout. First used
+2026-10-07 (owner: "over the next 2 days, keep refreshing every 30 minutes, starting now. adhere
+to the 70% wcl quota maximum.").
+
 * **Every 4 hours, by timer.** Every refresh run's last step arms **`timer.yml`** for
   `every_hours` after the run's own start (`cadence.next_fire_at`), whatever the outcome short
   of a cancellation; the timer sleeps until then (`cadence.timer_wait_s`, capped at 5.5 h) and

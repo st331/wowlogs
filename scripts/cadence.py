@@ -34,6 +34,18 @@ The file holds the owner's two knobs and nothing else decides them:
                     the ceiling sleeps to the reset within its cap or stops
                     cleanly (QuotaDeadline), never pushes past.
 
+    burst           optional, time-boxed: {"every_minutes": N, "until": T}.
+                    While T (ISO-8601 or epoch seconds) is ahead, the period
+                    every run arms the timer with is N minutes instead of
+                    every_hours (owner, 2026-10-07: "over the next 2 days,
+                    keep refreshing every 30 minutes, starting now. adhere
+                    to the 70% wcl quota maximum."). The cap is untouched.
+                    Every run and every timer re-reads the file, so when T
+                    passes the next arm is every_hours again and nothing
+                    needs reverting by hand; the watchdog keeps every_hours
+                    as its backstop throughout. period_min is the knob the
+                    workflows read; every_hours stays what it was.
+
 read_cadence() never raises: a missing or unreadable file, or a bad value,
 is the default for that knob (DEFAULTS), said once on stdout.
 
@@ -47,11 +59,13 @@ the cadence, and every run arms it whatever the decision.
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import pathlib
 import shlex
 import sys
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CADENCE_FILE = ROOT / "data" / "cadence.json"
@@ -70,16 +84,51 @@ RUN_LENGTH_MIN = 15
 # an explicitly dispatched drain keeps alternating fresh/backfill runs only
 # while this many runs are still pending (refresh.yml's drain machinery)
 DRAIN_BACKLOG_FLOOR = 300
+# a burst period: a run takes 5-12 minutes, so nothing shorter than this is a
+# cadence; nothing longer than a day is a burst
+MIN_BURST_MIN = 5
+MAX_BURST_MIN = 24 * 60
 
 
-def read_cadence(path=None, log=print) -> dict:
-    """{every_hours, quota_fraction, source}. Each knob is the file's value
-    when it is present and valid (every_hours a whole number of hours in
-    1..24, quota_fraction in (0, 1]) and its default otherwise; `source` is
-    the file's path, or "default" when the file could not be read at all."""
+def _epoch(v):
+    """Epoch seconds from an epoch number, a numeric string or an ISO-8601
+    string (a trailing Z or no zone = UTC); None when it is none of those."""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v) if v == v else None
+    t = str(v).strip()
+    try:
+        return float(t)
+    except ValueError:
+        pass
+    try:
+        d = _dt.datetime.fromisoformat(t[:-1] + "+00:00" if t.endswith("Z") else t)
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=_dt.timezone.utc)
+    return d.timestamp()
+
+
+def _iso(epoch) -> str:
+    return _dt.datetime.fromtimestamp(int(epoch), _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def read_cadence(path=None, log=print, now_s=None) -> dict:
+    """{every_hours, quota_fraction, period_min, burst_until, burst_active,
+    source}. Each knob is the file's value when it is present and valid
+    (every_hours a whole number of hours in 1..24, quota_fraction in (0, 1])
+    and its default otherwise; `source` is the file's path, or "default"
+    when the file could not be read at all. period_min is the period the
+    workflows arm: every_hours x 60, or the burst's every_minutes while its
+    `until` is ahead of now_s (the clock when None)."""
     p = pathlib.Path(path if path is not None else CADENCE_FILE)
     out = dict(DEFAULTS)
     out["source"] = "default"
+    out["period_min"] = DEFAULTS["every_hours"] * 60
+    out["burst_until"] = None
+    out["burst_active"] = False
     try:
         doc = json.loads(p.read_text())
     except (OSError, ValueError) as e:
@@ -118,6 +167,33 @@ def read_cadence(path=None, log=print) -> dict:
     else:
         log(f"[cadence] quota_fraction={qf!r} is not in (0, 1]; using "
             f"{DEFAULTS['quota_fraction']}")
+
+    out["period_min"] = out["every_hours"] * 60
+    b = doc.get("burst")
+    if b is not None:
+        em = until = None
+        if isinstance(b, dict):
+            raw = b.get("every_minutes")
+            if not isinstance(raw, bool):
+                try:
+                    f = float(raw)
+                    if f == f and f == int(f) and MIN_BURST_MIN <= f <= MAX_BURST_MIN:
+                        em = int(f)
+                except (TypeError, ValueError):
+                    em = None
+            until = _epoch(b.get("until"))
+        if em is None or until is None:
+            log(f"[cadence] burst={b!r} is not {{every_minutes: {MIN_BURST_MIN}..{MAX_BURST_MIN}, "
+                f"until: ISO-8601 or epoch}}; ignored, the standing period stands")
+        else:
+            now = time.time() if now_s is None else float(now_s)
+            out["burst_until"] = int(until)
+            if now < until:
+                out["period_min"] = em
+                out["burst_active"] = True
+            else:
+                log(f"[cadence] burst of every {em} min expired at {_iso(until)}; the standing "
+                    f"period of {out['every_hours']} h stands")
     return out
 
 
@@ -126,6 +202,11 @@ def next_fire_at(start_s, every_hours: int) -> int:
     period later, start to start, so the cadence is every_hours whatever a
     run's own length."""
     return int(start_s) + int(every_hours) * 3600
+
+
+def next_fire_at_min(start_s, period_min: int) -> int:
+    """next_fire_at with the period in minutes (the burst-aware knob)."""
+    return int(start_s) + int(period_min) * 60
 
 
 def timer_wait_s(fire_at, now_s, cap_s: int = MAX_TIMER_WAIT_S) -> int:
@@ -145,6 +226,21 @@ def fresh_min(every_hours: int, slack_min: int = FRESH_SLACK_MIN) -> int:
     a hand started shortly before the slot is not doubled, while one that
     started a period ago is due."""
     return max(1, int(every_hours) * 60 - int(slack_min))
+
+
+def fresh_min_p(period_min: int, slack_min: int = FRESH_SLACK_MIN) -> int:
+    """fresh_min with the period in minutes. The slack never exceeds half the
+    period, so a 30-minute burst stands the timer down for a run younger than
+    15 minutes rather than one younger than a minute; at 240 it is 210, the
+    same number fresh_min(4) gives."""
+    pm = int(period_min)
+    return max(1, pm - min(int(slack_min), pm // 2))
+
+
+def built_fresh_min_p(period_min: int, slack_min: int = FRESH_SLACK_MIN,
+                      run_min: int = RUN_LENGTH_MIN) -> int:
+    """built_fresh_min with the period in minutes."""
+    return max(1, fresh_min_p(period_min, slack_min) - int(run_min))
 
 
 def built_fresh_min(every_hours: int, slack_min: int = FRESH_SLACK_MIN,
@@ -237,7 +333,9 @@ def main(argv=None) -> int:
     if cmd == "show":
         c = read_cadence()
         print(f"every_hours={c['every_hours']} quota_fraction={c['quota_fraction']} "
-              f"fresh_min={fresh_min(c['every_hours'])} "
+              f"period_min={c['period_min']} "
+              f"burst={'active until ' + _iso(c['burst_until']) if c['burst_active'] else ('expired ' + _iso(c['burst_until']) if c['burst_until'] else 'none')} "
+              f"fresh_min={fresh_min_p(c['period_min'])} "
               f"watchdog_stale_min={watchdog_stale_min(c['every_hours'])} "
               f"source={c['source']}")
         return 0
@@ -245,22 +343,25 @@ def main(argv=None) -> int:
         # key=value lines ONLY (a workflow command in $GITHUB_OUTPUT fails
         # the step); the notice goes to stdout
         c = read_cadence()
-        lines = {"every_hours": c["every_hours"], "quota_fraction": c["quota_fraction"]}
+        lines = {"every_hours": c["every_hours"], "quota_fraction": c["quota_fraction"],
+                 "period_min": c["period_min"],
+                 "burst_until": c["burst_until"] if c["burst_until"] is not None else ""}
         path = os.environ.get("GITHUB_OUTPUT")
         if path:
             with open(path, "a") as fh:
                 for k, v in lines.items():
                     fh.write(f"{k}={v}\n")
         print(" ".join(f"{k}={v}" for k, v in lines.items()))
-        print(f"::notice::cadence: a refresh every {c['every_hours']} h, every collector "
+        period = (f"{c['period_min']} min (BURST until {_iso(c['burst_until'])}; "
+                  f"{c['every_hours']} h afterwards)" if c["burst_active"] else f"{c['every_hours']} h")
+        print(f"::notice::cadence: a refresh every {period}, every collector "
               f"capped at {c['quota_fraction']:.0%} of the hourly Warcraft Logs limit "
               f"({c['source']})")
         return 0
     if cmd == "timer":
         # shell assignments for timer.yml's sleep step to eval: WAIT_S,
-        # FIRE_AT (resolved: a blank input is now), EVERY_HOURS, FRESH_MIN,
-        # BUILT_FRESH_MIN
-        import time
+        # FIRE_AT (resolved: a blank input is now), EVERY_HOURS, PERIOD_MIN
+        # (the burst-aware period), FRESH_MIN, BUILT_FRESH_MIN
         c = read_cadence()
         now = int(time.time())
         raw = (os.environ.get("FIRE_AT") or "").strip()
@@ -268,8 +369,9 @@ def main(argv=None) -> int:
         print(f"WAIT_S={wait}")
         print(f"FIRE_AT={now + wait}")
         print(f"EVERY_HOURS={c['every_hours']}")
-        print(f"FRESH_MIN={fresh_min(c['every_hours'])}")
-        print(f"BUILT_FRESH_MIN={built_fresh_min(c['every_hours'])}")
+        print(f"PERIOD_MIN={c['period_min']}")
+        print(f"FRESH_MIN={fresh_min_p(c['period_min'])}")
+        print(f"BUILT_FRESH_MIN={built_fresh_min_p(c['period_min'])}")
         return 0
     if cmd == "chain":
         # shell assignments for the Chain step to eval: CHAIN, NEXT_BACKFILL,
