@@ -288,6 +288,22 @@ for fire, want in ((str(int(time.time()) + 600), (595, 600)), ("", (0, 0)), (str
 r = subprocess.run(["bash", "-c", f'eval "$({sys.executable} scripts/cadence.py timer)"; echo "$WAIT_S|$FRESH_MIN"'],
                    cwd=ROOT, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
 check(r.returncode == 0 and r.stdout.strip() == f"0|{cadence.fresh_min_p(real['period_min'])}", f"bash eval of the timer CLI: {r.stdout.strip()!r}")
+# 2026-10-09, timer #148: the first timer after the burst expired died with exit 127 because
+# read_cadence's "[cadence] burst … expired" line went to STDOUT and was eval'd as a command.
+# The eval'd commands' stdout must be assignments only, whatever the file makes the reader say.
+with tempfile.TemporaryDirectory() as tmp:
+    import shutil, os as _os
+    droot = pathlib.Path(tmp); (droot / "data").mkdir(); (droot / "scripts").mkdir()
+    shutil.copy(ROOT / "scripts" / "cadence.py", droot / "scripts" / "cadence.py")
+    for name, doc in (("expired burst", {"every_hours": 4, "quota_fraction": 0.7, "burst": {"every_minutes": 30, "until": "2020-01-01T00:00:00Z"}}),
+                      ("bad knobs", {"every_hours": 0, "quota_fraction": 3, "burst": "nope"})):
+        (droot / "data" / "cadence.json").write_text(json.dumps(doc))
+        r = subprocess.run(["bash", "-e", "-c", f'eval "$({sys.executable} scripts/cadence.py timer)"; echo "$WAIT_S|$PERIOD_MIN|$FRESH_MIN"'],
+                           cwd=droot, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
+        check(r.returncode == 0 and r.stdout.strip() == "0|240|210" and "[cadence]" in r.stderr,
+              f"timer CLI with a file that makes the reader talk ({name}): stdout is assignments only, the talk is on stderr ({r.stdout.strip()!r}, rc {r.returncode})")
+        r2 = subprocess.run([sys.executable, "scripts/cadence.py", "timer"], cwd=droot, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
+        check(all("=" in l and not l.startswith("[") for l in r2.stdout.strip().splitlines()), f"timer CLI stdout lines are all KEY=VALUE ({name})")
 
 # --- 5. the workflows -----------------------------------------------------------------------
 import yaml                                  # noqa: E402

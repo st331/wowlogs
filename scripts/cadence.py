@@ -260,6 +260,14 @@ def watchdog_stale_min(every_hours: int) -> int:
     return int(every_hours) * 60 + 60
 
 
+def _log_stderr(msg) -> None:
+    """read_cadence's log for the commands whose stdout a workflow step evals:
+    a "[cadence] …" line on stdout there is a shell command, and bash fails
+    the step with 127 (timer #148, 2026-10-09: the first timer after the
+    burst expired)."""
+    print(msg, file=sys.stderr, flush=True)
+
+
 def _flag(v) -> bool:
     return str(v if v is not None else "").strip().lower() in ("1", "true", "yes", "on")
 
@@ -361,8 +369,9 @@ def main(argv=None) -> int:
     if cmd == "timer":
         # shell assignments for timer.yml's sleep step to eval: WAIT_S,
         # FIRE_AT (resolved: a blank input is now), EVERY_HOURS, PERIOD_MIN
-        # (the burst-aware period), FRESH_MIN, BUILT_FRESH_MIN
-        c = read_cadence()
+        # (the burst-aware period), FRESH_MIN, BUILT_FRESH_MIN. Logs go to
+        # stderr: stdout is eval'd, so it carries assignments and nothing else.
+        c = read_cadence(log=_log_stderr)
         now = int(time.time())
         raw = (os.environ.get("FIRE_AT") or "").strip()
         wait = timer_wait_s(raw, now)
