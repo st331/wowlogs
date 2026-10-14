@@ -2,9 +2,9 @@
   "every_hours": 4,
   "quota_fraction": 0.7,
   "burst": {
-    "every_minutes": 30,
-    "until": "2026-10-09T17:45:00Z",
-    "note": "Owner, 2026-10-07 23:09 IST: \"over the next 2 days, keep refreshing every 30 minutes, starting now. adhere to the 70% wcl quota maximum.\" While `until` is ahead, every refresh arms the timer every_minutes after its own start instead of every_hours; quota_fraction is unchanged and the governor still measures it against the account's live spend. Once `until` passes the block is inert and the every_hours cadence resumes by itself (every run and timer re-read this file)."
+    "every_minutes": 15,
+    "until": "2026-10-17T02:00:00Z",
+    "note": "Owner, 2026-10-14 07:21 IST: \"refresh the data and keep refreshing every 15 minutes for the next 3 days.\" While `until` is ahead, every refresh arms the timer every_minutes after its own start instead of every_hours; quota_fraction is unchanged (the owner's standing 70%) and the governor measures it against the account's live spend. Once `until` passes the block is inert and the every_hours cadence resumes by itself (every run and timer re-read this file). Previous burst: every 30 min, 2026-10-07 17:45Z to 2026-10-09 17:45Z (95 runs, peak hour 12,195 of 12,600)."
   },
   "note": "Owner, 2026-09-30: \"move to a cadence of updating the data every 4 hours or so ... never end up using more than 70% of my API quota.\" every_hours is the refresh cron's period (refresh.yml: cron `0 */4 * * *`, changed by hand together with this file; the watchdog's quiet threshold is every_hours + 1 h). quota_fraction is the share of the hourly Warcraft Logs limit EVERY collector process may spend, read by scripts/wcl_client.py whenever WCL_QUOTA_FRACTION is not set: the ceiling is measured against the account's live spend, so the sweep, the bundle, the trinket and keystone collectors and the owner's own lookups together never pass it. data/backfill.json, while its `until` is in the future, overrides quota_fraction with its `share` and chains runs back to back (scripts/backfill.py)."
 }

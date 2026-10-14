@@ -677,3 +677,9 @@
     the same day the owner asked for two one-off force refreshes at the full quota (dispatched with
     `quota_fraction=1.0`; they spent 4,118 and 5,582 points — the cap was never the limit).
 
+41. **A three-day 15-minute burst (owner, 2026-10-14 07:21 IST: "refresh the data and keep
+    refreshing every 15 minutes for the next 3 days.")** The same `burst` block as #40, now
+    `every_minutes: 15`, `until: 2026-10-17T02:00:00Z`; the cap stays the standing 70% (#40, the
+    owner's own ceiling) — nothing in this request lifted it. A refresh was dispatched at once and
+    the chain arms itself from there; the 4-hour cadence resumes on its own at `until`.
+
