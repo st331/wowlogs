@@ -129,6 +129,7 @@ def read_cadence(path=None, log=print, now_s=None) -> dict:
     out["period_min"] = DEFAULTS["every_hours"] * 60
     out["burst_until"] = None
     out["burst_active"] = False
+    out["burst_every"] = None          # the block's every_minutes, kept past expiry (see `timer`)
     try:
         doc = json.loads(p.read_text())
     except (OSError, ValueError) as e:
@@ -188,6 +189,7 @@ def read_cadence(path=None, log=print, now_s=None) -> dict:
         else:
             now = time.time() if now_s is None else float(now_s)
             out["burst_until"] = int(until)
+            out["burst_every"] = em
             if now < until:
                 out["period_min"] = em
                 out["burst_active"] = True
@@ -375,12 +377,31 @@ def main(argv=None) -> int:
         now = int(time.time())
         raw = (os.environ.get("FIRE_AT") or "").strip()
         wait = timer_wait_s(raw, now)
+        pm = c["period_min"]
+        # THE EXPIRY HANDOVER: a timer judges "is the newest refresh fresh?"
+        # with the period it was ARMED with, not the one the file reads when
+        # it wakes. The last run that starts inside a burst arms fire_at =
+        # its start + every_minutes; if `until` falls between that start and
+        # this timer's wake, the file now says every_hours and the standing
+        # fresh_min (210 at 4 h) would stand the slot down for a run that is
+        # exactly one burst period old -- nothing sleeping, the burst's last
+        # slot lost, the standing cadence left to the watchdog. The slot
+        # itself says when it was armed: fire_at - every_minutes * 60.
+        try:
+            fa = float(raw) if raw else None
+        except ValueError:
+            fa = None
+        if (not c["burst_active"] and c["burst_every"] and c["burst_until"] is not None
+                and fa is not None and fa - c["burst_every"] * 60 < c["burst_until"]):
+            pm = c["burst_every"]
+            _log_stderr(f"[cadence] this slot was armed under the burst (every {pm} min) before it "
+                        f"expired at {_iso(c['burst_until'])}; judging it with that period")
         print(f"WAIT_S={wait}")
         print(f"FIRE_AT={now + wait}")
         print(f"EVERY_HOURS={c['every_hours']}")
-        print(f"PERIOD_MIN={c['period_min']}")
-        print(f"FRESH_MIN={fresh_min_p(c['period_min'])}")
-        print(f"BUILT_FRESH_MIN={built_fresh_min_p(c['period_min'])}")
+        print(f"PERIOD_MIN={pm}")
+        print(f"FRESH_MIN={fresh_min_p(pm)}")
+        print(f"BUILT_FRESH_MIN={built_fresh_min_p(pm)}")
         return 0
     if cmd == "chain":
         # shell assignments for the Chain step to eval: CHAIN, NEXT_BACKFILL,

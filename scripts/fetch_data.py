@@ -126,7 +126,7 @@ LOW_KEY_MAX_PAGE = 4              # 200 runs per dungeon x key below +10
 
 
 # Sweep depth (2026-09-09, owner: "minimum time, maximum frequency"). A DEEP
-# sweep walks every board to its cap (~1,900 points) and is what the page's
+# sweep walks every board to its cap (~2,250 points in October 2026, ~1,900 in September) and is what the page's
 # Coverage line describes. A SHALLOW sweep -- the default between deep ones --
 # reads only where a NEW run can appear: a board whose whole window sits at the
 # bracket's maximum score (+10..+16 since late August) orders it newest-upload

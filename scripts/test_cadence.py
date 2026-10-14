@@ -304,6 +304,13 @@ with tempfile.TemporaryDirectory() as tmp:
               f"timer CLI with a file that makes the reader talk ({name}): stdout is assignments only, the talk is on stderr ({r.stdout.strip()!r}, rc {r.returncode})")
         r2 = subprocess.run([sys.executable, "scripts/cadence.py", "timer"], cwd=droot, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
         check(all("=" in l and not l.startswith("[") for l in r2.stdout.strip().splitlines()), f"timer CLI stdout lines are all KEY=VALUE ({name})")
+    # the expiry handover: a slot armed under the burst is judged with the burst's period after `until`
+    until_s = 1791567900
+    (droot / "data" / "cadence.json").write_text(json.dumps({"every_hours": 4, "quota_fraction": 0.7, "burst": {"every_minutes": 15, "until": until_s}}))
+    for fire, want in ((str(until_s - 300 + 15 * 60), "15|8|1"), (str(until_s + 3600), "240|210|195"), ("", "240|210|195")):
+        r = subprocess.run(["bash", "-e", "-c", f'eval "$({sys.executable} scripts/cadence.py timer)"; echo "$PERIOD_MIN|$FRESH_MIN|$BUILT_FRESH_MIN"'],
+                           cwd=droot, capture_output=True, text=True, env={**tenv, "FIRE_AT": fire})
+        check(r.returncode == 0 and r.stdout.strip() == want, f"expired burst, FIRE_AT={fire!r}: period {want} ({r.stdout.strip()!r})")
 
 # --- 5. the workflows -----------------------------------------------------------------------
 import yaml                                  # noqa: E402
@@ -357,6 +364,8 @@ check("!cancelled()" in arm["if"] and "success()" not in arm["if"],
       f"the arm step runs on success and failure alike ({arm['if']})")
 check(arm["env"]["PERIOD_MIN"] == "${{ steps.cadence.outputs.period_min || 240 }}",
       "the arm step's period is the Cadence step's burst-aware period_min, defaulting to 240 when it did not run")
+check('if [ "$FIRE_AT" -lt $(( NOW + 90 )) ]' in arm["run"] and "for i in 1 2 3" in arm["run"],
+      "the arm step floors a past slot 90 s out (an overrun run must not race its own timer) and retries the POST")
 check("FIRE_AT=$(( ${JOB_START:-$(date +%s)} + PERIOD_MIN * 60 ))" in arm["run"],
       "the slot is JOB_START + every_hours (next_fire_at), start to start")
 check("/actions/workflows/timer.yml/dispatches" in arm["run"] and r'\"fire_at\":\"$FIRE_AT\"' in arm["run"]
@@ -377,6 +386,9 @@ check('eval "$(python3 scripts/cadence.py timer)"' in tsteps["Sleep until the sl
       and tsteps["Sleep until the slot"]["env"]["FIRE_AT"] == "${{ inputs.fire_at }}",
       "the sleep step takes its wait from cadence.py timer and the fire_at input")
 tdisp = tsteps["Dispatch the refresh unless one is running or fresh"]["run"]
+check("for i in 1 2 3" in tdisp and "workflows/timer.yml/dispatches" in tdisp and 'echo "PERIOD_MIN=$PERIOD_MIN" >> "$GITHUB_ENV"' in tsteps["Sleep until the slot"]["run"],
+      "the timer retries its dispatch and re-arms itself one period out if all three fail")
+check(steps["Fetch"].get("timeout-minutes", "").endswith("|| 65 }}"), "the Fetch step has its own timeout under the job's")
 check("/actions/workflows/refresh.yml/dispatches" in tdisp and r'\"chain\":\"true\"' in tdisp
       and 'if [ "$ACTIVE" != "0" ]' in tdisp and 'if [ "$LAST_AGE" -lt "$FRESH_MIN" ]' in tdisp,
       "the timer dispatches refresh.yml as a cadence run, and stands down for a running or fresh one")
@@ -409,18 +421,20 @@ check(stale == cadence.watchdog_stale_min(real["every_hours"]),
       f"watchdog STALE_SUCCESS_MIN={stale} is every_hours x 60 + 60 ({cadence.watchdog_stale_min(real['every_hours'])})")
 wsteps = {s.get("name"): s for s in wjob["steps"]}
 warm = wsteps["Arm the timer when none is sleeping"]
-check("timer_pending == '0'" in warm["if"] and "active == '0'" in warm["if"]
+check("timer_pending == '0'" in warm["if"] and "active == '0'" in warm["if"] and "list_stale != '1'" in warm["if"]
       and "ok_age) <= fromJSON(env.STALE_SUCCESS_MIN)" in warm["if"],
       "the watchdog arms a timer only when none is sleeping, nothing runs and the cadence is not stale")
 check("/actions/workflows/timer.yml/dispatches" in warm["run"] and warm["env"]["NEXT_DUE"] == "${{ steps.probe.outputs.next_due }}",
       "the watchdog's arm dispatches timer.yml for the last success's start plus a period")
 probe = wsteps["Inspect the refresh workflow and the published site"]["run"]
 check("the runs list is stale" in probe and "OK_AGE=$BUILT_AGE" in probe and "STREAK=0" in probe
-      and "NEXT_DUE=$(( BUILT_S - 600 + EVERY_HOURS * 3600 ))" in probe,
+      and "NEXT_DUE=$(( BUILT_S - 600 + PERIOD_MIN * 60 ))" in probe and "LIST_STALE=1" in probe,
       "the probe takes the site's build stamp as a second witness: the younger age drives the revival, a stale list's streak is not believed")
 check(probe.index("RUNS_OK_AGE=$OK_AGE") > probe.index("OK_AGE=99999"),
       "the runs list's age is kept only after OK_AGE exists (the probe runs under set -u; run #184 died on it)")
-check("workflows/timer.yml/runs" in probe and "NEXT_DUE=$(( $(date -u -d \"$LAST_OK_START\" +%s) + EVERY_HOURS * 3600 ))" in probe
+check("workflows/timer.yml/runs" in probe and "NEXT_DUE=$(( $(date -u -d \"$LAST_OK_START\" +%s) + PERIOD_MIN * 60 ))" in probe
+      and "PERIOD_MIN=$(python3 scripts/cadence.py timer 2>/dev/null | sed -n 's/^PERIOD_MIN=//p' | head -1)" in probe
+      and wjob["steps"][0].get("uses", "").startswith("actions/checkout@") and "scripts/cadence.py" in wjob["steps"][0]["with"]["sparse-checkout"]
       and 'echo "timer_pending=$TIMER_PENDING"' in probe, "the probe counts sleeping timers and computes the next slot")
 check(alert > stale and data > stale and data >= real["every_hours"] * 60 * 2,
       f"alert ({alert}) and stale-data ({data}) thresholds sit above the quiet threshold and two periods")

@@ -86,6 +86,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # The cadence file and its reader, so the slot this watchdog arms is the
+      # period in force NOW (a burst's every_minutes while it lasts, else
+      # every_hours) -- 2026-10-14: until this step, an arm during a 30- or
+      # 15-minute burst was always every_hours ahead, and because timer.yml is
+      # newest-wins it cancelled the sleeping burst timer: a silent 4-hour
+      # hole (seen twice at the 4-hour cadence, where it only cost minutes).
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          sparse-checkout: |
+            data/cadence.json
+            scripts/cadence.py
+          sparse-checkout-cone-mode: false
+
       - name: Inspect the refresh workflow and the published site
         id: probe
         env:
@@ -93,8 +107,14 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -u
-          api() { curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          api() { curl -sf -m 30 --retry 3 --retry-delay 10 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
           NOW=$(date -u +%s)
+          # the period in force now, in minutes (scripts/cadence.py timer prints
+          # assignments only; its talk goes to stderr); the env's EVERY_HOURS
+          # stays the standing-period backstop for the thresholds below
+          PERIOD_MIN=$(python3 scripts/cadence.py timer 2>/dev/null | sed -n 's/^PERIOD_MIN=//p' | head -1)
+          case "$PERIOD_MIN" in ''|*[!0-9]*) PERIOD_MIN=$(( EVERY_HOURS * 60 )); echo "::warning::cadence.py gave no period; using EVERY_HOURS ($PERIOD_MIN min)";; esac
+          LIST_STALE=0
 
           # ---- 1. refresh runs: latest success age, anything active, failure streak
           RUNS=$(api "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/runs?branch=$BRANCH&per_page=25") || RUNS='{"workflow_runs":[]}'
@@ -105,10 +125,11 @@ jobs:
           TIMERS=$(api "https://api.github.com/repos/$REPO/actions/workflows/timer.yml/runs?branch=$BRANCH&per_page=10") || TIMERS='{"workflow_runs":[]}'
           TIMER_PENDING=$(echo "$TIMERS" | jq -r '[.workflow_runs[] | select(.status=="in_progress" or .status=="queued" or .status=="pending" or .status=="waiting")] | length')
           if [ -n "$LAST_OK_START" ]; then
-            NEXT_DUE=$(( $(date -u -d "$LAST_OK_START" +%s) + EVERY_HOURS * 3600 ))
+            NEXT_DUE=$(( $(date -u -d "$LAST_OK_START" +%s) + PERIOD_MIN * 60 ))
           else
             NEXT_DUE=$NOW
           fi
+          [ "$NEXT_DUE" -lt "$NOW" ] && NEXT_DUE=$NOW
           # A run that is RUNNING is active. A run that is merely waiting for a
           # runner is not -- and treating it as active is how this workflow sat
           # and watched the pipeline die for 68 hours.
@@ -190,11 +211,16 @@ jobs:
             OK_AGE=$BUILT_AGE
             STREAK=0
             LAST_CONCLUSION="success (per the site's build stamp)"
-            NEXT_DUE=$(( BUILT_S - 600 + EVERY_HOURS * 3600 ))
+            NEXT_DUE=$(( BUILT_S - 600 + PERIOD_MIN * 60 ))
+            [ "$NEXT_DUE" -lt "$NOW" ] && NEXT_DUE=$NOW
+            # a list that is stale about the refreshes is not believed about
+            # the timers either: no arm this tick (a healthy cadence always has
+            # a timer sleeping or a run in flight; the next tick covers it)
+            LIST_STALE=1
           fi
 
           echo "last successful refresh : ${LAST_OK:-never} (${RUNS_OK_AGE} min ago per the runs list; ${OK_AGE} min counting the site's build)"
-          echo "timers sleeping         : $TIMER_PENDING (next slot $(date -u -d "@$NEXT_DUE" +'%H:%M UTC'))"
+          echo "timers sleeping         : $TIMER_PENDING (next slot $(date -u -d "@$NEXT_DUE" +'%H:%M UTC'), period ${PERIOD_MIN} min)"
           echo "active refresh runs     : $ACTIVE (running $RUNNING, waiting $WAITING)"
           [ -n "$STUCK_ID" ] && echo "STUCK queued run        : #$STUCK_ID, ${STUCK_AGE} min with nothing running"
           echo "failure streak          : $STREAK (last: $LAST_CONCLUSION)"
@@ -202,7 +228,7 @@ jobs:
           echo "newest collected run    : ${NEWEST:-unknown} (data age ${DATA_AGE} min)"
           {
             echo "ok_age=$OK_AGE"; echo "active=$ACTIVE"; echo "streak=$STREAK"
-            echo "timer_pending=$TIMER_PENDING"; echo "next_due=$NEXT_DUE"
+            echo "timer_pending=$TIMER_PENDING"; echo "next_due=$NEXT_DUE"; echo "list_stale=$LIST_STALE"
             echo "stuck_id=$STUCK_ID"; echo "stuck_age=$STUCK_AGE"
             echo "last_conclusion=$LAST_CONCLUSION"; echo "data_age=$DATA_AGE"
             echo "built=${BUILT:-unknown}"; echo "newest=${NEWEST:-unknown}"; echo "rows=${ROWS:-?}"
@@ -256,7 +282,7 @@ jobs:
       # cadence IS stale the revive step above has dispatched a run, and that
       # run arms the next timer from its own start.
       - name: Arm the timer when none is sleeping
-        if: steps.probe.outputs.timer_pending == '0' && steps.probe.outputs.active == '0' && steps.probe.outputs.stuck_id == '' && fromJSON(steps.probe.outputs.ok_age) <= fromJSON(env.STALE_SUCCESS_MIN)
+        if: steps.probe.outputs.timer_pending == '0' && steps.probe.outputs.active == '0' && steps.probe.outputs.stuck_id == '' && steps.probe.outputs.list_stale != '1' && fromJSON(steps.probe.outputs.ok_age) <= fromJSON(env.STALE_SUCCESS_MIN)
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -287,7 +313,7 @@ jobs:
           LAST_CONCLUSION: ${{ steps.probe.outputs.last_conclusion }}
         run: |
           set -u
-          api() { curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          api() { curl -sf -m 30 --retry 3 --retry-delay 10 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
           TITLE="Refresh stalled"
           NL=$'\n'
           REASONS=""

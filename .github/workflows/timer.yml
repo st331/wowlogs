@@ -75,6 +75,7 @@ jobs:
           done
           echo "FRESH_MIN=$FRESH_MIN" >> "$GITHUB_ENV"
           echo "BUILT_FRESH_MIN=$BUILT_FRESH_MIN" >> "$GITHUB_ENV"
+          echo "PERIOD_MIN=$PERIOD_MIN" >> "$GITHUB_ENV"
 
       - name: Dispatch the refresh unless one is running or fresh
         env:
@@ -82,7 +83,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -u
-          api() { curl -sf -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          api() { curl -sf -m 30 --retry 3 --retry-delay 10 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
           NOW=$(date -u +%s)
           RUNS=$(api "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/runs?branch=$BRANCH&per_page=15") || RUNS='{"workflow_runs":[]}'
           ACTIVE=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="in_progress" or .status=="queued" or .status=="pending" or .status=="waiting")] | length')
@@ -102,9 +103,28 @@ jobs:
           if [ "$BUILT_AGE" -lt "$BUILT_FRESH_MIN" ]; then
             echo "the site was built ${BUILT_AGE} min ago (fresh under ${BUILT_FRESH_MIN}): standing down, the run that built it armed its own timer"; exit 0
           fi
-          curl -sf -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/dispatches" \
-            -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"chain\":\"true\"}}" \
-            && echo "dispatched the refresh (the newest one started ${LAST_AGE} min ago, the site was built ${BUILT_AGE} min ago)" \
-            || echo "::warning::dispatch failed; the watchdog revives the cadence on its next tick"
+          # three tries 20 s apart: a transient API error must cost seconds,
+          # not a watchdog tick (hours apart). If all three fail, re-arm THIS
+          # timer one period out as the step's last act -- the cadence then
+          # does not depend on the watchdog at all. (The re-arm lands in this
+          # workflow's newest-wins group and cancels this nearly finished run,
+          # which is why it is the last command.)
+          OK=""
+          for i in 1 2 3; do
+            curl -sf -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/actions/workflows/refresh.yml/dispatches" \
+              -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"chain\":\"true\"}}" && { OK=1; break; }
+            echo "dispatch attempt $i failed"; sleep 20
+          done
+          if [ -n "$OK" ]; then
+            echo "dispatched the refresh (the newest one started ${LAST_AGE} min ago, the site was built ${BUILT_AGE} min ago)"
+          else
+            RE_AT=$(( $(date -u +%s) + ${PERIOD_MIN:-240} * 60 ))
+            echo "::warning::dispatch failed three times; re-arming this timer for $(date -u -d "@$RE_AT" +'%H:%M UTC') (${PERIOD_MIN:-240} min from now)"
+            curl -sf -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/actions/workflows/timer.yml/dispatches" \
+              -d "{\"ref\":\"$BRANCH\",\"inputs\":{\"fire_at\":\"$RE_AT\",\"armed_by\":\"timer #${{ github.run_number }} (re-arm after a failed dispatch)\"}}" \
+              && echo "re-armed" || echo "::warning::re-arm failed too; the watchdog revives the cadence on its next tick"
+          fi

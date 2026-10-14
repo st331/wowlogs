@@ -272,9 +272,14 @@ jobs:
         run: bash scripts/journal_guard.sh
 
       # Sweep depth (owner, 2026-09-09). Deep = every board to its cap, the
-      # sweep the Coverage line describes, ~1,900 points; shallow = only where
+      # sweep the Coverage line describes, ~2,250 points (2,240 pages; it was
+      # ~1,900 in September -- the +17 and higher boards have filled to their
+      # 20-page cap since); shallow = only where
       # a new run can appear (page 1 of a max-score board, the whole board
-      # where score still varies), ~800. Deep at least every 50 minutes, and
+      # where score still varies), ~1,300 (was ~800). Deep when the last deep
+      # sweep ENDED more than 50 minutes ago (the stamp is written after the
+      # sweep: every run at the 4-hour period, every 4th run at a 15-minute
+      # burst), and
       # always inside a drain, so nothing a shallow sweep skips waits longer
       # than the next deep one; the discovery ledger holds it meanwhile.
       - name: Sweep depth
@@ -290,6 +295,12 @@ jobs:
       - name: Fetch
         id: fetch
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
+        # ~15 min under the job's limit: a Warcraft Logs outage that holds the
+        # client in its retry loop then fails THIS STEP (failure(): the journals
+        # still save, the Arm step still arms the next slot, the watchdog is
+        # woken) instead of running the job into its own timeout, which GitHub
+        # records as a cancellation that arms nothing and wakes nobody
+        timeout-minutes: ${{ inputs.bundle_backfill == 'true' && 155 || (inputs.regear_min_key != '' || inputs.drain == 'true') && 95 || 65 }}
         env:
           WCL_CLIENT_ID: ${{ secrets.WCL_CLIENT_ID }}
           WCL_CLIENT_SECRET: ${{ secrets.WCL_CLIENT_SECRET }}
@@ -353,7 +364,7 @@ jobs:
           # The sweep closes its cursors once walked, so a refresh that does
           # not re-scan finds nothing -- hence re-scanning by default. A gear
           # refetch works from the existing journal and gains nothing from it,
-          # and the scan is ~1,900 points, about 1,400 runs of refetch.
+          # and the scan is ~2,250 points, about 1,600 runs of refetch.
           REGEAR=""
           if [ -n "${{ inputs.regear_min_key }}" ]; then
             REGEAR="--regear-min-key ${{ inputs.regear_min_key }} --regear-days ${{ inputs.regear_days || '3' }}"
@@ -762,13 +773,24 @@ jobs:
           PERIOD_MIN: ${{ steps.cadence.outputs.period_min || 240 }}
         run: |
           FIRE_AT=$(( ${JOB_START:-$(date +%s)} + PERIOD_MIN * 60 ))
+          # a run that outlived its period would arm a slot already past: the
+          # timer would fire at once and snapshot the runs list seconds after
+          # this job ends, and a list that still shows this run in progress
+          # stands it down -- with nothing else sleeping. 90 s clears that race
+          # by an order of magnitude (at 240 min the floor never engages).
+          NOW=$(date +%s); if [ "$FIRE_AT" -lt $(( NOW + 90 )) ]; then
+            echo "this run overran its ${PERIOD_MIN}-min period; arming 90 s out instead of a slot already past"; FIRE_AT=$(( NOW + 90 )); fi
           echo "arming the timer for $(date -u -d "@$FIRE_AT" +'%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Kolkata date -d "@$FIRE_AT" +'%H:%M IST')), ${PERIOD_MIN} min after this run started"
-          curl -sf -X POST \
-            -H "Authorization: Bearer ${{ github.token }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/timer.yml/dispatches" \
-            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"fire_at\":\"$FIRE_AT\",\"armed_by\":\"refresh #${{ github.run_number }}\"}}" \
-            && echo "armed" || echo "::warning::arming the timer failed; the watchdog arms one on its next tick"
+          ARMED=""
+          for i in 1 2 3; do       # a transient API error costs seconds, not a watchdog tick
+            curl -sf -X POST \
+              -H "Authorization: Bearer ${{ github.token }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/timer.yml/dispatches" \
+              -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"fire_at\":\"$FIRE_AT\",\"armed_by\":\"refresh #${{ github.run_number }}\"}}" && { ARMED=1; break; }
+            echo "arm attempt $i failed"; sleep 20
+          done
+          [ -n "$ARMED" ] && echo "armed" || echo "::warning::arming the timer failed three times; the watchdog arms one on its next tick"
 
       # A failed run does not chain (a deterministic fault would loop), but it
       # must not go quiet either: it wakes the watchdog directly, which
