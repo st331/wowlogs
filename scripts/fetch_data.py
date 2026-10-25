@@ -1961,6 +1961,30 @@ def main() -> None:
                          "backfill.deadline": _iso(QUOTA.deadline * 1000)})
     else:
         write_outputs(**{"backfill.on": 0})
+        # A CADENCE RUN'S WALL CLOCK (refresh.yml FETCH_WALL_S, measured from
+        # JOB_START; shortened to the period less five minutes under a burst,
+        # PERIOD_MIN). Under a backlog a run reaches the ceiling, sleeps to a
+        # near reset and fetches the next window too: #5184 ran 68 min, #5187
+        # was killed by the step timeout with nothing published (2026-10-22/23).
+        # With a deadline the governor stops cleanly (QuotaDeadline): the run
+        # exports, builds, publishes and arms the next slot, which carries on.
+        try:
+            wall_s = float(os.environ.get("FETCH_WALL_S") or 0)
+        except ValueError:
+            wall_s = 0.0
+        try:
+            period_min = float(os.environ.get("PERIOD_MIN") or 0)
+        except ValueError:
+            period_min = 0.0
+        if wall_s > 0 and period_min > 0:
+            wall_s = min(wall_s, max(300.0, period_min * 60 - 300))
+        if wall_s > 0:
+            job_start = float(os.environ.get("JOB_START") or 0) or time.time()
+            QUOTA.deadline = job_start + wall_s
+            print(f"[quota] this run's wall-clock deadline is {_iso(QUOTA.deadline * 1000)} "
+                  f"({(QUOTA.deadline - time.time()) / 60:.0f} min away: FETCH_WALL_S={wall_s:.0f} from "
+                  f"JOB_START; the governor stops cleanly there, budget or not)", flush=True)
+            write_outputs(**{"fetch.wall_deadline": _iso(QUOTA.deadline * 1000)})
         if (os.environ.get("BUNDLE_BACKFILL") or "").strip().lower() == "true":
             # A run the backfill chain dispatched after the switch expired
             # (owner, 2026-09-28: "keep the hard stop at 16:10 IST", the full

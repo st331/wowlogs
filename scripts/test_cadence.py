@@ -392,7 +392,8 @@ check(steps["Fetch"].get("timeout-minutes", "").endswith("|| 65 }}"), "the Fetch
 check("/actions/workflows/refresh.yml/dispatches" in tdisp and r'\"chain\":\"true\"' in tdisp
       and 'if [ "$ACTIVE" != "0" ]' in tdisp and 'if [ "$LAST_AGE" -lt "$FRESH_MIN" ]' in tdisp,
       "the timer dispatches refresh.yml as a cadence run, and stands down for a running or fresh one")
-check('"$SITE_HEALTH?t=$NOW"' in tdisp and 'if [ "$BUILT_AGE" -lt "$BUILT_FRESH_MIN" ]' in tdisp
+check('"$SITE_HEALTH?t=$NOW"' in tdisp and 'if [ "$BUILT_AGE" -lt "$BUILT_FRESH_MIN" ] && { [ "$LAST_AGE" = 99999 ] || [ "$STALE_LIST" = 1 ]; }' in tdisp
+      and 'BUILT_S" -gt $(( LAST_END_S + 300 ))' in tdisp
       and timer["env"]["SITE_HEALTH"].endswith("/build_health.txt"),
       "the timer asks the site's build stamp as a second witness before dispatching")
 check(tjob["steps"][0].get("uses", "").startswith("actions/checkout")
@@ -427,6 +428,20 @@ check("timer_pending == '0'" in warm["if"] and "active == '0'" in warm["if"] and
 check("/actions/workflows/timer.yml/dispatches" in warm["run"] and warm["env"]["NEXT_DUE"] == "${{ steps.probe.outputs.next_due }}",
       "the watchdog's arm dispatches timer.yml for the last success's start plus a period")
 probe = wsteps["Inspect the refresh workflow and the published site"]["run"]
+check('if [ "$OK_AGE" -ne 99999 ] && [ -n "$BUILT_S" ]' in probe and 'echo "last_end_age=$LAST_END_AGE"' in probe,
+      "no success among the newest runs is a streak, not a stale list; the probe reports when the newest run ended")
+wrev = wsteps["Revive the cadence if it has stopped"]
+check("last_end_age) >= 20" in wrev["if"] and "streak) <= 3 ||" in wrev["if"], "a long failure streak is revived at most every 20 minutes")
+check(steps["Fetch"]["env"]["FETCH_WALL_S"].endswith("|| '2700' }}") and steps["Fetch"]["env"]["PERIOD_MIN"] == "${{ steps.cadence.outputs.period_min }}",
+      "a cadence run's fetch has a 45-minute wall clock, shortened under a burst")
+import time as _t
+W.QUOTA.deadline = _t.time() - 5
+try:
+    W.QUOTA.admit(1.0, 0.0); _raised = False
+except W.QuotaDeadline:
+    _raised = True
+W.QUOTA.deadline = None
+check(_raised, "the governor refuses admission past a wall-clock deadline (QuotaDeadline), budget or not")
 check("the runs list is stale" in probe and "OK_AGE=$BUILT_AGE" in probe and "STREAK=0" in probe
       and "NEXT_DUE=$(( BUILT_S - 600 + PERIOD_MIN * 60 ))" in probe and "LIST_STALE=1" in probe,
       "the probe takes the site's build stamp as a second witness: the younger age drives the revival, a stale list's streak is not believed")

@@ -167,6 +167,15 @@ jobs:
           # consecutive non-success conclusions among completed runs, newest first
           STREAK=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed")] | sort_by(.created_at) | reverse | [.[].conclusion] | (index("success") // length)')
           LAST_CONCLUSION=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed")] | sort_by(.created_at) | last | .conclusion // "none"')
+          # minutes since the newest completed run ENDED: a long failure streak
+          # is retried at most every 20 minutes (see the revive step), so an
+          # outage costs a run per tick, not a run per minute -- on 2026-10-22
+          # a Warcraft Logs token outage (503) produced 187 failed runs in
+          # 2 h 50 min: each failure woke this workflow within a minute, the
+          # 25 newest runs were all failures, the "stale list" branch below
+          # read that as no success at all, zeroed the streak and revived.
+          LAST_END=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed")] | sort_by(.updated_at) | last | .updated_at // empty')
+          if [ -n "$LAST_END" ]; then LAST_END_AGE=$(( (NOW - $(date -u -d "$LAST_END" +%s)) / 60 )); else LAST_END_AGE=99999; fi
           if [ -n "$LAST_OK" ]; then
             OK_AGE=$(( (NOW - $(date -u -d "$LAST_OK" +%s)) / 60 ))
           else
@@ -203,7 +212,10 @@ jobs:
             BUILT_S=""
           fi
           # (30 min of tolerance: a run's own end is minutes after its build)
-          if [ -n "$BUILT_S" ] && [ $(( (NOW - BUILT_S) / 60 + 30 )) -lt "$OK_AGE" ]; then
+          # (OK_AGE 99999 = no success among the newest 25 runs: a failure
+          # streak, which is NOT a stale list -- the branch below must not
+          # zero the streak and revive on every tick, as it did on 2026-10-22)
+          if [ "$OK_AGE" -ne 99999 ] && [ -n "$BUILT_S" ] && [ $(( (NOW - BUILT_S) / 60 + 30 )) -lt "$OK_AGE" ]; then
             BUILT_AGE=$(( (NOW - BUILT_S) / 60 ))
             if [ "$OK_AGE" -ne 99999 ]; then
               echo "::warning::the runs list is stale: its newest success is ${OK_AGE} min old but the site was built ${BUILT_AGE} min ago; trusting the site"
@@ -223,11 +235,11 @@ jobs:
           echo "timers sleeping         : $TIMER_PENDING (next slot $(date -u -d "@$NEXT_DUE" +'%H:%M UTC'), period ${PERIOD_MIN} min)"
           echo "active refresh runs     : $ACTIVE (running $RUNNING, waiting $WAITING)"
           [ -n "$STUCK_ID" ] && echo "STUCK queued run        : #$STUCK_ID, ${STUCK_AGE} min with nothing running"
-          echo "failure streak          : $STREAK (last: $LAST_CONCLUSION)"
+          echo "failure streak          : $STREAK (last: $LAST_CONCLUSION, ended ${LAST_END_AGE} min ago)"
           echo "site built              : ${BUILT:-unknown}  rows=${ROWS:-?}"
           echo "newest collected run    : ${NEWEST:-unknown} (data age ${DATA_AGE} min)"
           {
-            echo "ok_age=$OK_AGE"; echo "active=$ACTIVE"; echo "streak=$STREAK"
+            echo "ok_age=$OK_AGE"; echo "active=$ACTIVE"; echo "streak=$STREAK"; echo "last_end_age=$LAST_END_AGE"
             echo "timer_pending=$TIMER_PENDING"; echo "next_due=$NEXT_DUE"; echo "list_stale=$LIST_STALE"
             echo "stuck_id=$STUCK_ID"; echo "stuck_age=$STUCK_AGE"
             echo "last_conclusion=$LAST_CONCLUSION"; echo "data_age=$DATA_AGE"
@@ -263,7 +275,11 @@ jobs:
         # probing (once per tick, never a tight loop). The retry runs under
         # the same 70 % cap as the run it replaces, against the account's
         # live spend, so a retry never doubles the hour's spend.
-        if: steps.probe.outputs.active == '0' && (steps.probe.outputs.stuck_id != '' || fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN) || (fromJSON(steps.probe.outputs.streak) >= 1 && fromJSON(steps.probe.outputs.streak) <= 3))
+        # A streak past 3 is retried at most every 20 minutes even when the
+        # cadence is stale: the failing run's own wake arrives within a minute
+        # of its end and must not loop (2026-10-22, 187 runs); the cron tick
+        # and the timer the failed run armed carry the retries instead.
+        if: steps.probe.outputs.active == '0' && (steps.probe.outputs.stuck_id != '' || (fromJSON(steps.probe.outputs.ok_age) > fromJSON(env.STALE_SUCCESS_MIN) && (fromJSON(steps.probe.outputs.streak) <= 3 || fromJSON(steps.probe.outputs.last_end_age) >= 20)) || (fromJSON(steps.probe.outputs.streak) >= 1 && fromJSON(steps.probe.outputs.streak) <= 3))
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

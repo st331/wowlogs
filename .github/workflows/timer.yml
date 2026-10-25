@@ -96,12 +96,23 @@ jobs:
             echo "the newest refresh started ${LAST_AGE} min ago (fresh under ${FRESH_MIN}): standing down, it armed its own timer"; exit 0
           fi
           # the second witness: the site's own build stamp (only a refresh
-          # run writes it; a run publishes ~10 min after it starts)
+          # run writes it). It vetoes ONLY when the runs list is unavailable
+          # or stale -- stale meaning the site was built after the newest
+          # listed run ENDED, so a run the list does not show built it. A
+          # healthy list that says the newest run started a period ago is
+          # authoritative whatever the build stamp says: on 2026-10-22 a run
+          # that took 68 min built the site 64 min after its start, and this
+          # check (then unconditional) stood the 01:41Z slot down for a
+          # "fresh" build, as did the watchdog's re-arm -- a ten-hour hole.
           BUILT=$(curl -sf -m 30 "$SITE_HEALTH?t=$NOW" | sed -n 's/^\[season\] built=//p;s/^built=//p' | head -1)
-          BUILT_AGE=99999
-          [ -n "$BUILT" ] && BUILT_AGE=$(( (NOW - $(date -u -d "$BUILT" +%s)) / 60 ))
-          if [ "$BUILT_AGE" -lt "$BUILT_FRESH_MIN" ]; then
-            echo "the site was built ${BUILT_AGE} min ago (fresh under ${BUILT_FRESH_MIN}): standing down, the run that built it armed its own timer"; exit 0
+          BUILT_AGE=99999; BUILT_S=""
+          [ -n "$BUILT" ] && { BUILT_S=$(date -u -d "$BUILT" +%s 2>/dev/null || echo ""); }
+          [ -n "$BUILT_S" ] && BUILT_AGE=$(( (NOW - BUILT_S) / 60 ))
+          LAST_END_S=$(echo "$RUNS" | jq -r '[.workflow_runs[] | select(.status=="completed" and .conclusion != "cancelled")] | sort_by(.updated_at) | last | if . then (.updated_at | fromdateiso8601) else 0 end')
+          STALE_LIST=0
+          if [ -n "$BUILT_S" ] && [ "$LAST_END_S" != "0" ] && [ "$BUILT_S" -gt $(( LAST_END_S + 300 )) ]; then STALE_LIST=1; fi
+          if [ "$BUILT_AGE" -lt "$BUILT_FRESH_MIN" ] && { [ "$LAST_AGE" = 99999 ] || [ "$STALE_LIST" = 1 ]; }; then
+            echo "the site was built ${BUILT_AGE} min ago (fresh under ${BUILT_FRESH_MIN}) and the runs list is $( [ "$LAST_AGE" = 99999 ] && echo unavailable || echo "stale (its newest run ended before that build)" ): standing down, the run that built it armed its own timer"; exit 0
           fi
           # three tries 20 s apart: a transient API error must cost seconds,
           # not a watchdog tick (hours apart). If all three fail, re-arm THIS

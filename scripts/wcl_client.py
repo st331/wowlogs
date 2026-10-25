@@ -177,6 +177,14 @@ class _Quota:
         not sleep to the reset). A blind start therefore sends at most one
         request before the ceiling is enforced against the truth.
         """
+        # A caller's wall-clock deadline ends the run cleanly even while budget
+        # remains. Until 2026-10-25 the deadline only capped SLEEPING, so a
+        # cadence run under a backlog fetched window after window until the
+        # job's timeout: #5184 ran 68 min, #5187 hit the 65-min step timeout
+        # and published nothing. QuotaDeadline is the stop every caller
+        # already handles (export, build, publish, arm the next slot).
+        if self.deadline is not None and time.time() >= self.deadline:
+            raise QuotaDeadline(f"wall-clock deadline passed {time.time() - self.deadline:.0f}s ago")
         with self.lock:
             if not self.observed:
                 if self.inflight > 0:

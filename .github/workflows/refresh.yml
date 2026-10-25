@@ -322,6 +322,12 @@ jobs:
           # switch overrides the value inside the collector
           # (execution.backfill_mode's share).
           WCL_QUOTA_FRACTION: ${{ inputs.quota_fraction || steps.cadence.outputs.quota_fraction }}
+          # the run's wall clock for fetching, from JOB_START (fetch_data.main):
+          # 45 min for a cadence run, 90 for a drain or a gear refetch, and
+          # under a burst the period less five minutes; a backfill run has its
+          # own (BACKFILL_WALL_S). The step and job timeouts sit well past it.
+          FETCH_WALL_S: ${{ (inputs.regear_min_key != '' || inputs.drain == 'true') && '5400' || '2700' }}
+          PERIOD_MIN: ${{ steps.cadence.outputs.period_min }}
           # the fresh slice: only runs from the last 12 hours, so the run is
           # small and the deploy is minutes away; everything older waits for
           # the backfill run that follows
