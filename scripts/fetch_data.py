@@ -1984,7 +1984,7 @@ def main() -> None:
             print(f"[quota] this run's wall-clock deadline is {_iso(QUOTA.deadline * 1000)} "
                   f"({(QUOTA.deadline - time.time()) / 60:.0f} min away: FETCH_WALL_S={wall_s:.0f} from "
                   f"JOB_START; the governor stops cleanly there, budget or not)", flush=True)
-            write_outputs(**{"fetch.wall_deadline": _iso(QUOTA.deadline * 1000)})
+            write_outputs(wall_deadline=_iso(QUOTA.deadline * 1000))   # published as fetch.wall_deadline
         if (os.environ.get("BUNDLE_BACKFILL") or "").strip().lower() == "true":
             # A run the backfill chain dispatched after the switch expired
             # (owner, 2026-09-28: "keep the hard stop at 16:10 IST", the full
