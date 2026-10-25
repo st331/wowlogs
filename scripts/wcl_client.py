@@ -153,6 +153,14 @@ class _Quota:
         # before the deadline, and stops cleanly (QuotaDeadline) when it does
         # not. None = the environment's cap, as always.
         self.deadline: float | None = None
+        # With a deadline, sleeping for the window reset is capped by the
+        # deadline alone (backfill mode wants to sleep to the reset within its
+        # wall clock). A cadence run sets this so WCL_MAX_SLEEP_S still caps
+        # the sleep as well: it stops at the ceiling when the reset is more
+        # than 8 minutes away and leaves the next window to the next slot,
+        # instead of sleeping most of its wall clock and taking that window
+        # from the run that follows (hourly cadence, 2026-10-25).
+        self.honour_env_sleep_cap: bool = False
         self.probe_lock = threading.Lock()
         self.probed = False
         # until a real reading lands we are guessing; the first response fixes
@@ -381,9 +389,13 @@ class WCLClient:
         a caller set one (it overrides the environment), else WCL_MAX_SLEEP_S
         (0 = no cap). Never 0 with a deadline set, so a passed deadline reads
         as "stop now" rather than "sleep without limit"."""
+        env_cap = float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
         if QUOTA.deadline is not None:
-            return max(1.0, QUOTA.deadline - time.time())
-        return float(os.environ.get("WCL_MAX_SLEEP_S", 0) or 0)
+            to_deadline = max(1.0, QUOTA.deadline - time.time())
+            if QUOTA.honour_env_sleep_cap and env_cap > 0:
+                return min(to_deadline, env_cap)
+            return to_deadline
+        return env_cap
 
     def _sleep_for_reset(self) -> None:
         """Sleep until WCL reports the new window, or stop (QuotaDeadline).

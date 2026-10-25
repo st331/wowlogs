@@ -683,3 +683,12 @@
     owner's own ceiling) — nothing in this request lifted it. A refresh was dispatched at once and
     the chain arms itself from there; the 4-hour cadence resumes on its own at `until`.
 
+42. **Hourly cadence, standing (owner, 2026-10-25 20:56 IST: "run every hour so you can get the
+    max out of the 70% quota.")** `data/cadence.json` every_hours 1 (was 4 since 2026-09-30),
+    quota_fraction unchanged at 0.70; watchdog EVERY_HOURS 1 / STALE_SUCCESS_MIN 120 / ALERT 300.
+    The reason, in the owner's framing: the cap is per hour, so hourly runs spend up to the same
+    12,600 in every window — the only lever that drains the backlog without touching the cap.
+    Cadence runs stop at the ceiling when the reset is more than 8 minutes away (the next window
+    is the next slot's) and carry a 45-minute wall clock. Supersedes the "4 hours or so" of #40's
+    source instruction; the 70% rule (#40, #41) stands.
+

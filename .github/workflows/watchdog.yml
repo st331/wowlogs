@@ -66,14 +66,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # thresholds, in minutes. The first four follow the cadence period
-  # (data/cadence.json every_hours = 4, pinned by scripts/test_cadence.py):
-  # a healthy cadence has a success at most ~4.5 h old (a period plus a
-  # run's length) and data a little older than that.
-  EVERY_HOURS: 4             # data/cadence.json every_hours: the slot a re-armed timer is set to
-  STALE_SUCCESS_MIN: 300     # every_hours x 60 + 60: no successful refresh for this long -> dispatch
-  ALERT_SUCCESS_MIN: 540     # two periods + 1 h without a success -> also open the issue
-  STALE_DATA_MIN: 600        # newest collected run older than this (2.5 periods) -> issue
+  # thresholds, in minutes. The first two follow the cadence period
+  # (data/cadence.json every_hours = 1 since 2026-10-25, pinned by
+  # scripts/test_cadence.py): a healthy cadence has a success at most
+  # ~1 h 15 min old (a period plus a run's length). The alert and data
+  # thresholds are kept loose on purpose: the revive runs at the quiet
+  # threshold, the issue is for a cadence that stays down for hours.
+  EVERY_HOURS: 1             # data/cadence.json every_hours: the slot a re-armed timer is set to
+  STALE_SUCCESS_MIN: 120     # every_hours x 60 + 60: no successful refresh for this long -> dispatch
+  ALERT_SUCCESS_MIN: 300     # four periods + 1 h without a success -> also open the issue
+  STALE_DATA_MIN: 600        # newest collected run older than this (10 periods) -> issue
   STUCK_QUEUE_MIN: 45        # queued/pending this long with NOTHING running -> cancel it
   MIN_ROWS: 200000           # published rows below this -> issue (retention steady state ~800k)
   EXPECT_RESETS: 2           # policy: the build ships the newest two resets (scripts/retention.py)

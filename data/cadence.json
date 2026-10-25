@@ -1,10 +1,5 @@
 {
-  "every_hours": 4,
+  "every_hours": 1,
   "quota_fraction": 0.7,
-  "burst": {
-    "every_minutes": 15,
-    "until": "2026-10-17T02:00:00Z",
-    "note": "Owner, 2026-10-14 07:21 IST: \"refresh the data and keep refreshing every 15 minutes for the next 3 days.\" While `until` is ahead, every refresh arms the timer every_minutes after its own start instead of every_hours; quota_fraction is unchanged (the owner's standing 70%) and the governor measures it against the account's live spend. Once `until` passes the block is inert and the every_hours cadence resumes by itself (every run and timer re-read this file). Previous burst: every 30 min, 2026-10-07 17:45Z to 2026-10-09 17:45Z (95 runs, peak hour 12,195 of 12,600)."
-  },
-  "note": "Owner, 2026-09-30: \"move to a cadence of updating the data every 4 hours or so ... never end up using more than 70% of my API quota.\" every_hours is the refresh cron's period (refresh.yml: cron `0 */4 * * *`, changed by hand together with this file; the watchdog's quiet threshold is every_hours + 1 h). quota_fraction is the share of the hourly Warcraft Logs limit EVERY collector process may spend, read by scripts/wcl_client.py whenever WCL_QUOTA_FRACTION is not set: the ceiling is measured against the account's live spend, so the sweep, the bundle, the trinket and keystone collectors and the owner's own lookups together never pass it. data/backfill.json, while its `until` is in the future, overrides quota_fraction with its `share` and chains runs back to back (scripts/backfill.py)."
+  "note": "Owner, 2026-10-25: \"run every hour so you can get the max out of the 70% quota.\" (Before: every 4 hours, owner 2026-09-30: \"move to a cadence of updating the data every 4 hours or so ... never end up using more than 70% of my API quota.\") every_hours is the period every refresh run arms timer.yml with after its own start (the watchdog's EVERY_HOURS / STALE_SUCCESS_MIN are pinned to it by scripts/test_cadence.py). The Warcraft Logs limit is per hour and the 70% cap is enforced against the account's live spend by scripts/wcl_client.py, so hourly runs use every hourly window at the same cap — four times the throughput of the 4-hour cadence, which a backlog of ~20k pending runs (2026-10-22 on) had shown to be too slow. quota_fraction is the share of the hourly limit EVERY collector process may spend. A time-boxed `burst` block {every_minutes, until} overrides the period alone while `until` is ahead (used 2026-10-07 at 30 min and 2026-10-14 at 15 min)."
 }

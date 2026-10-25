@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The steady-state cadence (scripts/cadence.py, data/cadence.json), pinned:
 
-  * read_cadence: the committed file says every 4 h at 70 %; a missing,
+  * read_cadence: the committed file says every hour at 70 % (2026-10-25); a missing,
     unreadable or non-object file is the defaults; each knob falls back on
     its own when its value is missing or bad (every_hours must be a whole
     number of hours in 1..24, quota_fraction in (0, 1]); extra keys are
@@ -61,9 +61,9 @@ quiet = lambda m: None                        # noqa: E731
 
 # --- 1. the file ----------------------------------------------------------------------
 real = cadence.read_cadence(log=quiet)
-check(real["every_hours"] == 4 and real["quota_fraction"] == 0.70
+check(real["every_hours"] == 1 and real["quota_fraction"] == 0.70
       and real["source"] == str(cadence.CADENCE_FILE),
-      f"committed data/cadence.json: every 4 h at 70 % ({real})")
+      f"committed data/cadence.json: every hour at 70 % (owner, 2026-10-25) ({real})")
 check(cadence.DEFAULTS == {"every_hours": 4, "quota_fraction": 0.70}, "defaults are the owner's knobs")
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -266,7 +266,7 @@ with tempfile.TemporaryDirectory() as tmp:
     r = subprocess.run([sys.executable, "scripts/cadence.py", "github-output"], cwd=ROOT, capture_output=True,
                        text=True, env={**env, "GITHUB_OUTPUT": str(out)})
     got = dict(l.split("=", 1) for l in out.read_text().splitlines() if "=" in l)
-    want_out = {"every_hours": "4", "quota_fraction": "0.7", "period_min": str(real["period_min"]),
+    want_out = {"every_hours": str(real["every_hours"]), "quota_fraction": "0.7", "period_min": str(real["period_min"]),
                 "burst_until": str(real["burst_until"] if real["burst_until"] is not None else "")}
     check(r.returncode == 0 and got == want_out
           and "::notice::" in r.stdout and not any(l.startswith("::") for l in out.read_text().splitlines()),
@@ -280,11 +280,11 @@ for fire, want in ((str(int(time.time()) + 600), (595, 600)), ("", (0, 0)), (str
     lines = dict(l.split("=", 1) for l in r.stdout.strip().splitlines() if "=" in l)
     w = int(lines.get("WAIT_S", "-1"))
     pm = real["period_min"]; fm = cadence.fresh_min_p(pm); bfm = cadence.built_fresh_min_p(pm)
-    check(r.returncode == 0 and want[0] <= w <= want[1] and lines.get("EVERY_HOURS") == "4"
+    check(r.returncode == 0 and want[0] <= w <= want[1] and lines.get("EVERY_HOURS") == str(real["every_hours"])
           and lines.get("PERIOD_MIN") == str(pm)
           and lines.get("FRESH_MIN") == str(fm) and lines.get("BUILT_FRESH_MIN") == str(bfm)
           and abs(int(lines["FIRE_AT"]) - int(time.time()) - w) <= 2,
-          f"CLI timer FIRE_AT={fire!r}: WAIT_S={w}, FIRE_AT resolved to now+WAIT_S, EVERY_HOURS 4, PERIOD_MIN {pm}, FRESH_MIN {fm}, BUILT_FRESH_MIN {bfm}")
+          f"CLI timer FIRE_AT={fire!r}: WAIT_S={w}, FIRE_AT resolved to now+WAIT_S, EVERY_HOURS {real['every_hours']}, PERIOD_MIN {pm}, FRESH_MIN {fm}, BUILT_FRESH_MIN {bfm}")
 r = subprocess.run(["bash", "-c", f'eval "$({sys.executable} scripts/cadence.py timer)"; echo "$WAIT_S|$FRESH_MIN"'],
                    cwd=ROOT, capture_output=True, text=True, env={**tenv, "FIRE_AT": ""})
 check(r.returncode == 0 and r.stdout.strip() == f"0|{cadence.fresh_min_p(real['period_min'])}", f"bash eval of the timer CLI: {r.stdout.strip()!r}")
@@ -442,6 +442,16 @@ except W.QuotaDeadline:
     _raised = True
 W.QUOTA.deadline = None
 check(_raised, "the governor refuses admission past a wall-clock deadline (QuotaDeadline), budget or not")
+import os as _os
+_old=_os.environ.get("WCL_MAX_SLEEP_S"); _os.environ["WCL_MAX_SLEEP_S"]="480"
+W.QUOTA.deadline=_t.time()+2700; W.QUOTA.honour_env_sleep_cap=False
+_a=W.WCLClient._sleep_cap()
+W.QUOTA.honour_env_sleep_cap=True
+_b=W.WCLClient._sleep_cap()
+W.QUOTA.deadline=None; W.QUOTA.honour_env_sleep_cap=False
+if _old is None: del _os.environ["WCL_MAX_SLEEP_S"]
+else: _os.environ["WCL_MAX_SLEEP_S"]=_old
+check(2600 < _a <= 2700 and _b == 480, f"a deadline alone caps the sleep at the deadline ({_a:.0f}); a cadence run keeps WCL_MAX_SLEEP_S as well ({_b:.0f})")
 check("the runs list is stale" in probe and "OK_AGE=$BUILT_AGE" in probe and "STREAK=0" in probe
       and "NEXT_DUE=$(( BUILT_S - 600 + PERIOD_MIN * 60 ))" in probe and "LIST_STALE=1" in probe,
       "the probe takes the site's build stamp as a second witness: the younger age drives the revival, a stale list's streak is not believed")

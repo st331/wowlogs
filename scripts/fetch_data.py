@@ -1981,6 +1981,7 @@ def main() -> None:
         if wall_s > 0:
             job_start = float(os.environ.get("JOB_START") or 0) or time.time()
             QUOTA.deadline = job_start + wall_s
+            QUOTA.honour_env_sleep_cap = True      # a cadence run never sleeps past WCL_MAX_SLEEP_S
             print(f"[quota] this run's wall-clock deadline is {_iso(QUOTA.deadline * 1000)} "
                   f"({(QUOTA.deadline - time.time()) / 60:.0f} min away: FETCH_WALL_S={wall_s:.0f} from "
                   f"JOB_START; the governor stops cleanly there, budget or not)", flush=True)

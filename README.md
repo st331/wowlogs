@@ -233,8 +233,15 @@ cron**, and every collector runs under one cap. Both knobs are in **`data/cadenc
 (`scripts/cadence.py` reads it; a missing or bad value is its default, said in the log):
 
 ```json
-{"every_hours": 4, "quota_fraction": 0.70}
+{"every_hours": 1, "quota_fraction": 0.70}
 ```
+
+Since 2026-10-25 the period is **one hour** (owner: "run every hour so you can get the max out
+of the 70% quota"): the Warcraft Logs limit is per hour and the cap is enforced against the
+account's live spend, so an hourly run uses every window at the same 70% — four times the
+throughput of the 4-hour cadence, which a ~20k-run backlog (from 2026-10-22) had outgrown.
+Each cadence run also carries a 45-minute fetch wall clock (`FETCH_WALL_S`) and stops at the
+ceiling rather than sleeping into the next window, which belongs to the next slot.
 
 A time-boxed **`burst`** in the same file overrides the period alone: `{"burst": {"every_minutes": 30,
 "until": "2026-10-09T17:45:00Z"}}` makes every run arm the timer 30 minutes after its own start

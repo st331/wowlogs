@@ -1,6 +1,6 @@
 name: Refresh Season 2 data
 
-# Collection sidecar, every 4 hours (data/cadence.json). Sweeps the Warcraft
+# Collection sidecar, every hour since 2026-10-25 (data/cadence.json; every 4 h before). Sweeps the Warcraft
 # Logs leaderboards, fetches the summaries and the execution bundle for
 # whatever is new, runs the keystone collector in the background
 # of the build, rebuilds the dashboard and the vetting-site sidecars and
