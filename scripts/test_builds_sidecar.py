@@ -874,6 +874,7 @@ with tempfile.TemporaryDirectory() as tmp:
                                         bonus=[8960, 12001, 13001])])
     (tp / "gear.jsonl").write_text(json.dumps(rec) + "\n")
     fn.GEAR_FILE = tp / "gear.jsonl"
+    fn.SCAN_STATE = tp / "names_scan.json"       # never the real checkpoint under data/processed
     fn.GEAR_CSV = tp / "absent.jsonl.gz"
     fn.NAMES_ITEMS = tp / "names_items.json"
     fn.NAMES_ENCHANTS = tp / "names_enchants.json"

@@ -237,17 +237,22 @@ check(hdr and hdr["resets"] == 2 and hdr["cut"] and hdr["max_age_days"] == 15, f
 check(B._window_cuts(df, 0) is None and B._sidecar_window(df, 0) is None, "resets=0 switches the window off")
 
 # ---- outage annotations: filtered to the window at the payload boundary, fail open
-B.apply_retention(df.copy(), "gaps")                # cuts: US 09-01 15:00, EU 09-02 04:00
-gaps = [{"from": "2026-08-20T00:00:00Z", "to": "2026-08-28T00:00:00Z", "note": "old"},
+# cuts: US 09-01 15:00, EU 09-02 04:00, and 08-26 for the regions on the default rule (KR, Unknown), which is
+# the floor the filter reads. The clock is pinned so the stale-anchor rule cannot move those cuts.
+B.apply_retention(df.copy(), "gaps", now="2026-09-09T12:00:00Z")
+gaps = [{"from": "2026-08-18T00:00:00Z", "to": "2026-08-25T00:00:00Z", "note": "old"},
+        # ends after the EARLIEST cut (08-26) and before the US one (09-01): kept only because the filter reads
+        # the earliest cut. This is the gap the case used to call "old"; it was rightly kept all along.
+        {"from": "2026-08-20T00:00:00Z", "to": "2026-08-28T00:00:00Z", "note": "after the default-rule cut, before the US cut"},
         {"from": "2026-08-30T00:00:00Z", "to": "2026-09-01T16:00:00Z", "note": "straddles the US cut"},
         {"from": "2026-09-05T00:00:00Z", "to": None, "note": "open-ended"},
         {"from": "2026-09-05T00:00:00Z", "to": "not a date", "note": "unparseable end"}]
 pub, sup = B._gaps_in_window(gaps)
-check([g["note"] for g in pub] == ["straddles the US cut", "open-ended", "unparseable end"] and sup == 1,
+check([g["note"] for g in pub] == ["after the default-rule cut, before the US cut", "straddles the US cut", "open-ended", "unparseable end"] and sup == 1,
       f"a gap wholly before the earliest cut is suppressed ({sup}); straddling, open-ended and unparseable ends are kept")
 B.apply_retention(frame([]), "nocut")
 pub2, sup2 = B._gaps_in_window(gaps)
-check(len(pub2) == 4 and sup2 == 0, "with no cut known the filter FAILS OPEN and publishes every entry")
+check(len(pub2) == len(gaps) == 5 and sup2 == 0, "with no cut known the filter FAILS OPEN and publishes every entry")
 
 print("FAILED" if fails else "PASS", f"({fails} failures)")
 sys.exit(1 if fails else 0)

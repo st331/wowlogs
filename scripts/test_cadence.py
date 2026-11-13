@@ -428,7 +428,9 @@ check("timer_pending == '0'" in warm["if"] and "active == '0'" in warm["if"] and
 check("/actions/workflows/timer.yml/dispatches" in warm["run"] and warm["env"]["NEXT_DUE"] == "${{ steps.probe.outputs.next_due }}",
       "the watchdog's arm dispatches timer.yml for the last success's start plus a period")
 probe = wsteps["Inspect the refresh workflow and the published site"]["run"]
-check('if [ "$OK_AGE" -ne 99999 ] && [ -n "$BUILT_S" ]' in probe and 'echo "last_end_age=$LAST_END_AGE"' in probe,
+check('if { [ "$OK_AGE" -ne 99999 ] || [ "$LIST_N" = "0" ]; } && [ -n "$BUILT_S" ]' in probe
+      and 'LIST_N=$(echo "$RUNS" | jq -r ' in probe
+      and 'echo "last_end_age=$LAST_END_AGE"' in probe,
       "no success among the newest runs is a streak, not a stale list; the probe reports when the newest run ended")
 wrev = wsteps["Revive the cadence if it has stopped"]
 check("last_end_age) >= 20" in wrev["if"] and "streak) <= 3 ||" in wrev["if"], "a long failure streak is revived at most every 20 minutes")

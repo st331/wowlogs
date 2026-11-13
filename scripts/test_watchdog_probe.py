@@ -22,6 +22,13 @@ import tempfile
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+import cadence  # noqa: E402
+
+# the period in force, which the probe itself reads from data/cadence.json through
+# scripts/cadence.py: the slot arithmetic below follows the file, not a pinned 4 h
+PERIOD_S = cadence.read_cadence(ROOT / "data" / "cadence.json", log=lambda *_: None)["period_min"] * 60
+NOW_S = 1790780220          # 2026-09-30T14:57:00Z, the clock the stub pins
 fails = 0
 
 
@@ -60,7 +67,8 @@ date() {{ if [ "$1" = "-u" ] && [ "$2" = "+%s" ]; then command date -u -d {repr(
     with tempfile.TemporaryDirectory() as tmp:
         out = pathlib.Path(tmp) / "out"
         env = {**os.environ, **ENV_BASE, "GH_TOKEN": "x", "REPO": "st331/wowlogs", "GITHUB_OUTPUT": str(out)}
-        r = subprocess.run(["bash", "-e", "-c", stub + PROBE], capture_output=True, text=True, env=env)
+        # from the repository root, as on the runner: the probe reads scripts/cadence.py by that path
+        r = subprocess.run(["bash", "-e", "-c", stub + PROBE], capture_output=True, text=True, env=env, cwd=str(ROOT))
         outputs = dict(l.split("=", 1) for l in out.read_text().splitlines() if "=" in l) if out.exists() else {}
         return r, outputs
 
@@ -70,19 +78,46 @@ check(r.returncode == 0, f"fresh list: the step exits 0 (stderr: {r.stderr.strip
 check(o.get("ok_age") == "106" and o.get("streak") == "0" and o.get("timer_pending") == "1"
       and "stale" not in r.stdout and o.get("last_conclusion") == "success",
       f"fresh list: ok_age from the list (106), streak 0, one timer sleeping, no stale warning ({o.get('ok_age')}, {o.get('streak')})")
-check(o.get("next_due") == str(1790773250 + 4 * 3600), f"fresh list: next slot = the run's start + 4 h ({o.get('next_due')})")
+check(o.get("next_due") == str(max(1790773250 + PERIOD_S, NOW_S)),
+      f"fresh list: next slot = the run's start + one period of {PERIOD_S // 60} min, never before now ({o.get('next_due')})")
 
 r, o = run_probe(STALE_RUNS)
 check(r.returncode == 0, f"stale list: the step exits 0 (stderr: {r.stderr.strip()[:120]!r})")
 check("::warning::the runs list is stale" in r.stdout and o.get("ok_age") == "111" and o.get("streak") == "0"
       and "per the site" in o.get("last_conclusion", ""),
       f"stale list: the warning, ok_age from the site's build (111), the list's failure streak dropped ({o.get('ok_age')}, {o.get('streak')})")
-check(o.get("next_due") == str(1790773506 - 600 + 4 * 3600), f"stale list: next slot = build - 10 min + 4 h ({o.get('next_due')})")
+check(o.get("next_due") == str(max(1790773506 - 600 + PERIOD_S, NOW_S)),
+      f"stale list: next slot = build - 10 min + one period, never before now ({o.get('next_due')})")
 check("15371 min ago per the runs list; 111 min counting" in r.stdout, "stale list: both witnesses are printed")
+
+# The two next-slot checks above run with the clock at 14:57, when "start + one period" is already past at
+# an hourly cadence, so they only prove the clamp. Here the clock sits ten minutes after the run, inside
+# the period: the slot must be the SUM, from the run's own start and from the site's build stamp.
+EARLY, EARLY_S = "2026-09-30T13:11:00Z", 1790773860
+if PERIOD_S > 15 * 60:
+    r, o = run_probe(FRESH_RUNS, now=EARLY)
+    check(o.get("next_due") == str(1790773250 + PERIOD_S) and 1790773250 + PERIOD_S > EARLY_S,
+          f"fresh list, clock inside the period: next slot IS the run's start + one period ({o.get('next_due')})")
+    r, o = run_probe(STALE_RUNS, now=EARLY)
+    check(o.get("next_due") == str(1790773506 - 600 + PERIOD_S) and 1790773506 - 600 + PERIOD_S > EARLY_S,
+          f"stale list, clock inside the period: next slot IS the build - 10 min + one period ({o.get('next_due')})")
+else:
+    print(f"note the period in force ({PERIOD_S // 60} min) is too short for the inside-the-period cases; the clamp cases above stand")
 
 r, o = run_probe(None)
 check(r.returncode == 0 and o.get("ok_age") == "111" and "::warning::" not in r.stdout,
       f"empty list (API failed): ok_age from the site, no warning ({o.get('ok_age')})")
+
+# 2026-10-22: 25 listed runs, every one a failure, while the site is recent. That is a
+# streak, not a stale list: the site must NOT be believed over it and the streak must stand.
+ALL_FAILED = ('{"workflow_runs":[' + ",".join(
+    '{"status":"completed","conclusion":"failure","created_at":"2026-09-30T14:%02d:00Z",'
+    '"updated_at":"2026-09-30T14:%02d:30Z","run_started_at":"2026-09-30T14:%02d:00Z"}' % (m, m, m)
+    for m in range(30, 55)) + ']}')
+r, o = run_probe(ALL_FAILED)
+check(r.returncode == 0 and o.get("ok_age") == "99999" and o.get("streak") == "25" and o.get("list_stale") == "0"
+      and "::warning::the runs list is stale" not in r.stdout,
+      f"25 failures listed: a streak, not a stale list ({o.get('ok_age')}, streak {o.get('streak')}, list_stale {o.get('list_stale')})")
 
 r, o = run_probe(FRESH_RUNS, health=None)
 check(r.returncode == 0 and o.get("ok_age") == "106" and o.get("built") == "unknown",

@@ -214,10 +214,17 @@ jobs:
             BUILT_S=""
           fi
           # (30 min of tolerance: a run's own end is minutes after its build)
-          # (OK_AGE 99999 = no success among the newest 25 runs: a failure
-          # streak, which is NOT a stale list -- the branch below must not
-          # zero the streak and revive on every tick, as it did on 2026-10-22)
-          if [ "$OK_AGE" -ne 99999 ] && [ -n "$BUILT_S" ] && [ $(( (NOW - BUILT_S) / 60 + 30 )) -lt "$OK_AGE" ]; then
+          # (OK_AGE 99999 with runs LISTED = no success among the newest 25: a
+          # failure streak, which is NOT a stale list -- the branch below must
+          # not zero the streak and revive on every tick, as it did on
+          # 2026-10-22. OK_AGE 99999 with NOTHING listed is the API call
+          # failing: the site is then the only witness and is believed, quietly.
+          # The 2026-10-25 fix closed the first case and, by testing OK_AGE
+          # alone, opened the second: a failed list call read as "never
+          # succeeded" and would revive a healthy pipeline.
+          # test_watchdog_probe.py had the case and was not run.)
+          LIST_N=$(echo "$RUNS" | jq -r '.workflow_runs | length')
+          if { [ "$OK_AGE" -ne 99999 ] || [ "$LIST_N" = "0" ]; } && [ -n "$BUILT_S" ] && [ $(( (NOW - BUILT_S) / 60 + 30 )) -lt "$OK_AGE" ]; then
             BUILT_AGE=$(( (NOW - BUILT_S) / 60 ))
             if [ "$OK_AGE" -ne 99999 ]; then
               echo "::warning::the runs list is stale: its newest success is ${OK_AGE} min old but the site was built ${BUILT_AGE} min ago; trusting the site"
