@@ -109,6 +109,83 @@ site; git history keeps the daily seeds up to 2026-09-14 only.
   +18..+23 spec, and 0.3-0.9% over it below +12, where the lead-in outweighs
   the penalties; it no longer does (`build_site_data.dps_clock_note`, health
   keys `dps.*`, the payload's `dps_clock`, which the page's footer reads).
+* **Dungeon-adjusted DPS (2026-11-13, on by default; the ⚖ chip in the lens
+  bar switches to DPS as logged).**
+  - *Why.* Damage depends on the dungeon as much as on the spec: at +22 the
+    median DPS of every DPS-role parse ran from 318k in Kings' Rest to 520k in
+    Ruby Life Pools. A statistic pooled across dungeons therefore ranks a spec
+    on the dungeons it is *played* in. After the 2026-10-27 Subtlety nerf the
+    same rogues played Assassination in Ruby Life Pools and Subtlety elsewhere
+    (70% of Assassination's +19-and-up parses on the two resets the page held,
+    two thirds on the 16-day export, and 71% of the Archon replica's), and the
+    pooled figure read Assassination 17-21% over Subtlety while, same
+    character, same dungeon, same key level, it was about 7% ahead there and
+    3% behind across the other seven (16-day export: 93 and 105 pairs; the two
+    resets alone give +8% and -1% on 21 and 35 pairs).
+  - *Rule.* Every parse is scaled, before anything is pooled, by `mean par of
+    the dungeons in view ÷ par of its own dungeon at its key level`; par is
+    the median DPS of every parse of the same role in that dungeon at that key
+    level (all specs, every row the page holds, whatever the filters say). One
+    dungeon in view is factor 1. A cell sets a par only when its median is
+    known: 30+ parses and a distribution-free 95% bracket within ±4%. A key
+    level where a dungeon in view fails borrows the factors of the nearest
+    level where all pass; a role with no such level stays as logged and the
+    page says so; a dungeon with no par at all is left out of the average and
+    named. On 2026-11-13 DPS set their own factors at +10 and +12..+23, tanks
+    at six or seven levels and healers at none (a healer cell of 100 parses carried
+    5-9% of noise in its factor). The ⚖ mark and the logged pair are decided
+    per spec: a spec whose role has no factors carries neither.
+  - *What reads it.* Everything that reads a parse's DPS (table, chart, trend,
+    Pulse, lens band, gear compare, build medians), through the one accessor
+    `dpsAt`. A percentile is then read in the average dungeon: the spread
+    between dungeons is no longer inside it, so a p85 read 4-5% under its
+    logged figure for the typical spec and a p30 2-3% over (default view, the
+    builds of 13 November), while medians and averages kept their level. The
+    note under the title prints that shift for the lens in use.
+  - *The Archon replica* is compared with archon.gg on level, so it reads its
+    percentiles off each kept parse counted once in *every* dungeon in view,
+    at that dungeon's par. A spec that is played evenly then reads what the
+    pooled recipe gave (the other 24 specs sat at a median of 0.998 of it,
+    0.960-1.046; Spearman 0.992 over all 25) and only a lopsided mix moves:
+    Assassination from 21.1% over Subtlety to 6.9%, a little over half of the
+    rest being its higher key floor (+23 against +22; about 3% at an equal
+    floor). Neither form has a dated check against archon.gg in this
+    repository, and archon.gg cannot be fetched from the build environment.
+    Its FAQ, as a search engine excerpts it, takes the High Keys sample "for
+    each spec in each dungeon" and does not say how the dungeons are combined.
+    A third-party copy of its 25 October table for the +7..+23 bracket tracks
+    a plain all-keys p85 of this site's rows (Spearman 0.986, level +3%), not
+    the replica (0.876, +21%); that bracket is not the High Keys table, and
+    the rows compared start on 28 October, after that table and after the
+    nerf.
+  - *Key level is not adjusted.* Par rises 31% from +18 to +23, about 5.5% a
+    level, so a spec whose parses sit a level higher reads about that much
+    higher. The Data Table prints each spec's average key, and in Archon mode
+    its key floor with the share of its parses the floor keeps; the note
+    there prints the rise per level from the median key floor up. Holding key
+    level equal as well would move evenly played specs by 4-10% and re-rank
+    them (on the 16-day export Demonology is within 1% of Subtlety at every
+    level from +16 to +22; on the two resets it reads 11% behind it in
+    +18..+23, because 58% of its parses there are +18/+19 against 18%). That
+    changes what every figure means and is left to the owner.
+  - *What it cannot do.* The factor removes a dungeon's damage level, not how
+    well a spec does there against the others, so a spec played mostly in one
+    dungeon is still measured mostly there: Assassination read 3% over
+    Subtlety after the adjustment where, with the dungeons counted equally at
+    equal key level, it was 1.5-2% behind. Such a spec (largest share at
+    least 2.5× an even split, never under 35% nor over 80%) is named on its
+    bar and under its Spec, and its tooltip and Spec Frame print the same read
+    there and elsewhere. Par includes the spec itself: leaving Assassination
+    out of it adds 1-1.5 points to its lead in the standard view and 2.4 in
+    the replica. Only DPS is adjusted: Top Comps'
+    Strength, the margins and the death figures are pooled across dungeons
+    (under one Strength point and a few hundredths of a death that day), and
+    the Top Comps caption says so.
+  - Figures above: the payload built 2026-11-13 13:05 UTC on the fight clock
+    (186,430 parses, the two resets the page held), except where the 16-day
+    export (28 October to 13 November) is named. The 15:40 UTC build of the
+    same day read 18.3% and 3.4% in the default view, 21.3% and 6.6% in the
+    replica (2.8% at an equal floor).
 * **Deaths** are counted per player from the report's raw death events.
 * **Hero talents** come from an offline SimulationCraft trait-tree mapping
   (`build_hero_map.py`). Parses whose log carries no combatant info arrive
@@ -149,6 +226,12 @@ nothing to project.
   for A's change vs B.
 * Trajectory plots over **time**, **key level** or **item level** — the last
   answers how a spec scales with gear, with the key-level confound printed.
+* **⚖ Dungeon-adjusted** (lens bar, on by default): DPS scaled to the average
+  dungeon before pooling, see Scope and caveats. The period note prints the
+  factors and what key level does inside the range; the tooltip and the Spec
+  Frame keep the logged figure beside the adjusted one; the Data Table adds
+  **Avg key** (or **Key floor** in Archon mode) and **Dungeon mix**, both
+  sortable.
 * A **Top Comps** table ranks 5-player compositions by a key-normalised
   Strength score, sortable on every column.
 
@@ -330,7 +413,7 @@ Every suite is a standalone script and prints `PASS`; no workflow runs them, so 
 before a push:
 
 ```bash
-for t in scripts/test_*.py; do python3 "$t" >/dev/null && echo "ok   $t" || echo "FAIL $t"; done
+for t in scripts/test_*.py; do python3 "$t" >/dev/null; case $? in 0) echo "ok   $t";; 3) echo "SKIP $t";; *) echo "FAIL $t";; esac; done
 ```
 
 `test_retention.py` (the page's window), `test_retention_fetch.py` (the collector's),
@@ -342,5 +425,20 @@ for t in scripts/test_*.py; do python3 "$t" >/dev/null && echo "ok   $t" || echo
 (the quota gate), `test_exec_wiring.py` (the request, the caller's path, export and seed),
 `test_build_baselines.py` (cells, tiers, shards, the round trip), `test_backfill.py` (the
 backfill switch and mode), `test_cadence.py` (the cadence file, the cap every client
-resolves, the Chain step's decision, the cron and the watchdog threshold pinned to the file).
+resolves, the Chain step's decision, the cron and the watchdog threshold pinned to the file),
+`test_watchdog_probe.py` (the watchdog's probe step run for real against stubbed witnesses),
+`test_dps_clock.py` (the real builder run in a temporary copy on the export: the published DPS is
+the collector's own column, on the fight clock), `test_dn_math.py` (the page's dungeon-adjustment
+functions cut out of `site/index.html` and executed under node against a reference written from
+the rule). The workflow tests need PyYAML, the builder's need pandas and numpy.
+`test_dn_math.py` needs node and `test_dps_clock.py` the export: without them they print SKIP and
+exit with status 3, which the loop above reports as SKIP, not ok.
+
+Not in the loop, because it needs a browser (Playwright with Chromium): the figures the page
+PRINTS. `node scripts/check_dn_oracle.js <site URL> dump.json` walks 19 views of the published
+page and writes down what it computed for every spec; `python3 scripts/check_dn_oracle.py
+data.json.gz dump.json` recomputes all of it from the payload that site serves (download
+`<site URL>/data.json.gz`) and the rule (9,887 values on 2026-11-13, 0 mismatches). `PAGE=site/index.html` checks the working tree's page against the
+live data before a push. Run it after any change to `aggregate`, `aggregateElite` or `dnFields`:
+`test_dn_math.py` covers the factors, not what reads them.
 

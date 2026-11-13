@@ -75,10 +75,20 @@ button,input,select{font-family:inherit}
 .lens-group{display:flex; align-items:center; gap:8px; position:relative}
 #lens-chips{display:flex; gap:6px; padding:0}
 #lens-fixed{color:var(--accent); font-size:.7rem}
-#archon-chip{display:inline-flex; align-items:center; gap:5px; cursor:pointer}
-#archon-chip input{position:absolute; opacity:0; width:1px; height:1px; pointer-events:none}
-#archon-chip:has(input:checked){color:var(--accent); border-color:var(--accent-line);
+#archon-chip,#dnorm-chip{display:inline-flex; align-items:center; gap:5px; cursor:pointer}
+#archon-chip input,#dnorm-chip input{position:absolute; opacity:0; width:1px; height:1px; pointer-events:none}
+#archon-chip:has(input:checked),#dnorm-chip:has(input:checked){color:var(--accent); border-color:var(--accent-line);
   background:var(--accent-dim); font-weight:600}
+/* one dungeon in view: nothing to adjust, and the chip says so rather than pretend */
+#dnorm-chip.idle{opacity:.5}
+/* below 1560px the bar has no room for the words: the mark stays, its title says the rest */
+@media(max-width:1560px){#dnorm-chip .dn-l{display:none}}
+.frows td.fmix{text-align:left; color:var(--ink3); white-space:normal; padding-top:.18rem}
+.frows .dmx,.frows .nw{white-space:nowrap}
+/* the Key floor column starts beyond the strip a 1920 screen shows after p-spread: no lone "≥" under no header */
+.data th.kf,.data td.kf{padding-left:2.6rem}
+/* a spec whose parses sit mostly in ONE dungeon is named for it, never hidden */
+.dmx.hot{color:var(--accent); font-weight:600}
 #cmpseg{margin:0}
 #cmpseg.dis{opacity:.45; pointer-events:none}
 /* reserve the bold width so the seg never grows when .on moves (feedback L45-48) */
@@ -325,6 +335,20 @@ main{padding:34px 42px 72px; width:100%; max-width:1200px; min-width:0; margin:0
   font-size:.8rem; font-weight:650; color:var(--ink); white-space:nowrap;
   padding-left:8px; font-variant-numeric:tabular-nums}
 .delta{font-size:.72rem; font-weight:700; margin-left:6px}
+.dmxtag{font-size:.72rem; font-weight:500; margin-left:8px; color:var(--accent)}
+/* under a Spec name the tag must not size the column (a long dungeon name pushed p-spread off a 1920 screen):
+   it is cut with an ellipsis and its title carries the whole sentence. 132px shows a two-digit share of every
+   dungeon up to "Den of Nalorakk" whole and still leaves p-spread on a 1920 screen in every view measured */
+.dmxtag.in{margin-left:0; display:inline-block; max-width:132px; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; vertical-align:bottom}
+/* below the minimum screen the chart tag would widen the page: the table tag, the tooltip and the column stay */
+@media(max-width:1400px){.dmxtag:not(.in){display:none}}
+/* a section title never breaks under a long scope caption */
+.sec .t{flex:0 0 auto; white-space:nowrap}
+/* the chips' real checkboxes are 1px: show keyboard focus on the chip */
+#archon-chip:has(input:focus-visible),#dnorm-chip:has(input:focus-visible){outline:2px solid var(--accent); outline-offset:2px}
+/* the tooltip's full-width lines (dungeon mix): they wrap inside the box and never squeeze the label column */
+#tip td.tmix{text-align:left; color:var(--ink3); padding-top:.18rem; white-space:normal}
 .delta.up{color:var(--up)} .delta.down{color:var(--down)}
 td .delta{font-size:.84rem} .delta.na{color:var(--ink3); font-weight:500}
 .na{color:var(--ink3)}
@@ -1331,6 +1355,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     </div>
   </div>
   <label class="chip" id="archon-chip"><input type="checkbox" id="archon"> ⚔ Archon</label>
+  <label class="chip" id="dnorm-chip"><input type="checkbox" id="dnorm" checked> ⚖<span class="dn-l">Dungeon-adjusted</span></label>
   <span class="lspace"></span>
   <div class="lens-group" id="cmp-grp">
     <span class="lgl">Compare</span>
@@ -1735,6 +1760,7 @@ let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              minchars:250, sort:"desc", tab:"med", trendMetric:"avg",
              trendView:"grid", timedOnly:true,
              pctl:50, elite:false,
+             dnorm:true,                     // ⚖ DPS dungeon-adjusted (buildDnPar); false = as logged
              // V2 additions — all inert defaults, no existing default touched
              skill:false, pctlB:85,          // Compare: Skill axis (second qp pass)
              gear:false, ilob:0, ihib:0,     // Compare: Gear axis — item-level cohort B (0 = not set yet)
@@ -1753,7 +1779,366 @@ const projMul=i=>(hasProj&&state.proj)?R.tmul[i]/1e4:1;
 // tmul 0 marks a parse whose WCL report is gone, so it has no breakdown to
 // re-score. Excluded from both sides while projecting, never silently kept.
 const projSkip=i=>hasProj&&state.proj&&R.tmul[i]===0;
-const dpsAt=i=>R.dps[i]*projMul(i);
+/* ---- ⚖ dungeon-adjusted DPS (owner, 2026-11-13) --------------------------
+   Damage depends on the dungeon as much as on the spec: at +22 the median DPS
+   of every DPS-role parse ran from 318k in Kings' Rest to 520k in Ruby Life
+   Pools (payload built 2026-11-13 13:05 UTC, on the fight clock, like every
+   figure in this comment unless it names the 16-day export). A statistic
+   pooled across dungeons therefore ranks a spec on the
+   dungeons it is PLAYED in. Assassination Rogue, which high-key rogues bring
+   mostly to Ruby Life Pools, read +17% over Subtlety while, same character, same
+   dungeon and same key level, it trailed by 3% across the other seven dungeons
+   (105 pairs on the 16-day export, 28 October to 13 November)
+   -- and archon.gg, the owner's outside check, showed the two level. The per-player DPS itself is not at fault: it is
+   the number Warcraft Logs ranks (scripts/diag_rogue_dps.py, 175 of 175 players).
+   So every parse is scaled, before anything is pooled, by
+       F(role, dungeon, key) = mean par of the dungeons in view / par of its own dungeon
+   par being the median DPS of EVERY parse of that role in that dungeon at that
+   key level -- all specs, every row the page holds, whatever the filters say,
+   so the factor of a parse never moves with a filter. Key level is deliberately
+   left alone: DPS still climbs the ladder and the key range governs it. One
+   dungeon in view means factor 1, the logged figure. A cell sets a par only
+   when its median is KNOWN: DN_MIN parses and a distribution-free 95% bracket
+   within ±DN_CI. Thirty parses is not that -- on 2026-11-13 a healer cell of
+   100 parses carried a factor with 5-9% of noise, more than most specs differ
+   by. A key level where any dungeon in view fails borrows the factors of the
+   nearest level where all pass (a tie goes down); a role with no such level
+   (healers, that day) is left as logged and the page says so. Everything that reads dpsAt -- the table,
+   the chart, the trend, Pulse, the lens band, the gear compare -- pools
+   adjusted values with no other change. A percentile is then read in the
+   average dungeon: the spread BETWEEN dungeons is no longer inside it, so a
+   high lens reads lower than as logged for nearly every spec (about 5% at p85)
+   and a low lens higher, while the median and the average keep their level. The
+   Archon replica cannot afford that -- its p85 was validated on level -- so it
+   reads its percentiles off dnSpread() instead: the adjusted parse counted
+   once in EVERY dungeon in view, at that dungeon's par. A spec that is played
+   evenly then reads what the pooled recipe gave, at every percentile, and only
+   a lopsided mix moves. The factors, the borrowed levels and each spec's
+   dungeon mix are printed where the figures are, and the logged figure stays
+   one tick away. */
+const DN_MIN=30;      // parses a (role, key level, dungeon) cell needs before its median is even tried
+const DN_CI=0.04;     // ...and that median must be known to within this, at 95%, for the cell to set a par
+const DN_FLAG=0.35;   // a spec with this share of its parses in ONE dungeon is named for it
+const DN_K=40;        // key-level slots in the par table
+let DNP=null;         // the par table, built once per payload
+let DNF=null, DNSIG="", DNI=null;   // per-row factor for the dungeons in view · its signature · what it rests on
+function buildDnPar(){
+  const nd=D.dungeons.length, nr=D.roles.length, cells=new Array(nr*DN_K*nd);
+  for(let i=0;i<N;i++){
+    if(R.rbucket[i]===OUTW) continue;          // never shown, so never part of a par
+    const c=(R.role[i]*DN_K+Math.min(R.key[i],DN_K-1))*nd+R.dun[i];
+    (cells[c]||(cells[c]=[])).push(R.dps[i]);
+  }
+  const par=new Float64Array(cells.length), cnt=new Uint32Array(cells.length), ok=new Uint8Array(cells.length);
+  for(let c=0;c<cells.length;c++){
+    const a=cells[c]; if(!a) continue;
+    a.sort((x,y)=>x-y); par[c]=q50(a); cnt[c]=a.length;
+    // a par is only as good as its median: the order statistics n/2 ± 0.98·√n bracket it at 95% whatever
+    // the distribution, and a cell whose bracket is wider than ±DN_CI would hand its noise to every parse
+    const n=a.length, h=0.98*Math.sqrt(n), m=par[c];
+    ok[c]=(n>=DN_MIN&&m>0&&m-a[Math.max(0,Math.floor(n/2-h))]<=DN_CI*m
+           &&a[Math.min(n-1,Math.ceil(n/2+h))]-m<=DN_CI*m)?1:0;
+  }
+  DNP={nd,nr,par,cnt,ok}; DNF=null; DNSIG=""; DNI=null;
+}
+function dnView(){   // indices of the dungeons in view
+  const m=idxSet(state.dun,D.dungeons), out=[];
+  for(let d=0;d<D.dungeons.length;d++) if(!m||m.has(d)) out.push(d);
+  return out;
+}
+function refreshDnf(){
+  if(!DNP) return;
+  const S0=dnView(), sig=S0.join(",")+"|"+N;
+  if(sig===DNSIG) return;
+  DNSIG=sig;
+  const {nd,nr,par,cnt,ok}=DNP;
+  // a dungeon with no par known at any level, for any role (a stray name with a handful of rows), is not part
+  // of the average: its parses stay as logged and it is named. It must never switch the adjustment off for the rest.
+  const can=d=>{for(let c=d;c<ok.length;c+=nd) if(ok[c]) return true; return false};
+  const S=S0.filter(can), thin=S0.filter(d=>!can(d)), on=S.length>1;
+  const inS=new Uint8Array(nd); for(const d of S) inS[d]=1;
+  // src: -2 = no parse at this level, -1 = parses but no level of the role has a full set of pars
+  // any: the role has factors at all (a role with none is shown as logged, and said so)
+  const fac=new Float32Array(nr*DN_K*nd).fill(1), src=new Int8Array(nr*DN_K).fill(-2), any=new Uint8Array(nr);
+  for(let r=0;r<nr;r++){
+    const full=k=>{for(const d of S) if(!ok[(r*DN_K+k)*nd+d]) return false; return true};
+    const good=[]; if(on) for(let k=0;k<DN_K;k++) if(full(k)) good.push(k);
+    any[r]=good.length?1:0;
+    for(let k=0;k<DN_K;k++){
+      let any=false; for(const d of S) if(cnt[(r*DN_K+k)*nd+d]){any=true; break}
+      if(!any) continue;
+      if(!on){src[r*DN_K+k]=k; continue}
+      let use=-1, best=1e9;                      // the nearest level with a full set of pars; a tie goes down
+      for(const g of good){const dist=Math.abs(g-k)+(g>k?.5:0); if(dist<best){best=dist; use=g}}
+      src[r*DN_K+k]=use;
+      if(use<0) continue;                        // left as logged, and said so
+      let s=0; for(const d of S) s+=par[(r*DN_K+use)*nd+d];
+      for(const d of S) fac[(r*DN_K+k)*nd+d]=(s/S.length)/par[(r*DN_K+use)*nd+d];
+    }
+  }
+  DNF=new Float32Array(N);
+  for(let i=0;i<N;i++) DNF[i]=fac[(R.role[i]*DN_K+Math.min(R.key[i],DN_K-1))*nd+R.dun[i]];
+  DNI={S,on,fac,src,any,thin,inS};
+}
+// the roles in view, as indices
+function dnRoles(){
+  const o=[]; for(let r=0;r<D.roles.length;r++) if(!state.role.size||state.role.has(D.roles[r])) o.push(r);
+  return o;
+}
+// is anything actually being scaled right now: the switch, several dungeons in view, a role in view with factors
+const dnOn=()=>state.dnorm&&!!DNI&&DNI.on&&dnRoles().some(r=>DNI.any[r]);
+const dnMul=i=>(state.dnorm&&DNF)?DNF[i]:1;
+const dsfx=()=>dnOn()?" ⚖":"";   // rides every adjusted DPS label, never wraps away from it
+const dsfxA=a=>a&&a.adj?" ⚖":"";  // the same mark for ONE group: none when its role has no factors
+// the row that shows the same figure before the dungeon adjustment: the logged one, unless the tuning
+// projection is on, in which case it is the PROJECTED figure before ⚖ and must not be called logged
+const dnLoggedLbl=()=>state.proj?"Projected, before ⚖":"As logged";
+// The Archon replica's pool: v is a parse already at the average dungeon; it is counted once in every
+// dungeon in view, at that dungeon's par (÷ that dungeon's factor at the parse's key level). The mean of
+// the copies is v, so averages are untouched; a level with no factors yields v every time.
+function dnSpread(out,i,v){
+  const f=DNI.fac, b=(R.role[i]*DN_K+Math.min(R.key[i],DN_K-1))*DNP.nd;
+  // a parse from a dungeon that is not part of the average is as logged: it keeps its weight and its value
+  if(!DNI.inS[R.dun[i]]){for(let j=0;j<DNI.S.length;j++) out.push(v); return}
+  for(const d of DNI.S) out.push(v/f[b+d]);
+}
+// each dungeon's par against the average dungeon's, at the printed key level: what dnSpread multiplies by
+function dnLevelText(){
+  if(!DNI||!DNI.on) return "";
+  const {nd}=DNP, r=dnRole(), k=dnRefKey();
+  if(k<0) return "";
+  return "at +"+k+": "+DNI.S.map(d=>D.dungeons[d]+" ×"+(1/DNI.fac[(r*DN_K+k)*nd+d]).toFixed(2)).join(" · ");
+}
+// how far the figures on screen sit from their logged ones at the lens in use: the median over the specs
+// shown. In the standard view a percentile is read in the average dungeon, so this is the level the
+// adjustment moves it by; in the replica it stays near zero, which is the point of dnSpread.
+function dnShiftText(rows){
+  if(!rows||!dnOn()) return "";
+  const v=[];
+  for(const r of rows){const a=r.a0||r.a; if(a&&a.lmed>0&&isFinite(a.med)) v.push(100*(a.med/a.lmed-1))}
+  if(v.length<2) return "";
+  v.sort((x,y)=>x-y);
+  const m=q50(v), sg=x=>Math.abs(x)<0.05?"0.0%":(x<0?"−":"+")+Math.abs(x).toFixed(1)+"%", lens="p"+(state.elite?Math.round(ELITE_PCTL*100):state.pctl);
+  return "At "+lens+" the "+v.length+(v.length<rows.length?" adjusted":"")+" specs shown move "+sg(v[0])+" to "+sg(v[v.length-1])+" against their "+(state.proj?"projected figure before ⚖":"logged figure")+" (median "+sg(m)+")"
+    +(!state.elite&&Math.abs(m)>=1&&Math.abs(state.pctl-50)>10?": a percentile is read in the average dungeon, so the spread between dungeons is no longer inside a high or a low lens":"")+". ";
+}
+// the role whose factors are printed: the one in view, else DPS
+function dnRole(){
+  const v=dnRoles(), d=D.roles.indexOf("DPS");
+  if(v.includes(d)&&(!DNI||DNI.any[d])) return d;
+  for(const r of v) if(DNI&&DNI.any[r]) return r;
+  return v.length?v[0]:0;
+}
+// the key level whose factors are printed: the middle of the range in view
+// (the Archon replica parks the range at full width, so it prints the top of
+// the band the page opens on), moved to the nearest level that has factors
+function dnRefKey(){
+  const r=dnRole(); let k=state.elite?(DEF?DEF.khi:20):Math.round((state.klo+state.khi)/2);
+  k=Math.max(0,Math.min(DN_K-1,k));
+  for(let d=0;d<DN_K;d++){
+    if(k-d>=0&&DNI.src[r*DN_K+k-d]>=0) return k-d;
+    if(k+d<DN_K&&DNI.src[r*DN_K+k+d]>=0) return k+d;
+  }
+  return -1;
+}
+function dnFactorText(){
+  if(!DNI||!DNI.on) return "";
+  const {nd}=DNP, r=dnRole(), k=dnRefKey();
+  if(k<0) return "";
+  return "at +"+k+": "+DNI.S.map(d=>D.dungeons[d]+" ×"+DNI.fac[(r*DN_K+k)*nd+d].toFixed(2)).join(" · ");
+}
+// "+2–+9, +11": runs of consecutive key levels
+function dnRuns(ks){
+  const o=[]; let a=null, b=null;
+  const put=()=>{ if(a!==null) o.push(a===b?"+"+a:"+"+a+"–+"+b) };
+  for(const k of ks){ if(a!==null&&k===b+1){b=k; continue} put(); a=b=k }
+  put();
+  return o.join(", ");
+}
+const dnCiPct=()=>Math.round(DN_CI*100);
+// key levels in view whose factors are another level's, and roles in view that have none
+function dnBorrowText(){
+  if(!DNI||!DNI.on) return "";
+  const lo=state.elite?0:state.klo, hi=Math.min(DN_K-1,state.elite?DN_K-1:state.khi);
+  const roles=dnRoles(), many=roles.length>1, parts=[];
+  for(const r of roles){            // every role in view: each row is scaled with its OWN role's factors
+    if(!DNI.any[r]) continue;
+    const by=new Map();
+    for(let k=Math.max(0,lo);k<=hi;k++){
+      const u=DNI.src[r*DN_K+k];
+      if(u>=0&&u!==k){ if(!by.has(u)) by.set(u,[]); by.get(u).push(k) }
+    }
+    const b=[...by.keys()].sort((x,y)=>x-y).map(u=>dnRuns(by.get(u))+(by.get(u).length===1?" uses +":" use +")+u+"’s");
+    if(b.length) parts.push((many?D.roles[r]+" ":"")+b.join("; "));
+  }
+  const bare=roles.filter(q=>!DNI.any[q]).map(q=>D.roles[q]);
+  return (parts.length?"Levels without a par known to ±"+dnCiPct()+"% in every dungeon borrow the nearest level’s factors: "+parts.join(". ")+". ":"")
+    +(bare.length&&dnOn()?bare.join(" and ")+" DPS is shown as logged: no key level has every dungeon’s par known to ±"+dnCiPct()+"%. ":"")
+    +(DNI.thin.length?"Left out of the average and shown as logged, no par known to ±"+dnCiPct()+"% at any level: "+DNI.thin.map(d=>D.dungeons[d]).join(", ")+". ":"");
+}
+// several roles in view: the factors printed are one role's, the others have their own
+function dnOtherRolesText(){
+  const r0=dnRole(), o=dnRoles().filter(r=>r!==r0&&DNI.any[r]).map(r=>D.roles[r]);
+  return o.length?o.join(" and ")+" parses are scaled by their own role’s factors (tick one role to read them). ":"";
+}
+// the switch is on, several dungeons are in view, and no role in view can be adjusted
+function dnBareText(){
+  return "no "+dnRoles().map(q=>D.roles[q]).join(" or ")+" key level has every dungeon’s par known to ±"+dnCiPct()
+    +"% (95%), so a dungeon factor would add more noise than it removes";
+}
+// "the average dungeon's par", or the average of the ones in view when the Dungeon filter is set
+const dnAvgTxt=()=>DNI.thin.length?"the average par of "+DNI.S.length+" of the "+(DNI.S.length+DNI.thin.length)+" dungeons in view"
+  :DNI.S.length<D.dungeons.length?"the average par of the "+DNI.S.length+" dungeons in view":"the average dungeon’s par";
+// why nothing is adjusted: one dungeon in view, or fewer than two of the dungeons in view have a known par
+const dnFewPars=()=>!!DNI&&!DNI.on&&DNI.thin.length>0&&DNI.S.length+DNI.thin.length>1;
+const dnOneTxt=()=>dnFewPars()
+  ?"Fewer than two of the dungeons in view have a par known to ±"+dnCiPct()+"% (none for "+DNI.thin.map(d=>D.dungeons[d]).join(", ")+")"
+  :"One dungeon in view";
+function dnTitle(){
+  if(DNI&&!DNI.on) return dnOneTxt()+": there is nothing to adjust, every DPS figure is as logged.";
+  if(!state.dnorm) return "DPS as logged, pooled across dungeons: a spec played mostly in one dungeon is ranked on that "
+    +"dungeon’s numbers. Tick for dungeon-adjusted DPS.";
+  if(DNI&&!dnOn()) return "Every DPS figure here is as logged: "+dnBareText()+".";
+  if(state.elite) return "Dungeon-adjusted DPS, the Archon replica’s form. Each kept parse counts once in every dungeon in view, at "
+    +"that dungeon’s level: its DPS × that dungeon’s par ÷ its own dungeon’s par at its key level, par being the median DPS "
+    +"of every parse of the same role there, all specs. The level of the dungeon a parse was logged in then no longer moves a "
+    +"spec’s figure, and a spec that is played evenly reads what the pooled recipe gave; how a spec does in the dungeon it is "
+    +"played in most still shows, and such a spec is tagged. The standard view reads percentiles in one average dungeon "
+    +"instead, which would put nearly every p"+Math.round(ELITE_PCTL*100)+" here several percent under the pooled recipe. "
+    +"Dungeon levels against the average dungeon "
+    +(dnRoles().length>1?"for "+D.roles[dnRole()]+" ":"")+dnLevelText()+". "+dnBorrowText()+"Untick for the pooled recipe, as logged.";
+  return "Dungeon-adjusted DPS. Damage depends on the dungeon as much as on the spec, so each parse is scaled by "
+    +dnAvgTxt()+" ÷ its own dungeon’s par at its key level — par being the median DPS of every parse "
+    +"of the same role in that dungeon at that key level, all specs. The damage level of the dungeons a spec is "
+    +"played in then no longer moves its figure; how it does in one dungeon against the others still does. "
+    +"Key level is not adjusted. Factors "+(dnRoles().length>1?"for "+D.roles[dnRole()]+" ":"")+dnFactorText()+". "+dnBorrowText()
+    +"Untick for DPS as logged, pooled across dungeons.";
+}
+function dnNote(rows){
+  if(!DNI) return "";
+  if(!DNI.on) return dnFewPars()?"<b>⚖ DPS as logged here:</b> "+esc(dnOneTxt().replace(/^F/,"f"))+". ":"";
+  if(!state.dnorm) return "<b>DPS as logged</b> — pooled across dungeons, so a spec played mostly in one dungeon "
+    +"is ranked on that dungeon’s numbers; tick ⚖ in the lens bar to adjust. ";
+  if(!dnOn()) return "<b>⚖ DPS as logged here:</b> "+esc(dnBareText())+". ";
+  // the rule, the factors, what was borrowed, how far the figures moved, what key level does: the reasons and
+  // the caveats are one hover away on the ⚖ chip, and a spec that rests on one dungeon carries its own tag
+  const one=state.role.size===1, who=one?esc(D.roles[dnRole()])+" parse":"parse of the same role", forRole=one?"":"for "+esc(D.roles[dnRole()])+" ";
+  if(state.elite) return "<b>⚖ Dungeon-adjusted DPS, the replica’s form:</b> each kept parse counts once in every dungeon in view, "
+    +"at that dungeon’s level (× that dungeon’s par ÷ its own dungeon’s par at its key level; par = the median DPS of every "
+    +who+" there); a spec with "+Math.round(100*dnHotAt())+"% or more of its parses in one dungeon is tagged. Dungeon levels "+forRole+esc(dnLevelText())+". "
+    +esc(dnBorrowText())+esc(dnShiftText(rows))+esc(dnKeyNote(rows));
+  return "<b>⚖ Dungeon-adjusted DPS:</b> each parse × "+esc(dnAvgTxt())+" ÷ its own dungeon’s par at its key level "
+    +"(par = the median DPS of every "+who+" there, all specs); a spec with "+Math.round(100*dnHotAt())+"% or more of its parses in one dungeon is tagged. "
+    +"Factors "+forRole+esc(dnFactorText())+". "+esc(dnOtherRolesText())+esc(dnBorrowText())+esc(dnShiftText(rows))+esc(dnKeyNote(rows));
+}
+// what key level alone does: the average dungeon's par at the two ends of the range in view. The replica parks
+// the key range and keeps each spec from its own key floor up, so there the range is the median key floor of
+// the specs shown up to the highest level that has a par (widened downward if that is a single level)
+// null: one level in view (or one dungeon), nothing to say. lo<0: several levels in view, fewer than two of them
+// with every dungeon's par known, so the rise cannot be read
+function dnKeyRise(rows){
+  if(!DNI||!DNI.on) return null;
+  let a=state.klo, b=state.khi, fmed=-1, nfl=0;
+  if(state.elite){
+    const fl=[]; for(const x of rows||[]){const g=x.a0||x.a; if(g&&g.floorK>=0) fl.push(g.floorK)}
+    if(!fl.length) return null;
+    fl.sort((x,y)=>x-y);
+    a=fmed=fl[Math.floor((fl.length-1)/2)]; b=DN_K-1; nfl=fl.length;
+  }
+  else if(a>=b) return null;
+  const {nd,par}=DNP, r=dnRole();
+  const bar=k=>{let s=0; for(const d of DNI.S) s+=par[(r*DN_K+k)*nd+d]; return s/DNI.S.length};
+  let lo=-1, hi=-1;
+  const scan=()=>{lo=hi=-1; for(let k=Math.max(0,a);k<=Math.min(DN_K-1,b);k++) if(DNI.src[r*DN_K+k]===k){ if(lo<0) lo=k; hi=k; }};
+  scan(); while(state.elite&&hi<=lo&&a>0){a--; scan()}
+  if(lo<0||hi<=lo) return {lo:-1, hi:-1, fmed, nfl, r, tot:NaN, per:NaN};
+  const q=bar(hi)/bar(lo);
+  return {lo, hi, fmed, nfl, r, tot:100*(q-1), per:100*(Math.pow(q,1/(hi-lo))-1)};
+}
+function dnKeyNote(rows){
+  const k=dnKeyRise(rows);
+  if(!k) return "";
+  if(k.lo<0) return "Key level is not adjusted; what a level is worth cannot be read here, fewer than two key levels in view have every dungeon’s par known to ±"+dnCiPct()+"%. ";
+  const rise="Key level is not adjusted: "+(dnRoles().length>1?D.roles[k.r]+" ":"")+"par rises "+Math.round(k.tot)+"% from +"+k.lo+" to +"+k.hi
+    +", about "+k.per.toFixed(1)+"% a level";
+  if(state.elite) return rise+(k.nfl===1?" (the one key floor shown is +"+k.fmed+")":" (half the key floors shown are at +"+k.fmed+" or above)")
+    +", and each spec is read from its own key floor up, so a spec whose floor is a level higher reads up to about that much higher. ";
+  return rise+", so a spec whose parses sit a level higher "
+    +"reads about that much higher — each spec’s "+(gearOn()?"median":"average")+" key is in its tooltip"+(twoSided()||skillOn()?"":" and in the Data Table")+". ";
+}
+// the Avg key header says the same figure the note prints, for the role and the range in view
+function dnAkeyTitle(){
+  const k=dnKeyRise(), has=!!k&&k.lo>=0;
+  return "The average key level of this spec’s parses under these filters. Key level is not adjusted: "
+    +(has?(dnRoles().length>1?D.roles[k.r]+" ":"")+"par rises about "+k.per.toFixed(1)+"% a level here (+"+k.lo+" to +"+k.hi+")":"par rises with key level")
+    +", so a spec whose parses sit a level higher reads "+(has?"about that much ":"")+"higher."+(state.klo<state.khi?" Narrow the key range to one level to compare specs like for like.":"");
+}
+function syncDnUI(){
+  const c=$("dnorm-chip"), i=$("dnorm"); if(!c||!i) return;
+  i.checked=state.dnorm;
+  c.classList.toggle("idle",!!DNI&&(!DNI.on||!dnRoles().some(r=>DNI.any[r])));
+  c.title=dnTitle();
+}
+// a group's dungeon mix and average key and, while the adjustment is on, its figures as logged
+function dnFields(g,p){
+  let top=0; for(let d=1;d<g.dn.length;d++) if(g.dn[d]>g.dn[top]) top=d;
+  // adj: this group's figures are dungeon-adjusted. A role with no factors (healers, 2026-11-13) is as logged,
+  // so its groups carry no ⚖ and no "as logged" pair that would only repeat the figure above it
+  const o={dn:g.dn, dtop:top, dshare:g.n?g.dn[top]/g.n:0, lavg:null, lmed:null, akey:null,
+           din:null, dout:null, nin:0, nout:0, adj:dnOn()&&g.ix.length>0&&!!DNI.any[R.role[g.ix[0]]]};
+  if(o.adj&&g.ldps.length){g.ldps.sort((a,b)=>a-b); o.lavg=g.lsum/g.ldps.length; o.lmed=qp(g.ldps,p)}
+  if(g.ix.length){let s=0; for(const i of g.ix) s+=R.key[i]; o.akey=s/g.ix.length}
+  // a spec that rests on one dungeon: the same read THERE and in THE REST, on the scale its figure is on
+  // (the replica's is the dungeon-spread pool, the standard view's the parse at the average dungeon)
+  if(o.adj&&dmixHot(o)){
+    const a=[], b=[];
+    for(const i of g.ix){const t=R.dun[i]===top?a:b, v=dpsAt(i); if(state.elite) dnSpread(t,i,v); else t.push(v)}
+    o.nin=g.dn[top]; o.nout=g.n-g.dn[top];
+    if(a.length){a.sort((x,y)=>x-y); o.din=qp(a,p)}
+    if(b.length){b.sort((x,y)=>x-y); o.dout=qp(b,p)}
+  }
+  return o;
+}
+// "Ruby Life Pools 63% (77) · The Blinding Vale 19% (23) · …", largest first
+function dmixText(a,top){
+  const o=[...a.dn.keys()].filter(d=>a.dn[d]>0).sort((x,y)=>a.dn[y]-a.dn[x]);
+  return (top?o.slice(0,top):o).map(d=>D.dungeons[d]+" "+Math.round(100*a.dn[d]/a.n)+"% ("+fmtInt(a.dn[d])+")").join(" · ")
+    +(top&&o.length>top?" · +"+(o.length-top)+" more":"");
+}
+// named only where it means something: several dungeons in view, and a share far above an even split
+const dnHotAt=()=>Math.min(0.8,Math.max(DN_FLAG,2.5/(DNI.S.length+DNI.thin.length)));
+// tested on the share AS PRINTED (whole percent): a row never shows "35%" untagged beside "35% or more is tagged"
+const dmixHot=a=>!!DNI&&DNI.on&&Math.round(100*a.dshare)>=Math.round(100*dnHotAt());
+// what a concentrated spec's figure can and cannot say, then the whole mix
+// "there 499,300 (77 parses) · elsewhere 455,100 (46)"
+const dmixHasSplit=a=>!!a&&a.din!=null&&a.dout!=null;   // nothing to split when every parse is in the one dungeon
+function dmixSplit(a){
+  return "there "+(a.din!=null?fmtInt(a.din):"–")+" ("+fmtInt(a.nin)+" parses) · elsewhere "
+    +(a.dout!=null?fmtInt(a.dout):"–")+" ("+fmtInt(a.nout)+")";
+}
+function dmixTitle(a){
+  return (dmixHot(a)?(a.dshare>=1?"All":Math.round(100*a.dshare)+"%")+" of these parses are in "+D.dungeons[a.dtop]
+      +", so this figure "+(a.dshare>=1?"only says":a.dshare>=0.5?"mostly says":"leans on")+" how the spec does there"
+      +(dmixHasSplit(a)?": the same read gives "+dmixSplit(a)+", both dungeon-adjusted":"")
+      +". The Dungeon filter reads each dungeon on its own. ":"")
+    +dmixText(a);
+}
+// the tooltip's full-width line: the mix, then for a flagged spec the same read there and elsewhere
+function dmixLine(a){
+  return "Dungeon mix: "+esc(dmixText(a,2))
+    +(dmixHasSplit(a)?" — the same read there "+(a.din!=null?fmtInt(a.din):"–")+", elsewhere "+(a.dout!=null?fmtInt(a.dout):"–")+dsfxA(a):"");
+}
+// "63% in Ruby Life Pools": beside the figure on the chart, under the spec in the table
+function dmixTag(a,cls){
+  return '<span class="dmxtag'+(cls?" "+cls:"")+'" title="'+escA(dmixTitle(a))+'">'+(a.dshare>=1?"all in ":Math.round(100*a.dshare)+"% in ")
+    +esc(D.dungeons[a.dtop])+'</span>';
+}
+function dmixCell(a){
+  if(!a||!a.dn||!a.n) return '<span class="na">–</span>';
+  return '<span class="dmx'+(dmixHot(a)?" hot":"")+'" title="'+escA(dmixTitle(a))+'">'
+    +esc(D.dungeons[a.dtop])+" "+Math.round(100*a.dshare)+"%</span>";
+}
+const dpsAt=i=>R.dps[i]*projMul(i)*dnMul(i);
 // tabs the Skill compare honestly applies to: per-parse distributions only
 const SKILL_TABS=new Set(["med","adeaths"]);
 const skillOn=()=>state.skill&&!state.compare&&!state.gear&&!state.elite;
@@ -1957,6 +2342,7 @@ function initData(d,cfg){
   buildRuns();
   {const r=(d.retention||{}).resets; KEEP_BUCKETS=(Number.isFinite(+r)&&+r>0)?+r:2;}
   computeResetBuckets();
+  buildDnPar();   // ⚖ the par table rests on the rows the window keeps, so it follows the buckets
   // Raider.IO season score per character, indexed by the same char id the rows
   // carry. Enrichment is a slow background sweep, so partial coverage is the
   // normal state and the metric appears as soon as anyone is rated.
@@ -2058,8 +2444,8 @@ function initData(d,cfg){
   // which clock this payload's DPS stands on: the builder says so since 2026-11-13 (dps_clock). A payload
   // without the field was built before that, on the keystone clock (the timer: 15 s for every party death)
   {const fc=$("foot-clock"); if(fc) fc.textContent=d.dps_clock==="fight"
-     ?"the fight clock, the figure Warcraft Logs ranks (builds before 2026-11-13 divided by the keystone clock, which adds 15 s per party death)"
-     :"the keystone clock: this payload was built before 2026-11-13; newer builds divide by the fight clock, the figure Warcraft Logs ranks, and read about 1% higher at high keys";}
+     ?"the fight clock, the figure Warcraft Logs ranks (builds made before the builder changed on 13 Nov 2026 divided by the keystone clock, which adds 15 s per party death)"
+     :"the keystone clock: this payload predates the builder change of 13 Nov 2026; builds made after it divide by the fight clock, the figure Warcraft Logs ranks, and read about 1% higher at high keys";}
   setCompare(false);   // also resets gain/loss sort state, then renders
   csRestoreFromHash(); // #cs=… survives refresh AND the reload-based reset
 }
@@ -3205,6 +3591,14 @@ function setNotice(t){ const n=$("notice"); if(n) n.textContent=t; }
 /* -------- Archon exit toast: auto-uncheck kept your changes; offer restore -------- */
 function showArchonToast(){ $("archon-toast").hidden=false; }
 function hideArchonToast(){ $("archon-toast").hidden=true; }
+$("dnorm").onchange=e=>{
+  if(!D){e.target.checked=state.dnorm; return}
+  state.dnorm=e.target.checked;
+  setNotice(!DNI||!DNI.on?dnOneTxt()+": there is nothing to adjust, DPS is as logged either way."
+    :!state.dnorm?"⚖ off — DPS as logged, pooled across dungeons."
+    :dnOn()?"⚖ Dungeon-adjusted DPS on.":"⚖ on, but nothing in view can be adjusted: "+dnBareText()+".");
+  render();
+};
 $("archon-restore").onclick=()=>{
   hideArchonToast();
   if(archonPrev&&window.applyArchonState){
@@ -3220,7 +3614,11 @@ function archonTitle(){
     +"levels over the last 14 days, then p85 DPS within (per-spec elite key floor). "
     +"Keys"+(ILVL.has?", item level":"")+" and weeks are parked at full range because the replica path bypasses them; "
     +"timed filter off, hero talents merged, DPS role, compare off. "
-    +"Validated against their live table at ρ≈0.95. "
+    +"The pooled recipe was checked against their live High Keys table early in the season (Spearman 0.96, level within 5%; "
+    +"no dated record, not re-checked since). With ⚖ on, each kept "
+    +"parse counts once in every dungeon in view, which leaves an evenly played spec where the pooled recipe put it; that "
+    +"form has not itself been checked against archon.gg. Their FAQ, as a search engine excerpts it, takes the High Keys sample "
+    +"for each spec in each dungeon, so no one dungeon can take over a spec there; how they combine the dungeons is not published. "
     +"Unchecks itself the moment any of those settings moves.";
 }
 
@@ -3333,7 +3731,21 @@ function scopeLine(sec,extra){
     else if(ilvlNarrowed()) p.push(ilvlText());
   }
   if(state.timedOnly) p.push("timed only");
-  let s=esc(p.join(" · "))+labStamp(sec);
+  // ⚖ on is the default and is said with the mark alone (any more words pushed two heads onto a second line at
+  // 1920); off is the unusual state and is spelt out. A role in view that has no factors is named in the mark's
+  // title and in the period note; when NO spec shown is adjusted (only such roles are left) the head says as logged
+  let dnFrag="";
+  if(DNI&&DNI.on){
+    const someAdj=dnOn()&&(!FRAME_A||!FRAME_A.groups||!FRAME_A.groups.size||[...FRAME_A.groups.values()].some(g=>g.adj!==false));
+    if(someAdj){
+      const bare=dnRoles().filter(r=>!DNI.any[r]).map(r=>D.roles[r]);
+      dnFrag=' · <span title="'+escA("⚖: the DPS figures in this section are dungeon-adjusted (the rule is in the note under the lens bar)"
+        +(bare.length?"; "+bare.join(" and ")+" DPS is as logged":"")+"."
+        +(state.elite&&sec==="trajectory"?" Trajectory reads each parse at the average dungeon, not the replica’s every-dungeon pool.":""))
+        +'">⚖</span>';
+    } else p.push("DPS as logged");
+  }
+  let s=esc(p.join(" · "))+dnFrag+labStamp(sec);
   if(extra) s+=" — "+extra;
   return s;
 }
@@ -3429,10 +3841,30 @@ function effMinFor(pool){
 // min-characters gate (their floors and thin elite pools break under all
 // three -- keeping the clamp alone degrades the match to 0.950/1.05), so it
 // is a dedicated pass rather than a filter preset.
+// 2026-11-13: that validation was of the POOLED recipe, presumably at a time when
+// every spec's dungeon mix was even. With the dungeon adjustment on (the default) the
+// same rows are kept and each one counts once in every dungeon in view, at that
+// dungeon's par (dnSpread). For a spec that is played evenly that IS the pooled
+// recipe: on the payload built that day at 13:05 UTC (fight clock) the other 24
+// specs' p85 sat at a median of 0.998 of it (0.960-1.046; Spearman 0.992 over
+// all 25), where pooling the
+// parse at the average dungeon read 5% low for the typical spec (23 of 25).
+// Assassination, 71% of whose kept parses were in one dungeon, went from 21.1%
+// over Subtlety to 6.9%, a little over half of the rest being its higher key
+// floor (+3% at an equal floor). This form has NOT been checked against their
+// table -- archon.gg cannot be fetched from here -- and the validation above
+// has no dated record in this repository (the comment predates 2026-09-30).
+// A third-party copy of their 25 October table for the +7..+23 bracket tracks
+// a plain all-keys p85 of this site's rows (Spearman 0.986, level +3%) and not
+// this recipe (0.876, +21%); that bracket is not the High Keys table, so it
+// neither confirms nor refutes the recipe. Their FAQ, as a search engine
+// excerpts it, samples High Keys "for each spec in each dungeon". Untick the
+// adjustment for the recipe exactly as it was validated.
 const ELITE_KEEP=0.10, ELITE_PCTL=0.85, ELITE_MIN=50, ELITE_DAYS=14;
 let eliteHidden=0;
 function aggregateElite(){
   const m=baseMasks();
+  const dnL=dnOn(), ND=D.dungeons.length;
   // spread over a 400k+ element column overflows the call stack; loop instead
   let maxDay=curMaxDay;
   if(maxDay<0){maxDay=-1; for(let i=0;i<R.day.length;i++) if(R.day[i]>maxDay) maxDay=R.day[i];}
@@ -3477,12 +3909,18 @@ function aggregateElite(){
     let g=groups.get(k);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
              n:0,sum:0,dsum:0,dzero:0,dps:[],rsum:0,rdps:[],chars:new Set(),
-             runs:new Set(),floorK:fl};
+             runs:new Set(),floorK:fl,ldps:[],lsum:0,dn:new Uint32Array(ND),ix:[]};
       groups.set(k,g)}
     const dv=dpsAt(i);
+    g.dn[R.dun[i]]++; g.ix.push(i);
+    if(dnL){const lv=R.dps[i]*projMul(i); g.lsum+=lv; g.ldps.push(lv)}   // ⚖ on: the figure as logged rides along
     g.n++; g.sum+=dv; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
-    g.dps.push(dv); g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
+    // ⚖ on: percentiles are read off the parse counted once in EVERY dungeon in view (dnSpread), which keeps
+    // the level the pooled recipe was validated at; sums, and so averages, are the same either way
+    {const rv=R.dps[i]*dnMul(i); g.rsum+=rv;
+     // (the recorded pool is read only while the tuning projection is on: not built otherwise)
+     if(dnL){dnSpread(g.dps,i,dv); if(state.proj) dnSpread(g.rdps,i,rv)} else {g.dps.push(dv); g.rdps.push(rv)}}
     g.chars.add(R.char[i]); charSeen.add(R.char[i]); g.runs.add(R.run[i]);
   }
   eliteHidden=0;
@@ -3501,7 +3939,10 @@ function aggregateElite(){
       // same sorted array, two extra quantile reads
       q30:qp(g.dps,.30), q85:qp(g.dps,.85), qb:qp(g.dps,state.pctlB/100),
       adeaths:g.dsum/g.n, deathless:100*g.dzero/g.n,
-      chars:g.chars.size, arating:NaN, mrating:NaN, rn:0, floorK:g.floorK});
+      chars:g.chars.size, arating:NaN, mrating:NaN, rn:0, floorK:g.floorK,
+      // whole key levels: the floor rarely keeps exactly a tenth, so the share it does keep is printed
+      kshare:g.n/hist.get(k).n, kpool:hist.get(k).n,
+      ...dnFields(g,ELITE_PCTL)});
   }
   return {groups:out, parses, runs, chars:charSeen.size, dmin, dmax, runSeen};
 }
@@ -3509,6 +3950,7 @@ function aggregateElite(){
 function aggregate(weeks,il){
   if(state.elite) return aggregateElite();
   const m=baseMasks(il), cut=periodCut(weeks);
+  const dnL=dnOn(), ND=D.dungeons.length;
   const groups=new Map(); let parses=0, runs=0, dmin=1e9, dmax=-1;
   const runSeen=new Uint8Array(runCount), charSeen=new Set();
   for(let i=0;i<N;i++){
@@ -3522,9 +3964,11 @@ function aggregate(weeks,il){
     let g=groups.get(key);
     if(!g){g={cls:R.cls[i],spec:R.spec[i],hero:state.merge?-1:R.hero[i],
              n:0,sum:0,dsum:0,dzero:0,dps:[],dth:[],rsum:0,rdps:[],chars:new Set(),il:[],key:[],
-             runs:new Set()};
+             runs:new Set(),ldps:[],lsum:0,dn:new Uint32Array(ND),ix:[]};
            groups.set(key,g)}
     const dv=dpsAt(i);
+    g.dn[R.dun[i]]++; g.ix.push(i);
+    if(dnL){const lv=R.dps[i]*projMul(i); g.lsum+=lv; g.ldps.push(lv)}   // ⚖ on: the figure as logged rides along
     g.n++; g.sum+=dv; g.dsum+=R.deaths[i];
     if(R.deaths[i]===0) g.dzero++;
     g.dps.push(dv);
@@ -3532,7 +3976,7 @@ function aggregate(weeks,il){
     // deaths read (qp of small ints; one extra array per group)
     g.dth.push(R.deaths[i]); if(ILVL.has) g.il.push(R.ilvl[i]); g.key.push(R.key[i]);   // no rows.ilvl: no array to read, and mil is never printed without the Gear axis
     // recorded (un-projected) figures, so the toggle can show a delta
-    g.rsum+=R.dps[i]; g.rdps.push(R.dps[i]);
+    {const rv=R.dps[i]*dnMul(i); g.rsum+=rv; g.rdps.push(rv)}
     g.chars.add(R.char[i]); charSeen.add(R.char[i]);
     // parses and runs differ: two of the same spec in one group is two parses
     // of one run. The column said "Runs" and showed parses.
@@ -3570,7 +4014,8 @@ function aggregate(weeks,il){
       mkey:(g.key.sort((a,b)=>a-b),g.key[Math.floor((g.key.length-1)/2)]),
       adeaths:g.dsum/g.n,
       deathless:100*g.dzero/g.n,
-      chars:g.chars.size, runs:g.runs.size, arating, mrating, rn});
+      chars:g.chars.size, runs:g.runs.size, arating, mrating, rn,
+      ...dnFields(g,state.pctl/100)});
   }
   return {groups:out, parses, runs, chars:charSeen.size, charSet:charSeen, dmin, dmax, runSeen};
 }
@@ -3643,17 +4088,23 @@ function tipHTML(r,compare){
     const two=(k,va,vb)=>"<tr><td>"+k+"</td><td>"+va+"</td><td>"+vb+"</td></tr>";
     const pj=(k,rk,fmt)=>fmt(a[k])+(state.proj?projDelta(a[k],a[rk]):"");
     h+=two("", "<b>p"+state.pctl+"</b>", "<b>p"+state.pctlB+"</b>");
-    h+=two(state.proj?"DPS at percentile (proj.)":"DPS at percentile",
+    h+=two((state.proj?"DPS at percentile (proj.)":"DPS at percentile")+dsfxA(a),
            pj("med","rmed",fmtInt), fmtInt(a.qb));
     h+=two("Deaths at percentile", a.qdA.toFixed(2), a.qdB.toFixed(2));
     h+=one("Runs", fmtInt(a.runs));
     h+=one("Parses", fmtInt(a.n));
     h+=one("Unique characters", fmtInt(a.chars));
-    h+=one(state.proj?"Average DPS (proj.)":"Average DPS", pj("avg","ravg",fmtInt));
+    h+=one((state.proj?"Average DPS (proj.)":"Average DPS")+dsfxA(a), pj("avg","ravg",fmtInt));
     if(state.proj&&a.ravg!=null){
-      h+=one("Recorded average", fmtInt(a.ravg));
-      h+=one("Recorded p"+state.pctl+" DPS", fmtInt(a.rmed));
+      h+=one("Recorded average"+dsfxA(a), fmtInt(a.ravg));
+      h+=one("Recorded p"+state.pctl+" DPS"+dsfxA(a), fmtInt(a.rmed));
     }
+    if(a.lavg!=null){
+      h+=one(dnLoggedLbl()+", average", fmtInt(a.lavg));
+      h+=one(dnLoggedLbl()+", p"+state.pctl+" DPS", fmtInt(a.lmed));
+    }
+    if(!state.elite&&a.akey>0) h+=one("Average key", "+"+a.akey.toFixed(1));
+    if(a.dn) h+='<tr><td class="tmix" colspan="3">'+dmixLine(a)+'</td></tr>';
     h+=one("Average deaths", a.adeaths.toFixed(2));
     h+=one("Deathless runs", a.deathless.toFixed(1)+"%");
     if(hasRating){
@@ -3677,14 +4128,28 @@ function tipHTML(r,compare){
     h+=row("Median key", f(r.a,"mkey",v=>"+"+v), f(r.b,"mkey",v=>"+"+v));
   }
   const pj=(o,k,rk,fmt)=>o?fmt(o[k])+(state.proj?projDelta(o[k],o[rk]):""):"–";
-  h+=row(state.proj?"Average DPS (proj.)":"Average DPS",
+  h+=row((state.proj?"Average DPS (proj.)":"Average DPS")+dsfxA(r.a),
          pj(r.a,"avg","ravg",fmtInt), f(r.b,"avg",fmtInt));
-  h+=row(state.proj?dpsLabel()+" (proj.)":dpsLabel(),
+  h+=row((state.proj?dpsLabel()+" (proj.)":dpsLabel())+dsfxA(r.a),
          pj(r.a,"med","rmed",fmtInt), f(r.b,"med",fmtInt));
   if(state.proj&&r.a.ravg!=null){
-    h+=row("Recorded average", fmtInt(r.a.ravg), "–");
-    h+=row("Recorded "+dpsLabel().toLowerCase(), fmtInt(r.a.rmed), "–");
+    h+=row("Recorded average"+dsfxA(r.a), fmtInt(r.a.ravg), "–");
+    h+=row("Recorded "+dpsLabel().toLowerCase()+dsfxA(r.a), fmtInt(r.a.rmed), "–");
   }
+  // ⚖ on: the logged figures stay in reach, and the mix says why they differ
+  const lg=(o,k)=>o&&o[k]!=null?fmtInt(o[k]):"–";
+  // the logged pair keeps short value cells; the mix goes on a full-width line of its own, because as a value cell
+  // it pinned the box at its widest, wrapped every label and doubled the tooltip's height past the bottom of a 1080 screen
+  if(r.a.lavg!=null){
+    h+=row(dnLoggedLbl()+", average", lg(r.a,"lavg"), lg(r.b,"lavg"));
+    h+=row(dnLoggedLbl()+", "+dpsLabel().toLowerCase(), lg(r.a,"lmed"), lg(r.b,"lmed"));
+  }
+  if(!state.elite&&!gearOn()&&r.a.akey>0) h+=row("Average key", "+"+r.a.akey.toFixed(1), r.b&&r.b.akey>0?"+"+r.b.akey.toFixed(1):"–");
+  const wide=t=>'<tr><td class="tmix" colspan="'+(compare?3:2)+'">'+t+'</td></tr>';
+  // the replica's key floor on a full-width line: as a value cell it wrapped and squeezed the label column
+  if(state.elite&&r.a.floorK>=0) h+=wide("Key floor +"+r.a.floorK+": keeps "+Math.round(100*r.a.kshare)+"% of the spec’s "+fmtInt(r.a.kpool)+" parses");
+  if(r.a.dn) h+=wide((compare?"A · ":"")+dmixLine(r.a));
+  if(compare&&r.b&&r.b.dn&&r.b.n) h+=wide("B · "+dmixLine(r.b));
   h+=row("Average deaths", f(r.a,"adeaths",v=>v.toFixed(2)), f(r.b,"adeaths",v=>v.toFixed(2)));
   h+=row("Deathless runs", f(r.a,"deathless",v=>v.toFixed(1)+"%"), f(r.b,"deathless",v=>v.toFixed(1)+"%"));
   if(hasRating){
@@ -3706,7 +4171,8 @@ function attachTip(el,html){
       const tip=$("tip");
       tip.innerHTML=html; tip.style.display="block";
       tip.style.left=Math.min(x+14,innerWidth-330)+"px";
-      tip.style.top=Math.min(y+14,innerHeight-220)+"px";
+      // the box is as tall as its rows: clamp on the measured height, so its last row is never below the fold
+      tip.style.top=Math.max(8,Math.min(y+14,innerHeight-tip.offsetHeight-8))+"px";
     },TIP_DELAY);
   };
   el.onmouseleave=hideTip;   // immediate hide; a pending show is cancelled
@@ -3905,6 +4371,16 @@ function frameScope(withB){   // withB: the Spec Frame only — its identity row
         if(gearOn()) p.push(withB?ilvlAText()+" vs "+ilvlBText()+" (ghost)":ilvlAText()+" (cohort A)");
         else if(ilvlNarrowed()) p.push(ilvlText()); }
   if(state.timedOnly) p.push("timed only");
+  // this caption is about ONE spec: a spec whose role has no factors is as logged, whatever else is in view
+  if(DNI&&DNI.on){
+    const fg=FRAME_A&&FRAME_A.groups?FRAME_A.groups.get(state.frameKey):null;
+    let adj=dnOn();
+    if(adj&&fg) adj=fg.adj!==false;
+    else if(adj){       // no parses under the filters: decided by the spec's own role, not by what else is in view
+      for(let i=0;i<N;i++) if(groupKey(i)===state.frameKey){adj=!!DNI.any[R.role[i]]; break}
+    }
+    p.push(adj?"⚖ adjusted DPS":"DPS as logged");
+  }
   return p.join(" · ");
 }
 // Names decode from presKey, not from g, so the header and comps/stats blocks
@@ -3936,11 +4412,12 @@ function frameIdentityHTML(ctx){
     return fmt(a)+" · "+(ok?fmt(bv):"–")+" "+deltaHTML(a,ok?bv:null,{betterUp});
   };
   let rows="";
-  if(twoSided()) rows+=row(esc(dpsLabel()),ab(g.med,b?b.med:null,fmtInt,true));
-  else if(skill) rows+=row("p"+state.pctl+" · p"+state.pctlB+" DPS",
+  if(twoSided()) rows+=row(esc(dpsLabel()+dsfxA(g)),ab(g.med,b?b.med:null,fmtInt,true));
+  else if(skill) rows+=row("p"+state.pctl+" · p"+state.pctlB+(dsfxA(g)||" DPS"),   // the mark stands for "DPS" here: both would break the label in two
     fmtInt(g.med)+" · "+fmtInt(g.qb));
-  else rows+=row(esc(dpsLabel()),fmtInt(g.med));
-  rows+=row("p30–p85 spread",fmtInt(g.q30)+" – "+fmtInt(g.q85)
+  else rows+=row(esc(dpsLabel()+dsfxA(g)),fmtInt(g.med));
+  if(g.lmed!=null) rows+=row('<span title="the same read before the dungeon adjustment">'+dnLoggedLbl()+(skill?", p"+state.pctl:"")+'</span>',fmtInt(g.lmed));
+  rows+=row("p30–p85 spread"+dsfxA(g),fmtInt(g.q30)+" – "+fmtInt(g.q85)
     +(g.q85>0?" · "+(100*(g.q85-g.q30)/g.q85).toFixed(1)+"%":""));
   if(twoSided())
     rows+=row("Avg deaths",ab(g.adeaths,b?b.adeaths:null,v=>v.toFixed(2),false));
@@ -3957,6 +4434,13 @@ function frameIdentityHTML(ctx){
   if(hasRating&&g.rn)
     rows+=row("Med player rating (Raider.IO season)",
       fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated · a season total, not limited to the window</span>");
+  // the mix and, for a flagged spec, the same read there and elsewhere on ONE full-width line: as two value rows
+  // they squeezed the label column, broke "Median DPS ⚖" in two and pushed the frame past its height cap at 1080
+  // In a compare mode the frame is taller already and has two sides, each with its own mix: the line is left to the
+  // tooltip (one per side), the tag and the Data Table, so the flagged spec's frame fits its cap there too
+  if(g.dn&&g.n&&!twoSided()&&!skill) rows+='<tr><td class="fmix" colspan="2">Dungeon mix: '+dmixCell(g)
+    +(dmixHasSplit(g)?' <span title="'+escA("the same read in "+D.dungeons[g.dtop]+" ("+fmtInt(g.nin)+" parses) and in the other dungeons ("+fmtInt(g.nout)+"), both dungeon-adjusted")
+      +'">— <span class="nw">there '+fmtInt(g.din)+'</span> · <span class="nw">elsewhere '+fmtInt(g.dout)+dsfxA(g)+'</span></span>':'')+'</td></tr>';
   h+='<table class="frows">'+rows+'</table>';
   h+='<div class="foot">'+fmtInt(g.n)+" parses · "+fmtInt(g.runs)+" runs · "
     +fmtInt(g.chars)+" chars · "
@@ -4127,7 +4611,7 @@ function frameLiveStatsHTML(ctx){
   const slice=idx.filter(i=>L.inWin.has(i)&&known(i));
   h+='<div class="fsub">'+esc("players around p"+state.pctl+" (lens ±10) · n="
     +fmtInt(slice.length)+" · "+fmtDps(qp(sdps,lo/100))+"–"+fmtDps(qp(sdps,hi/100))
-    +" dps")+'</div>';
+    +" dps"+dsfxA(FRAME_A&&FRAME_A.groups.get(state.frameKey))+(state.elite&&dnOn()?", each parse at the average dungeon — the p"+Math.round(ELITE_PCTL*100)+" on the bar counts every parse once in each dungeon":""))+'</div>';
   const entries=[];
   for(let s=0;s<nst;s++){                // every stat with data gets a row; 0 = unknown
     const v=[];
@@ -4796,7 +5280,10 @@ function csTalentRows(d){
   for(const [v,a] of byV){
     const vb=v>0?d.vocab.builds[v-1]:null;
     if(!vb){ other+=a.length; continue }
-    const dps=a.map(dpsAt).sort((x,y)=>x-y);
+    // the replica reads its figures off the every-dungeon pool (dnSpread), so a build's median is read off it too
+    let dps;
+    if(state.elite&&dnOn()){dps=[]; for(const i of a) dnSpread(dps,i,dpsAt(i))} else dps=a.map(dpsAt);
+    dps.sort((x,y)=>x-y);
     // an import string encodes exactly one hero tree, so the MODE of R.hero
     // over the build's slice rows is its identity (resolver noise aside)
     let hero="";
@@ -7300,6 +7787,7 @@ function wireSort(host,st,rerender){
 }
 function render(){
   if(!D) return;   // Lens Bar is inert until data arrives
+  refreshDnf();   // ⚖ factors follow the dungeons in view, before anything reads dpsAt
   const am=$("archon");
   if(am&&window.__archonMatches){
     const ok=__archonMatches();
@@ -7312,6 +7800,7 @@ function render(){
     }
   }
   syncLensUI(); syncAxisUI(); labScopeRefresh();
+  syncDnUI();   // after the Archon predicate above: the chip's title depends on the mode it may just have left
   const tab=TABS.find(t=>t.id===state.tab)||TABS.find(t=>t.id==="med");
   const A=aggregate(state.weeksA);
   const skill=skillOn();
@@ -7376,6 +7865,7 @@ function render(){
       : "")
     +(hasTune&&state.postTune?"<b>Post-tuning runs only.</b> ":"")
     +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
+    +dnNote(rows)
     +(state.elite?"<b>⚔ Archon replica:</b> per spec, the top decile of key "
         +"levels, then p85 DPS within — the moving elite frontier their table "
         +"tracks. Key/"+(ILVL.has?"item-level/":"")+"period/min-character controls are bypassed while active"
@@ -7537,7 +8027,9 @@ function render(){
     valEl.innerHTML=esc(tab.fmt(v))
       +(cmpA?deltaHTML(r.a[col], r.b?r.b[col]:null, tab)
           +(r.thinB?'<span class="delta na" title="B side under the gate: '+fmtInt(r.b.chars)+' characters, gate ≥ '+effMinB+' here">thin B</span>':'')
-        :(rbase==null?"":projDelta(v,rbase)));
+        :(rbase==null?"":projDelta(v,rbase)))
+      // a figure that rests mostly on one dungeon says so beside itself
+      +(dmixHot(r.a)?dmixTag(r.a):'');
     track.appendChild(valEl);
     row.appendChild(lbl); row.appendChild(track);
     // Triggers hug content: the bar itself and the label TEXT span only — not
@@ -7633,6 +8125,7 @@ function renderScopeChips(){
   if(state.skill&&!state.elite) scopeChip(box,"compare: skill vs p"+state.pctlB,"cmpseg");
   if(gearOn()) scopeChip(box,"compare: gear vs "+ilvlBText(),"blockG");
   if(state.elite) scopeChip(box,"⚔ archon replica","archon-chip");
+  if(DNI&&DNI.on&&!state.dnorm) scopeChip(box,"DPS as logged","dnorm-chip");
 }
 // trust-gate "show anyway": drops the effective min-chars to 1 for the session;
 // ships only with the amber strip state AND the undo chip (veto conditions)
@@ -7655,6 +8148,14 @@ $("trust-undo").onclick=e=>{e.stopPropagation();
   clearTrustOverride(true); setNotice("Trust gate restored."); render();};
 
 /* -------- Archon generated scope card (single-sourced from the recipe) -------- */
+// the earliest dated row the page holds: the recipe says 14 days, the retention says two resets
+let ELITE_D0=null;
+function eliteDay0(){
+  if(ELITE_D0&&ELITE_D0.n===N&&ELITE_D0.b===D.built) return ELITE_D0.d;
+  let d=1e9; for(let i=0;i<N;i++){const v=R.day[i]; if(v>=0&&v<d&&R.rbucket[i]!==OUTW) d=v}
+  ELITE_D0={n:N, b:D.built, d:d===1e9?-1:d};
+  return ELITE_D0.d;
+}
 function renderArchonCard(){
   const c=$("archon-card");
   if(!state.elite){c.hidden=true; return}
@@ -7668,6 +8169,14 @@ function renderArchonCard(){
    +'+ qualifying parses to show'
    +(eliteHidden?'; <b>'+eliteHidden+' spec'+(eliteHidden>1?'s':'')
      +'</b> hidden for having under '+ELITE_MIN+' qualifying parses':'')+'. '
+   // the window is 14 days by the recipe and whatever the site keeps in fact: say both
+   +(eliteDay0()>maxDay-(ELITE_DAYS-1)?'The site keeps two resets: it holds nothing before '+fmtDay(eliteDay0())+', whatever the 14 days say. ':'')
+   +(DNI&&DNI.on?(state.dnorm
+     ?'<b>⚖ on:</b> dungeon-adjusted (rule in the note above); a spec that is played evenly reads what the pooled recipe '
+      +'gave. That recipe was checked against archon.gg’s High Keys table early in the season (no dated record, not re-checked '
+      +'since); this form of it has not been. Untick ⚖ for it. '
+     :'<b>⚖ off:</b> the pooled recipe, as logged — a spec played mostly in one dungeon is read on that dungeon’s numbers. ')
+     +'Each spec’s key floor, and the share of its parses the floor keeps, are in its tooltip and the Data Table: a higher floor reads higher. ':'')
    +'<div class="byp">Bypassed while active: <s>key range</s> · '+(ILVL.has?'<s>item-level range</s> · ':'')+'<s>period selection</s> · '
    +'<s>timed filter</s> · <s>minimum characters'
    +(em?' ('+esc(em)+')':'')+'</s> — parked at full range so a mid-range setting '
@@ -7751,7 +8260,8 @@ function renderPulse(rowsGated){
   const wtxt=(lo,hi,n)=>((hi>=0&&lo<1e9)?fmtDay(lo)+" – "+fmtDay(hi):"—")+", n="+fmtInt(n);
   sub.innerHTML="this reset ("+wtxt(nMin,nMax,nNow)+")"
     +(prevB!==undefined?" vs last reset ("+wtxt(pMin,pMax,nPrev)+")"
-                       :" — no earlier reset yet")+labStamp("pulse");
+                       :" — no earlier reset yet")
+    +(DNI&&DNI.on?" · "+(dnOn()?"⚖ adjusted DPS":"DPS as logged"):"")+labStamp("pulse");
   // inline confound banners
   const notes=[];
   if(prevB===undefined) notes.push("single reset of data — Δ and rank-change have no baseline yet");
@@ -7767,7 +8277,7 @@ function renderPulse(rowsGated){
   }
   // EVERY column sorts, both directions, through the shared rule (feedback L51-52).
   const cols=[["rn","#","txt"],["spec","Spec","txt"],
-    ["dps","DPS @ p"+state.pctl],["delta","Δ vs last reset"],["rankd","Rank"],
+    ["dps","DPS @ p"+state.pctl+dsfx()],["delta","Δ vs last reset"],["rankd","Rank"],
     ["adeaths","Deaths"],["pres","Comps","txt"],
     // an empty label would be a zero-width click target: the title names it
     ["tag","","txt","new to the sample since last reset"],
@@ -8050,6 +8560,7 @@ function renderComps(A){
     +"of margin better than par for its difficulty. Comps with few runs are "
     +"pulled toward 0 so one lucky pull cannot top the table. Best and Median "
     +"are the raw margins under the timer, unadjusted."
+    +(DNI&&DNI.on?" The ⚖ dungeon adjustment is for DPS only: Strength, the margins and deaths are pooled across dungeons, so a comp run mostly in one dungeon is scored on that dungeon’s timer.":"")
     +(csKey==null?"":" Ranks and strength are computed over all "
       +fmtInt(rows.length)+(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin
       +"+ runs); × in the header clears the filter and shows the full table.");
@@ -8453,7 +8964,9 @@ function trendCap(mt,span,axis,shown,ofN){
     +(span?" "+span:"")
     // the group cap, stated like the Overview's (2026-09-09): 3 of 19 gated
     // groups went undrawn under the default filters with nothing saying so
-    +(ofN>shown?" Showing "+shown+" of "+ofN+" groups that pass the gate.":"");
+    +(ofN>shown?" Showing "+shown+" of "+ofN+" groups that pass the gate.":"")
+    // inside the replica the bars read the every-dungeon pool; this chart reads each parse at the average dungeon
+    +(state.elite&&dnOn()?" ⚖ Each parse is read at the average dungeon here, not in the replica’s every-dungeon pool, so a point is not the bar’s figure.":"");
 }
 function trendSpan(daily,n,minp,axis){
   if(axis==="ilvl")
@@ -8523,7 +9036,15 @@ function renderTable(rows,tab){
       ["adeaths","Avg Deaths"],
       ["deathless","Deathless %"],
       // punishment proxy: fixed p30–p85 by design, immune to the pctl slider
-      ["spread","p-spread (fixed p30–p85)"]);
+      // ⚖ on, standard view: p30 and p85 are both read in the average dungeon, so the header says what that does
+      ["spread","p-spread (fixed p30–p85)",,dnOn()&&!state.elite?"(p85 − p30) ÷ p85. With ⚖ on both ends of an adjusted spec are read in the average dungeon, so the spread between dungeons is not inside it and it usually reads narrower than as logged. Untick ⚖ for the logged spread.":undefined],
+      // behind the columns the screen already showed: a concentrated spec is named in its Spec cell,
+      // this column is the whole table of it, and it sorts
+      // KEY LEVEL IS NOT ADJUSTED, so where a spec's parses sit on the ladder is printed beside its figure
+      state.elite
+        ?["floorK","Key floor","kf","The replica keeps each spec’s top decile of key levels: this is the level that decile starts at, and the share of the spec’s parses at or above it (whole key levels, so rarely exactly a tenth). A spec with a higher floor is read at higher keys, where every figure is higher."]
+        :["akey","Avg key",,dnAkeyTitle()],
+      ["dmix","Dungeon mix","txt","The dungeon that holds the largest share of this spec’s parses under these filters, and that share"+(DNI&&DNI.on?" — "+(DNI.S.length+DNI.thin.length)+" dungeons played evenly read "+Math.round(100/(DNI.S.length+DNI.thin.length))+"% each. Hover a cell for the whole mix; a spec with "+Math.round(100*dnHotAt())+"% or more in one dungeon is highlighted here and named under its Spec.":". "+(DNI?dnOneTxt():"One dungeon in view")+": nothing is highlighted.")]);
     if(hasRating) cols.push(["arating","Avg Player Rating (season)"],["mrating","Med Player Rating (season)"]);
   }
   // comp presence "in K of Q" — read from renderComps' published set (one
@@ -8542,6 +9063,9 @@ function renderTable(rows,tab){
         ?(r.a[metricCol]-r.b[metricCol])/Math.abs(r.b[metricCol]):NaN;
       case "spread": return (isFinite(r.a.q85)&&r.a.q85>0)
         ?100*(r.a.q85-r.a.q30)/r.a.q85:NaN;
+      case "dmix": return r.a.dshare;
+      case "akey": return r.a.akey>0?r.a.akey:NaN;         // a dash prints, so it parks last either way
+      case "floorK": return r.a.floorK>=0?r.a.floorK:NaN;
       case "comps": {const p=window.__compPresence;
         return (p&&p.den)?(p.map.get(presKey(r))||0):NaN}   // Q=0 parks last
       default: return r.a[k];
@@ -8555,7 +9079,11 @@ function renderTable(rows,tab){
   const fmtCell=(k,r)=>{
     const v=get(r,k);
     if(k==="cls") return `<span class="classdot" style="background:${CLASS_COLORS[r.cls]||"#999"}"></span>`+esc(r.cls);
-    if(k==="spec"||k==="hero") return esc(v);
+    if(k==="spec") return esc(v)+(dmixHot(r.a)?"<br>"+dmixTag(r.a,"in"):"");
+    if(k==="hero") return esc(v);
+    if(k==="dmix") return dmixCell(r.a);
+    if(k==="akey") return v>0?"+"+v.toFixed(1):'<span class="na">–</span>';
+    if(k==="floorK") return v>=0?'<span style="white-space:nowrap">≥ +'+v+" · "+Math.round(100*r.a.kshare)+"%</span>":'<span class="na">–</span>';
     if(k==="a_n"||k==="chars") return fmtInt(v);
     if(k==="b_n") return isFinite(v)?fmtInt(v):"–";
     if(k==="a_v"){
