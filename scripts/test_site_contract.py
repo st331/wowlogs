@@ -188,4 +188,15 @@ print("client      : gear read: % per item level in the note; ⚑ Hold key pins 
 print("client      : Gear compare axis: Off|Time|Skill|Gear XOR; B = period A over the B item-level cohort; median split / complement / swap; period note, caption, chip, tooltip, table, frame; Archon park+restore; hidden without rows.ilvl")
 print("client      : retention note every build; presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
+# 2026-11-13: the page's DPS is the collector's damage / fight clock, the figure Warcraft Logs
+# ranks (scripts/diag_rogue_dps.py: 175 of 175 players). The keystone clock carries 15 s per party
+# death; the builder recomputed DPS on it until this date and must not start again.
+_bsd = (ROOT / "scripts" / "build_site_data.py").read_text()
+assert "def dps_clock_note(df: pd.DataFrame, name: str) -> None:" in _bsd and "    dps_clock_note(df, name)\n" in _bsd, "the builder states which clock DPS stands on"
+assert "use_keystone_clock" not in _bsd and 'df.loc[ok, "dps"] =' not in _bsd, "nothing in the builder rewrites the dps column"
+assert 'health("dps.clock=fight")' in _bsd and "dps.keystone_over_fight_median=" in _bsd, "and says so in build_health.txt, with how far apart the two clocks are"
+assert '"dps_clock": "fight",' in _bsd and '<span id="foot-clock">the fight clock, the figure Warcraft Logs ranks</span>' in html and 'fc.textContent=d.dps_clock==="fight"' in html, "the payload names its clock and the page's footer prints the one its figures stand on (a payload built before the change says keystone)"
+assert "DPS is per-player overall damage ÷ run duration" not in html, "no sentence on the page leaves the denominator unnamed"
+print("builder     : DPS = damage / fight clock (the figure Warcraft Logs ranks); the keystone clock is printed beside it, never the denominator")
+
 print("\nPASS")

@@ -1551,7 +1551,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     </div>
 
     <footer>
-      DPS is per-player overall damage ÷ run duration; deaths are parsed from each report's
+      DPS is per-player overall damage ÷ <span id="foot-clock">the fight clock, the figure Warcraft Logs ranks</span>; deaths are parsed from each report's
       death events. <span id="foot-src">Data is the top ~1,000 runs per dungeon × key level
       from Warcraft Logs fight rankings (~200 below +10, where the leaderboards are
       bottomless) — read it as "what strong runs pull", not a population census.</span>
@@ -2055,6 +2055,11 @@ function initData(d,cfg){
   $("loading").style.display="none";
   $("app").style.display=""; $("side").style.display="";
   $("built").textContent=" Data built "+d.built+".";
+  // which clock this payload's DPS stands on: the builder says so since 2026-11-13 (dps_clock). A payload
+  // without the field was built before that, on the keystone clock (the timer: 15 s for every party death)
+  {const fc=$("foot-clock"); if(fc) fc.textContent=d.dps_clock==="fight"
+     ?"the fight clock, the figure Warcraft Logs ranks (builds before 2026-11-13 divided by the keystone clock, which adds 15 s per party death)"
+     :"the keystone clock: this payload was built before 2026-11-13; newer builds divide by the fight clock, the figure Warcraft Logs ranks, and read about 1% higher at high keys";}
   setCompare(false);   // also resets gain/loss sort state, then renders
   csRestoreFromHash(); // #cs=… survives refresh AND the reload-based reset
 }

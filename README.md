@@ -96,8 +96,19 @@ site; git history keeps the daily seeds up to 2026-09-14 only.
   each dungeon's timer is inferred as the threshold separating timed from
   depleted runs on the keystone clock, snapped to the nearest 30s. Every
   derived value landing on an exact round minute is the check that it worked.
-* **DPS** = per-player total damage done ÷ fight duration (the report's own
-  `totalTime`), matching WCL's "Overall DPS" for dungeon runs.
+* **DPS** = per-player total damage done ÷ the fight clock (the report's own
+  `totalTime`: the fight's start to its end, downtime included; it opens about
+  8.4 s before the keystone timer does). It is the figure Warcraft Logs ranks:
+  `scripts/diag_rogue_dps.py` read 35 runs back on 2026-11-13 and the ranked
+  amount equalled damage ÷ `totalTime` for 175 of 175 players. The **keystone
+  clock** (`keystone_s`) is the timer: that span less the 8.4 s, plus 15 s for
+  every party death at +12 and up (5 s at +6..+11, none below). Until
+  2026-11-13 the builder recomputed DPS on it, which lowered a player's DPS by
+  about 0.9% for each death in the group at +18..+23 (1.35% at +12..+17, 0.5%
+  at +6..+11) and read 0.6-1.3% under the ranked figure for a typical
+  +18..+23 spec, and 0.3-0.9% over it below +12, where the lead-in outweighs
+  the penalties; it no longer does (`build_site_data.dps_clock_note`, health
+  keys `dps.*`, the payload's `dps_clock`, which the page's footer reads).
 * **Deaths** are counted per player from the report's raw death events.
 * **Hero talents** come from an offline SimulationCraft trait-tree mapping
   (`build_hero_map.py`). Parses whose log carries no combatant info arrive
@@ -150,7 +161,7 @@ One row per player per run.
 | `character`, `server`, `region` | player identity |
 | `class`, `spec`, `hero_talent`, `role` | e.g. `Warlock`, `Demonology`, `Diabolist`, `DPS` |
 | `dungeon`, `key_level`, `affixes` | encounter, keystone level, affix IDs (`\|`-separated) |
-| `duration_s`, `keystone_s` | fight (combat) duration and the keystone clock |
+| `duration_s`, `keystone_s` | the fight clock (the fight's start to its end, downtime included: the DPS denominator) and the keystone clock (the timer: that span less about 8.4 s of lead-in, plus the death penalties) |
 | `damage_done`, `dps` | total damage and overall DPS for the run |
 | `deaths` | this player's deaths in the run |
 | `item_level` | player max item level during the run |

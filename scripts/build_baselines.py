@@ -30,10 +30,11 @@ the run-level journal the collector writes beside the player rows:
                            stay out (kicks_by plus the population priority
                            table are what the client needs).
 
-Rates use the run's fight duration (`duration_s`, the Summary totalTime) --
-NOT the keystone clock the dashboard recomputes DPS on -- because the site
+Rates use the run's fight duration (`duration_s`, the Summary totalTime),
+never the keystone clock (which adds 15 s per party death), because the site
 measures an applicant's run against the same `totalTime`, and `dps` is the
-collector's raw value for the same reason (it matches WCL's own amount).
+collector's raw value for the same reason (it matches WCL's own amount). The
+dashboard reads the same figure since 2026-11-13 (build_site_data.dps_clock_note).
 
 kick_prio weights each kicked spell by the population's kick rate for it in
 this window (interrupted / begun from the priority table; 0.5 when the spell
@@ -119,8 +120,9 @@ def append_health(dirs) -> None:
 
 def load_frame(csv: pathlib.Path, name: str = "baselines", now=None) -> pd.DataFrame:
     """The frame the site build publishes: the CSV under apply_retention (and
-    sample_runs, a no-op unless MAX_RUNS is ever set). The keystone-clock DPS
-    rewrite is deliberately NOT applied (see the module docstring)."""
+    sample_runs, a no-op unless MAX_RUNS is ever set). `dps` is the collector's
+    own figure, damage / the fight clock, as on the site (see the module
+    docstring)."""
     df = pd.read_csv(csv)
     df = B.apply_retention(df, name, now=now)
     df = B.sample_runs(df, name)

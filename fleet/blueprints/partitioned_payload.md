@@ -255,7 +255,7 @@ Row block (length `n`):
 | `cls spec hero role` | u8 | codes into `season.json` vocab (§2.5); `role` stays per row (the CSV carries it per row and bit-exactness with legacy is cheaper than deriving it from spec; the builder additionally asserts per build that `role` is a pure function of `(cls,spec)` — true for all 40 specs today [measured] — and emits `parts.role_impure=<spec>` if it ever is not, because the cube relies on it, §3.2) |
 | `deaths` | u8 | clamped 255 (max 15 today) |
 | `tier` | i8 | −1 unknown / 0–5 pieces of the pinned season set (§5) |
-| `dps` | u32, p | `round(dps)` after the keystone-clock rewrite (B:252), exactly today's integer |
+| `dps` | u32, p | `round(dps)`, the collector's damage ÷ fight clock, exactly today's integer (the keystone-clock rewrite this row once named was removed on 2026-11-13: Warcraft Logs ranks on the fight clock) |
 | `char` | u32, p | **season-global character id** (§2.4) |
 | `run` | u16 (u32 when `runs ≥ 65536`), p | day-local dense run index |
 | `tmul` | u16, p | ×10000; `0` = unprojectable tuned row (client drops from both sides, as today); computed with the pinned learned tables (§5) **and the rule tables whose digest is the header's `rules_sha`**. Column presence is a function of the rules generation, not of the day's data: the column is present iff the rule tables at `rules_sha` define a projection (`project()` returned non-null on the *window*, recorded per generation in `state.json`), so within one generation every day file agrees; a day whose `rules_sha` ≠ `manifest.projection.rules_sha` is **unprojected-pending**, never "1.0" (§3.3) |
@@ -270,7 +270,7 @@ exactly as today (9 run-level columns cost 0.83 B/row gz instead of ~2.5 expande
 | `r_dun r_key r_reg` | u8 | |
 | `r_timed r_post` | i8 | 1/0/−1 semantics unchanged (`MEDAL_TIMED` B:66; `post_tuning_flag` B:78 against `season.json`'s patch cutoffs) |
 | `r_hr` | i8 | UTC hour, −1 unknown |
-| `r_dur r_kdur` | u16 | `round()` seconds, keystone clock applied; `r_kdur` 0 when absent; clamped 65535 (18.2 h; a Mythic+ timer is ≤ 45 min, a clamp is a data fault and trips health) |
+| `r_dur r_kdur` | u16 | `round()` seconds: `r_dur` the fight clock (the DPS denominator), `r_kdur` the keystone clock, 0 when absent; clamped 65535 (18.2 h; a Mythic+ timer is ≤ 45 min, a clamp is a data fault and trips health) |
 
 `day` is not a column (the file is the day); the client fills `R.day` per block. Undated rows
 (`day = −1`; **0 rows today**) go to a single `rows/undated.<h>.bin` listed last in the

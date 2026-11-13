@@ -280,33 +280,47 @@ MAX_RUNS = 0
 SAMPLE_INFO = {"collected": 0, "published": 0}
 
 
-def use_keystone_clock(df: pd.DataFrame, name: str) -> pd.DataFrame:
-    """Recompute DPS against the keystone timer rather than the fight duration.
+_DPS_CLOCK = None
 
-    The collector stores `duration_s` from the Summary table's totalTime, which
-    runs a median 27s shorter than the run's actual keystone clock -- it drops
-    some of the time between pulls. Warcraft Logs defines overall M+ DPS as
-    total damage over the ENTIRE dungeon time, non-combat included, so the
-    keystone clock is the denominator that matches the definition, and using
-    the shorter one inflated every figure on the page by ~2.3%.
 
-    Rows with no usable clock keep their original value rather than being
-    dropped; there are very few and losing them would bias the sample.
+def dps_clock_note(df: pd.DataFrame, name: str) -> None:
+    """The page's DPS is the collector's: damage done / the fight clock.
+
+    Until 2026-11-13 the builder recomputed DPS on the keystone clock, on the
+    belief that the Summary table's totalTime "drops some of the time between
+    pulls". It does not. scripts/diag_rogue_dps.py read 35 runs back from
+    Warcraft Logs on 2026-11-13: totalTime equals the fight's own clock
+    (endTime - startTime, downtime included) in 35 of 35, and the DPS Warcraft
+    Logs RANKS equals damage / totalTime for 175 of 175 players. The keystone
+    clock is a different thing: the same span less about 8.4 s of lead-in, PLUS
+    15 s FOR EVERY PARTY DEATH (keystoneTime - fight clock - 15 x deaths sat
+    between -8.0 and -9.1 s in 33 of the 35 runs; the penalty is 5 s at
+    +6..+11 and nothing below). Dividing by it made a player's DPS fall about
+    0.9% for each death in the group at +18..+23 (1.35% at +12..+17, where
+    runs are shorter) and sit 0.6-1.3% under the ranked figure for a typical
+    +18..+23 spec, while a deathless run read 0.5% over it. Deaths have their own columns; DPS is the figure
+    Warcraft Logs ranks and archon.gg is built on. `duration_s` stays the
+    fight clock and `keystone_s` still carries the keystone clock for the
+    timer and Top Comps. This prints how far apart the two clocks are, so the
+    choice stays visible on every build.
     """
-    ks = pd.to_numeric(df.get("keystone_s"), errors="coerce")
-    if ks is None or not ks.notna().any():
-        return df
-    ok = ks.notna() & (ks > 0) & df["damage_done"].notna()
+    global _DPS_CLOCK
+    _DPS_CLOCK = None       # never a previous frame's figures
+    if "keystone_s" not in df.columns or "duration_s" not in df.columns:
+        return      # nothing to compare: an export from before the keystone clock was collected
+    ks = pd.to_numeric(df["keystone_s"], errors="coerce")
+    dur = pd.to_numeric(df["duration_s"], errors="coerce")
+    ok = ks.notna() & (ks > 0) & dur.notna() & (dur > 0)
     if not ok.any():
-        return df
-    before = df.loc[ok, "dps"].mean()
-    df.loc[ok, "dps"] = (df.loc[ok, "damage_done"] / ks[ok]).round(1)
-    df.loc[ok, "duration_s"] = ks[ok].round(1)
-    after = df.loc[ok, "dps"].mean()
-    print(f"[{name}] DPS recomputed on the keystone clock for {int(ok.sum()):,} "
-          f"of {len(df):,} rows ({100 * (after / before - 1):+.1f}% mean)",
-          flush=True)
-    return df
+        return
+    ratio = (ks[ok] / dur[ok])
+    med, p95 = float(ratio.median()), float(ratio.quantile(0.95))
+    _DPS_CLOCK = (med, p95)     # into build_health.txt after the liveness block (whole CSV, before retention)
+    print(f"[{name}] DPS is damage / the fight clock, the figure Warcraft Logs "
+          f"ranks. The keystone clock (15 s per party death, less the lead-in) "
+          f"is {med:.4f}x the fight clock at the median and {p95:.4f}x at p95 "
+          f"over {int(ok.sum()):,} of {len(df):,} rows; it is NOT the "
+          f"denominator", flush=True)
 
 
 def sample_runs(df: pd.DataFrame, name: str) -> pd.DataFrame:
@@ -3127,7 +3141,7 @@ def build(name: str, cfg: dict) -> None:
         print(f"[{name}] {cfg['csv']} missing — skipped")
         return
     df = pd.read_csv(csv)
-    df = use_keystone_clock(df, name)
+    dps_clock_note(df, name)
     df = apply_retention(df, name)
     df = sample_runs(df, name)
     for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
@@ -3188,6 +3202,11 @@ def build(name: str, cfg: dict) -> None:
     health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")
     if future_n:
         health(f"future_dated_rows={future_n}")
+    # the clock every DPS figure stands on (dps_clock_note), after the liveness block
+    health("dps.clock=fight")
+    if _DPS_CLOCK:
+        health(f"dps.keystone_over_fight_median={_DPS_CLOCK[0]:.4f}")
+        health(f"dps.keystone_over_fight_p95={_DPS_CLOCK[1]:.4f}")
     fh_path = ROOT / "data" / "processed" / "fetch_health.txt"
     # the sweep's coverage facts ride into the payload (payload["coverage"])
     # so the page can say what the leaderboards listed and what they could
@@ -3320,6 +3339,10 @@ def build(name: str, cfg: dict) -> None:
 
     payload = {
         "built": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
+        # the clock rows.dps stands on (dps_clock_note). A payload without this
+        # field was built before 2026-11-13, on the keystone clock; the page's
+        # footer reads it and says which one its figures are on
+        "dps_clock": "fight",
         # runs collected vs published on this build; equal unless a MAX_RUNS
         # cap is back, in which case the client shows it (never a silent sample)
         "sample": dict(SAMPLE_INFO),

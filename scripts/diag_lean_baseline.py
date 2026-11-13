@@ -19,7 +19,6 @@ csv = ROOT / "data" / "mythic_runs.csv.gz"
 if not csv.exists():
     csv = csv.with_suffix("")
 df = pd.read_csv(csv)
-df = bsd.use_keystone_clock(df, "diag")
 df = bsd.sample_runs(df, "diag")
 for col in ("class", "spec", "hero_talent", "role", "region", "dungeon"):
     df[col] = df[col].fillna("Unknown").replace("", "Unknown")
