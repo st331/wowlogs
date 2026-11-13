@@ -692,3 +692,35 @@
     is the next slot's) and carry a 45-minute wall clock. Supersedes the "4 hours or so" of #40's
     source instruction; the 70% rule (#40, #41) stands.
 
+43. **A dungeon's damage level must not move a spec's figure (owner, 2026-11-13: "the DPS for
+    assassination rogue shows as much higher than sub, for almost any key level, including archon
+    mode. however, archon (with high keys enabled or not), shows either sub rogue as higher on
+    average, median or 85%ile or the same as assassination ... investigate this and see if there is
+    something to fix.")** Cause: statistics pooled across dungeons. Since the 2026-10-27 Subtlety
+    nerf the same rogues play Assassination in Ruby Life Pools, the highest-damage dungeon, and
+    Subtlety elsewhere, so the pooled figure compared a Ruby Life Pools number with an
+    eight-dungeon number. The adjustment removes the dungeon's damage level only: a spec played
+    mostly in one dungeon is still measured mostly there, and is named for it. Standing rules
+    that follow:
+    (a) every DPS figure is **dungeon-adjusted** by default (`state.dnorm`, the ⚖ chip): each parse
+    × the average dungeon's par ÷ its own dungeon's par at its key level, through the single
+    accessor `dpsAt`. A new consumer of DPS reads `dpsAt`, never `R.dps`, and marks its caption
+    with ⚖ (section heads carry the bare mark, `dsfxA` gives the per-spec mark, off for a spec
+    whose role has no factors); the logged figure stays one tick away and beside the adjusted one
+    in the tooltip and the Spec Frame. A par counts only when its median is known to within 4% (95%, at
+    least 30 parses); a key level without one in every dungeon borrows the nearest level that has,
+    and a role with no such level (healers on that day) **stays as logged and says so**. Only DPS
+    is adjusted: Top Comps' Strength, margins and deaths are pooled, and the caption says so.
+    (b) the **Archon replica** reads its percentiles off each kept parse counted once in every
+    dungeon in view (`dnSpread`), because its level is the thing checked against archon.gg; a
+    change to that recipe is a change to what the owner compares with archon.gg and needs the
+    owner's word.
+    (c) **key level is NOT adjusted** and nothing may start adjusting it silently: the Data Table
+    prints each spec's average key (in Archon mode its key floor and the share of its parses the
+    floor keeps) and the note prints what a level is worth. Standardising key level as well
+    re-ranks evenly played specs by 4-10% and is the owner's decision, not made here.
+    (d) a spec whose largest dungeon share is at least 2.5× an even split (never under 35%, never
+    over 80%) is **named for it** on its bar and under its Spec, with the same read there and
+    elsewhere, never hidden and never dropped.
+    (e) **DPS is damage ÷ the fight clock**, the figure Warcraft Logs ranks; the builder must not
+    recompute it on the keystone clock (which adds 15 s per party death).
