@@ -17,7 +17,8 @@
 //   * with the clipboard refused, the string is shown selected and the button does not say copied.
 // It reads talents.json.gz and builds.json.gz from the same site itself, so what the page shows is
 // held against the files and not against the page's own memory. Needs Playwright with Chromium;
-// not part of the test loop. Exit status 0 = every check passed.
+// not part of the test loop. Exit status 0 = every check passed. CHROMIUM_ARGS replaces the browser's
+// launch arguments (behind an outbound proxy: CHROMIUM_ARGS="--proxy-server=$HTTPS_PROXY --no-sandbox").
 const { chromium } = require('playwright');
 const zlib = require('zlib');
 
@@ -41,7 +42,7 @@ async function getJsonGz(page, name) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ args: ['--no-proxy-server', '--no-sandbox'] });
+  const browser = await chromium.launch({ args: (process.env.CHROMIUM_ARGS || '--no-proxy-server --no-sandbox').split(' ') });
   let bad = 0, n = 0;
   const fail = (m) => { console.log('FAIL ' + m); bad++; };
   const open = async (grant) => {

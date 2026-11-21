@@ -739,7 +739,9 @@
     tables; `vis` in `data/trait_geometry.json`). What is left out is **counted**
     (`talents.foreign_nodes`, `talents.foreign_specs` in `build_health.txt`), never dropped in
     silence. A class talent the game shows a spec stays on its tree even when none of its
-    players took it. Without the game tables the document is built as before and says how many
+    players took it. On a hero tree two specs share, the other spec's node is left out where
+    this spec has its own at the same place. A talent the game gives a spec without showing it
+    (Restoration Druid has one) is left out and is not counted as foreign. Without the game tables the document is built as before and says how many
     specs it could not judge (`talents.unjudged_specs`); the absence of the table is never read
     as "nothing is hidden".
     (b) the game's tables are read **at the live retail build**. Asked without a build, the

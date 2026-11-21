@@ -242,7 +242,8 @@ check(REAL.get("v") == 2 and bool(REAL.get("build")),
 vec = FIX["vectors"]
 specs = {v["k"] for v in vec}
 check(len(vec) >= 120 and len(specs) == 40
-      and all(set(v) == {"k", "sid", "s", "t"} for v in vec),
+      and all(set(v) == {"k", "sid", "s", "t"} for v in vec)
+      and all(REAL["spec_keys"].get(str(v["sid"])) == v["k"] for v in vec),
       f"the fixture: {len(vec)} strings the game exported, over {len(specs)} "
       f"of 40 specs, talents only -- no character identity")
 changed = sorted(t for t, stamp in FIX["trees"].items()

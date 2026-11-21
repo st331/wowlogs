@@ -40,7 +40,7 @@ EXPORT = ROOT / "data" / "gear.jsonl.gz"
 
 
 def main() -> int:
-    geo = ft.fetch_geometry()
+    geo = ft.fetch_geometry(ft.live_build())   # the live build, never the tables' newest
     if geo is None:
         print("[diag] the trait tables could not be fetched; nothing measured")
         return 0

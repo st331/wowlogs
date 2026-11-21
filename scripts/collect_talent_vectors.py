@@ -109,9 +109,12 @@ def main(argv=None) -> int:
                 tl = d.get("talentLoadout") or {}
                 if not tl.get("loadout_text") or not tl.get("loadout"):
                     continue
-                now = ((d.get("class") or "").replace(" ", ""),
-                       (d.get("active_spec_name") or "").replace(" ", ""))
-                if now != sk:
+                # the spec the LOADOUT is of, by its own id: the profile's
+                # active spec can be another one than the loadout it returns
+                # (2 of 160 on 2026-11-21: a Preservation loadout on a
+                # character shown as Devastation)
+                if (geo["spec_keys"].get(str(tl.get("loadout_spec_id")))
+                        != f"{sk[0]}|{sk[1]}"):
                     break                  # the armory holds another spec now
                 tree = ts.SpecTree.of(geo, tl["loadout_spec_id"])
                 if tree is None:

@@ -1719,8 +1719,15 @@ def _sel_pairs(blob: str, entries: dict, node_entries: dict,
             for n, (r, i) in sorted(nodes.items())]
 
 
+def _granted_to(grant: dict, nid: int, sid) -> bool:
+    """The game hands node `nid` to spec `sid` for free ([] = to everyone)."""
+    who = grant.get(str(nid))
+    return who is not None and (not who or sid in who)
+
+
 def talents_doc(name: str, usage: dict | None = None,
-                traits: dict | None = None) -> str | None:
+                traits: dict | None = None,
+                variant: str | None = None) -> str | None:
     """The lazy talent-tree document (caller gzips it), or None.
 
     usage: a _trait_journal_pass result to reuse; traits: the material from
@@ -1751,9 +1758,13 @@ def talents_doc(name: str, usage: dict | None = None,
     the spec's own hero-tree selector offers it. The same rule gives every
     spec its OWN class pane: a class tree holds variants only some specs
     see (20 of Monk's and Paladin's 73 class nodes), and the shared pane
-    drew them all for everyone. A v1 geometry cache knows none of this and
-    the document is built as before; it is never read as "nothing is
-    hidden".
+    drew them all for everyone. Two finer points, from the review of the
+    change: a hero tree two specs can take holds one node per spec at the
+    same place, and the other spec's is left out where this spec has its
+    own; and a node the game GIVES a spec without showing it is left out
+    without being counted as foreign. A v1 geometry cache knows none of
+    this and the document is built as before; it is never read as "nothing
+    is hidden".
 
     A "classes" + "classRef" indirection dedupes the class pane when it
     saves real gzipped bytes -- both variants are measured and the smaller
@@ -1837,6 +1848,7 @@ def talents_doc(name: str, usage: dict | None = None,
                if str(s).isdigit()}
     foreign: dict[str, int] = {}           # spec key -> nodes left out
     n_blind = 0                            # specs the cache could not judge
+    blind: dict[str, str] = {}             # spec key -> why not
     for sk in sorted(usage):
         u = usage[sk]
         tid = tree_for(u)
@@ -1853,9 +1865,25 @@ def talents_doc(name: str, usage: dict | None = None,
         # who the game shows each node to (None = the cache cannot say)
         sid = key_sid.get(sk)
         vis = tgeo.get("vis")
-        if (sid is None or vis is None
-                or str(geo.get("specs", {}).get(str(sid))) != str(tid)):
+        if vis is None:
+            why_blind = "the geometry cache holds no game tables"
+        elif sid is None:
+            why_blind = "the game tables know no spec by this name"
+        elif str(geo.get("specs", {}).get(str(sid))) != str(tid):
+            why_blind = "its logged talents sit on another tree than its own"
+        else:
+            why_blind = None
+        if why_blind:
             sid = vis = None
+            blind[sk] = why_blind
+        grant = tgeo.get("grant") or {}
+        # a shared hero tree holds one node per spec at the same place (the
+        # Frostfire keystone is one node for Fire and another for Frost): the
+        # twin a spec sees stands at (subtree, x, y)
+        seen_at: set = set()
+        if vis is not None:
+            seen_at = {(g[3], g[0], g[1]) for n, g in tgeo["nodes"].items()
+                       if g[3] and (n not in vis or sid in vis[n])}
         own_sub: set | None = None
         if vis is not None:
             own_sub = {int(entries[e][5])
@@ -1872,11 +1900,27 @@ def talents_doc(name: str, usage: dict | None = None,
                 if own_sub is not None and st not in own_sub:
                     n_foreign += 1         # a hero tree this spec cannot take
                     continue
+                g = tgeo["nodes"][str(nid)]
+                if (vis is not None and str(nid) in vis
+                        and sid not in vis[str(nid)]
+                        and (g[3], g[0], g[1]) in seen_at):
+                    # the other spec's node of a hero tree both can take,
+                    # where this spec has its own at the same place. Hero
+                    # nodes cannot be judged by "vis" alone: it names no
+                    # Augmentation on either of that spec's hero trees.
+                    if not _granted_to(grant, nid, sid):
+                        n_foreign += 1
+                    continue
                 hero.setdefault(st, []).append(nid)
             elif (vis is not None and str(nid) in vis
                   and sid not in vis[str(nid)]):
-                n_foreign += 1             # another spec's talent, or a
-                continue                   # class-tree variant it never sees
+                # another spec's talent, or a class-tree variant it never
+                # sees. A node the game GIVES this spec without showing it
+                # (Restoration Druid's 82241) is logged by every one of its
+                # players: left out of the pane, and not a foreign node.
+                if not _granted_to(grant, nid, sid):
+                    n_foreign += 1
+                continue
             else:
                 rest.append(nid)
         if n_foreign:
@@ -1913,9 +1957,15 @@ def talents_doc(name: str, usage: dict | None = None,
         print(f"[{name}] talent trees: {n_by_overlap}/{len(per_spec)} specs "
               f"identified by entry overlap (no specID in the journal)")
     if n_blind:
+        whys = Counter(blind[sk] for sk in per_spec if sk in blind)
         print(f"[{name}] talent trees: {n_blind}/{len(per_spec)} specs drawn "
-              f"from the observed union alone -- the geometry cache does not "
-              f"say who sees a node (run fetch_traits.py --refresh)")
+              f"from the observed union alone -- "
+              + "; ".join(
+                  f"{w}: " + (f"all {c}" if c == len(per_spec) else ", ".join(
+                      sorted(k for k in per_spec if blind.get(k) == w)[:8]))
+                  for w, c in whys.most_common())
+              + (" (run fetch_traits.py --refresh)"
+                 if "the geometry cache holds no game tables" in whys else ""))
     if foreign:
         print(f"[{name}] talent trees: nodes allocated under a spec's label "
               f"that the game does not show that spec, left out of its "
@@ -1936,10 +1986,7 @@ def talents_doc(name: str, usage: dict | None = None,
 
     # variant A: each spec carries its own class pane
     doc_a = {"v": 1, "trees": {
-        sk: {"class": tree_obj(v["tid"], sorted(
-                 v["cls_nodes"] if v["judged"]
-                 or class_panes[sk.split("|", 1)[0]][0] != v["tid"]
-                 else class_panes[sk.split("|", 1)[0]][1])),
+        sk: {"class": tree_obj(v["tid"], sorted(v["cls_nodes"])),
              "spec": v["spec"], "hero": v["hero"]}
         for sk, v in per_spec.items()}}
     # variant B: one shared class pane per class, referenced by name
@@ -1972,6 +2019,8 @@ def talents_doc(name: str, usage: dict | None = None,
     print(f"[{name}] talents doc: {len(per_spec)} specs; per-spec class "
           f"panes {gz_a / 1024:.0f} KB gz vs classRef {gz_b / 1024:.0f} KB "
           f"gz -> {'classRef' if gz_b < gz_a else 'per-spec'}")
+    if variant in ("per-spec", "classRef"):   # forced, for tests
+        return ja if variant == "per-spec" else jb
     return jb if gz_b < gz_a else ja
 
 

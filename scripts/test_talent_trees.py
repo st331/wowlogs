@@ -18,9 +18,17 @@ ONE Retribution record that carries Holy's talents:
     panes and COUNTED (talents_doc.foreign -- build_health.txt prints it);
     each spec's class pane holds what the game shows that spec, including a
     talent none of its own players took; the other spec's panes are untouched;
-  * without them (a v1 cache): the document is built exactly as before,
-    polluted panes and all, and says it could not judge -- the absence of the
-    table is never read as "nothing is hidden";
+  * a hero tree two specs share holds one node per spec at the same place:
+    the other spec's is left out where this spec has its own;
+  * a talent the game GIVES a spec without showing it is logged by every one
+    of its players: left out of the pane, and not counted as foreign;
+  * BOTH document shapes (a class pane per spec; one shared pane per class
+    with a hide list per spec, which is what real-sized data ships) draw the
+    same panes;
+  * without the tables (a v1 cache): the document is built exactly as before
+    in both shapes, polluted panes and all, and says it could not judge --
+    the absence of the table is never read as "nothing is hidden";
+  * a spec the tables do not know is named, with the reason;
   * the test would have failed before the fix: the v1 result IS the bug;
   * a tiered talent is one node whose ranks add up, in the pane and in "sel";
   * every listed build carries "imp", a string that reads back as exactly
@@ -89,25 +97,31 @@ GEO = {
                   "1003": [1200, 0, 2, 0],     # class choice
                   "1004": [1800, 0, 0, 0],     # class variant, Holy only
                   "1005": [2400, 0, 0, 0],     # class, only Holy players take it
+                  "1006": [2400, 600, 0, 0],   # shown to Holy only, GIVEN to Retribution
                   "2001": [9000, 0, 0, 0],     # Retribution, free
                   "2002": [9600, 0, 1, 0],     # Retribution, tiered 1+2+1
                   "2101": [9000, 600, 0, 0],   # Holy
                   "2500": [5000, 0, 3, 0],     # Retribution's hero selector
                   "2501": [5600, 0, 3, 0],     # Holy's hero selector
                   "3001": [0, 9000, 0, 48], "3002": [600, 9000, 0, 48],
+                  # Herald is shared: its first node is one node per spec,
+                  # at the same place
                   "3101": [0, 9600, 0, 49], "3102": [600, 9600, 0, 49],
+                  "3103": [0, 9600, 0, 49],
                   "3201": [0, 10200, 0, 50], "3202": [600, 10200, 0, 50]},
         "edges": [[1001, 1002], [1002, 1004], [2001, 2002], [2001, 2101],
                   [3001, 3002], [3201, 3202]],
-        "vis": {"1004": [65], "2001": [70], "2002": [70], "2101": [65],
-                "2500": [70], "2501": [65]},
-        "grant": {"1001": [], "2001": [70],
-                  "3001": [], "3101": [], "3201": []}}},
+        "vis": {"1004": [65], "1006": [65], "2001": [70], "2002": [70],
+                "2101": [65], "2500": [70], "2501": [65],
+                "3101": [70], "3103": [65]},
+        "grant": {"1001": [], "1006": [70], "2001": [70],
+                  "3001": [], "3101": [], "3103": [65], "3201": []}}},
     "entries": {
         "50001": [1001, 1, 1, None, 0, 0], "50002": [1002, 2, 2, None, 0, 0],
         # the game lists 50004 first; entry-id order is the other way round
         "50003": [1003, 1, 3, None, 200, 0], "50004": [1003, 1, 4, None, 100, 0],
         "50005": [1004, 1, 5, None, 0, 0], "50006": [1005, 1, 17, None, 0, 0],
+        "50007": [1006, 1, 18, None, 0, 0],
         "60001": [2001, 1, 6, None, 0, 0],
         "60002": [2002, 1, 7, None, 0, 0], "60003": [2002, 2, 8, None, 1, 0],
         "60004": [2002, 1, 9, None, 2, 0],
@@ -116,6 +130,7 @@ GEO = {
         "65101": [2501, 1, 0, None, 0, 49], "65102": [2501, 1, 0, None, 1, 50],
         "70001": [3001, 1, 11, None, 0, 48], "70002": [3002, 1, 12, None, 0, 48],
         "70101": [3101, 1, 13, None, 0, 49], "70102": [3102, 1, 14, None, 0, 49],
+        "70103": [3103, 1, 19, None, 0, 49],
         "70201": [3201, 1, 15, None, 0, 50], "70202": [3202, 1, 16, None, 0, 50]},
 }
 V1 = json.loads(json.dumps(GEO))
@@ -125,15 +140,19 @@ for _t in V1["trees"].values():
 V1["entries"] = {k: v[:4] for k, v in V1["entries"].items()}
 
 # the journal logs a free node at rank 1 like any other
-RET_A = [(50001, 1), (50002, 1), (50003, 1), (60001, 1), (60002, 1),
-         (60003, 2), (65001, 1), (70001, 1), (70002, 1)]           # Templar
-RET_B = [(50001, 1), (50002, 2), (50004, 1), (60001, 1), (60002, 1),
-         (60003, 2), (60004, 1), (65002, 1), (70101, 1), (70102, 1)]  # Herald
+RET_A = [(50001, 1), (50002, 1), (50003, 1), (50007, 1), (60001, 1),
+         (60002, 1), (60003, 2), (65001, 1), (70001, 1), (70002, 1)]  # Templar
+RET_B = [(50001, 1), (50002, 2), (50004, 1), (50007, 1), (60001, 1),
+         (60002, 1), (60003, 2), (60004, 1), (65002, 1), (70101, 1),
+         (70102, 1)]                                               # Herald
 HOLY = [(50001, 1), (50002, 1), (50005, 1), (50006, 1), (60101, 1),
-        (65101, 1), (70101, 1), (70102, 1)]                        # Herald
+        (65101, 1), (70103, 1), (70102, 1)]                        # Herald
 # Holy's talents under a Retribution label: the record behind the bug
 WRONG = [(50001, 1), (50005, 1), (60101, 1), (65102, 1), (70201, 1),
          (70202, 1)]                                               # Lightsmith
+# ...and one on the hero tree both specs can take
+WRONG2 = [(50001, 1), (50005, 1), (60101, 1), (65101, 1), (70103, 1),
+          (70102, 1)]                                              # Herald
 rows, recs = [], []
 for i in range(8):
     rw, rc = make_parse(f"A{i}", f"RetA{i}", "Paladin", "Retribution", RET_A)
@@ -143,17 +162,20 @@ for i in range(4):
     rows.append(rw), recs.append(rc)
 rw, rc = make_parse("W0", "Wrong0", "Paladin", "Retribution", WRONG)
 rows.append(rw), recs.append(rc)
+for i in range(2):
+    rw, rc = make_parse(f"X{i}", f"Wrong2{i}", "Paladin", "Retribution", WRONG2)
+    rows.append(rw), recs.append(rc)
 for i in range(5):
     rw, rc = make_parse(f"H{i}", f"Holy{i}", "Paladin", "Holy", HOLY)
     rows.append(rw), recs.append(rc)
 
 
-def run(geo, what):
+def run(geo, what, variant=None, extra=()):
     """(parsed doc, printed text) of the real talents_doc or builds_sidecar."""
     with tempfile.TemporaryDirectory() as tmp:
         tp = pathlib.Path(tmp)
         with (tp / "gear.jsonl").open("w") as fh:
-            for r in recs:
+            for r in list(recs) + list(extra):
                 fh.write(json.dumps(r, ensure_ascii=False) + "\n")
         bsd.GEAR_JOURNAL = tp / "gear.jsonl"
         bsd.GEAR_EXPORT = tp / "absent.jsonl.gz"
@@ -173,7 +195,7 @@ def run(geo, what):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             if what == "talents":
-                doc = bsd.talents_doc("test")
+                doc = bsd.talents_doc("test", variant=variant)
             else:
                 doc = bsd.builds_sidecar(pd.DataFrame(rows),
                                          bsd.meta_from_gear_journal(),
@@ -194,56 +216,113 @@ def panes(doc, sk):
 
 
 # --- the bug, as it was: no game tables, the union alone ------------------------
-old, old_out = run(V1, "talents")
-oc, osp, oh = panes(old, "Paladin|Retribution")
-check(2101 in osp and oh == ["Herald", "Lightsmith", "Templar"]
-      and 1004 in oc and 2501 in oc,
-      "without the game tables one mislabelled record puts the other spec's "
-      f"talents and a third hero tree into Retribution's panes: spec {osp}, "
-      f"hero {oh}")
-check(bsd.talents_doc.blind == 2 and bsd.talents_doc.foreign == {}
-      and "does not say who sees a node" in old_out,
-      "and the build says so: 2 specs drawn from the union alone, none judged")
-check(all("cx" not in t for t in old["trees"].values()),
-      "a v1 cache hides nothing from a class pane (not knowing is not "
-      "'none hidden')")
+SHAPES = ("per-spec", "classRef")
+for shape in SHAPES:
+    old, old_out = run(V1, "talents", variant=shape)
+    oc, osp, oh = panes(old, "Paladin|Retribution")
+    herald = [n["id"] for n in
+              old["trees"]["Paladin|Retribution"]["hero"]["Herald"]["nodes"]]
+    check(2101 in osp and oh == ["Herald", "Lightsmith", "Templar"]
+          and 1004 in oc and 2501 in oc and herald == [3101, 3102, 3103],
+          f"[{shape}] without the game tables the mislabelled records put "
+          f"the other spec's talents, a third hero tree and a second node at "
+          f"one place into Retribution's panes: spec {osp}, hero {oh}, "
+          f"Herald {herald}")
+    check(bsd.talents_doc.blind == 2 and bsd.talents_doc.foreign == {}
+          and "the geometry cache holds no game tables: all 2 (run "
+              "fetch_traits.py --refresh)" in old_out,
+          f"[{shape}] and the build says so: 2 specs drawn from the union "
+          f"alone, none judged, and why")
+    check(all("cx" not in t for t in old["trees"].values())
+          and ("classes" in old) == (shape == "classRef"),
+          f"[{shape}] a v1 cache hides nothing from a class pane (not "
+          f"knowing is not 'none hidden')")
+    if shape == "per-spec":
+        # exactly as before the change: a spec's own observed class nodes
+        check(oc == [1001, 1002, 1003, 1004, 1006, 2500, 2501]
+              and panes(old, "Paladin|Holy")[0] == [1001, 1002, 1004, 1005, 2501],
+              "[per-spec] a v1 class pane is the spec's own observed class "
+              "nodes, as it was")
+    else:
+        check(oc == panes(old, "Paladin|Holy")[0]
+              == [1001, 1002, 1003, 1004, 1005, 1006, 2500, 2501],
+              "[classRef] a v1 class pane is the class's shared pane, as it was")
 
 # --- with the game tables ------------------------------------------------------
-new, new_out = run(GEO, "talents")
-nc, nsp, nh = panes(new, "Paladin|Retribution")
-check(nsp == [2001, 2002] and nh == ["Herald", "Templar"],
-      f"with them Retribution's spec pane is Retribution's ({nsp}) and its "
-      f"hero trees are its own two ({nh})")
-check(nc == [1001, 1002, 1003, 1005, 2500],
-      "its class pane: the class talents the game shows it and its own hero "
-      f"selector -- not Holy's variant (1004), not Holy's selector (2501): {nc}")
-check(1005 in nc and all(e != 50006 for e, _ in RET_A + RET_B),
-      "a class talent the game shows Retribution stays on its tree although "
-      "no Retribution player took it")
-check(bsd.talents_doc.foreign == {"Paladin|Retribution": 5}
-      and bsd.talents_doc.blind == 0
-      and "Paladin|Retribution 5" in new_out,
-      "the 5 nodes left out are counted and printed, not dropped in silence "
-      "(1004, 2101, 2501 and the two Lightsmith nodes)")
-hc, hsp, hh = panes(new, "Paladin|Holy")
-check(hc == [1001, 1002, 1003, 1004, 1005, 2501] and hsp == [2101]
-      and hh == ["Herald"],
-      f"Holy's panes are Holy's: class {hc}, spec {hsp}, hero {hh}")
-ret = new["trees"]["Paladin|Retribution"]
-n2002 = [n for n in ret["spec"]["nodes"] if n["id"] == 2002][0]
-check(n2002["t"] == 1 and n2002["r"] == 4 and "es" not in n2002,
-      "the tiered talent is one node of 4 ranks, not a choice of three")
-check(all(a in (n["id"] for n in ret["spec"]["nodes"])
-          and b in (n["id"] for n in ret["spec"]["nodes"])
-          for a, b in ret["spec"]["edges"]) and [2001, 2101] not in ret["spec"]["edges"],
-      "no edge runs to a node that was left out")
+drawn = {}
+for shape in SHAPES:
+    new, new_out = run(GEO, "talents", variant=shape)
+    nc, nsp, nh = panes(new, "Paladin|Retribution")
+    drawn[shape] = {sk: panes(new, sk) for sk in new["trees"]}
+    check(nsp == [2001, 2002] and nh == ["Herald", "Templar"],
+          f"[{shape}] with them Retribution's spec pane is Retribution's "
+          f"({nsp}) and its hero trees are its own two ({nh})")
+    check(nc == [1001, 1002, 1003, 1005, 2500],
+          f"[{shape}] its class pane: the class talents the game shows it "
+          f"and its own hero selector -- not Holy's variant (1004), not "
+          f"Holy's selector (2501): {nc}")
+    check(1005 in nc and all(e != 50006 for e, _ in RET_A + RET_B),
+          f"[{shape}] a class talent the game shows Retribution stays on its "
+          f"tree although no Retribution player took it")
+    ret = new["trees"]["Paladin|Retribution"]
+    herald = [n["id"] for n in ret["hero"]["Herald"]["nodes"]]
+    check(herald == [3101, 3102],
+          f"[{shape}] on the hero tree both specs take, Holy's node is left "
+          f"out where Retribution has its own at the same place: {herald}")
+    check(1006 not in nc and all((50007, 1) in b for b in (RET_A, RET_B)),
+          f"[{shape}] a talent the game gives Retribution without showing it "
+          f"is logged by every Retribution player and is not on its tree")
+    check(bsd.talents_doc.foreign == {"Paladin|Retribution": 6}
+          and bsd.talents_doc.blind == 0
+          and "Paladin|Retribution 6" in new_out,
+          f"[{shape}] the 6 foreign nodes left out are counted and printed "
+          f"(1004, 2101, 2501, the two Lightsmith nodes, Holy's Herald "
+          f"node); the given-but-hidden 1006 is not one of them")
+    hc, hsp, hh = panes(new, "Paladin|Holy")
+    holy_herald = [n["id"] for n in
+                   new["trees"]["Paladin|Holy"]["hero"]["Herald"]["nodes"]]
+    check(hc == [1001, 1002, 1003, 1004, 1005, 2501] and hsp == [2101]
+          and hh == ["Herald"] and holy_herald == [3102, 3103],
+          f"[{shape}] Holy's panes are Holy's: class {hc}, spec {hsp}, "
+          f"hero {hh} {holy_herald}")
+    n2002 = [n for n in ret["spec"]["nodes"] if n["id"] == 2002][0]
+    check(n2002["t"] == 1 and n2002["r"] == 4 and "es" not in n2002,
+          f"[{shape}] the tiered talent is one node of 4 ranks, not a choice "
+          f"of three")
+    ids = {n["id"] for n in ret["spec"]["nodes"]}
+    check(all(a in ids and b in ids for a, b in ret["spec"]["edges"])
+          and [2001, 2101] not in ret["spec"]["edges"],
+          f"[{shape}] no edge runs to a node that was left out")
+    if shape == "classRef":
+        check(ret.get("cx") == [1004, 2501]
+              and new["trees"]["Paladin|Holy"].get("cx") == [2500]
+              and [n["id"] for n in new["classes"]["Paladin"]["nodes"]]
+              == [1001, 1002, 1003, 1004, 1005, 2500, 2501],
+              "[classRef] one shared class pane, and each spec's hide list "
+              "names exactly what the game does not show it")
+    else:
+        check("classes" not in new and "cx" not in ret,
+              "[per-spec] each spec carries its own class pane, no hide list")
+check(drawn["per-spec"] == drawn["classRef"],
+      "both document shapes draw the same panes for every spec")
+
+# a spec the tables do not know: named, with the reason, and no advice that
+# cannot help; the specs that are known are drawn as before
+_, stray = make_parse("S0", "Stray0", "Paladin", "Mystery", RET_A)
+odd, odd_out = run(GEO, "talents", variant="classRef", extra=[stray])
+check(bsd.talents_doc.blind == 1
+      and "the game tables know no spec by this name: Paladin|Mystery" in odd_out
+      and "run fetch_traits.py --refresh" not in odd_out
+      and panes(odd, "Paladin|Retribution") == drawn["classRef"]["Paladin|Retribution"],
+      "a spec the game tables do not know is drawn from the union and NAMED "
+      "with the reason; the known specs' panes do not move")
 
 # --- the import strings ----------------------------------------------------------
 side, side_out = run(GEO, "builds")
 pb = side["specs"]["Paladin|Retribution"]
 by_n = {b["n"]: b for b in pb["builds"]}
 T70 = ts.SpecTree.of(GEO, 70)
-check(pb["bkind"] == "hash" and set(by_n) == {8, 4, 1}
+check(pb["bkind"] == "hash" and set(by_n) == {8, 4, 2, 1}
       and "imp" in by_n[8] and "imp" in by_n[4],
       "both real Retribution builds carry an import string")
 for n, logged, hero in ((8, RET_A, 48), (4, RET_B, 49)):
@@ -257,6 +336,10 @@ for n, logged, hero in ((8, RET_A, 48), (4, RET_B, 49)):
           and by_n[n]["imp"] == ts.loadout_string(T70, logged),
           f"the string of the build played {n} times reads back as exactly "
           f"that build ({GEO['subtrees'][str(hero)]}): {by_n[n]['imp']}")
+check(T70.granted == {1001, 1006, 2001, 3001, 3101},
+      "the free nodes the string marks: the class one, the one given without "
+      "being shown, the spec one, and the first node of BOTH its hero trees "
+      "-- its own variant, not Holy's")
 dA = ts.decode(by_n[8]["imp"], T70.order)["nodes"]
 dB = ts.decode(by_n[4]["imp"], T70.order)["nodes"]
 check(dA[1003]["choice"] == 1 and dB[1003]["choice"] == 0
@@ -264,14 +347,17 @@ check(dA[1003]["choice"] == 1 and dB[1003]["choice"] == 0
       and dA[1002]["ranks"] == 1 and dB[1002]["ranks"] is None,
       "option positions follow the game's order, the tiered talent is "
       "written as 3 of 4 and as full, a partial rank as 1 of 2")
-check("imp" not in by_n[1] and "sel" in by_n[1],
-      "the mislabelled build is still listed, and carries no string")
+check("imp" not in by_n[1] and "sel" in by_n[1]
+      and "imp" not in by_n[2] and "sel" in by_n[2],
+      "the mislabelled builds are still listed, and carry no string")
 check(bsd.builds_sidecar.imports
-      == (3, {"a hero tree this spec cannot take": 1})
-      and "import strings: 3 of 4 listed builds; none for: "
-          "a hero tree this spec cannot take x1" in side_out,
-      "3 of 4 listed builds get a string (two Retribution, one Holy); the "
-      "fourth is the mislabelled one, counted and printed with its reason")
+      == (3, {"a hero tree this spec cannot take": 1,
+              "a talent the game does not show this spec": 1})
+      and "import strings: 3 of 5 listed builds; none for: " in side_out
+      and "a hero tree this spec cannot take x1" in side_out
+      and "a talent the game does not show this spec x1" in side_out,
+      "3 of 5 listed builds get a string (two Retribution, one Holy); the "
+      "other two are the mislabelled ones, counted and printed with reasons")
 check(pb.get("game") == "9.9.9.1"
       and side["specs"]["Paladin|Holy"].get("game") == "9.9.9.1"
       and bsd.builds_sidecar.game == "9.9.9.1",
