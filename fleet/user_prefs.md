@@ -740,21 +740,27 @@
     (`talents.foreign_nodes`, `talents.foreign_specs` in `build_health.txt`), never dropped in
     silence. A class talent the game shows a spec stays on its tree even when none of its
     players took it. On a hero tree two specs share, the other spec's node is left out where
-    this spec has its own at the same place. A talent the game gives a spec without showing it
-    (Restoration Druid has one) is left out and is not counted as foreign. Without the game tables the document is built as before and says how many
+    this spec has its own at the same place. Every node left out is counted, also one the game
+    gives a spec without showing it (Restoration Druid has one): a combat log does not list
+    those for the spec, so one that turns up came with a mislabelled record. Without the game tables the document is built as before and says how many
     specs it could not judge (`talents.unjudged_specs`); the absence of the table is never read
     as "nothing is hidden".
     (b) the game's tables are read **at the live retail build**. Asked without a build, the
     tables' site answers with its newest build of any product, which on the day was the public
-    test realm. The cache records the build; every hourly run asks for the live build and
-    re-reads the trees when it has moved; a refresh that lost its nodes, or that would take a
-    spec's hero selector away, is refused and the cache stays.
+    test realm. A build staged for background download is **not** the live build either: it is
+    listed under the live product, with a higher version, for up to six days before a patch.
+    The cache records the build; every hourly run asks for the live build and re-reads the
+    trees when it has moved; a refresh that lost its nodes, or that would take a spec's hero
+    selector away, is refused and the cache stays. The refreshed file rides the collector's
+    cache to the next run and is used only when it is newer than the committed one.
     (c) **export** hands over the game's own import string, written by the builder for every
     listed build from its logged talents (`talent_string.py`). It is **never guessed**: a tree
     that is not a loadout of the spec gets no string and no button, and the count and reason are
     in `build_health.txt` (`builds.import_strings`, `builds.import_strings_refused`). The page
     says "copied" only when the clipboard took the string; otherwise it shows the string,
-    selected. The footnote names the game build the strings stand on.
+    selected, under a line that names the build, and no chip moves. The button works from the
+    keyboard. The footnote names the game build the strings stand on and speaks for the build
+    on screen: one without a string is said to have none.
     (d) the encoder is held against **strings the game itself exported** (160, four per spec,
     `scripts/fixtures/talent_strings.json`), not against itself. After a patch that changes a
     class tree those strings are for the old tree: `test_talent_string.py` says how many it did

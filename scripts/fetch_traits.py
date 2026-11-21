@@ -64,7 +64,11 @@ the newest build of product "wow" (the live retail game, /api/builds), the
 snapshot records that build, and a run that cannot learn it refreshes nothing.
 Every run asks for the live build (one request); when it is not the build the
 cache was read at, the geometry is re-read at once -- the game patched, and a
-tree from before the patch is exactly as wrong as one from after it. A refresh
+tree from before the patch is exactly as wrong as one from after it. A build
+staged for background download is not the live build (see live_build). The
+refreshed file also rides the collector's cache (data/processed), so the next
+run does not read it all again; that copy is used only when it is newer than
+the committed one. A refresh
 that comes back much smaller than the cache it would replace (a build whose
 tables are not published yet) is refused. The refreshed file is committed by
 the collector's daily export like every other data/ cache.
@@ -86,6 +90,13 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import fetch_names as fn
 
 TRAIT_GEOMETRY = fn.DATA / "trait_geometry.json"
+# The copy that rides the collector's cache between runs. Every run starts
+# from a fresh checkout, so without it a new game build is re-read (28 whole
+# tables) by every hourly run until the daily export commits the refreshed
+# file, and an hour in which the tables' site fails builds on the pre-patch
+# trees again. It is used ONLY when it was read at a NEWER build than the
+# committed file: a stale cache copy can never replace a newer committed one.
+CARRIED_GEOMETRY = fn.DATA / "processed" / "trait_geometry.json"
 NAMES_SPELLS = fn.DATA / "names_spells.json"
 NETHER_SPELL = "https://nether.wowhead.com/tooltip/spell/{sid}"
 WAGO_BUILDS = "https://wago.tools/api/builds"
@@ -105,7 +116,13 @@ def _ver(v) -> tuple:
 
 def live_build():
     """The live retail game build ("12.1.5.70961"), or None when it cannot be
-    learned. The newest by version number, not by list position."""
+    learned. The newest by version number, not by list position.
+
+    NOT a build staged for background download ("is_bgdl"): before a content
+    patch the next build is listed under the same product, with a higher
+    version, 0.3 to 5.9 days before it is live (12 times in the builds list
+    on 2026-11-21, 14 days of the 12 months before). Read as live, it would
+    put next patch's trees on the page and under the import strings."""
     raw = fn._get_raw(WAGO_BUILDS)
     if raw is fn._FAILED or not raw:
         return None
@@ -114,7 +131,8 @@ def live_build():
     except (ValueError, AttributeError):
         return None
     vers = [r.get("version") for r in rows or []
-            if isinstance(r, dict) and len(_ver(r.get("version"))) == 4]
+            if isinstance(r, dict) and len(_ver(r.get("version"))) == 4
+            and not r.get("is_bgdl")]
     return max(vers, key=_ver) if vers else None
 
 
@@ -415,6 +433,15 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     geo = fn.load_json(TRAIT_GEOMETRY, {})
+    carried = fn.load_json(CARRIED_GEOMETRY, {})
+    if (isinstance(carried, dict) and carried.get("trees")
+            and carried.get("v") == geo.get("v", carried.get("v"))
+            and _ver(carried.get("build")) > _ver(geo.get("build"))
+            and plausible(carried, geo) is None):
+        print(f"[traits] geometry read at {carried.get('build')} by an "
+              f"earlier run (the committed file is at "
+              f"{geo.get('build') or 'an unrecorded build'})")
+        geo = carried
     spells_c = fn.load_json(NAMES_SPELLS, {})
     budget = [args.limit if args.limit > 0 else float("inf")]
 
@@ -487,6 +514,15 @@ def main(argv=None) -> int:
     tmp.write_text(json.dumps(geo, ensure_ascii=False, sort_keys=True,
                               indent=1) + "\n")
     tmp.replace(TRAIT_GEOMETRY)
+    if geo.get("build") and geo.get("trees"):
+        try:
+            CARRIED_GEOMETRY.parent.mkdir(parents=True, exist_ok=True)
+            tmp = CARRIED_GEOMETRY.with_name(CARRIED_GEOMETRY.name + ".tmp")
+            tmp.write_text(json.dumps(geo, ensure_ascii=False, sort_keys=True,
+                                      indent=1) + "\n")
+            tmp.replace(CARRIED_GEOMETRY)
+        except OSError as e:               # the carry is a saving, not a need
+            print(f"[traits] could not carry the geometry to the next run: {e}")
     print(f"[traits] spells {got['spells']} fetched ({len(spells_c)} "
           f"cached) | icon images {got['images']} fetched | "
           f"{got['failed']} failures (retried next run)", flush=True)

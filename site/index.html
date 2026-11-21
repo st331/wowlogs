@@ -892,8 +892,17 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
   font-size:.8rem; color:var(--ink2)}
 /* Build 1..N chips — the tree selector; active chip carries the §GG sheen */
 #cs-bldchips{display:flex; flex-wrap:wrap; gap:6px; margin:.15rem 0 .65rem}
-/* the export's fallback: when the clipboard refuses, the string is handed over selected, in the measure */
-#cs-impbox{display:block; width:100%; box-sizing:border-box; margin:-.3rem 0 .65rem; padding:.3rem .55rem;
+/* the export's fallback: when the clipboard refuses, the string is handed over selected, in the measure,
+   under a line that says WHICH build it is. The button keeps one width across its labels (export / copied /
+   below), so a refused copy never re-wraps the chip row. */
+#cs-impwrap{margin:-.3rem 0 .65rem}
+table.cs-tal+#cs-impwrap{margin:.45rem 0 .65rem}
+#cs-implab{display:block; font-size:.78rem; color:var(--ink3); line-height:1.5; margin-bottom:.2rem}
+#cs-implab b{color:var(--ink2); font-weight:600}
+.cbtn[data-copy]{min-width:4.8em; text-align:center}   /* "copied", the widest label, is 4.72em */
+.bldchip.base .cbtn{border-color:#4a3b12; color:#241d0e; background:transparent}
+.bldchip.base .cbtn:hover{border-color:#241d0e; color:#241d0e}
+#cs-impbox{display:block; width:100%; box-sizing:border-box; margin:0; padding:.3rem .55rem;
   background:var(--surface1); border:1px solid var(--line2); border-radius:6px; color:var(--ink);
   font:.72rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 #cs-impbox:focus{outline:none; border-color:var(--accent-line)}
@@ -6626,7 +6635,7 @@ function csMedDeltaHTML(med,bmed,n,bn){
 const CS_COPY_BASE=900;               // the pinned base's slot in the copy store (chips use 1..8, the digest 0)
 function csExportBtn(slot,str,what,own){   // own: the build IS its string (legacy identity) -- "copy", as it always read
   __csCopy[slot]=str;
-  return '<button class="cbtn" data-copy="'+slot+'" title="'
+  return '<button class="cbtn" data-copy="'+slot+'" data-what="'+escA(what)+'" title="'
     +escA("Copy the game’s talent import string for "+what+" — in the game open Talents, the loadout "
       +"menu, Import, and paste."+(own?"":" Written from the logged talents in the game’s own format; "
       +"a combat log carries no string."))+'">'+(own?"copy":"export")+'</button>';
@@ -7336,6 +7345,24 @@ function csDiffLedgerHTML(base,row,paneOf,trees){
   return h+'</tbody></table></div>';
 }
 /* talents + hero logic (§3.4) — the Talents pane's whole content */
+/* What the page says about export, under the trees and under the table. It speaks
+   for the build on screen: when that one has no string (the builder would not
+   vouch for it) the note says so, instead of promising a button that is not there. */
+function csExportNote(d,T,litImp,lab){
+  if(!T.rows.some(r=>r.hash&&r.imp)) return "";
+  const game=(d.vocab&&d.vocab.game)?", laid out on the talent trees of game build "+esc(d.vocab.game):"";
+  const tail=". The string leaves the game’s tree-version check open, as third-party calculators do, "
+    +"so after a talent patch re-check the import.";
+  if(lab==null)
+    return " — <b>export</b> on a row writes one from that build’s logged talents in the game’s own "
+      +"format (paste it under Talents → Import)"+game+tail;
+  if(litImp)
+    return " — <b>export</b> on the lit build writes one from its logged talents in the game’s own "
+      +"format (paste it under Talents → Import)"+game+tail;
+  return " — the other builds have an <b>export</b> that writes one from their logged talents"+game
+    +". <b>No string is written for "+esc(lab)+"</b>: its logged talents are not a loadout of this spec "
+    +"that the game’s talent tables vouch for.";
+}
 function csTalentsHTML(ctx,d){
   let scope="";
   if(state.merge&&d.win.length){
@@ -7373,6 +7400,13 @@ function csTalentsHTML(ctx,d){
     // the clamp: -1 is the "pinned base" sentinel that `flip` needs when the
     // base has left the chip row; it is only legal while a base is resolved
     if(screenBuild===-1&&!base) screenBuild=0;
+    // ...and only while the base is OFF the chip row. When the lens brings
+    // it back among the chips it is that chip that is lit: with the sentinel
+    // left standing no chip was lit and the build on screen had no export.
+    if(screenBuild===-1&&base){
+      const j=T.rows.findIndex(r=>r.s===base.s&&r.sel);
+      if(j>=0) screenBuild=j;
+    }
     if(screenBuild!==-1&&(screenBuild>=T.rows.length||!T.rows[screenBuild].sel)){
       screenBuild=T.rows.findIndex(r=>r.sel);   // never light nothing
       if(screenBuild<0) screenBuild=0;
@@ -7440,13 +7474,7 @@ function csTalentsHTML(ctx,d){
     if(anyHash)
       h+='<div class="cs-foot">builds identified from talent trees; '
         +"the game's import strings are not present in combat logs"
-        +(T.rows.some(r=>r.hash&&r.imp)
-          ?" — <b>export</b> on the lit build writes one from its logged talents in the game’s own "
-            +"format (paste it under Talents → Import)"
-            +(d.vocab&&d.vocab.game?", laid out on the talent trees of game build "+esc(d.vocab.game):"")
-            +". The string leaves the game’s tree-version check open, as third-party calculators do, "
-            +"so after a talent patch re-check the import."
-          :"")+'</div>';
+        +csExportNote(d,T,(screenBuild===-1)?(base&&base.imp):(row&&row.imp),lab)+'</div>';
     return h+'</div>';
   }
   const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
@@ -7472,7 +7500,8 @@ function csTalentsHTML(ctx,d){
       +'<td>'+r.share.toFixed(1)+'%</td><td>'+fmtDpsM(r.med)+' median</td>'
       +'<td>n='+fmtInt(r.n)+'</td>'
       +'<td class="txt">'+(r.hero?'<span class="htag">'+esc(r.hero)+'</span>':'')+'</td>'
-      +'<td>'+((r.imp&&(clip||r.hash))?'<button class="cbtn" data-copy="'+(x+1)+'">'+(r.hash?"export":"copy")+'</button>':'')+'</td></tr>';
+      +'<td>'+((r.imp&&(clip||r.hash))
+        ?csExportBtn(x+1,r.imp,(r.hash?"Build "+(x+1):"this build")+(r.hero?" ("+r.hero+")":""),!r.hash):'')+'</td></tr>';
   }
   // "other" is an aggregate, not a row of data: pinned last, outside the sort
   if(T.other>0)
@@ -7488,7 +7517,8 @@ function csTalentsHTML(ctx,d){
     +'</div>';
   if(anyHash)
     h+='<div class="cs-foot">builds identified from talent trees; '
-      +"the game's import strings are not present in combat logs</div>";
+      +"the game's import strings are not present in combat logs"
+      +csExportNote(d,T,null,null)+'</div>';
   return h+'</div>';
 }
 
@@ -7617,6 +7647,11 @@ function wireScreen(host,ctx,d){
     // the chip is the pane's primary control and was a <span onclick>,
     // unreachable by keyboard. Enter/Space now light it.
     c.onkeydown=e=>{
+      // only when the chip itself has the focus: Enter/Space on a button
+      // inside it (base, export) is that button's own activation. Without
+      // this the chip swallowed the key and re-rendered, and export could
+      // not be used from the keyboard at all.
+      if(e.target!==c) return;
       if(e.key==="Enter"||e.key===" "){ e.preventDefault(); light() }
     };
   });
@@ -7721,26 +7756,33 @@ function wireScreen(host,ctx,d){
       const s=__csCopy[+b.dataset.copy];
       if(!s) return;
       // the label it had comes back (it is "export" on a generated string,
-      // "copy" on a build that is its own); and it says "copied" only when
-      // the clipboard took it. It used to say so unconditionally: a refused
+      // "copy" on a build that is its own); it says "copied" only when the
+      // clipboard took it, and "below" when the string is shown instead. It used to say so unconditionally: a refused
       // write (no permission, an unfocused document) read as a success and
       // the owner pasted whatever was there before.
       const lab=b.dataset.lab||(b.dataset.lab=b.textContent);
       const back=()=>setTimeout(()=>{ b.textContent=lab },1400);
       const fail=()=>{                  // hand the string over anyway, selected
-        b.textContent="select + copy"; back();
-        let box=host.querySelector("#cs-impbox");
-        if(!box){
-          box=document.createElement("input");
-          box.id="cs-impbox"; box.readOnly=true; box.spellcheck=false;
-          box.setAttribute("aria-label","talent import string");
-          const row=host.querySelector("#cs-bldchips")||b.parentElement;
-          row.insertAdjacentElement("afterend",box);
+        if(!b.isConnected) return;      // the screen was redrawn meanwhile
+        b.textContent="below"; back();
+        // one block under the chip row (or under the table, never inside a
+        // row of it), with a line that says WHICH build the string is of
+        let wrap=host.querySelector("#cs-impwrap");
+        if(!wrap){
+          wrap=document.createElement("div"); wrap.id="cs-impwrap";
+          wrap.innerHTML='<span id="cs-implab"></span><input id="cs-impbox" readonly '
+            +'spellcheck="false" aria-labelledby="cs-implab">';
+          const anchor=host.querySelector("#cs-bldchips")||b.closest("table")||b.parentElement;
+          anchor.insertAdjacentElement("afterend",wrap);
         }
+        const what=b.dataset.what||"this build";
+        wrap.querySelector("#cs-implab").innerHTML="Import string of <b>"+esc(what)+"</b>. The browser "
+          +"did not allow the copy: the string is selected, press Ctrl+C (⌘C on a Mac).";
+        const box=wrap.querySelector("#cs-impbox");
         box.value=s; box.focus(); box.select();
       };
       if(!navigator.clipboard){ fail(); return }
-      navigator.clipboard.writeText(s).then(()=>{ b.textContent="copied"; back() },fail);
+      navigator.clipboard.writeText(s).then(()=>{ if(b.isConnected){ b.textContent="copied"; back() } },fail);
     };
   });
   // slotfold caret: the panel lives in the doll's CENTER column (or full-width

@@ -20,8 +20,9 @@ ONE Retribution record that carries Holy's talents:
     talent none of its own players took; the other spec's panes are untouched;
   * a hero tree two specs share holds one node per spec at the same place:
     the other spec's is left out where this spec has its own;
-  * a talent the game GIVES a spec without showing it is logged by every one
-    of its players: left out of the pane, and not counted as foreign;
+  * a talent the game GIVES a spec without showing it is not listed by that
+    spec's logs; one that turns up came with a mislabelled record, is left
+    out of the pane and is counted like every other foreign node;
   * BOTH document shapes (a class pane per spec; one shared pane per class
     with a hide list per spec, which is what real-sized data ships) draw the
     same panes;
@@ -140,19 +141,19 @@ for _t in V1["trees"].values():
 V1["entries"] = {k: v[:4] for k, v in V1["entries"].items()}
 
 # the journal logs a free node at rank 1 like any other
-RET_A = [(50001, 1), (50002, 1), (50003, 1), (50007, 1), (60001, 1),
-         (60002, 1), (60003, 2), (65001, 1), (70001, 1), (70002, 1)]  # Templar
-RET_B = [(50001, 1), (50002, 2), (50004, 1), (50007, 1), (60001, 1),
-         (60002, 1), (60003, 2), (60004, 1), (65002, 1), (70101, 1),
-         (70102, 1)]                                               # Herald
+RET_A = [(50001, 1), (50002, 1), (50003, 1), (60001, 1), (60002, 1),
+         (60003, 2), (65001, 1), (70001, 1), (70002, 1)]           # Templar
+RET_B = [(50001, 1), (50002, 2), (50004, 1), (60001, 1), (60002, 1),
+         (60003, 2), (60004, 1), (65002, 1), (70101, 1), (70102, 1)]  # Herald
 HOLY = [(50001, 1), (50002, 1), (50005, 1), (50006, 1), (60101, 1),
         (65101, 1), (70103, 1), (70102, 1)]                        # Herald
 # Holy's talents under a Retribution label: the record behind the bug
 WRONG = [(50001, 1), (50005, 1), (60101, 1), (65102, 1), (70201, 1),
          (70202, 1)]                                               # Lightsmith
-# ...and one on the hero tree both specs can take
-WRONG2 = [(50001, 1), (50005, 1), (60101, 1), (65101, 1), (70103, 1),
-          (70102, 1)]                                              # Herald
+# ...and one on the hero tree both specs can take, which also bought the
+# talent the game gives Retribution without showing it (Holy sees it)
+WRONG2 = [(50001, 1), (50005, 1), (50007, 1), (60101, 1), (65101, 1),
+          (70103, 1), (70102, 1)]                                  # Herald
 rows, recs = [], []
 for i in range(8):
     rw, rc = make_parse(f"A{i}", f"RetA{i}", "Paladin", "Retribution", RET_A)
@@ -269,15 +270,15 @@ for shape in SHAPES:
     check(herald == [3101, 3102],
           f"[{shape}] on the hero tree both specs take, Holy's node is left "
           f"out where Retribution has its own at the same place: {herald}")
-    check(1006 not in nc and all((50007, 1) in b for b in (RET_A, RET_B)),
+    check(1006 not in nc and all((50007, 1) not in b for b in (RET_A, RET_B)),
           f"[{shape}] a talent the game gives Retribution without showing it "
-          f"is logged by every Retribution player and is not on its tree")
-    check(bsd.talents_doc.foreign == {"Paladin|Retribution": 6}
+          f"is not in a Retribution log and is not on its tree")
+    check(bsd.talents_doc.foreign == {"Paladin|Retribution": 7}
           and bsd.talents_doc.blind == 0
-          and "Paladin|Retribution 6" in new_out,
-          f"[{shape}] the 6 foreign nodes left out are counted and printed "
-          f"(1004, 2101, 2501, the two Lightsmith nodes, Holy's Herald "
-          f"node); the given-but-hidden 1006 is not one of them")
+          and "Paladin|Retribution 7" in new_out,
+          f"[{shape}] the 7 foreign nodes left out are counted and printed: "
+          f"1004, 2101, 2501, the two Lightsmith nodes, Holy's Herald node, "
+          f"and the given-but-hidden 1006 the mislabelled record brought")
     hc, hsp, hh = panes(new, "Paladin|Holy")
     holy_herald = [n["id"] for n in
                    new["trees"]["Paladin|Holy"]["hero"]["Herald"]["nodes"]]
@@ -338,8 +339,8 @@ for n, logged, hero in ((8, RET_A, 48), (4, RET_B, 49)):
           f"that build ({GEO['subtrees'][str(hero)]}): {by_n[n]['imp']}")
 check(T70.granted == {1001, 1006, 2001, 3001, 3101},
       "the free nodes the string marks: the class one, the one given without "
-      "being shown, the spec one, and the first node of BOTH its hero trees "
-      "-- its own variant, not Holy's")
+      "being shown (which no Retribution log lists), the spec one, and the "
+      "first node of BOTH its hero trees -- its own variant, not Holy's")
 dA = ts.decode(by_n[8]["imp"], T70.order)["nodes"]
 dB = ts.decode(by_n[4]["imp"], T70.order)["nodes"]
 check(dA[1003]["choice"] == 1 and dB[1003]["choice"] == 0

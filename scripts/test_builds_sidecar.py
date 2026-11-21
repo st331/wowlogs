@@ -1289,11 +1289,17 @@ LIVE = ["9.9.9.1"]
 def fake_traw(url):
     RAW_CALLS.append(url)
     if url == ft.WAGO_BUILDS:
-        # newest first by list position is NOT trusted: 9.9.9.1 is listed last
+        # newest first by list position is NOT trusted: 9.9.9.1 is listed
+        # last. 9.9.11.0 is next patch's build, staged for background
+        # download under the live product days before it is live.
         return json.dumps({
             "wowt": [{"product": "wowt", "version": "9.9.10.5"}],
-            "wow": [{"product": "wow", "version": "9.9.8.7"},
-                    {"product": "wow", "version": LIVE[0]}]}).encode()
+            "wow": [{"product": "wow", "version": "9.9.11.0",
+                     "is_bgdl": True},
+                    {"product": "wow", "version": "9.9.8.7",
+                     "is_bgdl": False},
+                    {"product": "wow", "version": LIVE[0],
+                     "is_bgdl": False}]}).encode()
     if "nether.wowhead.com/tooltip/spell/111111" in url:
         return b'{"name":"Spell One","icon":"Spell_One_Icon"}'
     if "zamimg.com" in url and url.endswith("spell_one_icon.jpg"):
@@ -1305,6 +1311,7 @@ import fetch_traits as ft
 with tempfile.TemporaryDirectory() as tmp:
     tp = pathlib.Path(tmp)
     ft.TRAIT_GEOMETRY = tp / "trait_geometry.json"
+    ft.CARRIED_GEOMETRY = tp / "processed" / "trait_geometry.json"
     ft.NAMES_SPELLS = tp / "names_spells.json"
     fn.ICONS_DIR = tp / "icons"
     fn._get_csv = fake_db2
@@ -1312,7 +1319,9 @@ with tempfile.TemporaryDirectory() as tmp:
     assert ft.main([]) == 0
     g = json.loads(ft.TRAIT_GEOMETRY.read_text())
     # every table was asked for AT THE LIVE BUILD -- never the bare request
-    # that answers with the test realm's tables
+    # that answers with the test realm's tables, and never the build staged
+    # for download, though it is listed under the live product and is newer
+    assert ft.live_build() == "9.9.9.1"
     assert CSV_BUILDS and set(CSV_BUILDS) == {"9.9.9.1"}, set(CSV_BUILDS)
     assert g["v"] == 2 and g["build"] == "9.9.9.1"
     # the class tree of a spec is the one holding its hero selector: the
@@ -1366,6 +1375,26 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "no longer in the game: 0 nodes, 1 entries" in buf.getvalue(), \
         buf.getvalue()
     DB2["TraitNodeXTraitNodeEntry"].insert(1, dropped)
+    # THE NEXT HOURLY RUN starts from a fresh checkout: the committed file is
+    # still the one read at 9.9.9.1. The copy the last run left in the
+    # collector's cache is newer and is used -- no table is read again.
+    after = ft.TRAIT_GEOMETRY.read_text()
+    assert ft.CARRIED_GEOMETRY.read_text() == after
+    ft.TRAIT_GEOMETRY.write_text(before)
+    n_csv = len(CSV_BUILDS)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert ft.main([]) == 0
+    assert len(CSV_BUILDS) == n_csv, "the carried copy was not used"
+    assert ft.TRAIT_GEOMETRY.read_text() == after
+    assert "geometry read at 9.9.9.2 by an earlier run" in buf.getvalue()
+    # ...and a cache copy OLDER than the committed file is never used
+    ft.CARRIED_GEOMETRY.write_text(before)
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert ft.main([]) == 0
+    assert len(CSV_BUILDS) == n_csv and "by an earlier run" not in buf.getvalue()
+    assert ft.TRAIT_GEOMETRY.read_text() == after == ft.CARRIED_GEOMETRY.read_text()
     # a build whose tables are not published yet comes back nearly empty:
     # refused, the cache stays as it was, and the run says why
     LIVE[0] = "9.9.9.3"
@@ -1418,8 +1447,10 @@ with tempfile.TemporaryDirectory() as tmp:
 print("fetch_traits: stubbed run seeds geometry (who sees and who is granted "
       "what, the game's option order, the tree holding the hero selector) + "
       "spell cache + shared icon store, every table at the LIVE build; "
-      "idempotent; a new live build re-reads the trees; a near-empty or "
-      "failed refresh keeps the cached copy")
+      "a build staged for download is not the live one; idempotent; a new "
+      "live build re-reads the trees once and the next run takes them from "
+      "the collector's cache; a near-empty or failed refresh keeps the "
+      "cached copy")
 
 # ---- the COMMITTED SEED itself, offline. v3's code shipped correct and its
 # ARTIFACT shipped broken: data/emb_identity.json went out with "ids": [], a

@@ -457,11 +457,15 @@ jobs:
           done
 
       # Spell names/icons for the talent-tree document. The tree GEOMETRY
-      # (data/trait_geometry.json) is committed and only rewritten by a
-      # manual `fetch_traits.py --refresh` run -- it deliberately does NOT
-      # round-trip through the Actions cache, so a stale cache copy can
-      # never clobber a newer committed geometry. Spell names are grow-only
-      # and ride the cache like the other name caches.
+      # (data/trait_geometry.json) is committed. fetch_traits.py asks for the
+      # live game build on every run and re-reads the trees itself when the
+      # game has moved to a new one; it keeps that copy in data/processed
+      # (the Actions cache) so the next run does not read it all again, and
+      # takes the cached copy ONLY when it was read at a newer build than the
+      # committed file -- a stale cache copy can never clobber a newer
+      # committed geometry. The daily export commits the refreshed file.
+      # Spell names are grow-only and ride the cache like the other name
+      # caches.
       - name: Resolve talent spells
         if: (steps.guard.outputs.journals == 'ok' || steps.guard.outputs.journals == 'fresh')
         run: |

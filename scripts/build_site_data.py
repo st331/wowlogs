@@ -1719,12 +1719,6 @@ def _sel_pairs(blob: str, entries: dict, node_entries: dict,
             for n, (r, i) in sorted(nodes.items())]
 
 
-def _granted_to(grant: dict, nid: int, sid) -> bool:
-    """The game hands node `nid` to spec `sid` for free ([] = to everyone)."""
-    who = grant.get(str(nid))
-    return who is not None and (not who or sid in who)
-
-
 def talents_doc(name: str, usage: dict | None = None,
                 traits: dict | None = None,
                 variant: str | None = None) -> str | None:
@@ -1761,8 +1755,9 @@ def talents_doc(name: str, usage: dict | None = None,
     drew them all for everyone. Two finer points, from the review of the
     change: a hero tree two specs can take holds one node per spec at the
     same place, and the other spec's is left out where this spec has its
-    own; and a node the game GIVES a spec without showing it is left out
-    without being counted as foreign. A v1 geometry cache knows none of
+    own; and every node left out is counted, also one the game gives the
+    spec without showing it (a log does not list those for the spec, so
+    one that turns up came with a mislabelled record). A v1 geometry cache knows none of
     this and the document is built as before; it is never read as "nothing
     is hidden".
 
@@ -1876,7 +1871,6 @@ def talents_doc(name: str, usage: dict | None = None,
         if why_blind:
             sid = vis = None
             blind[sk] = why_blind
-        grant = tgeo.get("grant") or {}
         # a shared hero tree holds one node per spec at the same place (the
         # Frostfire keystone is one node for Fire and another for Frost): the
         # twin a spec sees stands at (subtree, x, y)
@@ -1908,18 +1902,20 @@ def talents_doc(name: str, usage: dict | None = None,
                     # where this spec has its own at the same place. Hero
                     # nodes cannot be judged by "vis" alone: it names no
                     # Augmentation on either of that spec's hero trees.
-                    if not _granted_to(grant, nid, sid):
-                        n_foreign += 1
+                    n_foreign += 1
                     continue
                 hero.setdefault(st, []).append(nid)
             elif (vis is not None and str(nid) in vis
                   and sid not in vis[str(nid)]):
                 # another spec's talent, or a class-tree variant it never
-                # sees. A node the game GIVES this spec without showing it
-                # (Restoration Druid's 82241) is logged by every one of its
-                # players: left out of the pane, and not a foreign node.
-                if not _granted_to(grant, nid, sid):
-                    n_foreign += 1
+                # sees. This includes a node the game GIVES the spec without
+                # showing it (Restoration Druid's 82241) and the other spec's
+                # twin above: a combat log does not list either for the spec
+                # that does not see it (0 of 40 listed builds, for every such
+                # node, 2026-11-21 -- the armory does list them, a log does
+                # not), so one that turns up came with a mislabelled record
+                # and is counted like the rest.
+                n_foreign += 1
                 continue
             else:
                 rest.append(nid)

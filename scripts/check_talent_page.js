@@ -14,7 +14,9 @@
 //   * the lit build's chip carries one export button, a click puts on the clipboard exactly the
 //     string builds.json.gz holds for THAT build ("imp"), the button says so and takes its label
 //     back; lighting another build moves the button and copies that build's string;
-//   * with the clipboard refused, the string is shown selected and the button does not say copied.
+//   * the button works from the keyboard (Tab to it, Enter);
+//   * with the clipboard refused, the string is shown selected under a line naming the build, the
+//     button does not say copied, and no chip moves.
 // It reads talents.json.gz and builds.json.gz from the same site itself, so what the page shows is
 // held against the files and not against the page's own memory. Needs Playwright with Chromium;
 // not part of the test loop. Exit status 0 = every check passed. CHROMIUM_ARGS replaces the browser's
@@ -135,10 +137,18 @@ async function getJsonGz(page, name) {
     await page.click('#cs-bldchips .bldchip.on [data-copy]'); await page.waitForTimeout(250);
     const second = await page.evaluate(() => navigator.clipboard.readText());
     if (!(st.btns.length === 1 && st.btns[0] && vb && second === vb.imp && second !== first)) fail(`${deep}: lighting Build 3 did not move the export to that build`);
+    // from the keyboard: focus on the button, Enter. The chip around it must not take the key.
+    await page.waitForTimeout(1700);
+    await page.evaluate(() => navigator.clipboard.writeText('not the string'));
+    await page.focus('#cs-bldchips .bldchip.on [data-copy]');
+    await page.keyboard.press('Enter'); await page.waitForTimeout(300);
+    const keyed = await page.evaluate(() => navigator.clipboard.readText());
+    const keyedLab = await page.evaluate(() => { const b = document.querySelector('#cs-bldchips .bldchip.on [data-copy]'); return b ? b.textContent : null; });
+    if (!(vb && keyed === vb.imp && keyedLab === 'copied')) fail(`${deep}: Enter on the export button did not copy the lit build's string (clipboard "${keyed.slice(0, 24)}", label "${keyedLab}")`);
     const foot = await page.evaluate(() => [...document.querySelectorAll('.cs-foot')].map((f) => f.textContent).find((x) => /import strings/.test(x)) || '');
     if (!/export on the lit build writes one from its logged talents/.test(foot)) fail(`${deep}: the footnote does not say where the string comes from`);
     if (builds.specs[deep].game && foot.indexOf('game build ' + builds.specs[deep].game) < 0) fail(`${deep}: the footnote does not name game build ${builds.specs[deep].game}`);
-    console.log(`in depth (${deep}): the label returns, Build 3 exports its own string, the footnote names game build ${builds.specs[deep].game || 'unknown'}`);
+    console.log(`in depth (${deep}): the label returns, Build 3 exports its own string, Enter on the button copies it, the footnote names game build ${builds.specs[deep].game || 'unknown'}`);
   }
   if (errs.length) fail('page errors: ' + JSON.stringify(errs.slice(0, 3)));
   await ctx.close();
@@ -148,13 +158,19 @@ async function getJsonGz(page, name) {
     const [cls, spec] = deep.split('|');
     await enter(r.page, cls, spec);
     await r.page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); });
+    const where = () => r.page.evaluate(() => [...document.querySelectorAll('#cs-bldchips .bldchip')].map((c) => { const q = c.getBoundingClientRect(); return [Math.round(q.left), Math.round(q.top), Math.round(q.width)]; }));
+    const before = await where();
     await r.page.click('#cs-bldchips .bldchip.on [data-copy]'); await r.page.waitForTimeout(300);
-    const fb = await r.page.evaluate(() => { const b = document.querySelector('#cs-impbox');
-      return b ? { val: b.value, sel: b.selectionEnd - b.selectionStart, focus: document.activeElement === b,
+    const during = await where();
+    const fb = await r.page.evaluate(() => { const b = document.querySelector('#cs-impbox'), l = document.querySelector('#cs-implab');
+      return b ? { val: b.value, sel: b.selectionEnd - b.selectionStart, focus: document.activeElement === b, cap: l ? l.textContent : '',
+        inRow: !!b.closest('tr'), n: screenBuild + 1,
         lab: document.querySelector('#cs-bldchips .bldchip.on [data-copy]').textContent, s: __csBldS[screenBuild] } : null; });
     const vb = fb && (builds.specs[deep].builds || []).find((b) => b && b.s === fb.s);
-    if (!(fb && vb && fb.val === vb.imp && fb.sel === fb.val.length && fb.focus && fb.lab === 'select + copy')) fail(`${deep}: with the clipboard refused the string is not handed over selected: ${JSON.stringify(fb && { len: fb.val.length, sel: fb.sel, lab: fb.lab })}`);
-    else console.log(`clipboard refused (${deep}): the string is shown selected, the button says "select + copy"`);
+    if (!(fb && vb && fb.val === vb.imp && fb.sel === fb.val.length && fb.focus && fb.lab === 'below' && !fb.inRow)) fail(`${deep}: with the clipboard refused the string is not handed over selected: ${JSON.stringify(fb && { len: fb.val.length, sel: fb.sel, lab: fb.lab })}`);
+    else if (fb.cap.indexOf('Import string of Build ' + fb.n) !== 0) fail(`${deep}: the line over the string does not name the build: "${fb.cap.slice(0, 60)}"`);
+    else if (JSON.stringify(before) !== JSON.stringify(during)) fail(`${deep}: the chips moved when the copy was refused`);
+    else console.log(`clipboard refused (${deep}): the string is shown selected under "Import string of Build ${fb.n} …", the button says "below", no chip moved`);
     if (r.errs.length) fail('page errors: ' + JSON.stringify(r.errs.slice(0, 3)));
     await r.ctx.close();
   }
