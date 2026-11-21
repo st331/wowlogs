@@ -15,6 +15,8 @@ scripts/fetch_abilities.py   per-ability damage breakdown (tuning projection)
 scripts/project_tuning.py    re-scores parses under an announced tuning pass
 scripts/hero_from_abilities.py  recovers hero talents from the abilities cast
 scripts/backfill_keystone.py    tops up keystone clock times for aged-out reports
+scripts/fetch_traits.py      the game's talent trees (who sees and who is granted each node), at the live game build
+scripts/talent_string.py     the game's talent import string, written from a logged talent tree
 site/                        static dashboard — index.html + data.json (docs/ mirrors it)
 ```
 
@@ -430,9 +432,20 @@ resolves, the Chain step's decision, the cron and the watchdog threshold pinned 
 `test_dps_clock.py` (the real builder run in a temporary copy on the export: the published DPS is
 the collector's own column, on the fight clock), `test_dn_math.py` (the page's dungeon-adjustment
 functions cut out of `site/index.html` and executed under node against a reference written from
-the rule). The workflow tests need PyYAML, the builder's need pandas and numpy.
+the rule), `test_talent_string.py` (the game's talent import string: the bit layout by hand, and
+160 strings the game itself exported, four per spec, reproduced character for character from the
+logged talents alone), `test_talent_trees.py` (a spec's talent panes hold what the game shows
+that spec, and every listed build carries its import string). The workflow tests need PyYAML, the
+builder's need pandas and numpy.
 `test_dn_math.py` needs node and `test_dps_clock.py` the export: without them they print SKIP and
 exit with status 3, which the loop above reports as SKIP, not ok.
+
+The 160 strings in `scripts/fixtures/talent_strings.json` stand on the talent trees of the game
+build named in that file. `fetch_traits.py` re-reads the trees by itself when the live game moves
+to a new build, and after a patch that changes a class tree `test_talent_string.py` no longer runs
+that class's strings and says how many it left out. Collect new ones then:
+`python3 scripts/collect_talent_vectors.py` (about 200 requests to Raider.IO's public profile API,
+talents only, no character identity is written).
 
 Not in the loop, because it needs a browser (Playwright with Chromium): the figures the page
 PRINTS. `node scripts/check_dn_oracle.js <site URL> dump.json` walks 19 views of the published
@@ -441,4 +454,10 @@ data.json.gz dump.json` recomputes all of it from the payload that site serves (
 `<site URL>/data.json.gz`) and the rule (9,887 values on 2026-11-13, 0 mismatches). `PAGE=site/index.html` checks the working tree's page against the
 live data before a push. Run it after any change to `aggregate`, `aggregateElite` or `dnFields`:
 `test_dn_math.py` covers the factors, not what reads them.
+
+`node scripts/check_talent_page.js <site URL>` opens the Talents tab of every spec at 1920x1080:
+the three panes fit with no horizontal scroll, no spec shows more than two hero trees or a node
+the talents document hides from it, and **export** on the lit build puts on the clipboard exactly
+the string `builds.json.gz` holds for that build (and, with the clipboard refused, shows it
+selected). Run it after any change to the tree panes, the build chips or `talents_doc`.
 

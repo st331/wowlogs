@@ -88,6 +88,7 @@ TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 # looking at data older than 2 weeks. Just to give it a grace period and
 # mitigate boundary conditions, it is fine to keep a day or two extra of data."
 from retention import RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS  # noqa: E402
+import talent_string  # noqa: E402  (the game's loadout import string)
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -1678,18 +1679,37 @@ def _node_entries(entries: dict) -> dict[str, list]:
     return out
 
 
-def _sel_pairs(blob: str, entries: dict, node_entries: dict) -> list:
+def _tiered_nodes(geo: dict) -> set:
+    """Node ids of TraitNode.Type 1: one talent bought in TIERS, each tier an
+    entry of its own (in 12.1 the four-rank capstone at the foot of every
+    spec tree, tiers of 1, 2 and 1 ranks). A log lists one entry per tier
+    reached -- 269,731 of 271,772 logged ones on 2026-11-21 carried all three,
+    ranks 1+2+1 -- so the node's rank is the SUM and its options are not a
+    choice. Read as a choice node, a full 4/4 capstone drew as "2/2" and two
+    builds that differed only in it drew identically."""
+    return {int(n) for t in (geo or {}).get("trees", {}).values()
+            for n, g in t.get("nodes", {}).items() if g[2] == 1}
+
+
+def _sel_pairs(blob: str, entries: dict, node_entries: dict,
+               tiered: set | None = None) -> list:
     """Canonical selection blob -> [[nodeId, rank], ...] via the geometry
     entry->node mapping. A CHOICE node (>1 entries) carries a third element:
     the picked entry's index within _node_entries order, matching the
     talents doc's "es" list. Unmapped entry ids are dropped (the client dims
-    what it cannot light) and duplicate nodes keep the higher rank."""
+    what it cannot light) and duplicate nodes keep the higher rank -- except
+    on a TIERED node (see _tiered_nodes), whose rank is the sum of its
+    entries' ranks and which carries no option index."""
+    tiered = tiered or set()
     nodes: dict[int, tuple] = {}
     for part in blob.split("|"):
         eid, rank = part.split(":", 1)
         ent = entries.get(eid)
         if ent:
             nid = int(ent[0])
+            if nid in tiered:
+                nodes[nid] = (nodes.get(nid, (0, None))[0] + int(rank), None)
+                continue
             eids = node_entries.get(str(nid), [])
             idx = eids.index(eid) if len(eids) > 1 else None
             old = nodes.get(nid)
@@ -1717,6 +1737,24 @@ def talents_doc(name: str, usage: dict | None = None,
     in the data. Names/icons come from the spell cache (icons live in the
     shared self-hosted store); missing names ship null.
 
+    THE UNION IS NOT TRUSTED ON ITS OWN (owner, 2026-11-21: "the talent
+    build for devourer ... seems wider than other specs like rogue"). A
+    record is labelled with the spec Warcraft Logs gives the player, and a
+    few of them carry another spec's talents; one such record is enough to
+    put that spec's whole tree into the union. Measured on the live
+    document that day: Devourer's spec pane held 95 nodes of which 57 were
+    not Devourer's, and five more specs were wrong the same way (Beast
+    Mastery 59, Devastation 31, Restoration Shaman 30, Vengeance 28,
+    Protection Warrior 28), each also showing a third hero tree it cannot
+    take. So a node is drawn for a spec only if the GAME shows it to that
+    spec (fetch_traits.py's "vis", from TraitCond), and a hero tree only if
+    the spec's own hero-tree selector offers it. The same rule gives every
+    spec its OWN class pane: a class tree holds variants only some specs
+    see (20 of Monk's and Paladin's 73 class nodes), and the shared pane
+    drew them all for everyone. A v1 geometry cache knows none of this and
+    the document is built as before; it is never read as "nothing is
+    hidden".
+
     A "classes" + "classRef" indirection dedupes the class pane when it
     saves real gzipped bytes -- both variants are measured and the smaller
     ships, loudly.
@@ -1740,7 +1778,9 @@ def talents_doc(name: str, usage: dict | None = None,
         for nid in sorted(nids):
             g = tgeo["nodes"][str(nid)]
             eids = node_entries.get(str(nid), [])
-            r = max((int(entries[e][1]) for e in eids), default=1)
+            tier = g[2] == 1               # one talent in tiers: ranks add up
+            r = (sum(int(entries[e][1]) for e in eids) if tier and eids
+                 else max((int(entries[e][1]) for e in eids), default=1))
             n = ic = None
             if eids:
                 e0 = entries[eids[0]]
@@ -1754,7 +1794,7 @@ def talents_doc(name: str, usage: dict | None = None,
                 # option in _node_entries order (sel's third element indexes
                 # into this list)
                 node["s"] = int(e0[2])
-                if len(eids) > 1:
+                if len(eids) > 1 and not tier:
                     node["es"] = [
                         {"s": int(entries[e][2]),
                          "n": entries[e][3]
@@ -1793,6 +1833,10 @@ def talents_doc(name: str, usage: dict | None = None,
     per_spec: dict[str, dict] = {}
     class_panes: dict[str, tuple] = {}     # cls -> (tid, set of node ids)
     n_by_overlap = 0
+    key_sid = {k: int(s) for s, k in (geo.get("spec_keys") or {}).items()
+               if str(s).isdigit()}
+    foreign: dict[str, int] = {}           # spec key -> nodes left out
+    n_blind = 0                            # specs the cache could not judge
     for sk in sorted(usage):
         u = usage[sk]
         tid = tree_for(u)
@@ -1806,14 +1850,39 @@ def talents_doc(name: str, usage: dict | None = None,
                       and str(entries[str(e)][0]) in tgeo["nodes"]}
         if not used_nodes:
             continue
+        # who the game shows each node to (None = the cache cannot say)
+        sid = key_sid.get(sk)
+        vis = tgeo.get("vis")
+        if (sid is None or vis is None
+                or str(geo.get("specs", {}).get(str(sid))) != str(tid)):
+            sid = vis = None
+        own_sub: set | None = None
+        if vis is not None:
+            own_sub = {int(entries[e][5])
+                       for n, g in tgeo["nodes"].items()
+                       if g[2] == 3 and (n not in vis or sid in vis[n])
+                       for e in node_entries.get(n, [])
+                       if len(entries[e]) > 5 and entries[e][5]} or None
         hero: dict[int, list] = {}
         rest = []
+        n_foreign = 0
         for nid in used_nodes:
             st = tgeo["nodes"][str(nid)][3]
             if st:
+                if own_sub is not None and st not in own_sub:
+                    n_foreign += 1         # a hero tree this spec cannot take
+                    continue
                 hero.setdefault(st, []).append(nid)
+            elif (vis is not None and str(nid) in vis
+                  and sid not in vis[str(nid)]):
+                n_foreign += 1             # another spec's talent, or a
+                continue                   # class-tree variant it never sees
             else:
                 rest.append(nid)
+        if n_foreign:
+            foreign[sk] = n_foreign
+        if vis is None:
+            n_blind += 1
         # class page left, spec page right, separated by the largest X gap
         xs = sorted({tgeo["nodes"][str(n)][0] for n in rest})
         cut = None
@@ -1829,6 +1898,7 @@ def talents_doc(name: str, usage: dict | None = None,
         if ck[0] == tid:
             ck[1].update(cls_nodes)
         per_spec[sk] = {"tid": tid, "cls_nodes": set(cls_nodes),
+                        "judged": vis is not None, "sid": sid,
                         "spec": tree_obj(tid, spec_nodes),
                         "hero": {subtrees.get(str(st), f"#{st}"):
                                  tree_obj(tid, nids)
@@ -1842,19 +1912,59 @@ def talents_doc(name: str, usage: dict | None = None,
     if n_by_overlap:
         print(f"[{name}] talent trees: {n_by_overlap}/{len(per_spec)} specs "
               f"identified by entry overlap (no specID in the journal)")
+    if n_blind:
+        print(f"[{name}] talent trees: {n_blind}/{len(per_spec)} specs drawn "
+              f"from the observed union alone -- the geometry cache does not "
+              f"say who sees a node (run fetch_traits.py --refresh)")
+    if foreign:
+        print(f"[{name}] talent trees: nodes allocated under a spec's label "
+              f"that the game does not show that spec, left out of its "
+              f"panes: " + ", ".join(f"{k} {v}" for k, v in sorted(
+                  foreign.items(), key=lambda kv: (-kv[1], kv[0]))))
+    talents_doc.foreign = dict(foreign)    # for build_health.txt
+    talents_doc.blind = n_blind
+    # A judged spec's class pane = every node of the class's shared pane that
+    # the GAME shows it -- not only the ones its own players took. "Nobody
+    # playing this spec took the talent" must not read as "the spec cannot":
+    # an unpopular class talent stays on the tree, unlit, as it always was.
+    for sk, v in per_spec.items():
+        ctid, cn = class_panes[sk.split("|", 1)[0]]
+        if v["judged"] and ctid == v["tid"]:
+            cvis = geo["trees"][v["tid"]]["vis"]
+            v["cls_nodes"] = {n for n in cn if str(n) not in cvis
+                              or v["sid"] in cvis[str(n)]}
 
     # variant A: each spec carries its own class pane
     doc_a = {"v": 1, "trees": {
-        sk: {"class": tree_obj(v["tid"], sorted(v["cls_nodes"])),
+        sk: {"class": tree_obj(v["tid"], sorted(
+                 v["cls_nodes"] if v["judged"]
+                 or class_panes[sk.split("|", 1)[0]][0] != v["tid"]
+                 else class_panes[sk.split("|", 1)[0]][1])),
              "spec": v["spec"], "hero": v["hero"]}
         for sk, v in per_spec.items()}}
     # variant B: one shared class pane per class, referenced by name
+    # (the shared pane is the union of what each spec of the class sees; a
+    #  spec that does not see all of it lists the rest in "cx" and the page
+    #  leaves those out -- absent "cx" = the whole pane, as before)
+    def by_ref(sk, v):
+        cls = sk.split("|", 1)[0]
+        o = {"classRef": cls, "spec": v["spec"], "hero": v["hero"]}
+        tid, nids = class_panes[cls]
+        if tid == v["tid"]:
+            # only where the game's own table was read: without it, "this
+            # spec's players never took the node" is not "it cannot"
+            cx = sorted(nids - v["cls_nodes"]) if v["judged"] else []
+            if cx:
+                o["cx"] = cx
+        else:                              # a second tree for this class:
+            o = {"class": tree_obj(v["tid"], sorted(v["cls_nodes"])),
+                 "spec": v["spec"], "hero": v["hero"]}   # its own pane
+        return o
+
     doc_b = {"v": 1, "classes": {
         cls: tree_obj(tid, sorted(nids))
         for cls, (tid, nids) in sorted(class_panes.items())},
-        "trees": {sk: {"classRef": sk.split("|", 1)[0],
-                       "spec": v["spec"], "hero": v["hero"]}
-                  for sk, v in per_spec.items()}}
+        "trees": {sk: by_ref(sk, v) for sk, v in per_spec.items()}}
     ja = json.dumps(doc_a, separators=(",", ":"))
     jb = json.dumps(doc_b, separators=(",", ":"))
     gz_a, gz_b = (len(gzip.compress(ja.encode(), 6)),
@@ -2107,21 +2217,61 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
     builds_sidecar.usage = usage
     sel_by: dict[tuple, list] = {}
     geo_entries = geo.get("entries", {}) if geo else {}
+    # The game's import string for every listed build (owner, 2026-11-21:
+    # "add a button to export talents for a selected talent build"). A log
+    # carries no string, so it is written here from the logged tree in the
+    # game's own format (talent_string.py). Only where the game's tables say
+    # the tree IS a loadout of that spec: anything else -- a v1 geometry
+    # cache, a tree of another spec, an entry the tables do not know -- gets
+    # no string and the page offers no button. Never a guessed one.
+    imp_by: dict[tuple, str] = {}
+    imp_no: Counter = Counter()
     if geo_entries:
         n_var = 0
         geo_node_entries = _node_entries(geo_entries)
+        tiered = _tiered_nodes(geo)
+        key_sid = {k: int(s) for s, k in (geo.get("spec_keys") or {}).items()
+                   if str(s).isdigit()}
         for sk, o in usage.items():
+            stree = (talent_string.SpecTree.of(geo, key_sid[sk])
+                     if sk in key_sid else None)
             for build, blobs in o["sel"].items():
                 if len(blobs) > 1:
                     n_var += 1
-                pairs = _sel_pairs(blobs.most_common(1)[0][0], geo_entries,
-                                   geo_node_entries)
+                blob = blobs.most_common(1)[0][0]
+                pairs = _sel_pairs(blob, geo_entries, geo_node_entries, tiered)
                 if pairs:
                     sel_by[(sk, build)] = pairs
+                if not build.startswith("t:"):
+                    continue               # the build IS its own string
+                if stree is None:
+                    imp_no["the geometry cache has no game tables for the spec"] += 1
+                    continue
+                try:
+                    picked, why = talent_string.loadout(
+                        stree, [tuple(int(v) for v in part.split(":", 1))
+                                for part in blob.split("|")])
+                    if picked is None:
+                        imp_no[why] += 1
+                        continue
+                    imp_by[(sk, build)] = talent_string.encode(
+                        stree.spec_id, stree.order, picked)
+                except (ValueError, KeyError, IndexError, TypeError) as e:
+                    # a string is an extra: a tree the encoder cannot take is
+                    # counted and named, and never stops the build
+                    imp_no[f"the encoder could not take it ({type(e).__name__})"] += 1
+        n_hash = sum(1 for o in usage.values() for b in o["sel"]
+                     if b.startswith("t:"))
+        print(f"[{name}] import strings: {len(imp_by)} of {n_hash} listed "
+              f"builds" + ("; none for: " + ", ".join(
+                  f"{w} x{c}" for w, c in imp_no.most_common())
+                  if imp_no else ""))
         if n_var:
             print(f"[{name}] WARNING: {n_var} build identities carry more "
                   f"than one selection variant (modal set shipped) - "
                   f"expected only for string-identified builds")
+    builds_sidecar.imports = (len(imp_by), dict(imp_no))
+    builds_sidecar.game = (geo or {}).get("build")
 
     iup_stats: dict = {}
     if os.environ.get("WOWLOGS_DEBUG_TALLIES"):
@@ -2244,8 +2394,16 @@ def builds_sidecar(df, journal, name: str, enc: str | None = None,
                 sel = sel_by.get((sk, s))
                 if sel:                        # §1.7 selection widening
                     b["sel"] = sel
+                imp = imp_by.get((sk, s))
+                if imp:                        # the game's import string
+                    b["imp"] = imp
                 b_out.append(b)
             entry["builds"] = b_out
+            if geo and geo.get("build") and any("imp" in b for b in b_out):
+                # the game build the strings were written for: a string is
+                # only as current as the tree it was laid out on, and the
+                # page says which one that was
+                entry["game"] = str(geo["build"])
             if b_ranked:
                 # §1.5 addendum: "t:" values are tree hashes, not pasteable
                 # import strings; the block-level flag lets the client
@@ -3460,6 +3618,11 @@ def build(name: str, cfg: dict) -> None:
         sz = (SITE_DIRS[0] / "builds.json.gz").stat().st_size
         print(f"[{name}] builds sidecar -> builds.json.gz "
               f"({sz / 1e6:.2f} MB gz, {len(builds) / 1e6:.1f} MB raw)")
+        n_imp, imp_no = getattr(builds_sidecar, "imports", (0, {}))
+        health(f"builds.import_strings={n_imp}")
+        health(f"builds.import_strings_refused={sum(imp_no.values())}")
+        health("builds.import_strings_game_build="
+               f"{getattr(builds_sidecar, 'game', None) or 'unknown'}")
     # (the Lightspire trinket sidecar, procs.json.gz, was removed 2026-09-30 on
     # the owner's word; a stale copy in a site dir is unlinked so no build ships it)
     for d in SITE_DIRS:
@@ -3480,6 +3643,12 @@ def build(name: str, cfg: dict) -> None:
         sz = (SITE_DIRS[0] / "talents.json.gz").stat().st_size
         print(f"[{name}] talents doc -> talents.json.gz "
               f"({sz / 1024:.0f} KB gz, {len(talents) / 1024:.0f} KB raw)")
+        # nodes logged under a spec's label that the game does not show that
+        # spec (left out of its panes), and specs the cache could not judge
+        health("talents.foreign_nodes="
+               f"{sum(getattr(talents_doc, 'foreign', {}).values())}")
+        health(f"talents.foreign_specs={len(getattr(talents_doc, 'foreign', {}))}")
+        health(f"talents.unjudged_specs={getattr(talents_doc, 'blind', 0)}")
     sync_icons(name)
     # The legacy builder's own clock (§7.4). Dual-emit's hard stop is this
     # line over 10 minutes on two consecutive days; the watchdog and a human

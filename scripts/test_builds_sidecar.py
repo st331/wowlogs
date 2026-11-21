@@ -30,8 +30,10 @@ CONFLICT, name-tier disagreement, that NO null is ever stored, migration off
 the sticky-null v2 cache, and the [emb] build-health verdict token.
 """
 import base64
+import contextlib
 import gzip
 import hashlib
+import io
 import json
 import math
 import pathlib
@@ -1176,15 +1178,38 @@ print("sel         : entry->node conversion, hash-identical sets, modal "
       "for string variants; absent without the geometry cache")
 
 # --- fetch_traits offline: stubbed geometry + spell run, idempotent
+# Two trees are in the tables for spec 70, as for Fury in the real game:
+# 880 is an older tree whose every node names the spec (three votes), 900 is
+# the live one, which holds the spec's hero selector. The spec's newest
+# loadout row points at 880; the other spec's points at 900. The live game is
+# at build 9.9.9.1; the tables' newest build is a test-realm one, 9.9.10.5,
+# and asking without a build would get THAT.
 DB2 = {
-    "TraitTreeLoadout": [{"ID": "1", "ChrSpecializationID": "70",
-                          "TraitTreeID": "900"}],
+    "TraitTreeLoadout": [{"ID": "1", "ChrSpecializationID": "65",
+                          "TraitTreeID": "900"},
+                         {"ID": "2", "ChrSpecializationID": "70",
+                          "TraitTreeID": "900"},
+                         {"ID": "3", "ChrSpecializationID": "70",
+                          "TraitTreeID": "880"}],
     "TraitSubTree": [{"ID": "48", "Name_lang": "Templar"},
+                     {"ID": "49", "Name_lang": "Herald"},
                      {"ID": "9", "Name_lang": "Yellow [DNT]"}],
     "TraitNode": [{"ID": "1001", "TraitTreeID": "900", "PosX": "3000",
                    "PosY": "1200", "Type": "0", "TraitSubTreeID": "0"},
+                  {"ID": "1002", "TraitTreeID": "900", "PosX": "9000",
+                   "PosY": "1200", "Type": "0", "TraitSubTreeID": "0"},
+                  {"ID": "1003", "TraitTreeID": "900", "PosX": "9000",
+                   "PosY": "1800", "Type": "2", "TraitSubTreeID": "0"},
+                  {"ID": "2001", "TraitTreeID": "900", "PosX": "6000",
+                   "PosY": "600", "Type": "3", "TraitSubTreeID": "0"},
                   {"ID": "3001", "TraitTreeID": "900", "PosX": "7800",
-                   "PosY": "9000", "Type": "0", "TraitSubTreeID": "48"}],
+                   "PosY": "9000", "Type": "0", "TraitSubTreeID": "48"},
+                  {"ID": "8001", "TraitTreeID": "880", "PosX": "0",
+                   "PosY": "0", "Type": "0", "TraitSubTreeID": "0"},
+                  {"ID": "8002", "TraitTreeID": "880", "PosX": "600",
+                   "PosY": "0", "Type": "0", "TraitSubTreeID": "0"},
+                  {"ID": "8003", "TraitTreeID": "880", "PosX": "1200",
+                   "PosY": "0", "Type": "0", "TraitSubTreeID": "0"}],
     "TraitEdge": [{"ID": "5", "LeftTraitNodeID": "1001",
                    "RightTraitNodeID": "3001", "Type": "0"},
                   {"ID": "6", "LeftTraitNodeID": "1001",
@@ -1192,21 +1217,83 @@ DB2 = {
     "TraitNodeXTraitNodeEntry": [
         {"ID": "1", "TraitNodeID": "1001", "TraitNodeEntryID": "50001",
          "_Index": "100"},
+        # a choice whose game order (_Index) is NOT entry-id order
+        {"ID": "3", "TraitNodeID": "1003", "TraitNodeEntryID": "50003",
+         "_Index": "200"},
+        {"ID": "4", "TraitNodeID": "1003", "TraitNodeEntryID": "50004",
+         "_Index": "100"},
+        {"ID": "5", "TraitNodeID": "2001", "TraitNodeEntryID": "50005",
+         "_Index": "0"},
+        {"ID": "6", "TraitNodeID": "2001", "TraitNodeEntryID": "50006",
+         "_Index": "1"},
         {"ID": "2", "TraitNodeID": "999", "TraitNodeEntryID": "9999",
          "_Index": "100"}],                                    # foreign node
     "TraitNodeEntry": [{"ID": "50001", "TraitDefinitionID": "80001",
-                        "MaxRanks": "2", "NodeEntryType": "0"}],
+                        "MaxRanks": "2", "NodeEntryType": "0"},
+                       {"ID": "50003", "TraitDefinitionID": "80001",
+                        "MaxRanks": "1"},
+                       {"ID": "50004", "TraitDefinitionID": "80001",
+                        "MaxRanks": "1"},
+                       {"ID": "50005", "TraitDefinitionID": "0",
+                        "MaxRanks": "1", "TraitSubTreeID": "48"},
+                       {"ID": "50006", "TraitDefinitionID": "0",
+                        "MaxRanks": "1", "TraitSubTreeID": "49"}],
     "TraitDefinition": [{"ID": "80001", "SpellID": "111111",
                          "OverrideName_lang": ""}],
+    # who sees what: cond 1 = shown to spec set 7 (spec 70), cond 2 = shown
+    # to spec set 8 (spec 65), cond 3 = free for spec 70, cond 4 = free for all
+    "TraitCond": [{"ID": "1", "CondType": "1", "SpecSetID": "7"},
+                  {"ID": "2", "CondType": "1", "SpecSetID": "8"},
+                  {"ID": "3", "CondType": "2", "SpecSetID": "7"},
+                  {"ID": "4", "CondType": "2", "SpecSetID": "0"}],
+    "TraitNodeXTraitCond": [
+        {"TraitNodeID": "1002", "TraitCondID": "1"},      # spec 70's talent
+        {"TraitNodeID": "1002", "TraitCondID": "3"},      # ...and free for it
+        {"TraitNodeID": "1001", "TraitCondID": "4"},      # free for everyone
+        {"TraitNodeID": "8001", "TraitCondID": "1"},
+        {"TraitNodeID": "8002", "TraitCondID": "1"},
+        {"TraitNodeID": "8003", "TraitCondID": "1"}],
+    # ...or through a group: 1003 is spec 65's, the selector is both specs'
+    "TraitNodeGroupXTraitNode": [
+        {"TraitNodeGroupID": "5", "TraitNodeID": "1003"},
+        {"TraitNodeGroupID": "6", "TraitNodeID": "2001"}],
+    "TraitNodeGroupXTraitCond": [
+        {"TraitNodeGroupID": "5", "TraitCondID": "2"},
+        {"TraitNodeGroupID": "6", "TraitCondID": "1"},
+        {"TraitNodeGroupID": "6", "TraitCondID": "2"}],
+    "SpecSetMember": [{"SpecSet": "7", "ChrSpecializationID": "70"},
+                      {"SpecSet": "8", "ChrSpecializationID": "65"}],
+    "ChrClasses": [{"ID": "2", "Name_lang": "Paladin"}],
+    "ChrSpecialization": [
+        {"ID": "70", "ClassID": "2", "Name_lang": "Retribution"},
+        {"ID": "65", "ClassID": "2", "Name_lang": "Holy"},
+        {"ID": "1451", "ClassID": "2", "Name_lang": "Initial"},
+        {"ID": "535", "ClassID": "0", "Name_lang": "Ferocity"}],   # a pet's
 }
+CSV_BUILDS = []
 
 
 def fake_db2(path, params=None):
-    return [dict(r) for r in DB2.get(path, [])]
+    params = params or {}
+    CSV_BUILDS.append(params.get("build"))
+    rows = [dict(r) for r in DB2.get(path, [])]
+    want = params.get("filter[TraitTreeID]")
+    if want:
+        rows = [r for r in rows if "exact:" + r["TraitTreeID"] == want]
+    return rows
+
+
+LIVE = ["9.9.9.1"]
 
 
 def fake_traw(url):
     RAW_CALLS.append(url)
+    if url == ft.WAGO_BUILDS:
+        # newest first by list position is NOT trusted: 9.9.9.1 is listed last
+        return json.dumps({
+            "wowt": [{"product": "wowt", "version": "9.9.10.5"}],
+            "wow": [{"product": "wow", "version": "9.9.8.7"},
+                    {"product": "wow", "version": LIVE[0]}]}).encode()
     if "nether.wowhead.com/tooltip/spell/111111" in url:
         return b'{"name":"Spell One","icon":"Spell_One_Icon"}'
     if "zamimg.com" in url and url.endswith("spell_one_icon.jpg"):
@@ -1224,27 +1311,115 @@ with tempfile.TemporaryDirectory() as tmp:
     fn._get_raw = fake_traw
     assert ft.main([]) == 0
     g = json.loads(ft.TRAIT_GEOMETRY.read_text())
-    assert g["specs"] == {"70": 900}
-    assert g["subtrees"] == {"48": "Templar"}       # DNT rows dropped
-    assert g["trees"]["900"]["nodes"] == {"1001": [3000, 1200, 0, 0],
-                                          "3001": [7800, 9000, 0, 48]}
-    assert g["trees"]["900"]["edges"] == [[1001, 3001]]   # foreign end cut
-    assert g["entries"] == {"50001": [1001, 2, 111111, None]}
+    # every table was asked for AT THE LIVE BUILD -- never the bare request
+    # that answers with the test realm's tables
+    assert CSV_BUILDS and set(CSV_BUILDS) == {"9.9.9.1"}, set(CSV_BUILDS)
+    assert g["v"] == 2 and g["build"] == "9.9.9.1"
+    # the class tree of a spec is the one holding its hero selector: the
+    # loadout table said 880, and 880 has more nodes naming the spec
+    assert g["specs"] == {"70": 900, "65": 900}, g["specs"]
+    assert g["spec_keys"] == {"70": "Paladin|Retribution",
+                              "65": "Paladin|Holy",
+                              "1451": "Paladin|Initial"}, g["spec_keys"]
+    assert g["subtrees"] == {"48": "Templar", "49": "Herald"}   # DNT dropped
+    assert set(g["trees"]) == {"880", "900"}
+    assert ft.playable(g) == {"65", "70"}, ft.playable(g)
+    t900 = g["trees"]["900"]
+    assert t900["nodes"] == {"1001": [3000, 1200, 0, 0],
+                             "1002": [9000, 1200, 0, 0],
+                             "1003": [9000, 1800, 2, 0],
+                             "2001": [6000, 600, 3, 0],
+                             "3001": [7800, 9000, 0, 48]}
+    assert t900["edges"] == [[1001, 3001]]          # foreign end cut
+    # "vis" only where some of the tree's specs do not see the node: the
+    # selector, named for both, and the unconditioned nodes are absent
+    assert t900["vis"] == {"1002": [70], "1003": [65]}, t900["vis"]
+    assert t900["grant"] == {"1001": [], "1002": [70]}, t900["grant"]
+    # [node, max ranks, spell, override name, the game's option order,
+    #  hero tree of the entry]
+    assert g["entries"] == {"50001": [1001, 2, 111111, None, 100, 0],
+                            "50003": [1003, 1, 111111, None, 200, 0],
+                            "50004": [1003, 1, 111111, None, 100, 0],
+                            "50005": [2001, 1, 0, None, 0, 48],
+                            "50006": [2001, 1, 0, None, 1, 49]}, g["entries"]
     sp = json.loads(ft.NAMES_SPELLS.read_text())
     assert sp == {"111111": {"n": "Spell One", "ic": "spell_one_icon"}}
     assert (tp / "icons" / "spell_one_icon.jpg").read_bytes() == b"SPELLJPEG"
-    # second run: geometry cached, spells seen, image present -> no fetches
-    n_raw = len(RAW_CALLS)
+    # second run: the live build is asked for (one request) and is the
+    # cache's own -> no table, no spell, no image is fetched, file unchanged
+    n_raw, n_csv = len(RAW_CALLS), len(CSV_BUILDS)
     before = ft.TRAIT_GEOMETRY.read_text()
     assert ft.main([]) == 0
-    assert len(RAW_CALLS) == n_raw and ft.TRAIT_GEOMETRY.read_text() == before
+    assert RAW_CALLS[n_raw:] == [ft.WAGO_BUILDS], RAW_CALLS[n_raw:]
+    assert len(CSV_BUILDS) == n_csv and ft.TRAIT_GEOMETRY.read_text() == before
+    # THE GAME PATCHES: the live build moves, and the trees are read again at
+    # the new one with nobody asking. An entry the game dropped does not stay
+    # behind as a phantom option of its node.
+    LIVE[0] = "9.9.9.2"
+    dropped = DB2["TraitNodeXTraitNodeEntry"].pop(1)          # 50003
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert ft.main([]) == 0
+    g2 = json.loads(ft.TRAIT_GEOMETRY.read_text())
+    assert g2["build"] == "9.9.9.2" and set(CSV_BUILDS[n_csv:]) == {"9.9.9.2"}
+    assert "50003" not in g2["entries"] and "50004" in g2["entries"]
+    assert "no longer in the game: 0 nodes, 1 entries" in buf.getvalue(), \
+        buf.getvalue()
+    DB2["TraitNodeXTraitNodeEntry"].insert(1, dropped)
+    # a build whose tables are not published yet comes back nearly empty:
+    # refused, the cache stays as it was, and the run says why
+    LIVE[0] = "9.9.9.3"
+    before = ft.TRAIT_GEOMETRY.read_text()
+    full_nodes = DB2["TraitNode"]
+    DB2["TraitNode"] = full_nodes[:1]
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert ft.main([]) == 0
+    assert ft.TRAIT_GEOMETRY.read_text() == before
+    assert "geometry refresh refused: 2 specs would lose their hero-tree " \
+           "selector" in buf.getvalue(), buf.getvalue()
+    # ...and one that keeps the selectors but lost most of its entries
+    DB2["TraitNode"] = full_nodes
+    full_x = DB2["TraitNodeXTraitNodeEntry"]
+    DB2["TraitNodeXTraitNodeEntry"] = [r for r in full_x
+                                       if r["TraitNodeID"] == "2001"]
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert ft.main([]) == 0
+    assert ft.TRAIT_GEOMETRY.read_text() == before
+    assert "geometry refresh refused: it holds 8 nodes and 2 entries where " \
+           "the cache holds 8 and 4" in buf.getvalue(), buf.getvalue()
+    DB2["TraitNodeXTraitNodeEntry"] = full_x
+    # the tables point every spec at the old tree, which has no hero
+    # selector: refused, by name
+    full_lo = DB2["TraitTreeLoadout"]
+    DB2["TraitTreeLoadout"] = [dict(r, TraitTreeID="880") for r in full_lo]
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert ft.main([]) == 0
+    assert ft.TRAIT_GEOMETRY.read_text() == before
+    assert "2 specs would lose their hero-tree selector (65, 70)" \
+        in buf.getvalue(), buf.getvalue()
+    DB2["TraitTreeLoadout"] = full_lo
+    # the live build cannot be learned: nothing is refreshed, not even on
+    # request -- there is no build to pin, and unpinned is the test realm
+    n_csv = len(CSV_BUILDS)
+    fn._get_raw = lambda url: fn._FAILED
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        assert ft.main(["--refresh"]) == 0
+    assert len(CSV_BUILDS) == n_csv and ft.TRAIT_GEOMETRY.read_text() == before
+    assert "the live game build could not be learned" in buf.getvalue()
     # total failure: nothing lost, still exit 0
     fn._get_csv = lambda path, params=None: fn._FAILED
-    fn._get_raw = lambda url: fn._FAILED
+    fn._get_raw = fake_traw
     assert ft.main(["--refresh"]) == 0
     assert ft.TRAIT_GEOMETRY.read_text() == before
-print("fetch_traits: stubbed run seeds geometry + spell cache + shared "
-      "icon store; idempotent; failed refresh keeps the cached copy")
+print("fetch_traits: stubbed run seeds geometry (who sees and who is granted "
+      "what, the game's option order, the tree holding the hero selector) + "
+      "spell cache + shared icon store, every table at the LIVE build; "
+      "idempotent; a new live build re-reads the trees; a near-empty or "
+      "failed refresh keeps the cached copy")
 
 # ---- the COMMITTED SEED itself, offline. v3's code shipped correct and its
 # ARTIFACT shipped broken: data/emb_identity.json went out with "ids": [], a

@@ -724,3 +724,36 @@
     elsewhere, never hidden and never dropped.
     (e) **DPS is damage ÷ the fight clock**, the figure Warcraft Logs ranks; the builder must not
     recompute it on the keystone clock (which adds 15 s per party death).
+
+44. **A spec's talent trees show that spec's talents, and a build can be exported (owner,
+    2026-11-21: "when looking at the talent build for devourer fel scarred, the talent build
+    seems to have weird formatting - it seems wider than other specs like rogue. fix this. also
+    add a button to export talents for a selected talent build.")** Cause: the panes are drawn
+    from the union of talents a spec's players took, and a record carries the spec Warcraft Logs
+    gives the player. 15 of 274,007 records held another spec's talents under the label, and one
+    such record puts that spec's whole tree, and a third hero tree, on screen. Six specs were
+    drawn that way (Devourer, Beast Mastery, Devastation, Restoration Shaman, Vengeance,
+    Protection Warrior). Standing rules that follow:
+    (a) a talent is drawn for a spec **only if the game shows it to that spec**, and a hero tree
+    only if the spec's own hero selector offers it (`fetch_traits.py` reads the game's own
+    tables; `vis` in `data/trait_geometry.json`). What is left out is **counted**
+    (`talents.foreign_nodes`, `talents.foreign_specs` in `build_health.txt`), never dropped in
+    silence. A class talent the game shows a spec stays on its tree even when none of its
+    players took it. Without the game tables the document is built as before and says how many
+    specs it could not judge (`talents.unjudged_specs`); the absence of the table is never read
+    as "nothing is hidden".
+    (b) the game's tables are read **at the live retail build**. Asked without a build, the
+    tables' site answers with its newest build of any product, which on the day was the public
+    test realm. The cache records the build; every hourly run asks for the live build and
+    re-reads the trees when it has moved; a refresh that lost its nodes, or that would take a
+    spec's hero selector away, is refused and the cache stays.
+    (c) **export** hands over the game's own import string, written by the builder for every
+    listed build from its logged talents (`talent_string.py`). It is **never guessed**: a tree
+    that is not a loadout of the spec gets no string and no button, and the count and reason are
+    in `build_health.txt` (`builds.import_strings`, `builds.import_strings_refused`). The page
+    says "copied" only when the clipboard took the string; otherwise it shows the string,
+    selected. The footnote names the game build the strings stand on.
+    (d) the encoder is held against **strings the game itself exported** (160, four per spec,
+    `scripts/fixtures/talent_strings.json`), not against itself. After a patch that changes a
+    class tree those strings are for the old tree: `test_talent_string.py` says how many it did
+    not run, and `collect_talent_vectors.py` collects new ones.

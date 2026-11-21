@@ -892,6 +892,11 @@ table.cs-tal{border-collapse:collapse; font-size:.86rem; width:100%}
   font-size:.8rem; color:var(--ink2)}
 /* Build 1..N chips — the tree selector; active chip carries the §GG sheen */
 #cs-bldchips{display:flex; flex-wrap:wrap; gap:6px; margin:.15rem 0 .65rem}
+/* the export's fallback: when the clipboard refuses, the string is handed over selected, in the measure */
+#cs-impbox{display:block; width:100%; box-sizing:border-box; margin:-.3rem 0 .65rem; padding:.3rem .55rem;
+  background:var(--surface1); border:1px solid var(--line2); border-radius:6px; color:var(--ink);
+  font:.72rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+#cs-impbox:focus{outline:none; border-color:var(--accent-line)}
 .bldchip{display:inline-flex; align-items:center; gap:.55rem; padding:.26rem .62rem;
   background:var(--surface1); border:1px solid var(--line1); border-radius:var(--r1);
   font-size:.74rem; color:var(--ink2); cursor:pointer; box-shadow:var(--gg-shadow);
@@ -4991,10 +4996,27 @@ function talTreesFor(ctx){
   if(!TALDOC) return null;
   const t=TALDOC.trees[ctx.cls+"|"+ctx.spec];
   if(!t) return null;
-  const cls=t.class||(t.classRef&&TALDOC.classes
+  let cls=t.class||(t.classRef&&TALDOC.classes
     ?TALDOC.classes[t.classRef]:null)||null;
   const ok=p=>(p&&Array.isArray(p.nodes)&&p.nodes.length
     &&Array.isArray(p.edges))?p:null;
+  /* A CLASS TREE HOLDS VARIANTS ONLY SOME SPECS SEE (owner, 2026-11-21: "the
+     talent build for devourer ... seems wider than other specs"). The shared
+     class pane is the union over the class's specs, and drawing all of it for
+     everyone put talents on screen a spec cannot take: 20 of the 73 nodes of
+     Monk's and Paladin's class panes, 8 of Demon Hunter's 51. The document
+     lists, per spec, the nodes of the shared pane the GAME does not show it
+     ("cx", from the game's own visibility table); they are left out here, at
+     the one place every consumer of the class pane reads it. No "cx" = the
+     whole pane, exactly as before. Built once per spec and kept. */
+  if(ok(cls)&&Array.isArray(t.cx)&&t.cx.length){
+    if(!t.__cls){
+      const hide=new Set(t.cx.map(Number));
+      t.__cls={nodes:cls.nodes.filter(n=>!hide.has(+n.id)),
+        edges:cls.edges.filter(e=>!hide.has(+e[0])&&!hide.has(+e[1]))};
+    }
+    cls=t.__cls;
+  }
   return {cls:ok(cls), spec:ok(t.spec),
     hero:(t.hero&&typeof t.hero==="object")?t.hero:{}};
 }
@@ -5266,6 +5288,20 @@ const bldIsHash=(vocab,vb)=>!!((vocab&&vocab.bkind==="hash")
 // the Talents pane's row model — the identity-band digest MIRRORS row 0 of this
 // exact computation (never a second one). null = builds unknown in the window
 // (<10 known rows, or spec absent from vocab) ⇒ callers render nothing dormant.
+/* THE GAME'S IMPORT STRING OF A BUILD (owner, 2026-11-21: "add a button to
+   export talents for a selected talent build"). A combat log carries no import
+   string -- builds are identified by a hash of the logged tree -- so the
+   builder writes one per listed build from the logged talents, in the game's
+   own format ("imp"; scripts/talent_string.py, held against 160 armory
+   loadouts, four per spec, reproduced character for character). A build that
+   IS a string (the legacy identity) is its own. null = the builder would not
+   vouch for one (a tree that is not a loadout of this spec, or no game tables
+   in its cache): then there is no button, never a dead or a guessed one. */
+function csImportOf(vocab,vb){
+  if(!vb) return null;
+  if(!bldIsHash(vocab,vb)) return (typeof vb.s==="string"&&vb.s)?vb.s:null;
+  return (typeof vb.imp==="string"&&vb.imp)?vb.imp:null;
+}
 function csTalentRows(d){
   if(!d.vocab||!Array.isArray(d.vocab.builds)||!d.vocab.builds.length) return null;
   if(d.bldIdx.length<CS_THIN) return null;
@@ -5296,6 +5332,7 @@ function csTalentRows(d){
     }
     rows.push({s:vb.s, n:a.length, share:100*a.length/d.bldIdx.length,
       med:qp(dps,.5), hero, hash:bldIsHash(d.vocab,vb),
+      imp:csImportOf(d.vocab,vb),
       // §1.7 widening: the build's node selections, when the pipeline
       // shipped them — the talent trees light these
       sel:(Array.isArray(vb.sel)&&vb.sel.length)?vb.sel:null});
@@ -6586,6 +6623,14 @@ function csMedDeltaHTML(med,bmed,n,bn){
   return '<span class="delta '+(dv>=0?"up":"down")+'">'+(dv>=0?"+":"−")
     +fmtDpsM(Math.abs(dv))+'</span>';
 }
+const CS_COPY_BASE=900;               // the pinned base's slot in the copy store (chips use 1..8, the digest 0)
+function csExportBtn(slot,str,what,own){   // own: the build IS its string (legacy identity) -- "copy", as it always read
+  __csCopy[slot]=str;
+  return '<button class="cbtn" data-copy="'+slot+'" title="'
+    +escA("Copy the game’s talent import string for "+what+" — in the game open Talents, the loadout "
+      +"menu, Import, and paste."+(own?"":" Written from the logged talents in the game’s own format; "
+      +"a combat log carries no string."))+'">'+(own?"copy":"export")+'</button>';
+}
 function csBuildChipsHTML(T,dx){
   const clip=!!navigator.clipboard;     // buttons only when the API exists
   let h='<div id="cs-bldchips">';
@@ -6611,10 +6656,10 @@ function csBuildChipsHTML(T,dx){
       +'<span class="mi">'+(dx.baseRuns>0?'below top 8 in this window'
         :'0 runs in this window')+'</span>'
       +'<button class="pbtn" data-base="">unpin</button>'
+      +((dx.baseImp&&screenBuild===-1)?csExportBtn(CS_COPY_BASE,dx.baseImp,"the pinned base"):'')
       +'</span>';
   }
   T.rows.forEach((r,x)=>{
-    if(!r.hash) __csCopy[x+1]=r.s;      // raw hashes never enter the copy store
     const isBase=!!(dx&&dx.baseS&&r.s===dx.baseS);
     const lit=(x===screenBuild);
     let cnt="", mdel="", hpre="";
@@ -6649,7 +6694,12 @@ function csBuildChipsHTML(T,dx){
       // costs nothing in layout.
       +((r.sel&&(lit||isBase))
         ?'<button class="pbtn" data-base="'+x+'">'+(isBase?"unpin":"base")+'</button>':'')
-      +(clip&&!r.hash?'<button class="cbtn" data-copy="'+(x+1)+'">copy</button>':'')
+      // EXPORT sits on the lit chip, beside "base": it exports the build whose
+      // trees are on screen. A raw hash never enters the copy store; only a
+      // string the game accepts does (the builder's "imp", or a legacy build
+      // that is its own string -- those keep a button on every chip, as before).
+      +((r.imp&&(lit||!r.hash)&&(clip||r.hash))
+        ?csExportBtn(x+1,r.imp,"Build "+(x+1)+(r.hero?" ("+r.hero+")":""),!r.hash):'')
       +'</span>';
   });
   if(T.other>0)
@@ -7316,7 +7366,7 @@ function csTalentsHTML(ctx,d){
     if(screenBaseS){
       const vb=d.vocab.builds.find(b=>b&&b.s===screenBaseS
         &&Array.isArray(b.sel)&&b.sel.length);
-      if(vb) base={s:vb.s, sel:vb.sel,
+      if(vb) base={s:vb.s, sel:vb.sel, imp:csImportOf(d.vocab,vb),
         hero:csHeroOfSel(vb.sel,trees.hero)};   // from sel alone (960/960)
       else screenBaseS=null;                    // stale key ⇒ never a blank diff
     }
@@ -7339,7 +7389,7 @@ function csTalentsHTML(ctx,d){
       // showing a number from the previous slice
       const vi=d.vocab.builds.findIndex(b=>b&&b.s===base.s)+1;
       const runs=brow?brow.n:((T.byV&&T.byV.get(vi))?T.byV.get(vi).length:0);
-      dx={baseS:base.s, baseSel:csSelMap(base.sel), baseHero:base.hero,
+      dx={baseS:base.s, baseSel:csSelMap(base.sel), baseHero:base.hero, baseImp:base.imp,
           baseMed:brow?brow.med:NaN, baseN:brow?brow.n:NaN,
           baseRuns:runs, paneOf};
     }
@@ -7389,7 +7439,14 @@ function csTalentsHTML(ctx,d){
       +'talents.</div>';
     if(anyHash)
       h+='<div class="cs-foot">builds identified from talent trees; '
-        +"the game's import strings are not present in combat logs</div>";
+        +"the game's import strings are not present in combat logs"
+        +(T.rows.some(r=>r.hash&&r.imp)
+          ?" — <b>export</b> on the lit build writes one from its logged talents in the game’s own "
+            +"format (paste it under Talents → Import)"
+            +(d.vocab&&d.vocab.game?", laid out on the talent trees of game build "+esc(d.vocab.game):"")
+            +". The string leaves the game’s tree-version check open, as third-party calculators do, "
+            +"so after a talent patch re-check the import."
+          :"")+'</div>';
     return h+'</div>';
   }
   const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
@@ -7403,7 +7460,7 @@ function csTalentsHTML(ctx,d){
   const tst=sortState("cs:tal","share",tcols);
   T.rows.forEach((r,x)=>{
     r.ord=x+1;
-    if(!r.hash) __csCopy[x+1]=r.s;      // raw hashes never enter the copy store
+    if(r.imp) __csCopy[x+1]=r.imp;      // raw hashes never enter the copy store
   });
   // build sorts on the stable ORDINAL, never the hash or import string;
   // hero is null (not "") when it was never computed, under !state.merge
@@ -7415,7 +7472,7 @@ function csTalentsHTML(ctx,d){
       +'<td>'+r.share.toFixed(1)+'%</td><td>'+fmtDpsM(r.med)+' median</td>'
       +'<td>n='+fmtInt(r.n)+'</td>'
       +'<td class="txt">'+(r.hero?'<span class="htag">'+esc(r.hero)+'</span>':'')+'</td>'
-      +'<td>'+(clip&&!r.hash?'<button class="cbtn" data-copy="'+(x+1)+'">copy</button>':'')+'</td></tr>';
+      +'<td>'+((r.imp&&(clip||r.hash))?'<button class="cbtn" data-copy="'+(x+1)+'">'+(r.hash?"export":"copy")+'</button>':'')+'</td></tr>';
   }
   // "other" is an aggregate, not a row of data: pinned last, outside the sort
   if(T.other>0)
@@ -7662,9 +7719,28 @@ function wireScreen(host,ctx,d){
     b.onclick=e=>{
       e.stopPropagation();
       const s=__csCopy[+b.dataset.copy];
-      if(s&&navigator.clipboard) navigator.clipboard.writeText(s).catch(()=>{});
-      b.textContent="copied";                    // color/text only, 1.2 s swap
-      setTimeout(()=>{ b.textContent="copy" },1200);
+      if(!s) return;
+      // the label it had comes back (it is "export" on a generated string,
+      // "copy" on a build that is its own); and it says "copied" only when
+      // the clipboard took it. It used to say so unconditionally: a refused
+      // write (no permission, an unfocused document) read as a success and
+      // the owner pasted whatever was there before.
+      const lab=b.dataset.lab||(b.dataset.lab=b.textContent);
+      const back=()=>setTimeout(()=>{ b.textContent=lab },1400);
+      const fail=()=>{                  // hand the string over anyway, selected
+        b.textContent="select + copy"; back();
+        let box=host.querySelector("#cs-impbox");
+        if(!box){
+          box=document.createElement("input");
+          box.id="cs-impbox"; box.readOnly=true; box.spellcheck=false;
+          box.setAttribute("aria-label","talent import string");
+          const row=host.querySelector("#cs-bldchips")||b.parentElement;
+          row.insertAdjacentElement("afterend",box);
+        }
+        box.value=s; box.focus(); box.select();
+      };
+      if(!navigator.clipboard){ fail(); return }
+      navigator.clipboard.writeText(s).then(()=>{ b.textContent="copied"; back() },fail);
     };
   });
   // slotfold caret: the panel lives in the doll's CENTER column (or full-width

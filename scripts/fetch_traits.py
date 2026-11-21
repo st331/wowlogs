@@ -6,6 +6,7 @@ fetch_data and build_site_data; order relative to fetch_names is free).
 Two caches, both committed:
 
   data/trait_geometry.json  {"v": 2,
+                             "build":    "12.1.5.70961",
                              "specs":    {"<chrSpecId>": treeId},
                              "spec_keys": {"<chrSpecId>": "DemonHunter|Devourer"},
                              "subtrees": {"<subtreeId>": "Templar", ...},
@@ -23,6 +24,7 @@ not to others (a spec talent, or a class-tree variant); a node that is absent
 is seen by every spec of the class. "grant" lists the nodes the game gives for
 free, with the specs that get them ([] = every spec). A v1 cache has neither,
 and every reader treats their absence as "not known", never as "none".
+"build" is the LIVE retail game build every table of the snapshot was read at.
   data/names_spells.json    {"<spellId>": {"n": "...", "ic": "inv_..."}
                              | {"n": null, "ic": null}}   -- grow-only
 
@@ -53,8 +55,25 @@ whose spec-set conditions name it. A choice node's options are ordered by
 TraitNodeXTraitNodeEntry._Index, which is NOT entry-id order (214 of 470
 choice nodes differ), and that order is what the game's import string indexes.
 
-Same contract as fetch_names: grow-only merges, per-id fetches budgeted by
---limit, 150 ms spacing, any failure logs and exits 0 -- never blocks.
+THE BUILD IS PINNED. Asked for a table without a build, wago.tools answers
+with its NEWEST build of any product -- on 2026-11-21 that was 12.1.7.71087,
+the public test realm, while the live game ran 12.1.5.70961. A tree read that
+way is next patch's tree: it draws talents nobody can take yet and writes
+import strings the live game misreads. So every geometry table is requested at
+the newest build of product "wow" (the live retail game, /api/builds), the
+snapshot records that build, and a run that cannot learn it refreshes nothing.
+Every run asks for the live build (one request); when it is not the build the
+cache was read at, the geometry is re-read at once -- the game patched, and a
+tree from before the patch is exactly as wrong as one from after it. A refresh
+that comes back much smaller than the cache it would replace (a build whose
+tables are not published yet) is refused. The refreshed file is committed by
+the collector's daily export like every other data/ cache.
+
+Same contract as fetch_names: spell names grow-only, per-id fetches budgeted by
+--limit, 150 ms spacing, any failure logs and exits 0 -- never blocks. The
+geometry is a SNAPSHOT, replaced whole: an entry the game dropped must not stay
+behind as a phantom option of its node (it would shift every choice position
+the import string writes after it).
 """
 from __future__ import annotations
 
@@ -69,16 +88,94 @@ import fetch_names as fn
 TRAIT_GEOMETRY = fn.DATA / "trait_geometry.json"
 NAMES_SPELLS = fn.DATA / "names_spells.json"
 NETHER_SPELL = "https://nether.wowhead.com/tooltip/spell/{sid}"
+WAGO_BUILDS = "https://wago.tools/api/builds"
+LIVE_PRODUCT = "wow"            # the live retail game; "wowt"/"wowxptr" = PTR
+# a refreshed snapshot holding less than this share of the cached nodes or
+# entries is a half-published build, not a talent patch (the largest real
+# patch on record moved 9 nodes and dropped none)
+MIN_KEPT = 0.8
 
 
-def fetch_geometry():
-    """The whole geometry snapshot off wago.tools, or None on any failure.
+def _ver(v) -> tuple:
+    try:
+        return tuple(int(x) for x in str(v).split("."))
+    except ValueError:
+        return ()
+
+
+def live_build():
+    """The live retail game build ("12.1.5.70961"), or None when it cannot be
+    learned. The newest by version number, not by list position."""
+    raw = fn._get_raw(WAGO_BUILDS)
+    if raw is fn._FAILED or not raw:
+        return None
+    try:
+        rows = json.loads(raw.decode("utf-8", "replace")).get(LIVE_PRODUCT)
+    except (ValueError, AttributeError):
+        return None
+    vers = [r.get("version") for r in rows or []
+            if isinstance(r, dict) and len(_ver(r.get("version"))) == 4]
+    return max(vers, key=_ver) if vers else None
+
+
+def playable(geo: dict) -> set:
+    """The specs whose tree holds a hero selector they see, offering exactly
+    two hero trees -- what a talent spec looks like in a healthy snapshot
+    (all 40 on 2026-11-21)."""
+    out = set()
+    by_node: dict[int, set] = {}
+    for e in geo.get("entries", {}).values():
+        if isinstance(e, list) and len(e) > 5 and e[5]:
+            by_node.setdefault(int(e[0]), set()).add(int(e[5]))
+    for sid, tid in geo.get("specs", {}).items():
+        t = geo.get("trees", {}).get(str(tid)) or {}
+        vis = t.get("vis")
+        if vis is None or not str(sid).isdigit():
+            continue
+        subs = set()
+        for n, g in t.get("nodes", {}).items():
+            if g[2] == 3 and (n not in vis or int(sid) in vis[n]):
+                subs |= by_node.get(int(n), set())
+        if len(subs) == 2:
+            out.add(str(sid))
+    return out
+
+
+def plausible(fresh: dict, old: dict):
+    """None when `fresh` may replace `old`, else why not."""
+    lost = playable(old) - playable(fresh)
+    if lost:
+        return (f"{len(lost)} specs would lose their hero-tree selector "
+                f"({', '.join(sorted(lost, key=int)[:6])}): the tables point "
+                f"them at another tree than the one they play")
+
+    def count(g):
+        return (sum(len(t.get("nodes", {})) for t in g.get("trees", {}).values()),
+                len(g.get("entries", {})))
+    (nn, ne), (on, oe) = count(fresh), count(old)
+    if not nn or not ne:
+        return "it holds no nodes or no entries"
+    if nn < MIN_KEPT * on or ne < MIN_KEPT * oe:
+        return (f"it holds {nn} nodes and {ne} entries where the cache "
+                f"holds {on} and {oe}")
+    return None
+
+
+def fetch_geometry(build):
+    """The whole geometry snapshot off wago.tools AT `build`, or None on any
+    failure -- and with no build there is nothing to pin, which is a failure.
 
     All-or-nothing on purpose: a half-refreshed geometry (nodes from one
     patch, entries from another) would draw wrong trees, so any failed
     component keeps the previous cache untouched for this run.
     """
-    lo = fn._get_csv("TraitTreeLoadout")
+    if not build:
+        return None
+
+    def get(table, params=None):
+        return fn._get_csv(table, {**(params or {}), "build": build})
+
+    lo = get("TraitTreeLoadout")
     if lo is fn._FAILED:
         return None
     specs: dict[str, int] = {}
@@ -86,16 +183,23 @@ def fetch_geometry():
         sid, tid = r.get("ChrSpecializationID"), r.get("TraitTreeID")
         if sid and tid and str(tid).isdigit():
             specs[str(sid)] = int(tid)         # newest loadout row wins
-    sub = fn._get_csv("TraitSubTree")
+    sub = get("TraitSubTree")
     if sub is fn._FAILED:
         return None
     subtrees = {str(r["ID"]): nm for r in sub
                 if (nm := fn._field(r, "Name_lang")) and "DNT" not in nm}
 
+    # The candidates are the trees the NEWEST loadout row of some spec names.
+    # Not every tree any row names: tried on 2026-11-21, that let tree 1033
+    # (another Shaman tree in the tables, with a hero selector of its own)
+    # out-vote the live 786 for Restoration, whose armory strings only fit
+    # 786. The other way round -- a class whose specs ALL point at an old
+    # tree -- has not happened; main() refuses a refresh that would take a
+    # spec's hero selector away (see `plausible`), which is what it would do.
     trees: dict[str, dict] = {}
     node_tree: dict[int, str] = {}
     for tid in sorted(set(specs.values())):
-        rows = fn._get_csv("TraitNode", {"filter[TraitTreeID]": f"exact:{tid}"})
+        rows = get("TraitNode", {"filter[TraitTreeID]": f"exact:{tid}"})
         if rows is fn._FAILED:
             return None
         nodes = {}
@@ -108,7 +212,7 @@ def fetch_geometry():
             node_tree[nid] = str(tid)
         trees[str(tid)] = {"nodes": nodes, "edges": []}
 
-    edges = fn._get_csv("TraitEdge")           # no tree column: filter here
+    edges = get("TraitEdge")                   # no tree column: filter here
     if edges is fn._FAILED:
         return None
     for r in edges:
@@ -122,9 +226,9 @@ def fetch_geometry():
     for t in trees.values():
         t["edges"].sort()
 
-    xref = fn._get_csv("TraitNodeXTraitNodeEntry")
-    entry_rows = fn._get_csv("TraitNodeEntry")
-    def_rows = fn._get_csv("TraitDefinition")
+    xref = get("TraitNodeXTraitNodeEntry")
+    entry_rows = get("TraitNodeEntry")
+    def_rows = get("TraitDefinition")
     if fn._FAILED in (xref, entry_rows, def_rows):
         return None
     by_entry = {r["ID"]: r for r in entry_rows if r.get("ID")}
@@ -149,7 +253,7 @@ def fetch_geometry():
                         override,
                         int(idx) if idx and str(idx).lstrip("-").isdigit() else 0,
                         int(st) if st and str(st).isdigit() else 0]
-    vis = fetch_visibility(trees, node_tree)
+    vis = fetch_visibility(trees, node_tree, get)
     if vis is None:
         return None
     spec_tree, spec_keys = vis
@@ -157,11 +261,11 @@ def fetch_geometry():
     # loadout table's answer stays only for a spec no condition names
     for sid, tid in spec_tree.items():
         specs[sid] = tid
-    return {"v": 2, "specs": specs, "spec_keys": spec_keys,
+    return {"v": 2, "build": build, "specs": specs, "spec_keys": spec_keys,
             "subtrees": subtrees, "trees": trees, "entries": entries}
 
 
-def fetch_visibility(trees: dict, node_tree: dict):
+def fetch_visibility(trees: dict, node_tree: dict, get=None):
     """Who sees which node and which nodes are free, written INTO `trees`
     ("vis", "grant"); returns ({chrSpecId: treeId}, {chrSpecId: "Class|Spec"})
     or None on any failed table (the caller then keeps the previous cache).
@@ -169,11 +273,12 @@ def fetch_visibility(trees: dict, node_tree: dict):
     The spec key is the class and spec names with spaces removed, which is how
     Warcraft Logs spells them ("DemonHunter|Devourer", "Hunter|BeastMastery").
     """
+    get = get or fn._get_csv
     tables = {}
     for t in ("TraitCond", "TraitNodeXTraitCond", "TraitNodeGroupXTraitCond",
               "TraitNodeGroupXTraitNode", "SpecSetMember",
               "ChrSpecialization", "ChrClasses"):
-        rows = fn._get_csv(t)
+        rows = get(t)
         if rows is fn._FAILED:
             return None
         tables[t] = rows
@@ -320,21 +425,34 @@ def main(argv=None) -> int:
         return True
 
     got = {"spells": 0, "images": 0, "failed": 0}
-    if args.refresh or not geo.get("trees"):
-        fresh = fetch_geometry()
-        if fresh is None:
+    live = live_build()
+    if live is None:
+        print("[traits] the live game build could not be learned; the "
+              f"geometry stays as read at {geo.get('build') or 'an unrecorded build'}")
+    patched = live is not None and geo.get("build") != live
+    if patched and geo.get("trees"):
+        print(f"[traits] the live game is at {live}, the geometry was read at "
+              f"{geo.get('build') or 'an unrecorded build'}: reading it again")
+    if args.refresh or not geo.get("trees") or patched:
+        fresh = fetch_geometry(live)
+        why = None if fresh is None else plausible(fresh, geo)
+        if fresh is None or why:
             got["failed"] += 1
-            print("[traits] geometry refresh failed; keeping the cached copy")
+            print("[traits] geometry refresh "
+                  + (f"refused: {why}" if why else "failed")
+                  + "; keeping the cached copy")
         else:
-            # replace refreshed keys, never drop ones a partial cache holds
-            for k, v in fresh.items():
-                if isinstance(v, dict) and isinstance(geo.get(k), dict):
-                    geo[k].update(v)
-                else:
-                    geo[k] = v
-            print(f"[traits] geometry: {len(geo.get('trees', {}))} trees, "
-                  f"{sum(len(t['nodes']) for t in geo['trees'].values())} "
-                  f"nodes, {len(geo.get('entries', {}))} entries")
+            gone_e = len(set(geo.get("entries", {})) - set(fresh["entries"]))
+            old_n = {n for t in geo.get("trees", {}).values()
+                     for n in t.get("nodes", {})}
+            new_n = {n for t in fresh["trees"].values() for n in t["nodes"]}
+            # the snapshot replaces the cache whole; a key only an older
+            # cache carries is kept
+            geo.update(fresh)
+            print(f"[traits] geometry at {live}: {len(geo['trees'])} trees, "
+                  f"{len(new_n)} nodes, {len(geo['entries'])} entries"
+                  + (f" | no longer in the game: {len(old_n - new_n)} nodes, "
+                     f"{gone_e} entries" if old_n else ""))
 
     want = sorted({e[2] for e in geo.get("entries", {}).values()
                    if isinstance(e, list) and len(e) > 2 and e[2]})
