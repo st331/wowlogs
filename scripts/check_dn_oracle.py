@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The figures the page PRINTS, checked against the payload: step 2 of 2 (see check_dn_oracle.js).
 
-  python3 scripts/check_dn_oracle.py <data.json.gz> <dump.json>
+  python3 scripts/check_dn_oracle.py <data.json.gz | data.json> <dump.json>
 
 Recomputes, from the payload and the rule alone, everything the page computed for every spec in every view
 the browser step walked: par per role x key level x dungeon (median of the rows the window keeps, counted

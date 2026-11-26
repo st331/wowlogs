@@ -38,7 +38,7 @@ assert "' more pair'" in html and " below the n≥'+CS_PAIR_MIN+' floor</span>" 
 # the pair floor is 1, members come from the UNFILTERED tally, the By-trinket face keeps n>=3
 assert "const CS_PAIR_MIN=1;" in html and "if(o.c<CS_PAIR_MIN||!a||(o.b&&!b))" in html and "const src=M.all||M.ent;" in html and "return {ent, all, rowKeys, rowRaw, n:d.gearIdx.length, ok:sa>=0&&sb>=0};" in html and "if(c<CS_ENTRY_MIN) continue;                   // same floor as the per-slot fold" in html, "pair floor 1 over the unfiltered tally; By-trinket floor unchanged"
 assert "with #1 " in html and "wear both the most used and the 2nd most used " in html and "const pairOf=p=>PAIRS[p]||(PAIRS[p]=csPairModel(poolOf(p)));" in html and "PAIRS[screenFold]" in html, "rank-2 pooled tile carries the #1+#2 pair share with its denominator, from the one memoised model"
-assert "or the pairs worn together" in html, "pooled tile names the reading; the By-trinket header is verbatim"
+assert "or the pairs worn together" in html, "the pooled tile names its By-pair reading"
 _pt = html[html.index("function csPairTR"):html.index("function csPairBodyHTML")]
 assert "ilvl" not in _pt and "csFoldCols(" not in _pt, "no item level, no lean columns on a pair row"
 assert ".cs-fold td.fi2{width:62px" in html and "#cs-fold .fh.pv .fht{min-width:0; flex:1 1 auto}" in html, "pair CSS: two-icon cell; the header wraps, never ellipsizes"
@@ -48,7 +48,7 @@ assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)'
 # 2026-09-14 retention: the build drops rows; the payload ships what it dropped and where it cut,
 # every sidecar window is BOUND to the retention constant, and the sentence leads with the policy
 assert '"retention": dict(RETENTION_INFO)' in _b and "SIDECAR_WINDOW_RESETS = RETENTION_RESETS" in _b and "BUILDS_WINDOW_RESETS = RETENTION_RESETS" in _b, "retention facts ship; sidecar windows bind to retention"
-assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'persist_sweep_stats({"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build -> page"
+assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'persist_sweep_stats({"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build; the payload carries them and the page prints none of it"
 # 2026-09-14 retention (owner): the page buckets on the builder's anchor and has no control that reaches
 # past the newest two resets. (It no longer STATES the window in a paragraph: owner, 2026-11-26.)
 assert "D.retention" in html, "the page reads the payload's retention block"
@@ -60,7 +60,7 @@ assert "const now=(aD&&!isNaN(+aD))?aD:wallNow;" in html and "Math.floor((wallNo
 assert "function retPhrase()" in html, "the window is read from the payload"
 assert "Compare needs two resets" in html, "compare refuses without a baseline inside the window"
 assert "Avg Player Rating (season)" in html, "the one season-wide figure says so where it prints"
-print("client      : sample banner; coverage note")
+print("client      : sample banner")
 # 2026-09-17 item-level range filter (owner: "add a filter for ilevel as well"): the same
 # shape as the key range, applied in rowPass through baseMasks (so every surface that
 # filters rows inherits it), printed in the scope line, the frame scope and a scope chip
@@ -68,14 +68,14 @@ print("client      : sample banner; coverage note")
 # without rows.ilvl, and honest about the unknown rows a narrowed range excludes.
 assert 'id="ilo"' in html and 'id="ihi"' in html and 'id="ilvl-fill"' in html and 'id="ilvl-v"' in html, "item-level dual slider"
 assert "il:il?true:(ilvlNarrowed()||gearOn())" in html and "if(m.il){const v=R.ilvl[i]; if(v<m.ilo||v>m.ihi) return false;}" in html, "rowPass applies the range only when narrowed or under the Gear axis; unknown (0) fails a narrowed range"
-assert html.count("else if(ilvlNarrowed()) p.push(ilvlText());") == 2 and 'if(gearOn()) p.push(ilvlAText()+" (cohort A)");' in html and 'if(gearOn()) p.push(withB?ilvlAText()+" vs "+ilvlBText()+" (ghost)":ilvlAText()+" (cohort A)");' in html and '$("frame-scope").textContent=frameScope(true);' in html, "printed in the scope line (cohort A) and the frame scope (A vs B) under the Gear axis"
+assert html.count("else if(ilvlNarrowed()) p.push(ilvlText());") == 2 and 'if(gearOn()) p.push(ilvlAText()+" (cohort A)");' in html and 'if(gearOn()) p.push(withB?ilvlAText()+" vs "+ilvlBText():ilvlAText()+" (cohort A)");' in html and '$("frame-scope").textContent=frameScope(true);' in html, "printed in the scope line (cohort A) and the frame scope (A vs B) under the Gear axis"
 assert 'scopeChip(box,ilvlText()' in html, "the scope chip names the item-level range"
 assert "ilo:ILVL.min, ihi:ILVL.max," in html and "&& !ilvlNarrowed()" in html and "ilo:state.ilo, ihi:state.ihi," in html, "Archon parks, matches and snapshots the range"
 assert "ibox.hidden=true;" in html, "hidden on a payload without rows.ilvl"
 assert "'the key, '+(ILVL.has?'item-level, ':'')" in html, "the fixed-cohort warning names item level when the page has it"
 assert "if(ILVL.has&&(DEF.ilo>ILVL.min||DEF.ihi<ILVL.max))" in html, "the trust-gate reference pool mirrors the item-level default"
 assert '"ilvl": ilvl_arr' in _b, "the builder ships rows.ilvl"
-print("client      : item-level range: dual slider under Key Level; rowPass gate; scope line + frame scope; chip + hint name the unknown count; Archon park/match/snap; hidden without rows.ilvl")
+print("client      : item-level range: dual slider under Key Level; rowPass gate; scope line + frame scope; the hint counts parses with no item level; Archon park/match/snap; hidden without rows.ilvl")
 
 # Gear compare axis (owner, 2026-09-18: "compare on ... ilevel. I want to be able to see how
 # classes scale with gear"): a third XOR axis next to Time and Skill. The same period and
@@ -89,7 +89,7 @@ assert 'data-a="gear" data-l="Gear" id="axis-gear-btn"' in html and 'id="axis-ge
 assert 'id="blockG"' in html and 'id="ilob"' in html and 'id="ihib"' in html and 'id="ilvlb-v"' in html and 'id="ilvlb-fill"' in html and 'id="gearquick"' in html, "B cohort panel: dual slider + quick chips"
 assert "const gearOn=()=>state.gear&&!state.compare&&!state.skill&&!state.elite&&ILVL.has;" in html and "const twoSided=()=>state.compare||gearOn();" in html, "gearOn and twoSided predicates"
 assert "const skillOn=()=>state.skill&&!state.compare&&!state.gear&&!state.elite;" in html and "if(on){state.skill=false; if(state.gear) gearOff();}" in html and "function gearOff()" in html and 'else if(a==="gear"){ if(!state.gear) setGear(true); }' in html, "strict XOR across the three axes"
-assert "function gearIlvls()" in html and "function gearMedian()" in html and "const gearQuantile=f=>" in html and "function gearSplitApply(announce)" in html and "function setGear(on)" in html and "function gearOverlapNote()" in html and "function gearCensus()" in html, "gear engine"
+assert "function gearIlvls()" in html and "function gearMedian()" in html and "const gearQuantile=f=>" in html and "function gearSplitApply(){" in html and "function setGear(on)" in html and "function gearOverlapNote()" in html and "function gearCensus()" in html, "gear engine"
 assert "const m=baseMasks(); m.il=false;" in html and "const x=R.ilvl[i]; if(x>0) v.push(x);" in html and "state.ilo=med; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=med-1;" in html and "if(below){ state.ilob=ILVL.min; state.ihib=state.ilo-1; }" in html and "else { state.ilob=state.ihi+1; state.ihib=ILVL.max; }" in html and "if(gearPrevA&&state.ilo===gearPrevA.setLo&&state.ihi===gearPrevA.setHi){" in html and "ilo:il?il.lo:state.ilo, ihi:il?il.hi:state.ihi};" in html, "the arithmetic: median over the un-narrowed selection, known item levels only, lower median; split and complement cohorts adjacent and disjoint; B's bounds ride the mask; leaving restores A only while the axis's own range still stands"
 assert "gearPrevA=null;   // a fresh activation" in html, "a fresh activation never inherits a restore memory"
 assert "Gear compare needs item levels — this build carries none." in html and "cannot be split at its median item level" in html and "no parse in it sits below that" in html, "a refused gear compare says why"
@@ -99,12 +99,12 @@ assert "A and B overlap on ilvl" in html, "period note: an overlap of A and B is
 assert 'scopeChip(box,"compare: gear vs "+ilvlBText(),"blockG")' in html and "'<b>A</b><br><span style=\"white-space:nowrap\">'+esc(ilvlAText())+'</span>'" in html, "scope chip and tooltip header name the ranges"
 assert "(gearOn()?'no B':'new')" in html and 'gearOn()?" · item-level cohort A":""' in html, "no time words under the Gear axis"
 assert 'state.gear=("gear" in st)?!!st.gear:false;' in html and 'if("ilob" in st){state.ilob=st.ilob; state.ihib=st.ihib;}' in html and "gear:state.gear, ilob:state.ilob, ihib:state.ihib," in html and "&& state.merge && !state.compare && !state.gear" in html and "function setGear(on){\n  if(state.elite) return;" in html, "Archon parks the Gear axis and restores it with both cohorts; the axis cannot be turned on inside the replica"
-assert '$("axis-gear-btn").style.display=ILVL.has?"":"none";' in html and "state.gear=false; state.ilob=0; state.ihib=0;" in html and "const any=state.compare||state.skill||state.gear;" in html and 'gear?(band?"Item Level A (solid)":"Item Level split"):"Item Level"' in html and '$("axis-gear-chip").textContent="B: "+ilvlBText();' in html, "hidden without rows.ilvl; opens off; gain/loss sorts, the A label and the B chip follow the axis"
+assert '$("axis-gear-btn").style.display=ILVL.has?"":"none";' in html and "state.gear=false; state.ilob=0; state.ihib=0;" in html and "const any=state.compare||state.skill||state.gear;" in html and 'gear?(band?"Item Level A":"Item Level split"):"Item Level"' in html and '$("axis-gear-chip").textContent="B: "+ilvlBText();' in html, "hidden without rows.ilvl; opens off; gain/loss sorts, the A label and the B chip follow the axis"
 # review follow-up (2026-09-18): the split is tried before the other axis is switched off; the
 # degenerate case is "nothing below the median"; the restore memory rides the Archon snapshot;
 # leaving the axis always says where A stands; the selection-scoped unknown count; shared
 # characters; Pulse names the cohort; compare columns say Parses; the B slider is grey.
-assert "const open=!ilvlNarrowed();" in html and "if(open&&!gearSplitApply(true)){ syncAxisUI(); return; }" in html, "a refused split leaves Time/Skill on"
+assert "const open=!ilvlNarrowed();" in html and "if(open&&!gearSplitApply()){ syncAxisUI(); return; }" in html, "a refused split leaves Time/Skill on"
 assert "return {med:v[Math.floor((v.length-1)/2)], lo:v[0]};" in html and "if(r==null||r.lo>=med){" in html, "refused when no parse sits below the median"
 assert "gearPrev:gearPrevA," in html and 'gearPrevA=("gearPrev" in st)?st.gearPrev:null;' in html, "the restore memory travels with the Archon snapshot"
 assert '" <b>Median item level "+gc.ilA+" in A vs "+gc.ilB+" in B · median key +"+gc.kA+" in A vs +"+gc.kB+" in B.</b>"' in html and '"% per item level</b>"' in html, "the census: each cohort's median item level and key, and the gain per item level"
@@ -129,7 +129,8 @@ assert "let core=all.filter(v=>counts.get(v)>=pool*ILVL_DOMAIN_SHARE);" in html 
 assert "if(state.ilo>ILVL.min){ lo=Math.min(lo,state.ilo); hi=Math.max(hi,state.ilo); }" in html and "if(gearOn()){   // B's ends belong to the Gear axis" in html and "let lo=ILW.coreLo, hi=ILW.coreHi;" in html, "a value the reader already set is never stranded outside the drawn domain, and the ends are derived fresh so they shrink back"
 assert "state.ilo=(v<=w.lo)?ILVL.min:v; state.ihi=ILVL.max;" in html, "off the Gear axis the thumb is a minimum, and its far left clears the filter"
 assert "state.ilo=v; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=v-1;" in html and "one.min=gear?w.lo+1:w.lo;" in html, "on the Gear axis the same thumb is the split, and it always leaves B a level"
-assert 'ilBand:false,' in html and "function ilvlOneSays()" in html and "const band=state.ilBand||!ilvlOneSays();" in html and '$("ilvl-single").hidden=band; $("ilvl-band").hidden=!band;' in html, "the two-range form stays up whenever one thumb could not say the setting, and the toggle is refused with a reason rather than printing a cut nobody set"
+assert 'ilBand:false,' in html and "function ilvlOneSays()" in html and "const band=state.ilBand||!ilvlOneSays();" in html and '$("ilvl-single").hidden=band; $("ilvl-band").hidden=!band;' in html, "the two-range form stays up whenever one thumb could not say the setting"
+assert '" are not one split — two ranges kept."' in html and '" is a band — two ranges kept."' in html, "the toggle is refused with its reason rather than printing a cut nobody set"
 assert html.count("state.ilBand=true;   //") == 3, "the quartile split and the swap show both ranges, and a refused toggle keeps the flag with the form, because one thumb cannot say any of them"
 assert '(inA?"a":inB?"b":"")' in html and "' parses in this selection\"></i>'" in html and "thinner parses sit outside this span and are still reachable at the ends" in html, "the density strip colours A and B and says what sits beyond its ends"
 assert '"· "+Math.round(shA.pct)+"% of the selection"' in html and '" ("+fmtInt(ILVL.unknown)+" parses in the whole build carry none)"' in html, "the readout is selection-scoped and the build-wide count stays in the title"
@@ -138,7 +139,7 @@ assert 'id="ilvl-num"' in html and "const numCommit=e=>{" in html and "numTimer=
 # is named; the axis reports its clip per side over a CONTIGUOUS domain and counts the parses it
 # cannot place; the confound is judged across every drawn bucket, not just the two ends.
 assert "const fat=all.filter(v=>ilTot.get(v)>=pool*TREND_ILVL_SHARE);" in html and "for(let v=fat[0];v<=fat[fat.length-1];v++) if(ilsSeen.has(v)) buckets.push(v);" in html, "the item-level axis draws a contiguous span, so the x-axis cannot lie about distance"
-assert "ilBelow+=ilTot.get(v);" in html and "ilAbove+=ilTot.get(v);" in html, "the clip is reported per side, never as a range that spans the drawn band"
+assert "ilBelow+=ilTot.get(v);" in html and "ilAbove+=ilTot.get(v);" in html and 'extraCap+=(ilClipped?" Not drawn: "' in html and '" below ilvl "+b0' in html and '" above ilvl "+b1' in html, "the clip is counted and printed per side, never as a range that spans the drawn band"
 assert "ilNoLvl++; continue; }" in html, "the axis counts the parses it cannot place"
 assert "let kLo=Infinity, kHi=-Infinity;" in html and "const flat=isFinite(kLo)&&kLo===kHi;" in html, "the key confound is judged across every drawn bucket"
 assert 'norm==="ret"' in html and "-parse floor at enough points to draw a line here." in html, "the empty chart says which rule stranded it"
@@ -165,12 +166,12 @@ print("client      : Trajectory item-level axis: one point per item level; domai
 # of the key ladder so the rest of the badge is gear — released explicitly, and on leaving the axis.
 assert "dA:q(dpsA), dB:q(dpsB), kAll:med(kAll)" in html and "const q=a=>{ if(!a.length) return NaN;" in html, "the census carries each cohort's pooled read and the selection's median key"
 assert 'state.keyHeld?"↺ Release key":"⚑ Hold key"' in html and "state.keyHeld={klo:state.klo, khi:state.khi};" in html and "state.klo=state.khi=gc.kAll;" in html, "Hold key pins the ladder and remembers what to give back"
-assert 'if(state.keyHeld){   // the hold belongs to the gear read' in html, "a held key range is labelled, and never outlives the axis"
+assert 'if(held){   // the hold belongs to the gear read' in html and '(state.keyHeld?" (held)":"")' in html and "if(held) buildControls();   // the key slider and the Hold chip are drawn from the range just given back" in html, "a held key range is labelled in its chip, never outlives the axis, and the key slider is redrawn when the axis gives it back"
 assert "function ilvlSpan(lo,hi)" in html and 'atHi?"≥ "+lo:atLo?"≤ "+hi:lo+"–"+hi' in html, "a floor is printed as a floor, not as a range against the payload's end"
 print("client      : gear read: % per item level in the note; ⚑ Hold key pins both cohorts to one key level and says what it costs; floors print as ≥/≤")
 
-print("client      : Gear compare axis: Off|Time|Skill|Gear XOR; B = period A over the B item-level cohort; median split / complement / swap; period note, caption, chip, tooltip, table, frame; Archon park+restore; hidden without rows.ilvl")
-print("client      : retention note every build; presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
+print("client      : Gear compare axis: Off|Time|Skill|Gear XOR; B = period A over the B item-level cohort; median split / complement / swap; period note, chip, tooltip, table, frame; Archon park+restore; hidden without rows.ilvl")
+print("client      : presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
 # 2026-11-13: the page's DPS is the collector's damage / fight clock, the figure Warcraft Logs
 # ranks (scripts/diag_rogue_dps.py: 175 of 175 players). The keystone clock carries 15 s per party
@@ -214,9 +215,9 @@ assert "if(state.elite&&dnOn()){dps=[]; for(const i of a) dnSpread(dps,i,dpsAt(i
 assert "const can=d=>{for(let c=d;c<ok.length;c+=nd) if(ok[c]) return true; return false};" in html and "const S=S0.filter(can), thin=S0.filter(d=>!can(d)), on=S.length>1;" in html and "if(!DNI.inS[R.dun[i]]){for(let j=0;j<DNI.S.length;j++) out.push(v); return}" in html, "a dungeon with no par at all is left out of the average and named; it never switches the adjustment off for the rest"
 assert "for(const r of roles){            // every role in view: each row is scaled with its OWN role's factors" in html, "borrowed levels are listed for every role in view"
 assert 'const dnLoggedLbl=()=>state.proj?"Projected, before ⚖":"As logged";' in html and 'h+=row("Recorded average"+dsfxA(r.a), fmtInt(r.a.ravg), "–");' in html, "with the tuning projection on, no row is called logged that is not, and the recorded rows carry the mark"
-assert "+dnNote(rows)" in html, "the period note says when ⚖ is ticked and nothing in view can be adjusted"
+assert "+dnNote()+" in html and 'return dnFewPars()?"<b>⚖ DPS as logged here:</b> "+esc(dnOneTxt().replace(/^N/,"n"))+". ":"";' in html, "the period note says when several dungeons are in view and too few pars are known to adjust any of it"
 assert "const someAdj=dnOn()&&(!FRAME_A||!FRAME_A.groups||!FRAME_A.groups.size||[...FRAME_A.groups.values()].some(g=>g.adj!==false));" in html and """+'">⚖</span>';""" in html and 'let s=esc(p.join(" · "))+dnFrag+labStamp(sec);' in html and 'p.push(adj?"⚖ adjusted DPS":"DPS as logged");' in html and "for(let i=0;i<N;i++) if(groupKey(i)===state.frameKey){adj=!!DNI.any[R.role[i]]; break}" in html and 'scopeChip(box,"DPS as logged","dnorm-chip")' in html, "every section caption, the frame and the strip say which DPS is on screen"
-assert "function dnKeyRise(rows){" in html and ':["akey","Avg key",,dnAkeyTitle()],' in html, "what a key level is worth is read off the pars and sits on the Avg key header"
+assert "function dnKeyRise(){" in html and ':["akey","Avg key",,dnAkeyTitle()],' in html, "what a key level is worth is read off the pars and sits on the Avg key header"
 assert 'h+=row(dnLoggedLbl()+", average"' in html and "the same read before the dungeon adjustment" in html and "'+dnLoggedLbl()+(skill?" in html, "the logged figure stays beside the adjusted one in the tooltip and the Spec Frame"
 assert 'case "dmix": return r.a.dshare;' in html and ".data th.kf,.data td.kf{padding-left:2.6rem}" in html and ':["akey","Avg key",,' in html, "the table carries each spec's dungeon mix and its place on the key ladder, and both sort"
 assert """if(k==="floorK") return v>=0?'<span style="white-space:nowrap">≥ +'+v+" · "+Math.round(100*r.a.kshare)+"%</span>""" in html and 'h+=wide("Key floor +"+r.a.floorK+": keeps "+Math.round(100*r.a.kshare)+"% of the spec’s "+fmtInt(r.a.kpool)+" parses");' in html and "kshare:g.n/hist.get(k).n, kpool:hist.get(k).n," in html, "the replica's floor is whole key levels, so the share of a spec's parses it keeps is printed beside it"
@@ -225,7 +226,7 @@ assert "const DN_FLAG=0.35;" in html and "const dnHotAt=()=>Math.min(0.8,Math.ma
 assert '(a.dshare>=1?"all in ":Math.round(100*a.dshare)+"% in ")' in html, "the dungeon-mix tag reads the share and the dungeon"
 assert "adj:dnOn()&&g.ix.length>0&&!!DNI.any[R.role[g.ix[0]]]};" in html and "if(o.adj&&g.ldps.length){" in html and 'const dsfxA=a=>a&&a.adj?' in html and html.count("dsfx()") == 1, "the ⚖ mark and the logged pair are decided per GROUP: a role with no factors (healers) is as logged and carries neither; only Pulse's header reads the view-level mark"
 assert "built before 2026-11-13" not in html, "the footer makes no calendar claim the build stamp beside it can contradict"
-print("client      : ⚖ dungeon-adjusted DPS through dpsAt; par per role x key x dungeon, counted only when known to +-4%, other levels borrow, a role with none stays as logged, one dungeon = as logged; note, captions, chip, tooltip, frame; Avg key / Key floor / Dungeon mix columns; concentrated specs named; Archon replica reads its percentiles off each parse counted once in every dungeon, and its card says what was validated")
+print("client      : ⚖ dungeon-adjusted DPS through dpsAt; par per role x key x dungeon, counted only when known to +-4%, other levels borrow, a role with none stays as logged, one dungeon = as logged; note, chip, tooltip, frame; Avg key / Key floor / Dungeon mix columns; concentrated specs named; Archon replica reads its percentiles off each parse counted once in every dungeon")
 
 # 2026-11-21 (owner: "the talent build for devourer fel scarred ... seems wider than other specs like rogue. fix
 # this. also add a button to export talents for a selected talent build"). The panes are drawn from the union of
@@ -263,10 +264,11 @@ print("talents     : a spec's panes hold what the game shows that spec (foreign 
 # 2026-11-26 (owner: "there is a ton of text above the overview that is completely useless. examine the UI for all of
 # these places you've placed informational text that no one cares about. this is my site, I already know how what
 # works. clean it all up. only leave something if it is particularly relevant and important or because it is
-# information I have asked you to display in the past."). 296 pieces of prose were inventoried: 146 removed, 77 cut
-# down to the number they carried, 63 kept. THE RULE FROM HERE ON: the page prints a sentence only when it qualifies
+# information I have asked you to display in the past."). 296 pieces of prose were decided on: 154 removed, 81 cut
+# down to the number they carried, 61 kept. THE RULE FROM HERE ON: the page prints a sentence only when it qualifies
 # a figure with a number (a count, a share, n=), or reports something abnormal right now. It does not explain how a
-# statistic, a control, a mode or the collection works. A pin below that fails means such a paragraph came back.
+# statistic, a control, a mode or the collection works. The pins below hold one phrase from each removed block (not
+# every removed sentence), and a length budget holds the static note elements; one that fails means a paragraph is back.
 for _gone, _what in (
         ('id="coverage-note"', "the Coverage paragraph above the Overview"),
         ('id="retention-note"', "the Retention paragraph above the Overview"),
@@ -282,7 +284,24 @@ for _gone, _what in (
         ("click a column to sort", "sort instructions in section heads"),
         ("DPS is per-player overall damage", "the footer's methodology"),
         ('id="foot-src"', "the footer's source paragraph"),
-        ("50 is the median, 90 the ceiling view", "the chart footnote that explains the lens"),
+        ("90 the ceiling view sites like Archon publish", "the chart footnote that explains the lens"),
+        ("Timed runs only.", "the period note restating the timed switch"),
+        ("controls are bypassed while active", "the Archon recipe in the period note and its card"),
+        ("grey ghost", "the solid/ghost legends in the sidebar, the period note and the captions"),
+        ("Item Level A (solid)", "the last solid/ghost legend in the sidebar"),
+        ('+" (ghost)"', "the last solid/ghost legend in the Spec Frame scope"),
+        ("median = the middle DPS", "the Talents footnote that defines a median"),
+        ("Rank view: each point is", "the Trajectory rank caption"),
+        ("Share view: each point is", "the Trajectory share caption"),
+        ("Retention is measured inside the leaderboard", "the Trajectory retention caption"),
+        ("one point per key level", "the Trajectory key-axis caption"),
+        ("key range released", "a notice confirming Release key"),
+        ("Gear compare off", "a notice confirming Compare: Off"),
+        ("Lean = the share of this spec", "the Gear tab's Lean footnote"),
+        ("dungeon adjustment is for DPS only", "the Top Comps caption on what ⚖ covers"),
+        ("Deaths are whole numbers, so percentile reads step", "the deaths footnote on percentiles"),
+        ("so the badge is not a clean gear read", "the gear overlap paragraph"),
+        ("D.specstats.cohort", "the builder's method paragraph under the Spec Frame's fixed stats"),
         ("Brighter bar = higher", "chart footnotes that explain the bar's shade"),
         ("Solid bar: period A", "compare legends under the chart"),
         ("Strength scores each run against", "the Top Comps method caption"),
@@ -304,8 +323,47 @@ assert "function retentionWarnHTML(){" in html and '+" "+retentionWarnHTML()).re
 assert "⚠ Sampled payload: " in html and "⚠ Collection was down " in html, "a sampled payload and a collection outage inside the window are still said"
 assert 'p.push(sec==="trajectory"?"all resets":describePeriod(state.weeksA));' in html and '$("overview-sub").innerHTML=scopeLine("overview");' in html and '$("trend-sub").innerHTML=scopeLine("trajectory");' in html, "section heads keep the state they reflect (lens, period, keys, timed, ⚖) and nothing after it; Trajectory reads all resets"
 assert '?["floorK","Key floor","kf"]' in html and '["dmix","Dungeon mix","txt"]);' in html, "the Data Table keeps its Dungeon mix and Key floor columns"
-assert "let __renderGen=0, __noticeGen=-1;" in html and "__noticeGen=__renderGen; }" in html and '  if(__renderGen>__noticeGen+1){ const n=$("notice"); if(n) n.textContent=""; }' in html, "a notice is cleared one render after it was set: it used to stay until overwritten"
+assert "let __noticeHold=false;" in html and "  __noticeHold=!!t;\n  if(t) setTimeout(()=>{ __noticeHold=false; },0);" in html and '  if(!__noticeHold){ const n=$("notice"); if(n&&n.textContent) n.textContent=""; }' in html, "a notice lives until the reader's next action: render clears it, except inside the action that set it, whatever order that handler sets and renders in"
+assert "__renderGen" not in html and 'setNotice("")' not in html, "no handler has to clear the slot by hand; the 2026-11-26 generation counter kept a notice set after its own render through the action that undid it (Hold key, then Release key)"
 assert 'function syncTimedHint(){ const el=$("timed-hint"); if(el) el.innerHTML=state.timedOnly?"":TIMED_HINT; }' in html, "the key levels with no untimed run are named only while All completed is selected, which is what they qualify"
 print("text        : the page explains nothing; it prints a sentence only beside a number it qualifies or for something abnormal")
+
+# 2026-11-26, the independent review of the cleanup (four reviewers, each finding put to a skeptic). What it found
+# in the page and what now holds it:
+import re as _re
+_static = html[:html.index("<script")]
+_notes = [(_m.group(2), _re.sub(r"<[^>]+>", "", _m.group(3)).strip()) for _m in _re.finditer(
+    r'<(div|span|p)\b[^>]*class="[^"]*\b(hint|caption|kpi-note|cs-foot|fnote|foot)\b[^"]*"[^>]*>(.*?)</\1>', _static, _re.S)]
+assert _notes and max(len(_t) for _c, _t in _notes) <= 60, "a static note element holds a label or stays empty for the page to fill, never a paragraph: " + repr(max(_notes, key=lambda x: len(x[1])))
+# the gear compare's per-item-level figure is read at the lens, so it carries the lens's own label: the cut typed
+# "median DPS" over a figure that was the p85 read at p85 (11.5% printed under "median" where the median gap was 13.7%)
+assert '? " A "+dpsLabel().replace(/^M/,"m")+" "+(gc.dA>=gc.dB?"+":"")' in html and '" A median DPS "' not in html, "the gear note names the statistic it prints: the lens's own label"
+# one reset boundary per run, as the builder cuts: a row filed under no region took the default boundary and was
+# hidden past a window its four group mates were inside (1 row on the 2026-11-26 payload)
+assert 'const unkRi=D.regions.indexOf("Unknown"), runReg=new Int16Array(runCount).fill(-1);' in html and "const rr=runReg[R.run[i]], rg=rr>=0?rr:R.reg[i];" in html and "b0=boundsH[rg];" in html and "const b0=boundsD[rg];" in html and "boundsH[R.reg[i]]" not in html, "a row is bucketed by its run's region, the rule build_site_data.py _run_regions cuts on"
+assert "' parses past the kept resets, not shown.</b>'" in html and "if(outWindowRows>0) h+=" in html and 'console.warn("parses past' not in html, "parses the payload carries past the window are counted on the page while there are any, not in the console"
+assert 'h+=\'<div class="foot">\'+esc((D.specstats.keyMin?"timed +"+D.specstats.keyMin+" and higher · ":"")+"n="+fmtInt(S.n))+\'</div>\';' in html, "the Spec Frame's fixed stats print their key floor and their n, not the builder's method paragraph"
+assert 'note.textContent="";\n    sub.textContent="not available in the Archon replica";' in html, "Pulse under Archon says so in its head, not as a lone dash over a one-line body"
+assert 'if(k==="a_runs"||k==="a_n"||k==="chars") return fmtInt(v);' in html, "Runs takes the thousands separator Parses and Characters have"
+assert 'id="comps-caption"' not in html and "function dnNote(){" in html, "what the removed text left behind is gone: an element only ever written empty, parameters nothing read"
+# what still speaks, pinned as it now reads (the review deleted each of these from a copy and the suite stayed green)
+for _kept, _what in (
+        ('+(rows.length>COMPS_MAX?" · top "+COMPS_MAX+" shown":""))', "Top Comps says when it lists the top N only"),
+        ('" distinct field it, top "+sorted.length+" shown"', "Top Comps, With a spec: how many comps field it and how many are listed"),
+        ('return ofN>shown?"Showing "+shown+" of "+ofN+" groups.":"";', "Trajectory says when it draws fewer groups than qualify"),
+        ('if(ranked.length>CHART_MAX) cap+=" Showing "+CHART_CUT+" of "+ranked.length+" groups.";', "the Overview chart says when it draws fewer groups than qualify"),
+        ('$("showncount").textContent=fmtInt(rows.length)+" of "+fmtInt(A.groups.size)+" shown";', "the strip counts the groups shown of those in view"),
+        ('setNotice("Gear compare: key held at +"+gc.kAll', "Hold key prints what the hold costs in parses"),
+        ('+" · A "+fmtInt(beforeA)+" → "+fmtInt(afterA)+" parses · B "+fmtInt(beforeB)+" → "+fmtInt(afterB)+".");', "Hold key prints both cohorts before and after"),
+        ('"⚖ on — nothing in view can be adjusted."', "ticking ⚖ with nothing to adjust says so"),
+        ('return \'<div class="cs-foot">No export string for \'+esc(lab)+\'</div>\';', "a build with no export string says so"),
+        ('+(on&&w.unk?" · "+fmtInt(w.unk)+" no ilvl":"");', "the item-level hint counts parses with no item level"),
+        ('+(gc.unk?" "+fmtInt(gc.unk)+" parses have no item level.":"")', "the gear note counts parses with no item level"),
+        ('+\'</b> hidden (under \'+ELITE_MIN+\' qualifying parses)\';', "the Archon card counts the specs the replica hides"),
+        ('return "B: "+ilvlBText()+(B?" · "+fmtInt(B.parses)+" parses":"")+"."', "the gear note prints the B cohort and its parse count"),
+        ('if(game&&b.textContent==="export") b.title+=" · game build "+game;', "the export button names the game build its string is written for"),
+        ('<span id="frame-dead" class="fs" hidden>Character screen unavailable — builds data missing</span>', "a missing builds sidecar is said where the button was")):
+    assert _kept in html, "this count or abnormal-state text is still owed to the reader: " + _what
+print("review      : gear note carries the lens label; notices clear on the next action; rows bucket with their run; kept counts pinned as they read")
 
 print("\nPASS")

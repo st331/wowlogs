@@ -150,9 +150,10 @@ async function getJsonGz(page, name) {
     // is on the button's own title
     const title = await page.evaluate(() => document.querySelector('#cs-bldchips .bldchip.on [data-copy]').title);
     const prose = await page.evaluate(() => [...document.querySelectorAll('#charscreen .cs-foot')].map((f) => f.textContent.trim()).filter((x) => /import strings|logged talents|picked talents/.test(x)));
+    const badBefore = bad;
     if (builds.specs[deep].game && !title.endsWith(' · game build ' + builds.specs[deep].game)) fail(`${deep}: the export button's title does not name game build ${builds.specs[deep].game}: "${title.slice(-60)}"`);
     if (prose.length) fail(`${deep}: an explanatory footnote is back under the trees: "${prose[0].slice(0, 80)}"`);
-    console.log(`in depth (${deep}): the label returns, Build 3 exports its own string, Enter on the button copies it, the button's title names game build ${builds.specs[deep].game || 'unknown'}`);
+    if (bad === badBefore) console.log(`in depth (${deep}): the label returns, Build 3 exports its own string, Enter on the button copies it, the button's title names game build ${builds.specs[deep].game || 'unknown'}`);
   }
   if (errs.length) fail('page errors: ' + JSON.stringify(errs.slice(0, 3)));
   await ctx.close();

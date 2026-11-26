@@ -771,8 +771,8 @@
     informational text that no one cares about. this is my site, I already know how what works.
     clean it all up. only leave something if it is particularly relevant and important or
     because it is information I have asked you to display in the past.")** 296 pieces of prose
-    were inventoried over every screen and mode: 146 removed, 77 cut down to the number they
-    carried, 63 kept. Standing rules that follow:
+    were decided on over every screen and mode: 154 removed, 81 cut down to the number they
+    carried, 61 kept. Standing rules that follow:
     (a) **No sentence that explains** how a statistic, a control, a mode, the collection, the
     retention or the method works. Not above the Overview, not in the sidebar, not under a
     chart or a table, not after a section head, not in the footer, not as a prose line in a
@@ -789,6 +789,18 @@
     paragraphs were mine. The counts stay, the paragraphs are gone, and what they described is
     in `build_health.txt`.
     (d) Before any new sentence goes on the page it must pass (b). `test_site_contract.py`
-    pins 26 of the removed texts as absent, so a returning paragraph fails the suite.
-    (e) Left as they were: hover titles (`title=""`), which show only on a resting cursor. The
-    ⚖ chip's title is where the dungeon factors can still be read.
+    pins one phrase from each removed block as absent (43 phrases, not every removed
+    sentence) and holds the static note elements to a label's length. A paragraph that was
+    removed fails the suite if it returns; a NEW sentence built in script does not, so it has
+    to be judged against (b) by whoever writes it.
+    (e) Hover titles (`title=""`): the ones that carried a recipe or a method were removed or
+    cut to their numbers with the rest (the ⚔ Archon chip's recipe; the Data Table headers
+    p-spread, Key floor and Dungeon mix; the ⚖ chip and the ⚖ mark in section heads; the Avg
+    key header; the dungeon-share tags; Everything kept). Every other title is as it was,
+    since a title shows only on a resting cursor. The ⚖ chip's title is where the dungeon
+    factors can still be read.
+    (f) **A number cut out of a sentence keeps its own name.** When a sentence is shortened to
+    its figure, the label beside the figure comes from the code that names that statistic
+    (`dpsLabel()` for a figure read at the lens), never retyped. The first cut typed "median
+    DPS" over the gear compare's per-item-level figure, which is the lens read: at p85 it
+    printed 11.5% under "median" where the median gap was 13.7%.

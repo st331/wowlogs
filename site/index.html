@@ -1169,7 +1169,7 @@ table.cs-tal+#cs-impwrap{margin:.45rem 0 .65rem}
 /* per-pane tally in the existing baseline header row — zero added height */
 .tthead .tdf{font-size:.68rem; font-variant-numeric:tabular-nums}
 /* the shared direction ink — one vocabulary on every diff surface (chip
-   counter, pane tally, diff bar, ledger, foot legend) so they cannot drift.
+   counter, pane tally, diff bar, ledger) so they cannot drift.
    These are INK, never fills (design language: "semantic — text-only deltas"). */
 .dp{color:var(--up)} .dn{color:var(--down)} .dz{color:var(--accent)}
 .dr{color:var(--ink2)} .dsame{color:var(--ink3)}
@@ -1520,7 +1520,6 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
         <b id="compmin-v">20</b><input type="range" id="compmin" min="1" max="100" value="20"></span></div>
     <div class="secbody" id="sec-comps">
     <div class="tblwrap"><table class="data" id="comps"></table></div>
-    <div class="caption" id="comps-caption"></div>
     </div>
 
     <div class="sec" data-sec="breakdown"><span class="mk"></span><span class="t">Data Table</span><span class="s" id="tbl-sub"></span></div>
@@ -1664,8 +1663,9 @@ let availWeeks=[], weekCounts=new Map(), usB0=0;
    READ from payload.retention (build_site_data.py RETENTION_RESETS /
    RETENTION_MAX_AGE_DAYS), never retyped here. An older payload without the
    block falls back to 2 so the clamp fails CLOSED, not open. OUTW marks a row
-   the builder somehow shipped outside the window (an old payload against a new
-   page); 999 stays the UNDATED sentinel, which the builder keeps on purpose. */
+   the builder shipped outside the window (an old payload against a new page);
+   the period note counts them. 999 stays the UNDATED sentinel, which the
+   builder keeps on purpose. */
 let KEEP_BUCKETS=2, outWindowRows=0;
 const OUTW=1000;
 function retInfo(){return (D&&D.retention&&typeof D.retention==="object")?D.retention:null}
@@ -1937,32 +1937,22 @@ function dnTitle(){
   return "Dungeon-adjusted DPS. Factors "+forRole+dnFactorText()+"."+dnBorrowText();
 }
 // the period note's ⚖ line: several dungeons in view and nothing can be adjusted for want of pars
-function dnNote(rows){
+function dnNote(){
   return dnFewPars()?"<b>⚖ DPS as logged here:</b> "+esc(dnOneTxt().replace(/^N/,"n"))+". ":"";
 }
-// what key level alone does: the average dungeon's par at the two ends of the range in view. The replica parks
-// the key range and keeps each spec from its own key floor up, so there the range is the median key floor of
-// the specs shown up to the highest level that has a par (widened downward if that is a single level)
-// null: one level in view (or one dungeon), nothing to say. lo<0: several levels in view, fewer than two of them
-// with every dungeon's par known, so the rise cannot be read
-function dnKeyRise(rows){
+// what key level alone does: the average dungeon's par at the two ends of the key range in view, as a rise per
+// level. null: one level in view (or one dungeon), nothing to say. lo<0: several levels in view, fewer than two
+// of them with every dungeon's par known, so the rise cannot be read
+function dnKeyRise(){
   if(!DNI||!DNI.on) return null;
-  let a=state.klo, b=state.khi, fmed=-1, nfl=0;
-  if(state.elite){
-    const fl=[]; for(const x of rows||[]){const g=x.a0||x.a; if(g&&g.floorK>=0) fl.push(g.floorK)}
-    if(!fl.length) return null;
-    fl.sort((x,y)=>x-y);
-    a=fmed=fl[Math.floor((fl.length-1)/2)]; b=DN_K-1; nfl=fl.length;
-  }
-  else if(a>=b) return null;
+  const a=state.klo, b=state.khi;
+  if(a>=b) return null;
   const {nd,par}=DNP, r=dnRole();
   const bar=k=>{let s=0; for(const d of DNI.S) s+=par[(r*DN_K+k)*nd+d]; return s/DNI.S.length};
   let lo=-1, hi=-1;
-  const scan=()=>{lo=hi=-1; for(let k=Math.max(0,a);k<=Math.min(DN_K-1,b);k++) if(DNI.src[r*DN_K+k]===k){ if(lo<0) lo=k; hi=k; }};
-  scan(); while(state.elite&&hi<=lo&&a>0){a--; scan()}
-  if(lo<0||hi<=lo) return {lo:-1, hi:-1, fmed, nfl, r, tot:NaN, per:NaN};
-  const q=bar(hi)/bar(lo);
-  return {lo, hi, fmed, nfl, r, tot:100*(q-1), per:100*(Math.pow(q,1/(hi-lo))-1)};
+  for(let k=Math.max(0,a);k<=Math.min(DN_K-1,b);k++) if(DNI.src[r*DN_K+k]===k){ if(lo<0) lo=k; hi=k; }
+  if(lo<0||hi<=lo) return {lo:-1, hi:-1, r, per:NaN};
+  return {lo, hi, r, per:100*(Math.pow(bar(hi)/bar(lo),1/(hi-lo))-1)};
 }
 // the Avg key header's hover: what a key level is worth, for the role and the range in view; "" when it cannot be read
 function dnAkeyTitle(){
@@ -2137,13 +2127,14 @@ function renderTimedHint(){
   syncTimedHint();
 }
 function syncTimedHint(){ const el=$("timed-hint"); if(el) el.innerHTML=state.timedOnly?"":TIMED_HINT; }
-/* Retention warnings from payload.retention, as HTML for the period note: the stale flag and a newest run
-   that lags the build by more than 3 h. "" when neither applies. */
+/* Retention warnings, as HTML for the period note: the stale flag, a newest run that lags the build by more
+   than 3 h, and the count of parses the payload carries past the window. "" when none applies. */
 function retentionWarnHTML(){
-  const r=retInfo(); if(!r) return "";
+  const r=retInfo();
   let h="";
-  if(r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than '+r.max_age_days+' days.</b>';
-  if(typeof r.lag_h==="number"&&r.lag_h>3) h+=' <b class="delta down">Newest run '+r.lag_h.toFixed(1)+' h before this build.</b>';
+  if(r&&r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than '+r.max_age_days+' days.</b>';
+  if(r&&typeof r.lag_h==="number"&&r.lag_h>3) h+=' <b class="delta down">Newest run '+r.lag_h.toFixed(1)+' h before this build.</b>';
+  if(outWindowRows>0) h+=' <b class="delta down">⚠ '+fmtInt(outWindowRows)+' parses past the kept resets, not shown.</b>';
   return h;
 }
 function initData(d,cfg){
@@ -2164,7 +2155,6 @@ function initData(d,cfg){
   buildRuns();
   {const r=(d.retention||{}).resets; KEEP_BUCKETS=(Number.isFinite(+r)&&+r>0)?+r:2;}
   computeResetBuckets();
-  if(outWindowRows>0) console.warn("parses past the retention window, not shown: "+outWindowRows);
   buildDnPar();   // ⚖ the par table rests on the rows the window keeps, so it follows the buckets
   // Raider.IO season score per character, indexed by the same char id the rows
   // carry. Enrichment is a slow background sweep, so partial coverage is the
@@ -2422,21 +2412,42 @@ function computeResetBuckets(){
     boundsH[ri]=Math.floor((b-epoch)/36e5);        // hour index from epoch
     boundsD[ri]=Math.floor((b-epoch)/864e5);       // its calendar day
   });
+  // ONE boundary per RUN, the way the builder cuts (build_site_data.py
+  // _run_regions): the region most of the run's rows carry; a tie goes to the
+  // earlier boundary, then the name. A row filed under no region follows its
+  // run. Bucketed by its own "Unknown" it took the default boundary and could
+  // land past a window its four group mates were inside.
+  const unkRi=D.regions.indexOf("Unknown"), runReg=new Int16Array(runCount).fill(-1);
+  { const tally=new Array(runCount);
+    for(let i=0;i<N;i++){
+      const ri=R.reg[i]; if(ri===unkRi) continue;
+      const t=tally[R.run[i]]||(tally[R.run[i]]={}); t[ri]=(t[ri]||0)+1;
+    }
+    for(let r=0;r<runCount;r++){
+      const t=tally[r]; if(!t) continue;
+      let best=-1;
+      for(const k in t){ const ri=+k;
+        if(best<0||t[ri]>t[best]||(t[ri]===t[best]&&(boundsH[ri]<boundsH[best]
+            ||(boundsH[ri]===boundsH[best]&&D.regions[ri]<D.regions[best])))) best=ri; }
+      runReg[r]=best;
+    }
+  }
   R.rbucket=new Int16Array(N);
   outWindowRows=0;
   for(let i=0;i<N;i++){
     const d0=R.day[i];
     if(d0<0){R.rbucket[i]=999; continue}
+    const rr=runReg[R.run[i]], rg=rr>=0?rr:R.reg[i];
     let w;
     if(HR&&HR[i]>=0){
-      const h0=d0*24+HR[i], b0=boundsH[R.reg[i]];
+      const h0=d0*24+HR[i], b0=boundsH[rg];
       w=h0>=b0?0:Math.ceil((b0-h0)/168);
     }else{
-      const b0=boundsD[R.reg[i]];
+      const b0=boundsD[rg];
       w=d0>=b0?0:Math.ceil((b0-d0)/7);
     }
     // outside the retained window: never in a bucket, never in a selection,
-    // and COUNTED so initData can warn on the console (an old payload only)
+    // and COUNTED: the period note prints the count while it is above zero
     if(w>=KEEP_BUCKETS){R.rbucket[i]=OUTW; outWindowRows++; continue}
     R.rbucket[i]=w;
   }
@@ -2712,7 +2723,7 @@ function buildControls(){
       const band=state.ilBand||!ilvlOneSays();   // a band cannot be said with one thumb
       // one thumb under Gear IS the split, so the label says so instead of
       // repeating the A that the value already carries
-      $("ilvl-lbl").textContent=gear?(band?"Item Level A (solid)":"Item Level split"):"Item Level";
+      $("ilvl-lbl").textContent=gear?(band?"Item Level A":"Item Level split"):"Item Level";
       // the one-thumb form states the cut; the two-range form states both ends
       const shA=ilvlShare(state.ilo,state.ihi);
       $("ilvl-v").textContent=band
@@ -2834,7 +2845,7 @@ function buildControls(){
     const gq=$("gearquick"); gq.innerHTML="";
     for(const [name,title,fn] of [
         ["⚡ Median split","A = at or above the median item level of the parses the other filters select; B = below it",
-          ()=>{ if(gearSplitApply(true)){ syncAxisUI(); render(); } }],
+          ()=>{ if(gearSplitApply()){ syncAxisUI(); render(); } }],
         ["⚡ Quartile split","A = the top quarter of the selection's item levels, B = the bottom quarter — the middle half sits in neither cohort (the note counts it)",
           ()=>{ const lo=gearQuantile(.25), hi=gearQuantile(.75);
                 if(lo==null||hi==null||hi<=lo){ setNotice("Gear compare: the current selection has no spread of item levels for a quartile split."); return; }
@@ -3192,7 +3203,7 @@ function gearTrack(lo,hi){   // remember what the axis set A to, and (once) what
   if(!gearPrevA) gearPrevA={lo:state.ilo, hi:state.ihi};
   gearPrevA.setLo=lo; gearPrevA.setHi=hi;
 }
-function gearSplitApply(announce){
+function gearSplitApply(){
   const r=gearMedian(), med=r?r.med:null;
   if(r==null||r.lo>=med){   // nothing below the median: B would hold no parse at all
     setNotice("Gear compare: the current selection cannot be split at its median item level"
@@ -3219,7 +3230,7 @@ function setGear(on){
     // The split is tried before the other axis is switched off, so a refusal
     // leaves the page exactly as it was -- Time or Skill stays on.
     const open=!ilvlNarrowed();
-    if(open&&!gearSplitApply(true)){ syncAxisUI(); return; }   // refused: gear stays off, the notice says why
+    if(open&&!gearSplitApply()){ syncAxisUI(); return; }   // refused: gear stays off, the notice says why
     if(state.compare){state.compare=false; $("cmp").checked=false; refreshPeriodUIs();}
     state.skill=false;
     state.gear=true;
@@ -3238,14 +3249,16 @@ function setGear(on){
 // stands. A kept range (the complement path) was never rewritten, so it stays.
 function gearOff(){
   state.gear=false;
-  if(state.keyHeld){   // the hold belongs to the gear read; it must not outlive it
-    const k=state.keyHeld; state.keyHeld=null;
-    state.klo=k.klo; state.khi=k.khi; ILW=null;
+  const held=state.keyHeld;
+  if(held){   // the hold belongs to the gear read; it must not outlive it
+    state.keyHeld=null;
+    state.klo=held.klo; state.khi=held.khi; ILW=null;
   }
   if(gearPrevA&&state.ilo===gearPrevA.setLo&&state.ihi===gearPrevA.setHi){
     state.ilo=gearPrevA.lo; state.ihi=gearPrevA.hi; syncIlvlInputs();
   }
   gearPrevA=null;
+  if(held) buildControls();   // the key slider and the Hold chip are drawn from the range just given back
 }
 /* Gear axis census — ONE pass over the parses the other filters select for
    period A (no item-level term): parses with no item level, parses in the gap
@@ -3375,10 +3388,15 @@ $("lens-clear").onclick=()=>{
 };
 
 /* -------- programmatic-change notice slot (context strip) -------- */
-// A notice says what just happened or why a control refused. It is stamped with the render it was set in,
-// outlives the render that follows it and is cleared by the next one: it used to stay until overwritten.
-let __renderGen=0, __noticeGen=-1;
-function setNotice(t){ const n=$("notice"); if(n) n.textContent=t; __noticeGen=__renderGen; }
+// A notice says why a control refused, or what a click cost. It lives until the reader's next action: render()
+// clears it, except inside the action that set it. The hold lapses once that action's handlers have returned,
+// so a handler may set its notice before its render, after it, or without rendering at all.
+let __noticeHold=false;
+function setNotice(t){
+  const n=$("notice"); if(n) n.textContent=t;
+  __noticeHold=!!t;
+  if(t) setTimeout(()=>{ __noticeHold=false; },0);
+}
 
 /* -------- Archon exit toast: auto-uncheck kept your changes; offer restore -------- */
 function showArchonToast(){ $("archon-toast").hidden=false; }
@@ -3398,7 +3416,6 @@ $("archon-restore").onclick=()=>{
   }
 };
 document.querySelector("#archon-toast .x").onclick=()=>hideArchonToast();
-// single source for the chip tooltip: the shipped recipe, not folklore (R6)
 
 /* -------- ⚗ LAB_FEATURES manifest — every transient feature lives here --------
    One entry OWNS its controls, active badges, exemption stamps, output section
@@ -4125,13 +4142,13 @@ function liveIdxMulti(keys){
   return out;
 }
 
-// the same scope fragments scopeLine() builds, without the labStamp/extra
+// the same scope fragments scopeLine() builds, without the labStamp
 function frameScope(withB){   // withB: the Spec Frame only — its identity rows carry a B column
   const p=["p"+state.pctl+" lens"];
   if(state.elite) p.push("Archon replica");
   else{ p.push(describePeriod(state.weeksA));
         p.push("keys +"+state.klo+"–+"+state.khi);
-        if(gearOn()) p.push(withB?ilvlAText()+" vs "+ilvlBText()+" (ghost)":ilvlAText()+" (cohort A)");
+        if(gearOn()) p.push(withB?ilvlAText()+" vs "+ilvlBText():ilvlAText()+" (cohort A)");
         else if(ilvlNarrowed()) p.push(ilvlText()); }
   if(state.timedOnly) p.push("timed only");
   // this caption is about ONE spec: a spec whose role has no factors is as logged, whatever else is in view
@@ -4318,7 +4335,7 @@ function frameStatsHTML(ctx){
     .filter(([,q])=>Array.isArray(q)&&q.length>=3)
     .map(([name,q])=>({name,q}));
   h+=statRowsHTML(entries);
-  h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc("n="+fmtInt(S.n))+'</div>';
+  h+='<div class="foot">'+esc((D.specstats.keyMin?"timed +"+D.specstats.keyMin+" and higher · ":"")+"n="+fmtInt(S.n))+'</div>';
   return h;
 }
 /* live mode — the sidecar is loaded, so the block follows every filter above.
@@ -4872,8 +4889,7 @@ const ENCH_DEAD_SLOT=0.05;              // below this enchanted share, the slot
                                         // is not enchantable this expansion
 const CS_ENTRY_MIN=3;                   // fold-out entries under n<3 fold into "other"
 const CS_EMB_CAP=10;                    // named embellishment rows before the tail folds
-const CS_PAIR_ROWS=10;                  // named rows on the pooled fold-out's By-pair reading;
-                                        // the cap is printed in that reading's caption
+const CS_PAIR_ROWS=10;                  // named rows on the pooled fold-out's By-pair reading
 const CS_PAIR_MIN=1;                    // wearers a pair needs to be a named row (owner,
                                         // 2026-09-30: "reduce the minimum n to 1. it is still
                                         // useful to see if even one person is using a trinket
@@ -7495,8 +7511,7 @@ function wireSort(host,st,rerender){
 }
 function render(){
   if(!D) return;   // Lens Bar is inert until data arrives
-  __renderGen++;
-  if(__renderGen>__noticeGen+1){ const n=$("notice"); if(n) n.textContent=""; }
+  if(!__noticeHold){ const n=$("notice"); if(n&&n.textContent) n.textContent=""; }
   syncTimedHint();
   refreshDnf();   // ⚖ factors follow the dungeons in view, before anything reads dpsAt
   const am=$("archon");
@@ -7507,7 +7522,6 @@ function render(){
       state.elite=false;   // leaving the mode restores standard stats
       // auto-uncheck keeps the user's changes; the toast offers the restore
       showArchonToast();
-      setNotice("");
     }
   }
   syncLensUI(); syncAxisUI(); labScopeRefresh();
@@ -7571,7 +7585,7 @@ function render(){
       ? '<b class="delta up" style="font-size:.95em">🔮 Projected: '
         +esc(D.projection.label)+'.</b> '
       : "")
-    +dnNote(rows)+" "
+    +dnNote()+" "
     +(state.compare
       ? "B: "+describePeriod(state.weeksB)+(B?" · "+fmtInt(B.parses)+" parses":"")
       : "")
@@ -7583,7 +7597,7 @@ function render(){
       +(isFinite(gc.ilA)&&isFinite(gc.ilB)
           ?" <b>Median item level "+gc.ilA+" in A vs "+gc.ilB+" in B · median key +"+gc.kA+" in A vs +"+gc.kB+" in B.</b>"
             +(isFinite(gc.dA)&&isFinite(gc.dB)&&gc.dB>0&&gc.ilA!==gc.ilB
-              ? " A median DPS "+(gc.dA>=gc.dB?"+":"")+((gc.dA-gc.dB)/gc.dB*100).toFixed(1)+"% vs B over "+Math.abs(gc.ilA-gc.ilB)
+              ? " A "+dpsLabel().replace(/^M/,"m")+" "+(gc.dA>=gc.dB?"+":"")+((gc.dA-gc.dB)/gc.dB*100).toFixed(1)+"% vs B over "+Math.abs(gc.ilA-gc.ilB)
                 +" item level"+(Math.abs(gc.ilA-gc.ilB)===1?"":"s")+" · <b>"
                 +((gc.dA/gc.dB-1)*100/Math.abs(gc.ilA-gc.ilB)).toFixed(1)+"% per item level</b>"
               : "")
@@ -7728,8 +7742,7 @@ function render(){
     chart.appendChild(row);
   }
   let cap=tab.rating?ratingCoverage():"";
-  if(ranked.length>CHART_MAX)   // closes whatever precedes it, if that did not end its own sentence
-    cap+=(/[^.\s]$/.test(cap)?".":"")+" Showing "+CHART_CUT+" of "+ranked.length+" groups.";
+  if(ranked.length>CHART_MAX) cap+=" Showing "+CHART_CUT+" of "+ranked.length+" groups.";
   $("chart-caption").textContent=cap.trim();
 
   // generated scope lines — the single source of section evidence sentences
@@ -7802,11 +7815,10 @@ $("showncount").onclick=()=>{
   state.trustPrev=state.minchars;
   state.minchars=1;
   $("minchars").value=1; $("minchars-v").textContent=1;
-  setNotice("");
   render();
 };
 $("trust-undo").onclick=e=>{e.stopPropagation();
-  clearTrustOverride(true); setNotice(""); render();};
+  clearTrustOverride(true); render();};
 
 /* -------- Archon card: the specs the replica hides, shown only when there are any -------- */
 function renderArchonCard(){
@@ -7840,8 +7852,8 @@ function renderPulse(rowsGated){
     // E15 rule: grey the board, never fake movement the replica cannot have
     bodyEl.classList.add("na-block");
     host.innerHTML=""; capEl.textContent="";
-    note.textContent="not available in the Archon replica";
-    sub.textContent="—";
+    note.textContent="";
+    sub.textContent="not available in the Archon replica";
     return;
   }
   bodyEl.classList.remove("na-block");
@@ -8077,7 +8089,6 @@ function renderComps(A){
     $("comps-sub").innerHTML=esc(all.length
       ? "no comp has "+state.compMin+"+ runs under these filters"
       : "no timed-clock runs match the current filters")+labStamp("comps")+compsClockNote();
-    $("comps-caption").textContent="";
     return;
   }
   const COLS=[["rank","#","txt"],["comp","Composition","txt"],
@@ -8109,7 +8120,6 @@ function renderComps(A){
       $("comps-sub").innerHTML='<b style="color:'+specColor+'">'+esc(specName)
         +'</b>: '+esc("no comps under the current filters field it"+perANote)
         +labStamp("comps")+compsClockNote();
-      $("comps-caption").textContent="";
       return;
     }
   }
@@ -8169,7 +8179,6 @@ function renderComps(A){
         +perANote))
       +labStamp("comps")+compsClockNote();
   }
-  $("comps-caption").textContent="";
 }
 
 /* ---------------- Trajectory (peer section; the Trend tab's relocated target) ---------------- */
@@ -8635,7 +8644,7 @@ function renderTable(rows,tab){
     if(k==="dmix") return dmixCell(r.a);
     if(k==="akey") return v>0?"+"+v.toFixed(1):'<span class="na">–</span>';
     if(k==="floorK") return v>=0?'<span style="white-space:nowrap">≥ +'+v+" · "+Math.round(100*r.a.kshare)+"%</span>":'<span class="na">–</span>';
-    if(k==="a_n"||k==="chars") return fmtInt(v);
+    if(k==="a_runs"||k==="a_n"||k==="chars") return fmtInt(v);
     if(k==="b_n") return isFinite(v)?fmtInt(v):"–";
     if(k==="a_v"){
       if(!isFinite(v)) return "–";

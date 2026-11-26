@@ -2,7 +2,7 @@
 // The figures the page PRINTS, checked against the payload: step 1 of 2 (the browser side).
 //
 //   node scripts/check_dn_oracle.js <site URL> <dump.json>
-//   python3 scripts/check_dn_oracle.py <data.json.gz> <dump.json>
+//   python3 scripts/check_dn_oracle.py <data.json.gz | data.json> <dump.json>
 //
 // Loads the published page, walks 19 views (lens, key range, hero split, time / gear / skill compare, two to
 // seven dungeons, all roles, tanks, the Archon replica) and writes down, for every spec in each view, what the
@@ -12,7 +12,8 @@
 // pair covers what reads the factors (aggregate, aggregateElite, dnFields) and needs one.
 //
 // <site URL>: any place that serves the page with its data, e.g. https://st331.github.io/wowlogs or a local
-// `python3 -m http.server` over a folder holding index.html and the published *.json.gz files.
+// `python3 -m http.server` over a folder holding index.html and the published data files (the payload is data.json.gz, or plain
+// data.json while it is under 8 MB).
 // PAGE=<file>: serve this local index.html in place of the site's, to check a page before it is deployed.
 // Needs Playwright with Chromium (PLAYWRIGHT=<module path> if it is not resolvable as "playwright").
 const fs = require('fs');

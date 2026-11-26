@@ -79,7 +79,7 @@ jobs:
               for i in $(seq 0 255); do printf 'runs/%02x.json.gz\n' "$i"; done
             } | xargs -P 16 -I{} sh -c \
               'curl -sfL -o "/tmp/out/{}" "https://st331.github.io/wowlogs/{}" || rm -f "/tmp/out/{}"'
-            echo "  $1: $(ls /tmp/out/*.json.gz 2>/dev/null | wc -l) payloads," \
+            echo "  $1: $(ls /tmp/out/*.json.gz /tmp/out/data.json 2>/dev/null | wc -l) payloads," \
                  "$(ls /tmp/out/runs 2>/dev/null | wc -l)/256 run shards," \
                  "build_health.txt $([ -s /tmp/out/build_health.txt ] && echo present || echo missing)"
           }
@@ -89,7 +89,10 @@ jobs:
           # own previous deploy; seeding from it would compound whatever it
           # carried instead of tracking the data pipeline. That exact loop
           # served 33-hour-old data once. Walk recent successes in case the
-          # newest run's artifact has aged past its 1-day retention.
+          # newest run's artifact has aged past its 1-day retention. A lookup
+          # that fails outright (the API call errors) leaves $url empty and
+          # takes the live-seed fallback below, with its warning: it used to
+          # abort the step before reaching it.
           url=$(curl -sf -H "Authorization: Bearer $GH_TOKEN"                 "$API/actions/workflows/refresh.yml/runs?status=success&per_page=5"             | python3 -c '
           import sys, json, urllib.request, os
           runs = json.load(sys.stdin).get("workflow_runs", [])
@@ -109,7 +112,7 @@ jobs:
               live = [a for a in arts if not a["expired"]]
               print("  run %s (#%s): %d artifact(s), %d live" % (r["id"], r.get("run_number"), len(arts), len(live)), file=sys.stderr)
               if live:
-                  print(live[0]["archive_download_url"]); break')
+                  print(live[0]["archive_download_url"]); break' || true)
           if [ -n "$url" ]; then
             curl -sfL -H "Authorization: Bearer $GH_TOKEN" -o /tmp/pages.zip "$url"
             unzip -q /tmp/pages.zip -d /tmp/live
