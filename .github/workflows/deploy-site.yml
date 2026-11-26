@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -177,4 +177,17 @@ jobs:
         with:
           path: /tmp/out
       - id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      # 2026-11-26: deploy-pages asked for the artifact a quarter of a second
+      # after the upload step had finalized it, GitHub listed "0 artifact(s)",
+      # and the deploy failed: twice in the UI deploy and three times in the
+      # refresh pipeline within 75 minutes. Nothing was wrong with any of the
+      # artifacts. One more attempt after a pause; if that fails too, the job
+      # fails as it did before.
+      - name: Pause before a second deploy attempt
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+      - id: deploy_retry
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4
