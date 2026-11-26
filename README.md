@@ -451,7 +451,8 @@ Not in the loop, because it needs a browser (Playwright with Chromium): the figu
 PRINTS. `node scripts/check_dn_oracle.js <site URL> dump.json` walks 19 views of the published
 page and writes down what it computed for every spec; `python3 scripts/check_dn_oracle.py
 data.json.gz dump.json` recomputes all of it from the payload that site serves (download
-`<site URL>/data.json.gz`) and the rule (9,887 values on 2026-11-13, 0 mismatches). `PAGE=site/index.html` checks the working tree's page against the
+`<site URL>/data.json.gz`, or `<site URL>/data.json` in the first days of a reset: the builder
+ships the payload plain under 8 MB and the check reads either) and the rule (9,887 values on 2026-11-13, 0 mismatches). `PAGE=site/index.html` checks the working tree's page against the
 live data before a push. Run it after any change to `aggregate`, `aggregateElite` or `dnFields`:
 `test_dn_math.py` covers the factors, not what reads them.
 

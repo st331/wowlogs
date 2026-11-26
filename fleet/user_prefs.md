@@ -765,3 +765,30 @@
     `scripts/fixtures/talent_strings.json`), not against itself. After a patch that changes a
     class tree those strings are for the old tree: `test_talent_string.py` says how many it did
     not run, and `collect_talent_vectors.py` collects new ones.
+
+45. **The page explains nothing (owner, 2026-11-26: "there is a ton of text above the overview
+    that is completely useless. examine the UI for all of these places you've placed
+    informational text that no one cares about. this is my site, I already know how what works.
+    clean it all up. only leave something if it is particularly relevant and important or
+    because it is information I have asked you to display in the past.")** 296 pieces of prose
+    were inventoried over every screen and mode: 146 removed, 77 cut down to the number they
+    carried, 63 kept. Standing rules that follow:
+    (a) **No sentence that explains** how a statistic, a control, a mode, the collection, the
+    retention or the method works. Not above the Overview, not in the sidebar, not under a
+    chart or a table, not after a section head, not in the footer, not as a prose line in a
+    tooltip, and not as a notice that only confirms a click.
+    (b) **What the page still says:** a number that qualifies a figure, where the figure is
+    (n=, a count, a share, "N of M shown", a spec's dungeon share, a key floor, the B side's
+    parse count and medians under a compare); the state a section reflects (lens · period ·
+    keys · timed · ⚖); and something abnormal right now (a sampled payload, an outage inside
+    the window, stale or late data, ⚖ ticked with nothing to adjust, a sidecar that did not
+    load, a control that refused and why).
+    (c) This **overrides my own earlier reading** of #32, #33 and #36, where "a cap is printed
+    where the number is" had grown into paragraphs on coverage, retention and method. The
+    owner asked for missing data to be fixed and for numbers to carry their counts; the
+    paragraphs were mine. The counts stay, the paragraphs are gone, and what they described is
+    in `build_health.txt`.
+    (d) Before any new sentence goes on the page it must pass (b). `test_site_contract.py`
+    pins 26 of the removed texts as absent, so a returning paragraph fails the suite.
+    (e) Left as they were: hover titles (`title=""`), which show only on a resting cursor. The
+    ⚖ chip's title is where the dungeon factors can still be read.

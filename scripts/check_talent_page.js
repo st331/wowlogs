@@ -13,7 +13,8 @@
 //     talents document lists as hidden from it ("cx");
 //   * the lit build's chip carries one export button, a click puts on the clipboard exactly the
 //     string builds.json.gz holds for THAT build ("imp"), the button says so and takes its label
-//     back; lighting another build moves the button and copies that build's string;
+//     back; lighting another build moves the button and copies that build's string; the button's
+//     title names the game build the string stands on, and no footnote explains the feature;
 //   * the button works from the keyboard (Tab to it, Enter);
 //   * with the clipboard refused, the string is shown selected under a line naming the build, the
 //     button does not say copied, and no chip moves.
@@ -122,7 +123,7 @@ async function getJsonGz(page, name) {
       else exported++;
     } else if (st.btns.length) fail(`${sk}: an export button on a build the file holds no string for`);
   }
-  // one spec in depth: the label comes back, another build moves the button, the footnote names the game build
+  // one spec in depth: the label comes back, another build moves the button, the button's title names the game build
   const deep = specs.find((sk) => builds.specs[sk] && (builds.specs[sk].builds || []).filter((b) => b && b.imp).length > 3);
   if (deep) {
     const [cls, spec] = deep.split('|');
@@ -145,10 +146,13 @@ async function getJsonGz(page, name) {
     const keyed = await page.evaluate(() => navigator.clipboard.readText());
     const keyedLab = await page.evaluate(() => { const b = document.querySelector('#cs-bldchips .bldchip.on [data-copy]'); return b ? b.textContent : null; });
     if (!(vb && keyed === vb.imp && keyedLab === 'copied')) fail(`${deep}: Enter on the export button did not copy the lit build's string (clipboard "${keyed.slice(0, 24)}", label "${keyedLab}")`);
-    const foot = await page.evaluate(() => [...document.querySelectorAll('.cs-foot')].map((f) => f.textContent).find((x) => /import strings/.test(x)) || '');
-    if (!/export on the lit build writes one from its logged talents/.test(foot)) fail(`${deep}: the footnote does not say where the string comes from`);
-    if (builds.specs[deep].game && foot.indexOf('game build ' + builds.specs[deep].game) < 0) fail(`${deep}: the footnote does not name game build ${builds.specs[deep].game}`);
-    console.log(`in depth (${deep}): the label returns, Build 3 exports its own string, Enter on the button copies it, the footnote names game build ${builds.specs[deep].game || 'unknown'}`);
+    // the page explains nothing under the trees any more (owner, 2026-11-26); the game build the string stands on
+    // is on the button's own title
+    const title = await page.evaluate(() => document.querySelector('#cs-bldchips .bldchip.on [data-copy]').title);
+    const prose = await page.evaluate(() => [...document.querySelectorAll('#charscreen .cs-foot')].map((f) => f.textContent.trim()).filter((x) => /import strings|logged talents|picked talents/.test(x)));
+    if (builds.specs[deep].game && !title.endsWith(' · game build ' + builds.specs[deep].game)) fail(`${deep}: the export button's title does not name game build ${builds.specs[deep].game}: "${title.slice(-60)}"`);
+    if (prose.length) fail(`${deep}: an explanatory footnote is back under the trees: "${prose[0].slice(0, 80)}"`);
+    console.log(`in depth (${deep}): the label returns, Build 3 exports its own string, Enter on the button copies it, the button's title names game build ${builds.specs[deep].game || 'unknown'}`);
   }
   if (errs.length) fail('page errors: ' + JSON.stringify(errs.slice(0, 3)));
   await ctx.close();

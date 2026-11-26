@@ -13,8 +13,9 @@ in the Archon replica, the key floor, the kept share and the every-dungeon pool.
 Exits 1 on any mismatch.
 """
 import collections, gzip, json, math, sys
-if len(sys.argv) != 3: sys.exit("usage: python3 scripts/check_dn_oracle.py <data.json.gz> <dump.json>")
-D = json.load(gzip.open(sys.argv[1])); R = D["rows"]; N = len(R["dps"])
+if len(sys.argv) != 3: sys.exit("usage: python3 scripts/check_dn_oracle.py <data.json.gz | data.json> <dump.json>")
+_raw = open(sys.argv[1], "rb").read()      # the site serves the payload gzipped above 8 MB and plain below
+D = json.loads(gzip.decompress(_raw) if _raw[:2] == b"\x1f\x8b" else _raw); R = D["rows"]; N = len(R["dps"])
 X = json.load(open(sys.argv[2]))
 if X["n"] != N or X["built"] != D.get("built"):
     sys.exit(f'the dump was written from another payload (dump: {X["n"]} rows built {X["built"]}; file: {N} rows built {D.get("built")})')

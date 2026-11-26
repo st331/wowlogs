@@ -44,7 +44,9 @@ with tempfile.TemporaryDirectory() as tmp:
                        cwd=tp, capture_output=True, text=True, timeout=1800,
                        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     assert r.returncode == 0, (r.stdout + r.stderr)[-3000:]
-    payload = json.load(gzip.open(tp / "site" / "data.json.gz"))
+    # the builder ships the payload gzipped above 8 MB and plain below (the first days of a reset)
+    _gz = tp / "site" / "data.json.gz"
+    payload = json.load(gzip.open(_gz)) if _gz.exists() else json.loads((tp / "site" / "data.json").read_text())
     health = (tp / "site" / "build_health.txt").read_text()
 
 R = payload["rows"]

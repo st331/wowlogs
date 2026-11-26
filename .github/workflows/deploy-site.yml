@@ -56,11 +56,25 @@ jobs:
           # recency. Seeding only the five payloads (2026-09-30 11:59 IST,
           # run 90) dropped the shards and the health file from the live site
           # until the next refresh republished them. A file the live site
-          # does not have is skipped, never published empty.
+          # does not have is skipped, never published empty -- and REMOVED
+          # from the seed if the artifact carried it.
+          #
+          # THE PAYLOAD HAS TWO FORMS. build_site_data.py ships it gzipped
+          # (data.json.gz) above 8 MB and plain (data.json) below, deleting
+          # the other; the page asks for the .gz first. Under the two-reset
+          # retention it is plain in the first days of every reset (6.4 MB on
+          # 2026-11-26). This workflow knew only the .gz: its last check
+          # failed on a plain payload, so a UI push did not deploy until the
+          # next refresh, and nothing guarded the build stamps. Both forms are
+          # handled everywhere below, and only ONE may be published -- a stale
+          # .gz beside a fresh plain file would be the one the page reads.
+          payload_built() {   # the "built" stamp of a payload file of either form; "" when unreadable
+            python3 -c 'import sys,gzip,json; raw=open(sys.argv[1],"rb").read(); print(json.loads(gzip.decompress(raw) if raw[:2]==b"\x1f\x8b" else raw).get("built",""))' "$1" 2>/dev/null || echo ""
+          }
           seed_live() {
             mkdir -p /tmp/out/runs
             {
-              for f in data.json.gz stats.json.gz builds.json.gz talents.json.gz \
+              for f in data.json.gz data.json stats.json.gz builds.json.gz talents.json.gz \
                        baselines.json.gz build_health.txt; do echo "$f"; done
               for i in $(seq 0 255); do printf 'runs/%02x.json.gz\n' "$i"; done
             } | xargs -P 16 -I{} sh -c \
@@ -120,13 +134,22 @@ jobs:
           # the 05:53 build to the 05:14 one, taking a shipped fix with it.
           # Compare build stamps and keep whichever data is newer; the UI
           # overlay below is applied either way, so the UI still ships.
-          live_built=$(curl -sfL "https://st331.github.io/wowlogs/data.json.gz" \
-            | python3 -c 'import sys,gzip,json; print(json.load(gzip.open(sys.stdin.buffer)).get("built",""))' 2>/dev/null || echo "")
-          art_built=$(python3 -c 'import gzip,json; print(json.load(gzip.open("/tmp/out/data.json.gz")).get("built",""))' 2>/dev/null || echo "")
+          live_built=""; art_built=""
+          for f in data.json.gz data.json; do     # the form the page would read first
+            if curl -sfL -o /tmp/live_payload "https://st331.github.io/wowlogs/$f"; then
+              live_built=$(payload_built /tmp/live_payload); break
+            fi
+          done
+          for f in data.json.gz data.json; do
+            if [ -s "/tmp/out/$f" ]; then art_built=$(payload_built "/tmp/out/$f"); break; fi
+          done
           echo "data build stamps -- live: '${live_built}' artifact: '${art_built}'"
           if [ -n "$live_built" ] && [ -n "$art_built" ] \
              && [ "$art_built" \< "$live_built" ]; then
             echo "::warning::artifact data (${art_built}) is OLDER than live (${live_built}); keeping the live data files"
+            seed_live "kept live"
+          elif [ -n "$live_built" ] && [ -z "$art_built" ]; then
+            echo "::warning::the artifact carries no readable payload; keeping the live data files (${live_built})"
             seed_live "kept live"
           fi
           # Overlay ONLY the UI. Every generated data file is git-tracked and
@@ -136,7 +159,15 @@ jobs:
           tar -C site \
               --exclude='./data.json' --exclude='./data.json.gz' \
               -cf - . | tar -xf - -C /tmp/out
-          ls -la /tmp/out/index.html /tmp/out/data.json.gz
+          ls -la /tmp/out/index.html
+          # one payload, of either form, or nothing is published
+          if [ -s /tmp/out/data.json.gz ] && [ -s /tmp/out/data.json ]; then
+            echo "::error::both data.json.gz and data.json are in the site to publish; the page would read the .gz whichever is newer"; exit 1
+          fi
+          if [ ! -s /tmp/out/data.json.gz ] && [ ! -s /tmp/out/data.json ]; then
+            echo "::error::no payload (data.json.gz or data.json) in the site to publish"; exit 1
+          fi
+          ls -la /tmp/out/data.json*
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

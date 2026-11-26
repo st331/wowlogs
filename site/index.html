@@ -74,7 +74,6 @@ button,input,select{font-family:inherit}
   color:var(--ink3)}
 .lens-group{display:flex; align-items:center; gap:8px; position:relative}
 #lens-chips{display:flex; gap:6px; padding:0}
-#lens-fixed{color:var(--accent); font-size:.7rem}
 #archon-chip,#dnorm-chip{display:inline-flex; align-items:center; gap:5px; cursor:pointer}
 #archon-chip input,#dnorm-chip input{position:absolute; opacity:0; width:1px; height:1px; pointer-events:none}
 #archon-chip:has(input:checked),#dnorm-chip:has(input:checked){color:var(--accent); border-color:var(--accent-line);
@@ -209,6 +208,9 @@ input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
 .dual input::-moz-range-thumb{pointer-events:auto; width:12px; height:12px;
   border-radius:4px; background:var(--accent); border:2px solid var(--bg-side); cursor:pointer}
 .hint{color:var(--ink3); font-size:.73rem; line-height:1.5; margin-top:.15rem}
+/* a note element with nothing to say takes no room (2026-11-26: the page says something only when it has a
+   number to qualify or something abnormal to report) */
+.hint:empty,.caption:empty,.kpi-note:empty,.cs-foot:empty{display:none}
 .bpanel{border:1px solid var(--line1); border-radius:var(--r2); padding:8px 10px;
   margin-top:.45rem; background:rgba(234,227,208,.02)}
 /* item level B is the ghost side: grey fill and thumbs, like the ghosted period-B chips;
@@ -222,12 +224,11 @@ input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:4px;
 .labcard{border:1px dashed var(--line2); border-radius:var(--r2); background:transparent;
   padding:8px 12px; margin-top:.45rem;
   box-shadow:0 1px 2px rgba(0,0,0,.3), 0 14px 30px -24px rgba(0,0,0,.7)}
-.labcard .labhead{display:flex; align-items:center; gap:.5rem}
+.labcard .labhead{display:flex; align-items:center; gap:.5rem; margin-bottom:.3rem}
 .labcard .labname{font-size:.78rem; font-weight:600; color:var(--ink)}
 .labcard .labstat{font-size:.6rem; font-weight:700; text-transform:uppercase;
   letter-spacing:.14em; color:var(--ink3); border:1px solid var(--line2);
   border-radius:var(--r1); padding:.05rem .4rem; margin-left:auto}
-.labcard .labscope{color:var(--ink3); font-size:.71rem; line-height:1.45; margin:.25rem 0 .1rem}
 .labstamp{color:var(--amber); font-size:.68rem; font-weight:600;
   border:1px solid rgba(232,163,61,.4); border-radius:var(--r1); padding:0 .35rem}
 .labstamp.dim{color:var(--ink3); border-color:var(--line2)}
@@ -267,14 +268,10 @@ main{padding:34px 42px 72px; width:100%; max-width:1200px; min-width:0; margin:0
   line-height:1.15; font-variant-numeric:tabular-nums}
 .kpi-note{color:var(--ink3); font-size:.78rem; margin-top:.7rem; line-height:1.55}
 .kpi-note b{color:var(--ink); font-weight:600}
-/* Archon generated scope card */
+/* Archon card: how many specs the replica leaves out, when it leaves any out */
 #archon-card{border:1px solid var(--accent-line); border-radius:var(--r2);
   background:var(--accent-dim); padding:.7rem .95rem; margin-top:.8rem; font-size:.78rem;
   line-height:1.55; color:var(--ink2)}
-#archon-card .ac-head{color:var(--accent); font-weight:600; font-size:.72rem;
-  text-transform:uppercase; letter-spacing:.14em; margin-bottom:.25rem}
-#archon-card .byp{color:var(--ink3)}
-#archon-card .byp s{opacity:.75}
 #archon-card[hidden]{display:none}
 /* section headers — static marker + champagne state tick (§15.9) */
 .sec{display:flex; align-items:baseline; gap:.75rem; margin:2.6rem 0 1rem;
@@ -698,8 +695,6 @@ a.whico{display:inline-flex; color:inherit; text-decoration:none;
 #cs-fold .caret.ct{top:-14px; border-bottom-color:var(--accent-line)}
 #cs-fold .fh{font-size:.7rem; text-transform:uppercase; letter-spacing:.12em;
   color:var(--ink3); margin-bottom:.35rem}
-/* the pooled fold-out's denominator caveat sits directly under its header */
-#cs-fold .caption{margin:-.1rem 0 .45rem}
 /* the pooled fold-out's two readings: header text and the By trinket | By pair
    control share one line; the control is the sanctioned .seg.csmode recipe,
    sized for the panel (the .fh is uppercase and tracked — the control is not) */
@@ -783,7 +778,6 @@ table.cs-ench{border-collapse:collapse; font-size:.86rem; width:100%}
   border-radius:var(--r2); padding:.5rem .7rem; box-shadow:var(--gg-shadow)}
 #cs-crafted-pair .bt{font-size:.7rem; font-weight:700; text-transform:uppercase;
   letter-spacing:.15em; color:var(--ink3); margin-bottom:.3rem}
-#cs-crafted-pair .caption{margin-top:.4rem}
 /* the embellishment table sorts (pref #12) — the same edge-rule sort language
    as .data th, minus the sticky header a card-sized table has no use for */
 .fold-t th,.cs-ench th,.cs-tal th,.cs-fold th,.cs-lean th{color:var(--ink3);
@@ -839,10 +833,6 @@ table.cs-lean{border-collapse:collapse; width:100%; font-size:.82rem}
 .cs-lean .lnm{display:inline-block; vertical-align:middle; max-width:calc(100% - 40px);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .cs-lean td.llx{color:var(--ink3)}
-/* full width BENEATH the doll, not inside .dcenter — see the note in
-   csGearPaneHTML; two lines there against eight in a 500px column */
-.cs-lean-foot{font-size:.72rem; color:var(--ink3); line-height:1.55;
-  margin:.55rem 0 0; max-width:none}
 /* below 1401px .dcenter reflows under the columns, where a table adds real
    height — the same numbers degrade to a chip strip, switched by CSS alone
    (no resize listener, no second render path) */
@@ -1301,7 +1291,6 @@ table.cs-tal+#cs-impwrap{margin:.45rem 0 .65rem}
 .dl-trig .mk::before{content:"−"}
 .dl-trig.closed .mk::before{content:"+"}
 .dl-trig:hover{color:var(--ink)}
-.dl-note{font-size:.74rem; color:var(--ink3); margin:0 0 .4rem}
 table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
                                       two state columns collapse into each other */
 .dl-w{max-height:340px; overflow-y:auto}   /* only past 10 rows — see the caller */
@@ -1357,11 +1346,9 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
       <span class="chip" id="lens-me" hidden>★Me</span>
       <span class="chip" id="lens-read" title="open the percentile slider">p50 +</span>
     </div>
-    <span class="hint" id="lens-fixed" hidden>fixed p85</span>
     <div id="lens-pop" hidden>
       <div><b>DPS percentile: <span id="pctl-v">50</span>th</b></div>
       <input type="range" id="pctl" min="0" max="99" step="1" value="50">
-      <span class="hint">drives the percentile DPS everywhere it appears — chart, trend, breakdown. Averages stay averages. 0 = worst parse, 50 = median, 90 ≈ Archon's ceiling view</span>
       <div class="rowflex" style="margin-top:.55rem">
         <button class="btn" id="lens-save">★ Save current lens</button>
         <button class="btn" id="lens-clear">Clear ★Me</button>
@@ -1398,9 +1385,6 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     <div id="pctlb-pop" hidden>
       <div><b>vs percentile: <span id="pctlb-v">85</span>th</b></div>
       <input type="range" id="pctlb" min="0" max="99" step="1" value="85">
-      <span class="hint">the B side of the Skill compare — the grey ghost reads every
-      distribution metric at this percentile while the solid bar stays on the lens.
-      Any value 0–99, same as the lens side.</span>
     </div>
   </div>
 </header>
@@ -1438,7 +1422,6 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
       <span class="chip" id="ilvl-mode"></span>
     </div>
     <div id="blockG" class="bpanel" style="display:none">
-      <div class="hint" style="margin:0 0 .1rem">Item level B — drawn as grey ghost bars; the same period and filters as A</div>
       <div>Item Level B: <b id="ilvlb-v" style="color:#D8D6CF"></b></div>
       <div class="dual" id="ilvlb-band">
         <div class="track"></div><div class="fill" id="ilvlb-fill"></div>
@@ -1453,13 +1436,6 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     <b id="minchars-v" style="color:var(--accent)">250</b>
     <span id="minchars-eff" class="hint"></span></div>
   <input type="range" id="minchars" min="1" max="1200" value="250">
-  <div class="hint" id="minchars-help">How many distinct players must have
-    parsed a spec for it to show, counted against the view this page opens on.
-    Narrowing the sample — period, key range, item level, dungeon, region — scales the
-    threshold down to match, so roughly the same specs stay listed. Role,
-    melee/ranged and un-merging hero talents change which specs are listed
-    rather than the sample behind them, so those leave the threshold alone and
-    the list is free to grow or shrink. Drag to show more or fewer.</div>
   <div class="seg" id="timedseg" style="margin:.6rem 0 0">
     <button data-t="0" class="on">All completed</button>
     <button data-t="1">⏱ Timed only</button>
@@ -1472,7 +1448,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     Compare with a second period</label>
   <div class="chips" id="quickcmp"></div>
   <div id="blockB" class="bpanel" style="display:none">
-    <div class="hint" style="margin:0 0 .1rem">Period B — drawn as grey ghost bars</div>
+    <div class="hint" style="margin:0 0 .1rem">Period B</div>
     <div class="chips" id="presetB" style="padding-top:2px"></div>
   </div>
   <div id="posttune-slot"></div>
@@ -1482,19 +1458,16 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
   <div class="rowflex">
     <label class="small"><input type="checkbox" id="melee"> Melee</label>
     <label class="small"><input type="checkbox" id="ranged"> Ranged</label>
-    <span class="hint">both/neither = no filter</span>
   </div>
 
   <div id="lab-group">
     <div class="side-label">⚗ Lab</div>
     <div id="labbox"></div>
   </div>
-
-  <p class="hint" style="margin-top:1rem">Empty selections mean <i>no filter</i>. The site keeps only the newest two weekly resets; hover a period chip for its dates and volume.</p>
 </aside>
 
 <main>
-  <div class="hero-sub" id="hero-sub">Midnight Season 2 · built from Warcraft Logs fight rankings</div>
+  <div class="hero-sub" id="hero-sub">Midnight Season 2</div>
   <div class="hero-rule"></div>
 
   <div id="loading">Loading data…</div>
@@ -1522,12 +1495,10 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
       <div class="kpi"><div class="l">Run dates</div><div class="v" id="k-dates">–</div></div>
     </div>
     <div class="kpi-note" id="period-note"></div>
-    <div class="hint" id="coverage-note" title="What the collection can and cannot see. Runs enter this site only through Warcraft Logs' dungeon leaderboards, and only public logs carry a report to fetch."></div>
-    <div class="hint" id="retention-note" title="How much history this site holds. Older runs are not kept anywhere on the site; the number here is the policy, printed from the build that made this page."></div>
     <div id="archon-card" hidden></div>
 
 
-    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub">click any bar for its Spec Frame — comps and stats in one place</span></div>
+    <div class="sec" data-sec="overview"><span class="mk"></span><span class="t">Overview</span><span class="s" id="overview-sub"></span></div>
     <div class="secbody" id="sec-overview">
     <div class="seg" id="sortseg">
       <button data-s="desc" class="on">Best first</button>
@@ -1589,15 +1560,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     <div class="caption" id="trend-caption"></div>
     </div>
 
-    <footer>
-      DPS is per-player overall damage ÷ <span id="foot-clock">the fight clock, the figure Warcraft Logs ranks</span>; deaths are parsed from each report's
-      death events. <span id="foot-src">Data is the top ~1,000 runs per dungeon × key level
-      from Warcraft Logs fight rankings (~200 below +10, where the leaderboards are
-      bottomless) — read it as "what strong runs pull", not a population census.</span>
-      Weeks follow each region's own reset (US Tue · EU Wed · Asia ~Wed, UTC). <span id="foot-retention">Only the newest two resets are kept.</span>
-      <span id="built"></span>
-      <br>Raw payload: <a href="data.json.gz">data.json.gz</a>.
-    </footer>
+    <footer>Data from Warcraft Logs · <span id="built"></span> · <a id="rawlink" href="data.json">data.json</a></footer>
     </div><!-- /#sections -->
     <!-- Character screen — the Builds deep-dive's TOTAL main-column takeover (§3) -->
     <div id="charscreen" hidden></div>
@@ -1613,7 +1576,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
     <span id="frame-hero" class="fh"></span>
     <span id="frame-scope" class="fs"></span>
     <button id="frame-char" class="btn">Character screen →</button>
-    <span id="frame-dead" class="fs" hidden>Character screen unavailable — the builds data was not published in this build (size cap; see build_health.txt)</span>
+    <span id="frame-dead" class="fs" hidden>Character screen unavailable — builds data missing</span>
     <button id="frame-pin" title="Pin — clicking elsewhere no longer dismisses the frame">pin</button>
     <button id="frame-x" title="Close (Esc)">×</button>
   </div>
@@ -1623,7 +1586,7 @@ table.data.dl-t{min-width:820px}   /* must out-specify table.data's 700, or the
 <div id="tip"></div>
 
 <div id="archon-toast" hidden role="status">
-  <span>⚔ Archon mode off — a setting moved.</span>
+  <span>⚔ Archon mode off</span>
   <button class="btn" id="archon-restore">Restore my pre-Archon filters</button>
   <button class="x" aria-label="Dismiss">✕</button>
 </div>
@@ -1654,39 +1617,22 @@ const RESET_RULES = {US:[1,15], EU:[2,4]}, RESET_DEFAULT=[2,22]; // [weekday Mon
 
 const TABS = [
   {id:"avg", label:"Average DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
-   shade:"deathless", tick:"med",
-   cap:"Bold number: average DPS; grey tick: {med}. Brighter bar = higher deathless share."},
+   shade:"deathless", tick:"med"},
   {id:"med", label:"Median DPS", fmt:fmtInt, betterUp:true, inlay:"deaths",
-   shade:"deathless", tick:"avg",
-   cap:"DPS at the percentile the lens selects — 50 is the median, "
-     +"90 the ceiling view sites like Archon publish. Grey tick: average DPS. "
-     +"Brighter bar = higher deathless share."},
+   shade:"deathless", tick:"avg"},
 
   {id:"adeaths", label:"Average Deaths", fmt:v=>v.toFixed(2), betterUp:false, inlay:"dps",
-   shade:"med", tick:null,
-   cap:"Average deaths per run. Brighter bar = higher {med}."},
+   shade:"med", tick:null},
   {id:"deathless", label:"Deathless %", fmt:v=>v.toFixed(1)+"%", betterUp:true, inlay:"dps",
-   shade:"med", tick:null,
-   cap:"Share of runs where the player did not die once. Brighter bar = higher {med}."},
+   shade:"med", tick:null},
   {id:"arating", label:"Avg Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
-   inlay:"dps", shade:"med", tick:"mrating", rating:true,
-   cap:"Average Raider.IO season score of the distinct characters who played this spec under the current filters — a season total (best run in each of the 8 dungeons), not a single run's rating. Each character counts once however many times they logged, so it reads as who plays a spec, not how hard it hits. Grey tick: median. Brighter bar = higher {med}."},
+   inlay:"dps", shade:"med", tick:"mrating", rating:true},
   {id:"mrating", label:"Median Player Rating", fmt:v=>v.toFixed(0), betterUp:true,
-   inlay:"dps", shade:"med", tick:"arating", rating:true,
-   cap:"Median Raider.IO season score of the distinct characters who played this spec — less swayed by a handful of very highly rated players than the average. Grey tick: average. Brighter bar = higher {med}."},
+   inlay:"dps", shade:"med", tick:"arating", rating:true},
   {id:"chars", label:"Unique Characters", fmt:fmtInt, betterUp:true,
-   inlay:"dps", shade:"med", tick:null,
-   cap:"How many distinct characters parsed this spec under the current filters — how widely played it is, not how hard it hits. Brighter bar = higher {med}."},
+   inlay:"dps", shade:"med", tick:null},
 ];
 // Trajectory is a plain last section now — no Trend tab (feedback #4)
-// {window} is filled from payload.retention (retPhrase), never a hardcoded
-// "two": the sentence cannot drift from the builder's constant.
-const TREND_CAP="{metric} over time for the top groups under the current filters, "
-  +"across {window}; the point floor is stated below.";
-const TREND_CAP_KEY="{metric} at each key level for the top groups under the "
-  +"current filters, across {window} and the key range the slider selects.";
-const TREND_CAP_ILVL="{metric} at each item level for the top groups under the "
-  +"current filters, across {window} — how a spec scales with gear.";
 const CHART_MAX = 40;
 const TREND_MAX = 16;
 // Key-level axis. The chart's RANGE is whatever the key slider selects, so
@@ -1725,10 +1671,9 @@ const OUTW=1000;
 function retInfo(){return (D&&D.retention&&typeof D.retention==="object")?D.retention:null}
 function retResets(){const r=retInfo(); const n=r&&+r.resets; return (Number.isFinite(n)&&n>0)?n:0}
 function retPhrase(){
-  const n=retResets(), r=retInfo();
-  if(!n) return "the data the site keeps";
-  return "the newest "+n+" weekly reset"+(n===1?"":"s")+" the site keeps"
-    +(r&&r.max_age_days?", nothing older than "+r.max_age_days+" days":"");
+  const n=retResets();
+  if(!n) return "the resets kept";
+  return "the newest "+n+" reset"+(n===1?"":"s");
 }
 /* Reset buckets are per-region by construction (each region's own reset
    instant), but every LABEL used to be anchored on the US bound, so for the
@@ -1738,7 +1683,7 @@ function retPhrase(){
    range; resetHoles names regions that have rolled over with no runs yet. */
 let bucketSpan=new Map(), resetHoles=[];
 let curMinDay=0, curMaxDay=-1;   // day span covered by the current reset
-const EMPTY=new Set(); let lastEffMin=0;
+const EMPTY=new Set();
 // The filter state the page opens on. The minimum-characters threshold means
 // "this many players under the default view", so the default view is the
 // yardstick every other selection is measured against.
@@ -1827,9 +1772,9 @@ const projSkip=i=>hasProj&&state.proj&&R.tmul[i]===0;
    reads its percentiles off dnSpread() instead: the adjusted parse counted
    once in EVERY dungeon in view, at that dungeon's par. A spec that is played
    evenly then reads what the pooled recipe gave, at every percentile, and only
-   a lopsided mix moves. The factors, the borrowed levels and each spec's
-   dungeon mix are printed where the figures are, and the logged figure stays
-   one tick away. */
+   a lopsided mix moves. The factors and the borrowed levels are in the ⚖
+   chip's hover title, each spec's dungeon mix is printed where the figures
+   are, and the logged figure stays one tick away. */
 const DN_MIN=30;      // parses a (role, key level, dungeon) cell needs before its median is even tried
 const DN_CI=0.04;     // ...and that median must be known to within this, at 95%, for the cell to set a par
 const DN_FLAG=0.35;   // a spec with this share of its parses in ONE dungeon is named for it
@@ -1923,19 +1868,6 @@ function dnLevelText(){
   if(k<0) return "";
   return "at +"+k+": "+DNI.S.map(d=>D.dungeons[d]+" ×"+(1/DNI.fac[(r*DN_K+k)*nd+d]).toFixed(2)).join(" · ");
 }
-// how far the figures on screen sit from their logged ones at the lens in use: the median over the specs
-// shown. In the standard view a percentile is read in the average dungeon, so this is the level the
-// adjustment moves it by; in the replica it stays near zero, which is the point of dnSpread.
-function dnShiftText(rows){
-  if(!rows||!dnOn()) return "";
-  const v=[];
-  for(const r of rows){const a=r.a0||r.a; if(a&&a.lmed>0&&isFinite(a.med)) v.push(100*(a.med/a.lmed-1))}
-  if(v.length<2) return "";
-  v.sort((x,y)=>x-y);
-  const m=q50(v), sg=x=>Math.abs(x)<0.05?"0.0%":(x<0?"−":"+")+Math.abs(x).toFixed(1)+"%", lens="p"+(state.elite?Math.round(ELITE_PCTL*100):state.pctl);
-  return "At "+lens+" the "+v.length+(v.length<rows.length?" adjusted":"")+" specs shown move "+sg(v[0])+" to "+sg(v[v.length-1])+" against their "+(state.proj?"projected figure before ⚖":"logged figure")+" (median "+sg(m)+")"
-    +(!state.elite&&Math.abs(m)>=1&&Math.abs(state.pctl-50)>10?": a percentile is read in the average dungeon, so the spread between dungeons is no longer inside a high or a low lens":"")+". ";
-}
 // the role whose factors are printed: the one in view, else DPS
 function dnRole(){
   const v=dnRoles(), d=D.roles.indexOf("DPS");
@@ -1969,8 +1901,7 @@ function dnRuns(ks){
   put();
   return o.join(", ");
 }
-const dnCiPct=()=>Math.round(DN_CI*100);
-// key levels in view whose factors are another level's, and roles in view that have none
+// key levels in view whose factors are another level's, and dungeons in view that have no par
 function dnBorrowText(){
   if(!DNI||!DNI.on) return "";
   const lo=state.elite?0:state.klo, hi=Math.min(DN_K-1,state.elite?DN_K-1:state.khi);
@@ -1985,65 +1916,29 @@ function dnBorrowText(){
     const b=[...by.keys()].sort((x,y)=>x-y).map(u=>dnRuns(by.get(u))+(by.get(u).length===1?" uses +":" use +")+u+"’s");
     if(b.length) parts.push((many?D.roles[r]+" ":"")+b.join("; "));
   }
-  const bare=roles.filter(q=>!DNI.any[q]).map(q=>D.roles[q]);
-  return (parts.length?"Levels without a par known to ±"+dnCiPct()+"% in every dungeon borrow the nearest level’s factors: "+parts.join(". ")+". ":"")
-    +(bare.length&&dnOn()?bare.join(" and ")+" DPS is shown as logged: no key level has every dungeon’s par known to ±"+dnCiPct()+"%. ":"")
-    +(DNI.thin.length?"Left out of the average and shown as logged, no par known to ±"+dnCiPct()+"% at any level: "+DNI.thin.map(d=>D.dungeons[d]).join(", ")+". ":"");
-}
-// several roles in view: the factors printed are one role's, the others have their own
-function dnOtherRolesText(){
-  const r0=dnRole(), o=dnRoles().filter(r=>r!==r0&&DNI.any[r]).map(r=>D.roles[r]);
-  return o.length?o.join(" and ")+" parses are scaled by their own role’s factors (tick one role to read them). ":"";
+  return (parts.length?" Borrowed: "+parts.join(". ")+".":"")
+    +(DNI.thin.length?" No par for "+DNI.thin.map(d=>D.dungeons[d]).join(", ")+".":"");
 }
 // the switch is on, several dungeons are in view, and no role in view can be adjusted
 function dnBareText(){
-  return "no "+dnRoles().map(q=>D.roles[q]).join(" or ")+" key level has every dungeon’s par known to ±"+dnCiPct()
-    +"% (95%), so a dungeon factor would add more noise than it removes";
+  return "no par for "+dnRoles().map(q=>D.roles[q]).join(" or ");
 }
-// "the average dungeon's par", or the average of the ones in view when the Dungeon filter is set
-const dnAvgTxt=()=>DNI.thin.length?"the average par of "+DNI.S.length+" of the "+(DNI.S.length+DNI.thin.length)+" dungeons in view"
-  :DNI.S.length<D.dungeons.length?"the average par of the "+DNI.S.length+" dungeons in view":"the average dungeon’s par";
 // why nothing is adjusted: one dungeon in view, or fewer than two of the dungeons in view have a known par
 const dnFewPars=()=>!!DNI&&!DNI.on&&DNI.thin.length>0&&DNI.S.length+DNI.thin.length>1;
 const dnOneTxt=()=>dnFewPars()
-  ?"Fewer than two of the dungeons in view have a par known to ±"+dnCiPct()+"% (none for "+DNI.thin.map(d=>D.dungeons[d]).join(", ")+")"
+  ?"No par for "+DNI.thin.map(d=>D.dungeons[d]).join(", ")
   :"One dungeon in view";
 function dnTitle(){
-  if(DNI&&!DNI.on) return dnOneTxt()+": there is nothing to adjust, every DPS figure is as logged.";
-  if(!state.dnorm) return "DPS as logged, pooled across dungeons: a spec played mostly in one dungeon is ranked on that "
-    +"dungeon’s numbers. Tick for dungeon-adjusted DPS.";
-  if(DNI&&!dnOn()) return "Every DPS figure here is as logged: "+dnBareText()+".";
-  if(state.elite) return "Dungeon-adjusted DPS, the Archon replica’s form. Each kept parse counts once in every dungeon in view, at "
-    +"that dungeon’s level: its DPS × that dungeon’s par ÷ its own dungeon’s par at its key level, par being the median DPS "
-    +"of every parse of the same role there, all specs. The level of the dungeon a parse was logged in then no longer moves a "
-    +"spec’s figure, and a spec that is played evenly reads what the pooled recipe gave; how a spec does in the dungeon it is "
-    +"played in most still shows, and such a spec is tagged. The standard view reads percentiles in one average dungeon "
-    +"instead, which would put nearly every p"+Math.round(ELITE_PCTL*100)+" here several percent under the pooled recipe. "
-    +"Dungeon levels against the average dungeon "
-    +(dnRoles().length>1?"for "+D.roles[dnRole()]+" ":"")+dnLevelText()+". "+dnBorrowText()+"Untick for the pooled recipe, as logged.";
-  return "Dungeon-adjusted DPS. Damage depends on the dungeon as much as on the spec, so each parse is scaled by "
-    +dnAvgTxt()+" ÷ its own dungeon’s par at its key level — par being the median DPS of every parse "
-    +"of the same role in that dungeon at that key level, all specs. The damage level of the dungeons a spec is "
-    +"played in then no longer moves its figure; how it does in one dungeon against the others still does. "
-    +"Key level is not adjusted. Factors "+(dnRoles().length>1?"for "+D.roles[dnRole()]+" ":"")+dnFactorText()+". "+dnBorrowText()
-    +"Untick for DPS as logged, pooled across dungeons.";
+  if(DNI&&!DNI.on) return "DPS as logged: "+dnOneTxt().replace(/^N/,"n")+".";
+  if(!state.dnorm) return "DPS as logged.";
+  if(DNI&&!dnOn()) return "DPS as logged: "+dnBareText()+".";
+  const forRole=dnRoles().length>1?"for "+D.roles[dnRole()]+" ":"";
+  if(state.elite) return "Dungeon-adjusted DPS (replica). Dungeon levels "+forRole+dnLevelText()+"."+dnBorrowText();
+  return "Dungeon-adjusted DPS. Factors "+forRole+dnFactorText()+"."+dnBorrowText();
 }
+// the period note's ⚖ line: several dungeons in view and nothing can be adjusted for want of pars
 function dnNote(rows){
-  if(!DNI) return "";
-  if(!DNI.on) return dnFewPars()?"<b>⚖ DPS as logged here:</b> "+esc(dnOneTxt().replace(/^F/,"f"))+". ":"";
-  if(!state.dnorm) return "<b>DPS as logged</b> — pooled across dungeons, so a spec played mostly in one dungeon "
-    +"is ranked on that dungeon’s numbers; tick ⚖ in the lens bar to adjust. ";
-  if(!dnOn()) return "<b>⚖ DPS as logged here:</b> "+esc(dnBareText())+". ";
-  // the rule, the factors, what was borrowed, how far the figures moved, what key level does: the reasons and
-  // the caveats are one hover away on the ⚖ chip, and a spec that rests on one dungeon carries its own tag
-  const one=state.role.size===1, who=one?esc(D.roles[dnRole()])+" parse":"parse of the same role", forRole=one?"":"for "+esc(D.roles[dnRole()])+" ";
-  if(state.elite) return "<b>⚖ Dungeon-adjusted DPS, the replica’s form:</b> each kept parse counts once in every dungeon in view, "
-    +"at that dungeon’s level (× that dungeon’s par ÷ its own dungeon’s par at its key level; par = the median DPS of every "
-    +who+" there); a spec with "+Math.round(100*dnHotAt())+"% or more of its parses in one dungeon is tagged. Dungeon levels "+forRole+esc(dnLevelText())+". "
-    +esc(dnBorrowText())+esc(dnShiftText(rows))+esc(dnKeyNote(rows));
-  return "<b>⚖ Dungeon-adjusted DPS:</b> each parse × "+esc(dnAvgTxt())+" ÷ its own dungeon’s par at its key level "
-    +"(par = the median DPS of every "+who+" there, all specs); a spec with "+Math.round(100*dnHotAt())+"% or more of its parses in one dungeon is tagged. "
-    +"Factors "+forRole+esc(dnFactorText())+". "+esc(dnOtherRolesText())+esc(dnBorrowText())+esc(dnShiftText(rows))+esc(dnKeyNote(rows));
+  return dnFewPars()?"<b>⚖ DPS as logged here:</b> "+esc(dnOneTxt().replace(/^N/,"n"))+". ":"";
 }
 // what key level alone does: the average dungeon's par at the two ends of the range in view. The replica parks
 // the key range and keeps each spec from its own key floor up, so there the range is the median key floor of
@@ -2069,23 +1964,11 @@ function dnKeyRise(rows){
   const q=bar(hi)/bar(lo);
   return {lo, hi, fmed, nfl, r, tot:100*(q-1), per:100*(Math.pow(q,1/(hi-lo))-1)};
 }
-function dnKeyNote(rows){
-  const k=dnKeyRise(rows);
-  if(!k) return "";
-  if(k.lo<0) return "Key level is not adjusted; what a level is worth cannot be read here, fewer than two key levels in view have every dungeon’s par known to ±"+dnCiPct()+"%. ";
-  const rise="Key level is not adjusted: "+(dnRoles().length>1?D.roles[k.r]+" ":"")+"par rises "+Math.round(k.tot)+"% from +"+k.lo+" to +"+k.hi
-    +", about "+k.per.toFixed(1)+"% a level";
-  if(state.elite) return rise+(k.nfl===1?" (the one key floor shown is +"+k.fmed+")":" (half the key floors shown are at +"+k.fmed+" or above)")
-    +", and each spec is read from its own key floor up, so a spec whose floor is a level higher reads up to about that much higher. ";
-  return rise+", so a spec whose parses sit a level higher "
-    +"reads about that much higher — each spec’s "+(gearOn()?"median":"average")+" key is in its tooltip"+(twoSided()||skillOn()?"":" and in the Data Table")+". ";
-}
-// the Avg key header says the same figure the note prints, for the role and the range in view
+// the Avg key header's hover: what a key level is worth, for the role and the range in view; "" when it cannot be read
 function dnAkeyTitle(){
-  const k=dnKeyRise(), has=!!k&&k.lo>=0;
-  return "The average key level of this spec’s parses under these filters. Key level is not adjusted: "
-    +(has?(dnRoles().length>1?D.roles[k.r]+" ":"")+"par rises about "+k.per.toFixed(1)+"% a level here (+"+k.lo+" to +"+k.hi+")":"par rises with key level")
-    +", so a spec whose parses sit a level higher reads "+(has?"about that much ":"")+"higher."+(state.klo<state.khi?" Narrow the key range to one level to compare specs like for like.":"");
+  const k=dnKeyRise();
+  if(!k||k.lo<0) return "";
+  return (dnRoles().length>1?D.roles[k.r]+" par":"Par")+" rises about "+k.per.toFixed(1)+"% a level here (+"+k.lo+" to +"+k.hi+").";
 }
 function syncDnUI(){
   const c=$("dnorm-chip"), i=$("dnorm"); if(!c||!i) return;
@@ -2121,9 +2004,9 @@ function dmixText(a,top){
 }
 // named only where it means something: several dungeons in view, and a share far above an even split
 const dnHotAt=()=>Math.min(0.8,Math.max(DN_FLAG,2.5/(DNI.S.length+DNI.thin.length)));
-// tested on the share AS PRINTED (whole percent): a row never shows "35%" untagged beside "35% or more is tagged"
+// tested on the share AS PRINTED (whole percent): a row that prints the threshold share is always tagged
 const dmixHot=a=>!!DNI&&DNI.on&&Math.round(100*a.dshare)>=Math.round(100*dnHotAt());
-// what a concentrated spec's figure can and cannot say, then the whole mix
+// a concentrated spec's figure there and elsewhere, then the whole mix
 // "there 499,300 (77 parses) · elsewhere 455,100 (46)"
 const dmixHasSplit=a=>!!a&&a.din!=null&&a.dout!=null;   // nothing to split when every parse is in the one dungeon
 function dmixSplit(a){
@@ -2131,16 +2014,12 @@ function dmixSplit(a){
     +(a.dout!=null?fmtInt(a.dout):"–")+" ("+fmtInt(a.nout)+")";
 }
 function dmixTitle(a){
-  return (dmixHot(a)?(a.dshare>=1?"All":Math.round(100*a.dshare)+"%")+" of these parses are in "+D.dungeons[a.dtop]
-      +", so this figure "+(a.dshare>=1?"only says":a.dshare>=0.5?"mostly says":"leans on")+" how the spec does there"
-      +(dmixHasSplit(a)?": the same read gives "+dmixSplit(a)+", both dungeon-adjusted":"")
-      +". The Dungeon filter reads each dungeon on its own. ":"")
-    +dmixText(a);
+  return (dmixHot(a)&&dmixHasSplit(a)?dmixSplit(a)+" · ":"")+dmixText(a);
 }
 // the tooltip's full-width line: the mix, then for a flagged spec the same read there and elsewhere
 function dmixLine(a){
   return "Dungeon mix: "+esc(dmixText(a,2))
-    +(dmixHasSplit(a)?" — the same read there "+(a.din!=null?fmtInt(a.din):"–")+", elsewhere "+(a.dout!=null?fmtInt(a.dout):"–")+dsfxA(a):"");
+    +(dmixHasSplit(a)?" — there "+(a.din!=null?fmtInt(a.din):"–")+" · elsewhere "+(a.dout!=null?fmtInt(a.dout):"–")+dsfxA(a):"");
 }
 // "63% in Ruby Life Pools": beside the figure on the chart, under the spec in the table
 function dmixTag(a,cls){
@@ -2174,24 +2053,23 @@ function fmtDay(d){const t=new Date(new Date(D.epoch+"T00:00:00Z").getTime()+d*8
 
 /* ---------------- season data source ---------------- */
 const SEASON={file:"data.json",
-  sub:"Midnight Season 2 · built from Warcraft Logs fight rankings",
-  foot:'Data is the top ~1,000 runs per dungeon × key level from Warcraft Logs fight '
-      +'rankings (~200 below +10, where the leaderboards are bottomless) — read it as '
-      +'"what strong runs pull", not a population census.',
+  sub:"Midnight Season 2",
   // thresholds scale to the period, so these are season-wide starting points
   minchars:250, maxchars:1200};
 
 // Large datasets are published pre-gzipped (the deploy artifact has to stay
 // small); inflate them in the browser, else fall back to the plain file.
+let PAYLOAD_FILE=null;   // the file the payload came from: the builder ships it gzipped above 8 MB, plain below
 async function loadJSON(file){
+  PAYLOAD_FILE=file;
   if(typeof DecompressionStream==="function"){
     // GitHub Pages serves everything with max-age=600, so a returning tab
     // could show up to ten-minute-old data. no-cache forces a conditional
     // request: unchanged data costs one cheap 304, fresh data arrives the
     // moment it is deployed.
     const gz=await fetch(file+".gz",{cache:"no-cache"});
-    if(gz.ok) return new Response(
-      gz.body.pipeThrough(new DecompressionStream("gzip"))).json();
+    if(gz.ok){ PAYLOAD_FILE=file+".gz"; return new Response(
+      gz.body.pipeThrough(new DecompressionStream("gzip"))).json(); }
   }
   const r=await fetch(file,{cache:"no-cache"});
   if(!r.ok) throw new Error("HTTP "+r.status);
@@ -2208,14 +2086,6 @@ function loadSeason(){
   });
 }
 
-/* Coverage: what the leaderboard sweep listed and what it could not give.
-   Owner, 2026-09-08: "I don't want data hidden from me" -- the page says,
-   where the KPIs are, that runs come from WCL's dungeon leaderboards (a
-   top-score slice at the key levels whose boards the API's 20-page cap
-   truncates; every ranked public run above that), how many anonymous
-   entries had no report to fetch, and how many boards were cut. Numbers
-   come from the fetch via build_health (payload.coverage); the sentence
-   stands without them. */
 /* Known collection outages (data/collection_gaps.json -> payload.gaps).
    Runs that were listed while collection was down and had scrolled off the
    boards by the time it resumed are gone for good (fleet finding F2,
@@ -2233,12 +2103,12 @@ function gapsIn(dlo,dhi){
 }
 function gapText(x){
   const f=t=>new Date(Date.parse(t)).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC";
-  return f(x.from)+" – "+f(x.to)+(x.note?" ("+x.note+")":"");
+  return f(x.from)+" – "+f(x.to);
 }
 function gapsNote(dlo,dhi){
   const g=gapsIn(dlo,dhi); if(!g.length) return "";
   return ' <b class="delta down" style="font-size:.95em">⚠ Collection was down '+g.map(x=>esc(gapText(x))).join("; ")
-    +' — runs from those hours that left the leaderboards before it resumed were never collected, so this period is under-counted.</b>';
+    +' — this period is under-counted.</b>';
 }
 /* fleet finding F1 (2026-09-08): WCL lists a bracket by score and the sweep
    reads its first 20 pages, so once a bracket's window is full of timed runs
@@ -2254,89 +2124,27 @@ function keyRangeText(keys){
   if(a!=null) out.push(a===b?"+"+a:"+"+a+" to +"+b);
   return out.join(", ");
 }
+let TIMED_HINT="";      // measured once per payload; shown only while "All completed" is the selection it qualifies
 function renderTimedHint(){
-  const el=$("timed-hint"); if(!el) return;
-  if(!hasTimed||!R.timed){ el.textContent=""; return; }
-  let maxDay=-1; for(let i=0;i<N;i++) if(R.day[i]>maxDay) maxDay=R.day[i];
-  const lo=maxDay-6, seen={}, unt={};
-  for(let i=0;i<N;i++){ if(R.day[i]<lo) continue; const k=R.key[i]; seen[k]=(seen[k]||0)+1; if(R.timed[i]===0) unt[k]=(unt[k]||0)+1; }
-  const none=Object.keys(seen).map(Number).filter(k=>k>=10&&!unt[k]).sort((a,b)=>a-b);
-  if(!none.length){ el.textContent=""; return; }
-  el.innerHTML='Untimed (over-timer) runs reach this site only while a leaderboard window is not saturated '
-    +'(see Coverage under the KPIs). In the newest 7 days of data none arrived at <b>'+keyRangeText(none)
-    +'</b> — there "All completed" shows the same runs as "Timed only".';
+  TIMED_HINT="";
+  if(hasTimed&&R.timed){
+    let maxDay=-1; for(let i=0;i<N;i++) if(R.day[i]>maxDay) maxDay=R.day[i];
+    const lo=maxDay-6, seen={}, unt={};
+    for(let i=0;i<N;i++){ if(R.day[i]<lo) continue; const k=R.key[i]; seen[k]=(seen[k]||0)+1; if(R.timed[i]===0) unt[k]=(unt[k]||0)+1; }
+    const none=Object.keys(seen).map(Number).filter(k=>k>=10&&!unt[k]).sort((a,b)=>a-b);
+    if(none.length) TIMED_HINT='No untimed runs at <b>'+keyRangeText(none)+'</b> in the newest 7 days.';
+  }
+  syncTimedHint();
 }
-/* Retention statement (owner, 2026-09-14; standing rule: nothing that changes
-   what the reader sees may go unsaid). Reads payload.retention as the builder
-   shipped it; leads with the POLICY and the span actually held, then this
-   build's counts as trailing clauses omitted when zero (once the collector
-   prunes, "dropped" is 0 in steady state and a dropped-led sentence would
-   read as "nothing removed"). Names the two measurements that are NOT limited
-   to the window, and the outage notes the filter set aside. */
-function renderRetentionNote(){
-  const el=$("retention-note"), fr=$("foot-retention"); if(!el) return;
-  const r=retInfo();
-  if(!r){
-    el.innerHTML='<b>Retention.</b> This payload carries no retention block; the page cannot state how much history it holds.';
-    return;
-  }
-  const n=+r.resets||0, days=r.days_kept&&typeof r.days_kept==="object"?r.days_kept:null;
-  const held=days?Object.keys(days).filter(k=>k!=="Unknown").sort().map(k=>k+" "+(+days[k]).toFixed(1)+" d").join(" · "):"";
-  const asof=r.anchor?new Date(r.anchor):null;
-  const fmtT=t=>t.toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"UTC"})+" UTC";
-  let h='<b>Retention.</b> This dashboard holds the newest <b>'+n+'</b> weekly reset'+(n===1?'':'s')+' per region'
-    +(r.max_age_days?' and nothing older than <b>'+r.max_age_days+' days</b>':'')
-    +(held?' — as of '+(asof&&!isNaN(+asof)?fmtT(asof):'the newest run')+' that is '+held:'')
-    +'. Older runs are not kept on this site and no control here can reach them.';
-  if(r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than that ceiling, so the newest two resets on file are shown instead.</b>';
-  if(typeof r.lag_h==="number"&&r.lag_h>3) h+=' Newest run <b>'+r.lag_h.toFixed(1)+' h</b> before this build; "this reset" is as of that run, not the clock.';
-  if(r.window_before_data) h+=' The window reaches back before the oldest run held (a young season, or older runs already gone).';
-  if(r.dropped>0) h+=' This build set aside '+fmtInt(r.dropped)+' older parses ('+fmtInt(r.runs_dropped||0)+' runs).';
-  if(r.undated>0) h+=' '+fmtInt(r.undated)+' parses with no readable start time are kept and appear only under "Everything kept".';
-  if(outWindowRows>0) h+=' <b class="delta down">'+fmtInt(outWindowRows)+' parses in this payload fall past the window and are not shown anywhere.</b>';
-  if(Array.isArray(r.exceptions)&&r.exceptions.length){
-    const ex=r.exceptions.filter(e=>e&&e.key!=="rating"||hasRating);
-    if(ex.length) h+=' Not limited to the window: '+ex.map(e=>'<b>'+esc(e.what)+'</b> — '+esc(e.scope)).join('; ')+'.';
-  }
-  if(D.gaps_suppressed>0) h+=' '+D.gaps_suppressed+' outage note'+(D.gaps_suppressed===1?'':'s')+' older than the window '+(D.gaps_suppressed===1?'is':'are')+' not shown.';
-  el.innerHTML=h;
-  if(fr) fr.textContent="Only "+retPhrase().replace(/^the /,"the ")+(held?" — "+held:"")+".";
-}
-function renderCoverageNote(){
-  const el=$("coverage-note"); if(!el) return;
-  const c=(D&&D.coverage)||{};
-  const n=v=>typeof v==="number"?fmtInt(v):null;
-  let h='<b>Coverage.</b> Runs enter this site through Warcraft Logs\' dungeon leaderboards, '
-    +'re-swept every 30 minutes: the top 1,000 entries by score per dungeon and key level '
-    +'(200 below +10), public logs only, one entry per team as WCL ranks them.';
-  if(n(c.public_runs)!=null)
-    h+=' The last full sweep listed <b>'+n(c.public_runs)+'</b> public runs'
-      +(c.anonymous_entries>0
-        ?' and skipped <b>'+n(c.anonymous_entries)+'</b> anonymous entries (no report to fetch).'
-        :'; Warcraft Logs is asked for entries with a public log only, so anonymous entries take no slot in the window.');
-  if(n(c.boards_capped)!=null){
-    const ks=Array.isArray(c.keys_capped)&&c.keys_capped.length?c.keys_capped:null;
-    h+=' <b>'+n(c.boards_capped)+' of '+n(c.boards)+'</b> boards were cut by the API\'s 20-page cap'
-      +(ks?' (keys +'+Math.min(...ks)+' to +'+Math.max(...ks)+')':'')
-      +(c.boards_capped>0?': at those key levels the site holds a <b>top-score slice</b> of the runs played, not all of them; above them, every run WCL ranks.':'.');
-  }else h+=' Boards the 20-page cap truncates hold a top-score slice of the runs played, not all of them.';
-  el.innerHTML=h;
-  // the footer's depth figure counts ranked ENTRIES; say how many carry a
-  // report the site can read (fleet finding F3, 2026-09-08)
-  const fs=$("foot-src");
-  if(fs){
-    const pub=n(c.public_runs), an=n(c.anonymous_entries);
-    const share=(typeof c.public_runs==="number"&&typeof c.anonymous_entries==="number"&&c.public_runs+c.anonymous_entries>0)
-      ? Math.round(100*c.public_runs/(c.public_runs+c.anonymous_entries)) : null;
-    fs.textContent="Data is the top ~1,000 ranked entries per dungeon × key level from Warcraft Logs fight "
-      +"rankings (~200 below +10, where the leaderboards are bottomless); "
-      +(share!=null&&c.anonymous_entries>0
-          ?"in the last full sweep "+share+"% of entries ("+pub+") carried a public report the site can read and "+an+" were anonymous"
-        :pub!=null
-          ?"the last full sweep listed "+pub+" public runs; the query asks for logged entries only, so anonymous entries take no slot"
-          :"only entries with a public report can be read; anonymous entries are excluded at the source")
-      +" — read it as \"what strong runs pull\", not a population census.";
-  }
+function syncTimedHint(){ const el=$("timed-hint"); if(el) el.innerHTML=state.timedOnly?"":TIMED_HINT; }
+/* Retention warnings from payload.retention, as HTML for the period note: the stale flag and a newest run
+   that lags the build by more than 3 h. "" when neither applies. */
+function retentionWarnHTML(){
+  const r=retInfo(); if(!r) return "";
+  let h="";
+  if(r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than '+r.max_age_days+' days.</b>';
+  if(typeof r.lag_h==="number"&&r.lag_h>3) h+=' <b class="delta down">Newest run '+r.lag_h.toFixed(1)+' h before this build.</b>';
+  return h;
 }
 function initData(d,cfg){
   D=d; R=d.rows; N=R.dps.length;
@@ -2356,6 +2164,7 @@ function initData(d,cfg){
   buildRuns();
   {const r=(d.retention||{}).resets; KEEP_BUCKETS=(Number.isFinite(+r)&&+r>0)?+r:2;}
   computeResetBuckets();
+  if(outWindowRows>0) console.warn("parses past the retention window, not shown: "+outWindowRows);
   buildDnPar();   // ⚖ the par table rests on the rows the window keeps, so it follows the buckets
   // Raider.IO season score per character, indexed by the same char id the rows
   // carry. Enrichment is a slow background sweep, so partial coverage is the
@@ -2446,20 +2255,12 @@ function initData(d,cfg){
   state.ilBand=false; ILW=null;                  // item level opens on one thumb, window recomputed
   buildControls();
   labScopeRefresh();
-  $("archon-chip").title=archonTitle();
   $("hero-sub").textContent=cfg.sub;
-  $("foot-src").textContent=cfg.foot;
-  renderCoverageNote();   // after the static footer text: it rewrites #foot-src with the live fetchable share
-  renderRetentionNote();  // the window this page holds, from payload.retention -- printed on every build
   document.title="Mythic+ Performance — "+(d.season||"Midnight");
   $("loading").style.display="none";
   $("app").style.display=""; $("side").style.display="";
-  $("built").textContent=" Data built "+d.built+".";
-  // which clock this payload's DPS stands on: the builder says so since 2026-11-13 (dps_clock). A payload
-  // without the field was built before that, on the keystone clock (the timer: 15 s for every party death)
-  {const fc=$("foot-clock"); if(fc) fc.textContent=d.dps_clock==="fight"
-     ?"the fight clock, the figure Warcraft Logs ranks (builds made before the builder changed on 13 Nov 2026 divided by the keystone clock, which adds 15 s per party death)"
-     :"the keystone clock: this payload predates the builder change of 13 Nov 2026; builds made after it divide by the fight clock, the figure Warcraft Logs ranks, and read about 1% higher at high keys";}
+  $("built").textContent="built "+d.built;
+  { const a=$("rawlink"); if(a&&PAYLOAD_FILE){ a.href=PAYLOAD_FILE; a.textContent=PAYLOAD_FILE; } }
   setCompare(false);   // also resets gain/loss sort state, then renders
   csRestoreFromHash(); // #cs=… survives refresh AND the reload-based reset
 }
@@ -2635,7 +2436,7 @@ function computeResetBuckets(){
       w=d0>=b0?0:Math.ceil((b0-d0)/7);
     }
     // outside the retained window: never in a bucket, never in a selection,
-    // and COUNTED so the retention note can say so (an old payload only)
+    // and COUNTED so initData can warn on the console (an old payload only)
     if(w>=KEEP_BUCKETS){R.rbucket[i]=OUTW; outWindowRows++; continue}
     R.rbucket[i]=w;
   }
@@ -2759,7 +2560,7 @@ function resetNote(){
   const t=resetHoleText(state.reg.size?state.reg:null);
   if(!t) return "";
   return ' <b class="delta down" style="font-size:.95em">⚠ '+esc(t)
-    +' — no runs there in this reset yet; those runs are in last reset.</b>';
+    +' — no runs there in this reset yet.</b>';
 }
 // Retention (owner, 2026-09-14): the build keeps the newest two resets, so
 // the whole dataset IS ~two weeks and there is no month to name. The EMPTY
@@ -2801,7 +2602,7 @@ function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); paintDays(); syn
 function describePeriod(sel){
   // the empty selection is the no-filter sentinel (periodPass), not a preset
   // alias: name it before the loop so it can never fall through to "0 weeks"
-  if(!sel.size) return "everything kept ("+retPhrase()+")";
+  if(!sel.size) return "everything kept";
   let base=null;
   for(const [name,make] of PRESETS)
     if(make().length&&setsEqual(sel,new Set(presetWeeks(make)))) {base=name.toLowerCase(); break}
@@ -2922,12 +2723,7 @@ function buildControls(){
       // when nothing in view is affected; the long phrasing lives in the title
       const hint=$("ilvl-hint");
       hint.textContent=(on?"· "+Math.round(shA.pct)+"% of the selection":"")
-        +(on&&w.unk?" · "+fmtInt(w.unk)+" here carry no item level and "
-          +(gear?"sit in neither cohort":"are left out"):"")
-        // the scale is drawn over the populated levels only: say so where it shows,
-        // not only in a tooltip, and say that the number box reaches past it
-        +((w.outLo||w.outHi)?(on?" · ":"· ")+"scale "+w.lo+"–"+w.hi+", "
-          +fmtInt(w.outLo+w.outHi)+" thinner parses outside it (type a number to reach them)":"");
+        +(on&&w.unk?" · "+fmtInt(w.unk)+" no ilvl":"");
       hint.title=on?Math.round(shA.pct)+"% of the "+fmtInt(shA.pool)
         +" parses the other filters select that carry an item level "
         +(gear?"are in cohort A":"match this item level")
@@ -3018,11 +2814,8 @@ function buildControls(){
       if(!ilvlOneSays()){
         state.ilBand=true;   // the form is already forced; keep the flag with it
         setNotice(gearOn()
-          ? "Item level: A "+ilvlAText()+" and B "+ilvlBText()+" are not one split — one thumb can "
-            +"only put A at or above a level and B everything below it. ⚡ Median split sets that "
-            +"shape in one click, or keep the two ranges."
-          : "Item level: "+ilvlAText()+" is a band, and one thumb can only say “≥ N” — open the top "
-            +"end to "+ILVL.max+" first, or keep the two ranges.");
+          ? "Item level: A "+ilvlAText()+" and B "+ilvlBText()+" are not one split — two ranges kept."
+          : "Item level: "+ilvlAText()+" is a band — two ranges kept.");
         paintIlvl(); return;
       }
       state.ilBand=!state.ilBand; paintIlvl();
@@ -3047,15 +2840,12 @@ function buildControls(){
                 if(lo==null||hi==null||hi<=lo){ setNotice("Gear compare: the current selection has no spread of item levels for a quartile split."); return; }
                 gearTrack(hi,ILVL.max); state.ilo=hi; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=lo;
                 state.ilBand=true;   // a gap between the cohorts: one thumb cannot say this
-                setNotice("Gear compare: A = "+ilvlAText()+" (top quarter of the selection's item levels), B = "+ilvlBText()
-                  +" (bottom quarter) — the middle half sits in neither cohort; the note counts it.");
                 syncIlvlInputs(); syncAxisUI(); render(); }],
         ["⇄ Swap A and B","exchange the two item-level ranges — the badge then reads the other cohort's change",
           ()=>{ const lo=state.ilo, hi=state.ihi;
                 gearTrack(state.ilob,state.ihib);
                 state.ilo=state.ilob; state.ihi=state.ihib; state.ilob=lo; state.ihib=hi;
                 state.ilBand=true;   // A below B: one thumb cannot say this either
-                setNotice("Gear compare: swapped — A = "+ilvlAText()+" (solid), B = "+ilvlBText()+" (grey ghost).");
                 syncIlvlInputs(); syncAxisUI(); render(); }],
         [state.keyHeld?"↺ Release key":"⚑ Hold key",
           state.keyHeld
@@ -3066,7 +2856,6 @@ function buildControls(){
               const k=state.keyHeld; state.keyHeld=null;
               state.klo=k.klo; state.khi=k.khi; ILW=null;
               buildControls(); render();
-              setNotice("Gear compare: key range released — back to +"+k.klo+"–+"+k.khi+".");
               return;
             }
             const gc=gearCensus();
@@ -3076,8 +2865,8 @@ function buildControls(){
             state.klo=state.khi=gc.kAll; ILW=null;
             buildControls(); render();
             const afterA=FRAME_A?FRAME_A.parses:0, afterB=FRAME_B?FRAME_B.parses:0;
-            setNotice("Gear compare: key range held at +"+gc.kAll+" — both cohorts sit on one rung now, so what is left of the badge is gear, not the ladder. "
-              +"A "+fmtInt(beforeA)+" → "+fmtInt(afterA)+" parses, B "+fmtInt(beforeB)+" → "+fmtInt(afterB)+". ↺ Release key puts it back.");
+            setNotice("Gear compare: key held at +"+gc.kAll
+              +" · A "+fmtInt(beforeA)+" → "+fmtInt(afterA)+" parses · B "+fmtInt(beforeB)+" → "+fmtInt(afterB)+".");
           }]]){
       const c=document.createElement("span"); c.className="chip"; c.textContent=name; c.title=title; c.onclick=fn;
       gq.appendChild(c);
@@ -3105,10 +2894,7 @@ function buildControls(){
       paintA=buildPeriodUI("A",state.weeksA,false);
       paintB=buildPeriodUI("B",state.weeksB,true);
       $("cmp").checked=true;
-      const wasGear=state.gear;   // setCompare turns the Gear axis off; gearOff says what happened to A
       setCompare(true);
-      setNotice("⚡ Quick compare rewrote both periods: A = "+name.toLowerCase().replace(" vs ",", B = ")+" — compare on."
-        +(wasGear?" "+$("notice").textContent:""));
     };
     qbox.appendChild(c);
   }
@@ -3206,7 +2992,6 @@ function buildControls(){
     if(e.target.checked){
       archonPrev=snap();
       const t=archonTarget();
-      setNotice("⚔ Archon replica on — filters rewritten to its recipe; your previous filters are held for restore.");
       applyArchonState({pctl:85, elite:true, klo:t.kmin, khi:t.kmax,
         ilo:t.ilo, ihi:t.ihi,
         timedOnly:false, merge:true,
@@ -3216,7 +3001,6 @@ function buildControls(){
       // explicit off: back to exactly where you were. Auto-uncheck from
       // moving a single setting never comes through here -- that path keeps
       // your changes, this one undoes the mode wholesale.
-      setNotice("⚔ Archon replica off — pre-Archon filters restored.");
       applyArchonState(archonPrev || {elite:false, pctl:50, klo:12, khi:19,
         timedOnly:hasTimed, merge:true, compare:false, tab:"med", trendMetric:"med",
         role:[], weeksA:[0]});
@@ -3412,14 +3196,11 @@ function gearSplitApply(announce){
   const r=gearMedian(), med=r?r.med:null;
   if(r==null||r.lo>=med){   // nothing below the median: B would hold no parse at all
     setNotice("Gear compare: the current selection cannot be split at its median item level"
-      +(r==null?" — it holds no parse with an item level":" — its median is ilvl "+med+" and no parse in it sits below that")
-      +(state.gear?"; drag the two ranges by hand.":"; narrow the Item Level slider by hand first, then turn Gear on — B takes the other side."));
+      +(r==null?" — it holds no parse with an item level":" — its median is ilvl "+med+" and no parse in it sits below that")+".");
     return false;
   }
   gearTrack(med,ILVL.max);
   state.ilo=med; state.ihi=ILVL.max; state.ilob=ILVL.min; state.ihib=med-1;
-  if(announce) setNotice("Gear compare: A = "+ilvlAText()+" (at or above the selection's median item level at the split, "
-    +med+"), B = "+ilvlBText()+" (below it).");
   syncIlvlInputs(); return true;
 }
 function syncIlvlInputs(){
@@ -3446,8 +3227,6 @@ function setGear(on){
       const below=state.ilo>ILVL.min;
       if(below){ state.ilob=ILVL.min; state.ihib=state.ilo-1; }
       else { state.ilob=state.ihi+1; state.ihib=ILVL.max; }
-      setNotice("Gear compare: A kept at "+ilvlAText()+" (solid), B = "+ilvlBText()
-        +" (everything "+(below?"below":"above")+" A, grey ghost).");
       syncIlvlInputs();
     }
   }else gearOff();
@@ -3462,12 +3241,10 @@ function gearOff(){
   if(state.keyHeld){   // the hold belongs to the gear read; it must not outlive it
     const k=state.keyHeld; state.keyHeld=null;
     state.klo=k.klo; state.khi=k.khi; ILW=null;
-    setNotice("Gear compare off — the key range is back to +"+k.klo+"–+"+k.khi+".");
   }
   if(gearPrevA&&state.ilo===gearPrevA.setLo&&state.ihi===gearPrevA.setHi){
     state.ilo=gearPrevA.lo; state.ihi=gearPrevA.hi; syncIlvlInputs();
-    setNotice("Gear compare off — the item-level range is back to "+(ilvlNarrowed()?ilvlAText():"any")+".");
-  }else setNotice("Gear compare off — the item-level range stays at "+(ilvlNarrowed()?ilvlAText():"any")+".");
+  }
   gearPrevA=null;
 }
 /* Gear axis census — ONE pass over the parses the other filters select for
@@ -3500,7 +3277,7 @@ function gearCensus(){
 function gearOverlapNote(){
   const lo=Math.max(state.ilo,state.ilob), hi=Math.min(state.ihi,state.ihib);
   if(lo>hi) return "";
-  return " <b>A and B overlap on ilvl "+lo+(hi>lo?"–"+hi:"")+"</b> — parses there count on both sides.";
+  return " <b>A and B overlap on ilvl "+lo+(hi>lo?"–"+hi:"")+".</b>";
 }
 // a character with parses on both sides of the split counts in both cohorts — said, because
 // part of the A-vs-B gap is then the same players at different gear
@@ -3508,7 +3285,7 @@ function gearSharedCharsNote(A,B){
   if(!A||!B||!A.charSet||!B.charSet) return "";
   const [s,t]=A.charSet.size<=B.charSet.size?[A.charSet,B.charSet]:[B.charSet,A.charSet];
   let n=0; for(const c of s) if(t.has(c)) n++;
-  return n?" "+fmtInt(n)+" characters have parses in both cohorts and count on both sides.":"";
+  return n?" "+fmtInt(n)+" character"+(n===1?"":"s")+" in both cohorts.":"";
 }
 document.querySelectorAll("#cmpseg button").forEach(b=>{
   b.onclick=()=>{
@@ -3562,7 +3339,6 @@ function syncLensUI(){
     meC.classList.toggle("on",state.pctl===me); }
   else meC.hidden=true;
   $("lens-read").textContent="p"+state.pctl+($("lens-pop").hidden?" +":" −");
-  $("lens-fixed").hidden=!state.elite;
   if(state.elite&&!$("lens-pop").hidden) $("lens-pop").hidden=true;
 }
 function setPctl(p){
@@ -3576,11 +3352,10 @@ function setPctl(p){
 }
 document.querySelectorAll("#lens-chips .chip[data-p]").forEach(c=>{
   c.onclick=()=>{ if(!D) return;
-    setNotice("Lens set to p"+c.dataset.p+" — every DPS reading follows it.");
     setPctl(+c.dataset.p); };
 });
 $("lens-me").onclick=()=>{ const me=readMe(); if(me!=null&&D){
-  setNotice("Lens set to your saved ★ p"+me+"."); setPctl(me); } };
+  setPctl(me); } };
 $("lens-read").onclick=()=>{
   if(state.elite) return;   // slider is pinned at p85 inside the replica
   $("lens-pop").hidden=!$("lens-pop").hidden;
@@ -3600,7 +3375,10 @@ $("lens-clear").onclick=()=>{
 };
 
 /* -------- programmatic-change notice slot (context strip) -------- */
-function setNotice(t){ const n=$("notice"); if(n) n.textContent=t; }
+// A notice says what just happened or why a control refused. It is stamped with the render it was set in,
+// outlives the render that follows it and is cleared by the next one: it used to stay until overwritten.
+let __renderGen=0, __noticeGen=-1;
+function setNotice(t){ const n=$("notice"); if(n) n.textContent=t; __noticeGen=__renderGen; }
 
 /* -------- Archon exit toast: auto-uncheck kept your changes; offer restore -------- */
 function showArchonToast(){ $("archon-toast").hidden=false; }
@@ -3608,33 +3386,19 @@ function hideArchonToast(){ $("archon-toast").hidden=true; }
 $("dnorm").onchange=e=>{
   if(!D){e.target.checked=state.dnorm; return}
   state.dnorm=e.target.checked;
-  setNotice(!DNI||!DNI.on?dnOneTxt()+": there is nothing to adjust, DPS is as logged either way."
-    :!state.dnorm?"⚖ off — DPS as logged, pooled across dungeons."
-    :dnOn()?"⚖ Dungeon-adjusted DPS on.":"⚖ on, but nothing in view can be adjusted: "+dnBareText()+".");
+  setNotice(!DNI||!DNI.on?dnOneTxt()+" — DPS as logged."
+    :state.dnorm&&!dnOn()?"⚖ on — nothing in view can be adjusted.":"");
   render();
 };
 $("archon-restore").onclick=()=>{
   hideArchonToast();
   if(archonPrev&&window.applyArchonState){
-    setNotice("⚔ Pre-Archon filters restored.");
     const prev=archonPrev; archonPrev=null;
     applyArchonState(prev);
   }
 };
 document.querySelector("#archon-toast .x").onclick=()=>hideArchonToast();
 // single source for the chip tooltip: the shipped recipe, not folklore (R6)
-function archonTitle(){
-  return "Replicates archon.gg's high-keys table: per spec, the top decile of key "
-    +"levels over the last 14 days, then p85 DPS within (per-spec elite key floor). "
-    +"Keys"+(ILVL.has?", item level":"")+" and weeks are parked at full range because the replica path bypasses them; "
-    +"timed filter off, hero talents merged, DPS role, compare off. "
-    +"The pooled recipe was checked against their live High Keys table early in the season (Spearman 0.96, level within 5%; "
-    +"no dated record, not re-checked since). With ⚖ on, each kept "
-    +"parse counts once in every dungeon in view, which leaves an evenly played spec where the pooled recipe put it; that "
-    +"form has not itself been checked against archon.gg. Their FAQ, as a search engine excerpts it, takes the High Keys sample "
-    +"for each spec in each dungeon, so no one dungeon can take over a spec there; how they combine the dungeons is not published. "
-    +"Unchecks itself the moment any of those settings moves.";
-}
 
 /* -------- ⚗ LAB_FEATURES manifest — every transient feature lives here --------
    One entry OWNS its controls, active badges, exemption stamps, output section
@@ -3650,18 +3414,14 @@ const LAB_FEATURES=[
    active:()=>hasProj&&state.proj,
    controlHTML:'<label class="small" id="projbox">'
      +'<input type="checkbox" id="projcb"> Project upcoming tuning'
-     +'<span class="hint" id="projhint"></span></label>',
-   scopeBits:()=>state.proj
-     ?"every DPS figure is re-scored under the announced changes; parses without breakdowns are excluded from both sides"
-     :"off — recorded numbers everywhere"},
+     +'<span class="hint" id="projhint"></span></label>'},
   {id:"posttune", name:"Since latest tuning", badge:"TUNED",
    mount:"posttune-slot", card:false,
    gate:()=>hasTune,
    active:()=>hasTune&&state.postTune,
    controlHTML:'<label class="small" id="tunebox" style="margin-top:.5rem">'
      +'<input type="checkbox" id="posttune"> Since latest tuning'
-     +'<span class="hint" id="tunehint"></span></label>',
-   scopeBits:()=>""},
+     +'<span class="hint" id="tunehint"></span></label>'},
 ];
 function labHas(id){return LAB_FEATURES.some(f=>f.id===id)}
 function renderLabCards(){
@@ -3682,7 +3442,6 @@ function labCardHTML(f){
     ? '<div class="labcard" data-lab="'+f.id+'"><div class="labhead">'
       +'<span class="labname">'+f.name+'</span>'
       +'<span class="labstat" data-labstat="'+f.id+'">off</span></div>'
-      +'<div class="labscope" data-labscope="'+f.id+'"></div>'
       +(f.controlHTML||"")+'</div>'
     : (f.controlHTML||"");
 }
@@ -3700,17 +3459,15 @@ function wireLabControls(){
     render();
   };
 }
-// refresh every rendered Lab card's status chip + generated scope line
+// refresh every rendered Lab card's status chip
 function labScopeRefresh(){
   for(const f of LAB_FEATURES){
     if(!f.gate()||!f.card) continue;
     const st=document.querySelector('[data-labstat="'+f.id+'"]');
-    const sl=document.querySelector('[data-labscope="'+f.id+'"]');
     const on=f.active();
     if(st){st.textContent=on?"active":"off";
       st.style.color=on?"var(--amber)":"";
       st.style.borderColor=on?"rgba(232,163,61,.45)":"";}
-    if(sl) sl.textContent=f.scopeBits?f.scopeBits():"";
   }
 }
 // amber ⚗ badges an ACTIVE Lab entry stamps into the scope line of every
@@ -3734,12 +3491,12 @@ function labNoteBadges(){
   return h;
 }
 // generated evidence sentence — the ONLY source of section scope prose
-function scopeLine(sec,extra){
+function scopeLine(sec){
   const p=[];
   p.push("p"+state.pctl+" lens");
   if(state.elite) p.push("elite frontier · last 14 days");
   else{
-    p.push(describePeriod(state.weeksA));
+    p.push(sec==="trajectory"?"all resets":describePeriod(state.weeksA));   // Trajectory ignores the period selection
     p.push("keys +"+state.klo+"–+"+state.khi);
     if(gearOn()) p.push(ilvlAText()+" (cohort A)");   // B is the ghost's business, named where a ghost is drawn
     else if(ilvlNarrowed()) p.push(ilvlText());
@@ -3747,20 +3504,17 @@ function scopeLine(sec,extra){
   if(state.timedOnly) p.push("timed only");
   // ⚖ on is the default and is said with the mark alone (any more words pushed two heads onto a second line at
   // 1920); off is the unusual state and is spelt out. A role in view that has no factors is named in the mark's
-  // title and in the period note; when NO spec shown is adjusted (only such roles are left) the head says as logged
+  // title; when NO spec shown is adjusted (only such roles are left) the head says as logged
   let dnFrag="";
   if(DNI&&DNI.on){
     const someAdj=dnOn()&&(!FRAME_A||!FRAME_A.groups||!FRAME_A.groups.size||[...FRAME_A.groups.values()].some(g=>g.adj!==false));
     if(someAdj){
       const bare=dnRoles().filter(r=>!DNI.any[r]).map(r=>D.roles[r]);
-      dnFrag=' · <span title="'+escA("⚖: the DPS figures in this section are dungeon-adjusted (the rule is in the note under the lens bar)"
-        +(bare.length?"; "+bare.join(" and ")+" DPS is as logged":"")+"."
-        +(state.elite&&sec==="trajectory"?" Trajectory reads each parse at the average dungeon, not the replica’s every-dungeon pool.":""))
+      dnFrag=' · <span title="'+escA("⚖ dungeon-adjusted DPS"+(bare.length?"; "+bare.join(" and ")+" DPS as logged":""))
         +'">⚖</span>';
     } else p.push("DPS as logged");
   }
   let s=esc(p.join(" · "))+dnFrag+labStamp(sec);
-  if(extra) s+=" — "+extra;
   return s;
 }
 
@@ -4041,10 +3795,7 @@ function ratingCoverage(){
   const n=CHARSCORE.length, r=CHARSCORE.reduce((a,v)=>a+(v>=0),0);
   if(!n) return "";
   const pct=100*r/n;
-  return "Ratings cover "+fmtInt(r)+" of "+fmtInt(n)+" characters ("+pct.toFixed(1)+"%)"
-    +(pct<80?"; the sweep fills in heaviest-logged first, so a partial one reads high."
-            :".")
-    +" Rating is a Raider.IO season total — the one figure here that reaches past "+retPhrase()+".";
+  return "Ratings cover "+fmtInt(r)+" of "+fmtInt(n)+" characters ("+pct.toFixed(1)+"%).";
 }
 
 /* ---------------- rendering ---------------- */
@@ -4127,8 +3878,7 @@ function tipHTML(r,compare){
       h+=one("Median player rating (season)", rf(a.mrating));
       h+=one("Rated characters", fmtInt(a.rn));
     }
-    return h+"</table><div class=\"fnote\">the same parses read at two "
-      +"percentiles — the population figures are shared</div>";
+    return h+"</table>";
   }
   if(compare) h+=gearOn()
     ? row("", '<b>A</b><br><span style="white-space:nowrap">'+esc(ilvlAText())+'</span>',
@@ -4172,8 +3922,7 @@ function tipHTML(r,compare){
     h+=row("Median player rating (season)", f(r.a,"mrating",rf), f(r.b,"mrating",rf));
     h+=row("Rated characters", f(r.a,"rn",fmtInt), f(r.b,"rn",fmtInt));
   }
-  return h+"</table>"+(compare&&gearOn()
-    ?"<div class=\"fnote\">a character with parses in both item-level ranges counts in both columns</div>":"");
+  return h+"</table>";
 }
 function attachTip(el,html){
   el.onmouseenter=e=>{
@@ -4437,17 +4186,14 @@ function frameIdentityHTML(ctx){
     rows+=row("Avg deaths",ab(g.adeaths,b?b.adeaths:null,v=>v.toFixed(2),false));
   else if(skill)
     rows+=row("Deaths @ p"+state.pctl+" · p"+state.pctlB,
-      g.qdA.toFixed(2)+" · "+g.qdB.toFixed(2)
-      +'<div class="fnote">deaths at the p'+state.pctl+'-th vs p'+state.pctlB
-      +'-th parse — lower is better</div>');
+      g.qdA.toFixed(2)+" · "+g.qdB.toFixed(2));
   else rows+=row("Avg deaths",g.adeaths.toFixed(2));
   if(twoSided())
     rows+=row("Deathless",ab(g.deathless,b?b.deathless:null,v=>v.toFixed(1)+"%",true));
-  else rows+=row("Deathless",g.deathless.toFixed(1)+"%"
-    +(skill?' <span class="fnote">(skill compare does not apply)</span>':""));
+  else rows+=row("Deathless",g.deathless.toFixed(1)+"%");
   if(hasRating&&g.rn)
     rows+=row("Med player rating (Raider.IO season)",
-      fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated · a season total, not limited to the window</span>");
+      fmtInt(g.mrating)+' <span class="fnote">· n='+fmtInt(g.rn)+" rated</span>");
   // the mix and, for a flagged spec, the same read there and elsewhere on ONE full-width line: as two value rows
   // they squeezed the label column, broke "Median DPS ⚖" in two and pushed the frame past its height cap at 1080
   // In a compare mode the frame is taller already and has two sides, each with its own mix: the line is left to the
@@ -4475,15 +4221,14 @@ function frameCompsHTML(ctx){
   const members=(window.__compRows||[]).filter(r=>
     r.comp.some(c=>c.cls*100+c.spec===ctx.presKey));
   const gated=members.filter(r=>r.n>=state.compMin);
-  const notes=(state.compare?" · period A":gearOn()?" · item-level cohort A":"")
-    +(!state.merge?" · comps are class+spec — hero talents share them":"");
+  const notes=(state.compare?" · period A":gearOn()?" · item-level cohort A":"");
   let h='<div class="bt">Top comps</div>';
   if(!members.length)
     return h+'<div class="foot" style="margin-top:0">'
       +esc("no comps under the current filters field it"+notes)+'</div>';
   const subgate=!gated.length;   // real data, all below the gate — muted, never hidden
   h+='<div class="fsub">'+esc(subgate
-    ? "all below the "+state.compMin+"-run gate — lower Min runs in Top Comps"+notes
+    ? "all below the "+state.compMin+"-run gate"+notes
     : "in "+fmtInt(K)+" of "+fmtInt(Q)+" qualifying comp"+(Q===1?"":"s")
       +" ("+state.compMin+"+ runs) · "+fmtInt(members.length)+" distinct field it"+notes)
     +'</div>';
@@ -4564,19 +4309,16 @@ function frameStatsHTML(ctx){
      When the live view is EMPTY, printing a populated distribution is a flat
      contradiction of the blocks above it. ctx.g is null in exactly that case
      (frameIdentityHTML renders its own "no parses" state off the same test),
-     so the numbers stand down and only the explanation remains. */
+     so the numbers stand down and only the empty-state line remains. */
   h+='<div class="fsub">fixed build-time cohort — these do <b>not</b> follow '
     +'the key, '+(ILVL.has?'item-level, ':'')+'period, dungeon or lens filters</div>';
   if(!ctx.g)
-    return h+'<div class="foot" style="margin-top:0">no parses match the '
-      +'current filters, so the live figures are unavailable; the fixed cohort '
-      +'below is withheld rather than shown against a filter it ignores.</div>';
+    return h+'<div class="foot" style="margin-top:0">no parses match the current filters</div>';
   const entries=Object.entries(statMap||{})
     .filter(([,q])=>Array.isArray(q)&&q.length>=3)
     .map(([name,q])=>({name,q}));
   h+=statRowsHTML(entries);
-  h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc("n="+fmtInt(S.n))
-    +'<br>ordered by median rating; what gear drops biases this</div>';
+  h+='<div class="foot">'+esc(D.specstats.cohort||"")+'<br>'+esc("n="+fmtInt(S.n))+'</div>';
   return h;
 }
 /* live mode — the sidecar is loaded, so the block follows every filter above.
@@ -4625,7 +4367,7 @@ function frameLiveStatsHTML(ctx){
   const slice=idx.filter(i=>L.inWin.has(i)&&known(i));
   h+='<div class="fsub">'+esc("players around p"+state.pctl+" (lens ±10) · n="
     +fmtInt(slice.length)+" · "+fmtDps(qp(sdps,lo/100))+"–"+fmtDps(qp(sdps,hi/100))
-    +" dps"+dsfxA(FRAME_A&&FRAME_A.groups.get(state.frameKey))+(state.elite&&dnOn()?", each parse at the average dungeon — the p"+Math.round(ELITE_PCTL*100)+" on the bar counts every parse once in each dungeon":""))+'</div>';
+    +" dps"+dsfxA(FRAME_A&&FRAME_A.groups.get(state.frameKey)))+'</div>';
   const entries=[];
   for(let s=0;s<nst;s++){                // every stat with data gets a row; 0 = unknown
     const v=[];
@@ -4638,10 +4380,9 @@ function frameLiveStatsHTML(ctx){
     :'<div class="fsub">no stats-known parses in this window</div>';
   const withheld=(C.all||[]).filter(nm=>!C.stats.map(String).includes(String(nm)));
   const wn=windowNote(C.window,idx);
-  h+='<div class="foot">follows the filters above · n='+fmtInt(X)+' stats-known of '
+  h+='<div class="foot">n='+fmtInt(X)+' stats-known of '
     +fmtInt(Y)+' in view ('+(100*X/Y).toFixed(1)+'%)'
-    +'<br>ratings as the character sheet read at the pull — flask and food included'
-    +(C.scale>1?'<br>⚠ ratings rounded to steps of '+C.scale+' in this build (size ladder) — each figure is within ±'+Math.ceil(C.scale/2)+' of the true quantile':'')
+    +(C.scale>1?'<br>⚠ ratings rounded to steps of '+C.scale+' (±'+Math.ceil(C.scale/2)+')':'')
     +(withheld.length?'<br>⚠ not published in this build (size ladder): '+withheld.map(esc).join(', '):'')
     +(wn?'<br>'+esc(wn):'')+'</div>';
   return h;
@@ -5144,16 +4885,6 @@ const CS_PAIR_MIN=1;                    // wearers a pair needs to be a named ro
 const CS_LEAN_MIN_W=40;                 // cell floor: live covered wearers
 const CS_LEAN_MIN_COV=.50;              // cell floor: coverage of the slot
 const CS_LEAN_MIN_CELLS=6;              // mode floor (b): cells clearing the above
-const CS_LEAN_FOOT="Lean = the share of this spec's players carrying THIS SLOT "
-  +"above the item level most of them carry in it. The slot is the baseline, not "
-  +"the piece: the question is which slot this spec has pushed ahead, so a player "
-  +"in a rarer piece at the same level as everyone else does not count as ahead. "
-  +"Above the slot's own level means an upgrade spent here \u2014 or a luckier "
-  +"drop source; the log records no upgrade track, so we do not claim which. A "
-  +"slot whose wearers all sit at one level scores LOW however high that level "
-  +"is. Slide the percentile lens to see whether the top decile leans differently "
-  +"than the field. Until 2026-09-09 each piece was its own baseline, which asked "
-  +"a different question of every item in the mix.";
 const CS_LEAN_TITLE="share of this slot's wearers carrying it above the item "
   +"level most wearers of this slot carry";
 const fmtDpsM=v=>v>=1e6?(v/1e6).toFixed(2)+"M":fmtDps(v);
@@ -5376,7 +5107,7 @@ function csSecOpen(id,title,scope,right){
 }
 function csThinHTML(n,what){
   return '<div class="cs-thin">n='+fmtInt(n)+" "+what
-    +' known in window · sample too thin — widen the lens or filters</div>';
+    +' known in window · under '+CS_THIN+'</div>';
 }
 function csLadderHTML(){
   let h='<div id="cs-ladder"><button class="btn csexit" id="cs-back">← Rankings</button>';
@@ -5428,8 +5159,7 @@ function csBandHTML(ctx,d){
   }
   h+='</div>';
   if(!g)
-    return h+'<div class="cssub">no parses match the current filters — '
-      +'the ladder chips above are the way out</div></div>';
+    return h+'<div class="cssub">no parses match the current filters</div></div>';
   if(d){
     const wN=d.win.length;
     const cov=BUILDSC&&wN
@@ -5443,18 +5173,18 @@ function csBandHTML(ctx,d){
 }
 /* The sidecars cover a window of resets (builder BUILDS_WINDOW_RESETS /
    SIDECAR_WINDOW_RESETS); rows older than a region's cut have no gear, stats
-   or build on any surface. Say so where the counts print, with how many rows
-   in the current view are outside it (fleet finding S3, 2026-09-08). */
+   or build on any surface. Say so where the counts print, only when rows in
+   the current view are outside it, with how many (fleet finding S3, 2026-09-08). */
 function windowNote(win,idx){
   if(!win||!win.resets||!win.cut) return "";
   const cutMs={}; for(const r in win.cut){ const t=Date.parse(win.cut[r]); if(!isNaN(t)) cutMs[r]=t; }
   const ep=Date.parse(D.epoch+"T00:00:00Z"); let older=0;
   if(idx) for(const i of idx){ const c=cutMs[D.regions[R.reg[i]]]; if(c==null||R.day[i]<0) continue;
     if(ep+R.day[i]*86400000+Math.max(0,R.hr[i])*3600000<c) older++; }
+  if(!older) return "";
   const fmt=t=>new Date(t).toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC"});
   const parts=Object.keys(cutMs).sort().map(r=>fmt(cutMs[r])+" ("+r+")");
-  return "covers parses since "+parts.join(" · ")+" (newest "+win.resets+" reset"+(win.resets===1?"":"s")+")"
-    +(idx&&older?" · "+fmtInt(older)+" of "+fmtInt(idx.length)+" in view are older and carry none":"");
+  return fmtInt(older)+" of "+fmtInt(idx.length)+" in view are older than "+parts.join(" · ")+" and carry none";
 }
 function csSubnavHTML(d){
   const t=(id,label,cnt)=>'<button data-t="'+id+'" class="'+(screenTab===id?"on":"")
@@ -5827,13 +5557,8 @@ function csPairTR(r,lc){
     +'<td class="fe"><div>'+r.sa.toFixed(1)+'%</div>'+(r.b?'<div>'+r.sb.toFixed(1)+'%</div>':'')+'</td>'
     +'<td>n='+fmtInt(r.c)+'</td></tr>';
 }
-function csPairBodyHTML(d,p,M,P){
+function csPairBodyHTML(p,M,P){
   const n=M.n||1, lab=CS_POOL_LABEL[p], lc=lab.toLowerCase();
-  const slots=BUILDSC.slots, pr=CS_POOL_SLOTS[p];
-  // the vocabulary cap, read from the live vocab lengths (prints "40", or
-  // "40 / 24" should the two sockets' lists ever differ), where "other / none"
-  // is defined — never a constant that a ladder rung could silently move
-  const capTxt=[...new Set(pr.map(id=>((d.vocab.items||[])[slots.indexOf(id)]||[]).length))].join(" / ");
   const list=P.shown.map(r=>({kind:r.kind, a:r.a, b:r.b, c:r.c,
     s:100*r.c/n, sa:100*r.a.c/n, sb:r.b?100*r.b.c/n:null}));
   const cols=[[null,"","fi fi2"],
@@ -5856,20 +5581,7 @@ function csPairBodyHTML(d,p,M,P){
   if(P.tailK>0) rows+=pin("+",'<span class="na">'+fmtInt(P.tailK)+' more pair'+(P.tailK===1?'':'s')+'</span>',P.tailN);
   if(P.belowN>0) rows+=pin("–",'<span class="na">'+fmtInt(P.belowK)+' pair'+(P.belowK===1?'':'s')+' below the n≥'+CS_PAIR_MIN+' floor</span>',P.belowN);
   if(P.uu>0) rows+=pin("–",'<span class="na">other / none in both slots</span>',P.uu);
-  const cap="share of the "+fmtInt(M.n)+" gear-known players in this window by the two "+lc
-    +"s they wore together — either slot, either order. Every player is in exactly one row, so this column sums to 100%. "
-    +"Every pair worn by at least one player counts"
-    +(P.shown.length
-      ?(P.tailK>0
-          ?": the "+CS_PAIR_ROWS+" most-worn are listed by name and the next "+fmtInt(P.tailK)+" pair"+(P.tailK===1?" is":"s are")+" summarised in one row"
-          :(P.shown.length===1?": the one pair worn is listed":": all "+P.shown.length+" pairs worn are listed"))
-        +(P.belowN>0?"; "+fmtInt(P.belowK)+" pair"+(P.belowK===1?"":"s")+" below the n≥"+CS_PAIR_MIN+" floor are one row":"")+". "
-      :"; no pair of listed "+lc+"s was worn in this window. ")
-    +"“other / none” is a "+lc+" outside the "+capTxt+" listed for its slot, or an empty slot. "
-    +"Each is that "+lc+"'s own share of the same "+fmtInt(M.n)+" players, worn with anything (the By-"+lc
-    +" reading's number for the "+lc+"s it lists by name) — so Both can never exceed the smaller of the two.";
-  return '<div class="caption">'+esc(cap)+'</div>'
-    +'<div class="fold-w"><table class="cs-fold pair" data-sid="cs:pair">'
+  return '<div class="fold-w"><table class="cs-fold pair" data-sid="cs:pair">'
     +sortHead(cols,st)+'<tbody>'+rows+'</tbody></table></div>';
 }
 function csPoolFoldHTML(d,p,M,P){
@@ -5879,12 +5591,11 @@ function csPoolFoldHTML(d,p,M,P){
   // (csSlotFoldHTML) has one reading and never shows it dormant.
   const pair=screenPoolView==="pair";
   const head='<div id="cs-fold"><span class="caret"></span>'
-    +'<div class="fh pv"><span class="fht">'+lab
-    +(pair?'s — pairs worn together in window':'s — combined distribution in window')+'</span>'
+    +'<div class="fh pv"><span class="fht">'+lab+'s</span>'
     +'<span class="seg csmode" id="cs-poolview">'
     +'<button data-pv="each"'+(pair?'':' class="on"')+'>By '+lc+'</button>'
     +'<button data-pv="pair"'+(pair?' class="on"':'')+'>By pair</button></span></div>';
-  if(pair) return head+csPairBodyHTML(d,p,M,P||csPairModel(M))+'</div>';
+  if(pair) return head+csPairBodyHTML(p,M,P||csPairModel(M))+'</div>';
   // the top-10 cap is applied BEFORE the display sort ON PURPOSE: its
   // complement defines the rendered "other / none" CARDINALITY below, so
   // which rows survive is decided by prevalence and never by the sort
@@ -5926,16 +5637,6 @@ function csPoolFoldHTML(d,p,M,P){
   if(other>0) pinned.push({pin:true, nm:'<span class="na">other / none</span>',
     s:100*other/total, c:other, ph:"–"});
   return head
-    +'<div class="caption">'+esc("share of the "+fmtInt(M.n)
-      +" gear-known players in this window who wore this "+lc+" in either "+lc
-      +" slot. A player wearing two different "+lc+"s appears in two rows, so "
-      +"this column sums above 100%; a "+lc+" worn in both slots counts once. "
-      +"The ten most-worn are listed by name"
-      +(tailRows>0?"; the next "+fmtInt(tailSeen.size)+" named "+lc
-        +(tailSeen.size===1?"":"s")+" are summarised in one row":"")
-      +". \u201cother / none\u201d is players carrying an unlisted "+lc
-      +" or one worn by fewer than "+CS_ENTRY_MIN+" people.")
-    +'</div>'
     +csFoldTable(list,pinned,csIbaseTxt(d,sis))+'</div>';
 }
 function csSlotFoldHTML(d,si){
@@ -5971,7 +5672,7 @@ function csSlotFoldHTML(d,si){
   if(other>0) pinned.push({pin:true, ph:"–", s:100*other/total, c:other,
     nm:'<span class="na">other / none</span>'});
   return '<div id="cs-fold"><span class="caret"></span>'
-    +'<div class="fh">'+CS_SLOT_LABEL[slot]+' — distribution in window</div>'
+    +'<div class="fh">'+CS_SLOT_LABEL[slot]+'</div>'
     +csFoldTable(list,pinned,csIbaseTxt(d,[si]))+'</div>';
 }
 /* ---- upgrade lean, the ranking's row model (2.6). ONE ROW PER DISTINCT FOLD
@@ -6010,9 +5711,8 @@ function csLeanRows(d,cells,per,poolOf){
      across the rendered cells, expressed against the gear-known count. It is
      NOT a share of players — a reader will assume it is, so this comment
      exists. It is the only denominator under which the complement decomposes
-     exactly into the two reasons the scope line names: v===0 or unresolvable
-     ("outside the item vocabulary") and e.iup==null ("below the wearer
-     floor"). */
+     exactly into two reasons: v===0 or unresolvable (outside the item
+     vocabulary) and e.iup==null (below the wearer floor). */
   const cov=(nc&&d.gearIdx.length)?sumW/(nc*d.gearIdx.length):0;
   return {rows, cov:Math.max(0,Math.min(1,cov))};
 }
@@ -6057,12 +5757,8 @@ function csLeanTableHTML(LR){
     +'<div class="cs-leanchips">'+chips+'</div>';
 }
 function csGearPaneHTML(ctx,d){
-  const capsTxt=BUILDSC&&BUILDSC.caps?" · top "+BUILDSC.caps.items+" items per slot listed ("
-    +BUILDSC.caps.big+" for trinkets and weapons); the rest read 'other'":"";
   const winTxt=BUILDSC?windowNote(BUILDSC.window,d.L?d.L.idx:null):"";
-  const scope0="share of "+fmtInt(d.gearIdx.length)
-    +" gear-known in window · rings and trinkets are pooled across both slots"
-    +" · click a tile to unfold its distribution in place"+capsTxt+(winTxt?" · "+winTxt:"");
+  const scope0="n="+fmtInt(d.gearIdx.length)+" gear-known"+(winTxt?" · "+winTxt:"");
   if(!d.vocab||!Array.isArray(d.vocab.items)||!d.gearIdx.length
      ||d.gearIdx.length<CS_THIN)
     return csSecOpen("geargrid","Gear overview",esc(scope0))
@@ -6211,20 +5907,9 @@ function csGearPaneHTML(ctx,d){
   // bounding box does not grow. Clicking a tile swaps the ranking for the
   // fold-out and closing restores it: alternates, never neighbours.
   const center=fold||(lean?csLeanTableHTML(LR):"");
-  /* the mandatory footnote (2.7) sits full-width BENEATH the doll, not inside
-     .dcenter. Measured at 1920x1080: .dcenter stretches to 415px and the
-     ranking already needs 399 of it; the footnote inside that column is eight
-     lines and grew the doll by 188px, which is precisely the growth 2.6
-     forbids. Full width it is two lines, always visible, a rendered line and
-     still beneath the ranking — it simply stops competing for the one cell
-     whose emptiness is what keeps the pane from growing. */
-  const foot=lean?'<div class="cs-lean-foot">'+esc(CS_LEAN_FOOT)+'</div>':"";
   const covPct=lean?Math.round(100*LR.cov):0;
   const scope=lean
-    ? "upgrade lean · per-item rates are fixed across the resets this build covers, "
-      +"the mix weighting them is your current lens · covers "+covPct+"% of "+fmtInt(total)
-      +" gear-known in window — "+(100-covPct)+"% fall outside the item "
-      +"vocabulary or below the wearer floor"+capsTxt+(winTxt?" · "+winTxt:"")
+    ? "n="+fmtInt(total)+" gear-known · lean covers "+covPct+"%"+(winTxt?" · "+winTxt:"")
     : scope0;
   // "Upgrade" is the owner's own word and may label the control; it never
   // sits attached to a number. The column is LEAN %.
@@ -6238,17 +5923,15 @@ function csGearPaneHTML(ctx,d){
     +'<div class="dcenter">'+center+'</div>'     // caret aimed at owner in wireScreen
     +'<div class="dcol r">'+Rr+'</div>'
     +'<div class="dbottom">'+B+'</div>'
-    +'</div>'+foot+'</div>';
+    +'</div></div>';
 }
 /* enchants (§3.4) — denominator = slice rows with fl&1; an empty nibble on a
    gear-known row IS "unenchanted", a real zero */
 function csEnchHTML(ctx,d){
   if(!BUILDSC.en)                               // ladder step: no cols.en ⇒ section absent -- SAY so (fleet S1)
-    return csSecOpen("enchgrid","Enchants","not published in this build")
-      +'<div class="fsub">The size ladder dropped the enchant columns from builds.json.gz for this build '
-      +'(caps '+(BUILDSC.caps?BUILDSC.caps.items+'/'+BUILDSC.caps.big:'?')+'); nothing is known about enchants on this page until a build ships them again. See build_health.txt.</div></div>';
+    return csSecOpen("enchgrid","Enchants","not published in this build")+'</div>';
   if(!d.vocab||!d.gearIdx.length||d.gearIdx.length<CS_THIN)
-    return csSecOpen("ench","Enchants",esc("share of gear-known in window"))
+    return csSecOpen("ench","Enchants","")
       +csThinHTML(d.gearIdx.length,"gear")+'</div>';
   const es=BUILDSC.eslots, total=d.gearIdx.length;
   // a real row model, so the table can sort (pref #12) instead of only ever
@@ -6312,7 +5995,7 @@ function csEnchHTML(ctx,d){
         +'</td><td>'+a.share.toFixed(1)+'%</td><td>n='+fmtInt(a.n)+'</td><td></td></tr>';
   }
   return csSecOpen("ench","Enchants",
-    esc("share of "+fmtInt(total)+" gear-known in window · click a row for alternatives"))
+    esc("n="+fmtInt(total)+" gear-known"))
     +'<table class="cs-ench" data-sid="cs:ench">'+sortHead(cols,st)+'<tbody>'
     +rows+'</tbody></table></div>';
 }
@@ -6471,30 +6154,7 @@ function csCraftedHTML(ctx,d){
       +", counted once per player: "+lst);
   }
   if(!degraded) h+=remainder;
-  // The caption states what THIS render actually did. The first version
-  // described a named world unconditionally -- top-N rows, an n-floor, an
-  // "other named" pool, a column summing over 100% -- while the shipped data
-  // had zero named embellishments, no row hit any floor, and the column summed
-  // to 93%. A caption that describes arithmetic the page did not perform is
-  // the same defect as a wrong number, so each clause now appears only when it
-  // is true of what is on screen.
-  const capSum = M.emb.reduce((a, x) => a + 100 * x.n / (total || 1), 0);
-  let cap = "share of the " + fmtInt(total) + " gear-known players in this "
-    + "window wearing this embellishment on at least one item, counted once "
-    + "per player.";
-  if (named.length)
-    cap += " A player can wear two different ones, so the column"
-      + (capSum > 100 ? " sums to " + capSum.toFixed(0) + "%" : " can exceed 100%")
-      + " — no single row can."
-      + (rest.length ? " Rows are the top " + CS_EMB_CAP + " above an n≥"
-          + CS_ENTRY_MIN + " floor; the rest are pooled into “other named”." : "");
-  else
-    cap += " No embellishment here is named yet — the pipeline knows these "
-      + "items carry one but not which, so they are pooled as a single "
-      + "unnamed row rather than guessed at.";
-  cap += " Covers items inside the shipped per-slot vocabulary.";
-  h+='</tbody></table><div class="caption">'+esc(cap)
-    +'</div></div></div></div>';
+  h+='</tbody></table></div></div></div>';
   return h;
 }
 /* ---- in-game-style talent trees (feature contract "Talent presentation
@@ -7178,11 +6838,9 @@ function csDiffBarHTML(T,d,base,brow,row,paneOf,trees,baseRuns){
     :("Build "+(screenBuild+1));
   let h='<div id="cs-diffbar"><span class="tl">Diff</span>';
   if(same){
-    // base == candidate: all six categories are zero BY DEFINITION, so the
-    // words "shown plain" are safe here in a way they are not in the
-    // hero-zoomed case below. No diff layer, no zero counters, no auto-unpin.
-    h+='<span class="dbi">'+bn+' is the base</span>'
-      +'<span class="dbn">shown plain · click another chip to diff against it</span>';
+    // base == candidate: all six categories are zero BY DEFINITION.
+    // No diff layer, no zero counters, no auto-unpin.
+    h+='<span class="dbi">'+bn+' is the base</span>';
   }else{
     const dm=csDiffMaps(csSelMap(base.sel),csSelMap(row.sel));
     const c=csDiffCounts(dm,paneOf);
@@ -7206,9 +6864,8 @@ function csDiffBarHTML(T,d,base,brow,row,paneOf,trees,baseRuns){
       // the base's sel is static, so the DIFF survives any re-slice; its
       // STATISTICS do not. Say which of the two truths applies — never a
       // stale number carried over from the previous slice.
-      h+='<span class="dbn">median <b>'+fmtDpsM(row.med)+'</b> · no delta — the '
-        +'base is '+(baseRuns>0?'below the top 8 in this window, so its median '
-          +'is not computed here':'absent from this window')+'</span>';
+      h+='<span class="dbn">median <b>'+fmtDpsM(row.med)+'</b> · no delta — base '
+        +(baseRuns>0?'below top 8':'has 0 runs')+'</span>';
     /* THE SILENT-LIE CASE. In hero-zoomed mode no hero pane renders at all, but
        the diff is computed over the FULL sel regardless. For 15 of 920 build-1
        pairs the ENTIRE difference is a hero-tree choice, and today those render
@@ -7217,12 +6874,10 @@ function csDiffBarHTML(T,d,base,brow,row,paneOf,trees,baseRuns){
     if(!cs&&heroOnly)
       h+='<span class="dbn">identical in Class and Spec · '+heroOnly
         +(heroOnly===1?' hero-tree choice differs':' hero-tree choices differ')
-        +(state.merge?'':' (hero pane not shown in hero-zoomed view)')+'</span>';
+        +'</span>';
     else if(cross)
-      h+='<span class="dbn">plus a hero-tree substitution — '
-        +'<b class="dn">− '+esc(base.hero)+'</b> '
-        +'<b class="dp">+ '+esc(rowHero)+'</b> '
-        +'(hero nodes are not diffed node-by-node: the trees are disjoint)</span>';
+      h+='<span class="dbn"><b class="dn">− '+esc(base.hero)+'</b> '
+        +'<b class="dp">+ '+esc(rowHero)+'</b></span>';
   }
   h+='<span class="dbb">'
     +(same?'':'<button class="btn" data-flip title="make '+esc(cn)+' the base and '
@@ -7311,15 +6966,6 @@ function csDiffLedgerHTML(base,row,paneOf,trees){
     +'<span class="mk"></span><span>Diff ledger · '+rows.length
     +(rows.length===1?' change':' changes')+'</span></div>';
   if(!screenDlOpen) return h;
-  const notes=[];
-  if(!heroShown&&rows.some(r=>r.po===3))
-    notes.push('hero-tree rows are counted here but have no pane on screen in '
-      +'hero-zoomed view');
-  if(crossHero)
-    notes.push('the hero trees are disjoint, so the substitution is one row, '
-      +'not 14 adds and 14 drops');
-  if(notes.length)
-    h+='<div class="dl-note">'+notes.map(esc).join(' · ')+'</div>';
   // the cap and its scrollbar only exist when there is something to scroll —
   // a one-row ledger must not grow a stray scrollbar
   h+='<div class="tblwrap'+(rows.length>10?' dl-w':'')
@@ -7345,23 +6991,12 @@ function csDiffLedgerHTML(base,row,paneOf,trees){
   return h+'</tbody></table></div>';
 }
 /* talents + hero logic (§3.4) — the Talents pane's whole content */
-/* What the page says about export, under the trees and under the table. It speaks
-   for the build on screen: when that one has no string (the builder would not
-   vouch for it) the note says so, instead of promising a button that is not there. */
-function csExportNote(d,T,litImp,lab){
-  if(!T.rows.some(r=>r.hash&&r.imp)) return "";
-  const game=(d.vocab&&d.vocab.game)?", laid out on the talent trees of game build "+esc(d.vocab.game):"";
-  const tail=". The string leaves the game’s tree-version check open, as third-party calculators do, "
-    +"so after a talent patch re-check the import.";
-  if(lab==null)
-    return " — <b>export</b> on a row writes one from that build’s logged talents in the game’s own "
-      +"format (paste it under Talents → Import)"+game+tail;
-  if(litImp)
-    return " — <b>export</b> on the lit build writes one from its logged talents in the game’s own "
-      +"format (paste it under Talents → Import)"+game+tail;
-  return " — the other builds have an <b>export</b> that writes one from their logged talents"+game
-    +". <b>No string is written for "+esc(lab)+"</b>: its logged talents are not a loadout of this spec "
-    +"that the game’s talent tables vouch for.";
+/* The one thing the page says about export under the trees: the build on screen
+   has no string (the builder would not vouch for it) while other builds do, so
+   its chip has no export button. */
+function csExportNote(T,litImp,lab){
+  if(litImp||!T.rows.some(r=>r.hash&&r.imp)) return "";
+  return '<div class="cs-foot">No export string for '+esc(lab)+'</div>';
 }
 function csTalentsHTML(ctx,d){
   let scope="";
@@ -7433,48 +7068,9 @@ function csTalentsHTML(ctx,d){
     h+=csTreePanesHTML(ctx,trees,row,base);
     if(base) h+=csDiffLedgerHTML(base,row,paneOf,trees);
     const lab=screenBuild===-1?"the base build":"Build "+(screenBuild+1);
-    h+='<div class="cs-foot">'
-      +(base
-        ? 'Base: '+(brow?'Build '+(T.rows.indexOf(brow)+1):'the pinned build')
-          +(base.hero?' · '+esc(base.hero):'')+' — '+lab+' shown. '
-          +'<b class="dp">+</b> added (solid chip, tick on the tile’s top edge) '
-          +'· <b class="dn">−</b> dropped (hollow chip, segmented tick on the '
-          +'bottom edge) · <b class="dz">≠</b> choice swapped (both ticks) · a '
-          +'short tick and a 1→2 pip = the rank moved · unchanged talents keep '
-          +'their shape in grey'
-        : lab+' lit — picked talents in full color, the rest dimmed · click a '
-          +'build chip to relight · pin a build as base to diff the others '
-          +'against it')
-      +' · builds known for '+fmtInt(T.known)+' of '+fmtInt(d.win.length)
-      +' in window · identity = exact talent-'+(anyHash?'tree':'string')+' match'
-      // true about the PANES, and — once a diff is on screen — load-bearingly
-      // false by implication about the BUILDS, so it is amended
-      +(!state.merge?' · hero fixed — builds differ in class/spec trees only in '
-        +'the trees shown; hero-tree choices are counted but not drawn here':'')
-      +'</div>';
-    /* This caption used to claim the percentile lens does not move the median
-       "because it is a median". False, and false in the worst direction: the
-       lens does not relabel this window, it SELECTS it — screenData keeps only
-       parses whose own DPS percentile is within 10 points of the lens, so a
-       build's parse set here is already a DPS band centred on the lens and its
-       middle value tracks the lens almost one-for-one. Measured on
-       Warlock|Demonology with nothing else touched, build t:815097b110e6 read
-       204k (n=15) at p10, 271k (n=18) at p50 and 322k (n=9) at p90. A reader
-       chasing the 1% would have parked the lens at p90, read 322k and taken it
-       for the build's median instead of the median of its top fifth. */
-    h+='<div class="cs-foot">median = the middle DPS of that build’s parses '
-      +'<b>inside the current window</b> — and the window is a band, not the '
-      +'whole ladder: the percentile lens keeps only parses within 10 percentile '
-      +'points of itself, so moving it moves this number and the n under it. At '
-      +'p90 you are reading the median of that build’s <b>top</b> parses, not the '
-      +'build’s median; the filters and the trust gate move it too. Compare '
-      +'medians at one lens setting. Builds are compared, not causes: a higher '
-      +'median is that cohort’s result, not a measured gain from the '
-      +'talents.</div>';
-    if(anyHash)
-      h+='<div class="cs-foot">builds identified from talent trees; '
-        +"the game's import strings are not present in combat logs"
-        +csExportNote(d,T,(screenBuild===-1)?(base&&base.imp):(row&&row.imp),lab)+'</div>';
+    h+='<div class="cs-foot">builds known for '+fmtInt(T.known)+' of '+fmtInt(d.win.length)
+      +' in window</div>';
+    h+=csExportNote(T,(screenBuild===-1)?(base&&base.imp):(row&&row.imp),lab);
     return h+'</div>';
   }
   const bar=s=>'<span class="sbar"><i style="width:'+Math.min(100,s).toFixed(1)+'%"></i></span>';
@@ -7511,14 +7107,7 @@ function csTalentsHTML(ctx,d){
   h+='<table class="cs-tal" data-sid="cs:tal">'+sortHead(tcols,tst)
     +'<tbody>'+rows+'</tbody></table>';
   h+='<div class="cs-foot">builds known for '+fmtInt(T.known)+' of '
-    +fmtInt(d.win.length)+' in window · identity = exact talent-'
-    +(anyHash?'tree':'string')+' match'
-    +(!state.merge?' · hero fixed — builds differ in class/spec trees only':'')
-    +'</div>';
-  if(anyHash)
-    h+='<div class="cs-foot">builds identified from talent trees; '
-      +"the game's import strings are not present in combat logs"
-      +csExportNote(d,T,null,null)+'</div>';
+    +fmtInt(d.win.length)+' in window</div>';
   return h+'</div>';
 }
 
@@ -7546,8 +7135,7 @@ function renderScreen(){
   }
   let h=csLadderHTML();
   if(state.frameKey==null){
-    host.innerHTML=h+'<div class="cs-thin">no parses match the current filters — '
-      +'pick a spec from the ladder above</div>';
+    host.innerHTML=h+'<div class="cs-thin">no parses match the current filters</div>';
     wireScreen(host,null,null);
     return;
   }
@@ -7750,7 +7338,10 @@ function wireScreen(host,ctx,d){
       if(held>0) more.textContent="+"+held+" more · open the diff ledger";
     }
   }
+  // the game build a written export string is laid out on, in its button's tooltip
+  const game=d&&d.vocab&&d.vocab.game;
   host.querySelectorAll("[data-copy]").forEach(b=>{
+    if(game&&b.textContent==="export") b.title+=" · game build "+game;
     b.onclick=e=>{
       e.stopPropagation();
       const s=__csCopy[+b.dataset.copy];
@@ -7776,8 +7367,7 @@ function wireScreen(host,ctx,d){
           anchor.insertAdjacentElement("afterend",wrap);
         }
         const what=b.dataset.what||"this build";
-        wrap.querySelector("#cs-implab").innerHTML="Import string of <b>"+esc(what)+"</b>. The browser "
-          +"did not allow the copy: the string is selected, press Ctrl+C (⌘C on a Mac).";
+        wrap.querySelector("#cs-implab").innerHTML="Import string of <b>"+esc(what)+"</b> — copy blocked, press Ctrl+C";
         const box=wrap.querySelector("#cs-impbox");
         box.value=s; box.focus(); box.select();
       };
@@ -7905,6 +7495,9 @@ function wireSort(host,st,rerender){
 }
 function render(){
   if(!D) return;   // Lens Bar is inert until data arrives
+  __renderGen++;
+  if(__renderGen>__noticeGen+1){ const n=$("notice"); if(n) n.textContent=""; }
+  syncTimedHint();
   refreshDnf();   // ⚖ factors follow the dungeons in view, before anything reads dpsAt
   const am=$("archon");
   if(am&&window.__archonMatches){
@@ -7914,14 +7507,13 @@ function render(){
       state.elite=false;   // leaving the mode restores standard stats
       // auto-uncheck keeps the user's changes; the toast offers the restore
       showArchonToast();
-      setNotice("⚔ Archon mode off — a setting moved; your changes were kept.");
+      setNotice("");
     }
   }
   syncLensUI(); syncAxisUI(); labScopeRefresh();
   syncDnUI();   // after the Archon predicate above: the chip's title depends on the mode it may just have left
   const tab=TABS.find(t=>t.id===state.tab)||TABS.find(t=>t.id==="med");
   const A=aggregate(state.weeksA);
-  const skill=skillOn();
   const skillTab=skillApplies(tab.id);   // ghost only where a distribution exists
   const gear=gearOn();
   // Time axis: period B. Gear axis: period A again, over the B item-level cohort.
@@ -7938,9 +7530,8 @@ function render(){
   // which matters in compare mode. Characters, not parses, set the ratio: a
   // short window holds proportionally fewer runs per player than a season.
   const effMinA=effMinFor(A.chars), effMinB=B?effMinFor(B.chars):effMinA;
-  lastEffMin=effMinA;
   $("minchars-eff").textContent =
-    effMinA!==state.minchars ? "→ ≥ "+effMinA.toLocaleString("en-US")+" here" : "";
+    effMinA!==state.minchars ? "→ ≥ "+effMinA.toLocaleString("en-US") : "";
 
   // join — Time axis joins period B on A's groups; Skill axis is a second
   // quantile read on the SAME aggregation, so ranks never shuffle. On the
@@ -7970,59 +7561,37 @@ function render(){
   $("k-groups").textContent=fmtInt(rows.length);
   $("k-dates").textContent=A.dmax<0?"—":fmtDay(A.dmin)+" – "+fmtDay(A.dmax);
   const smp=D.sample||null;
-  $("period-note").innerHTML = (smp&&smp.collected>smp.published
+  // abnormal-state warnings and compare data only. Runs of spaces are squeezed at
+  // the end, so a note with nothing to say is the empty string
+  $("period-note").innerHTML = ((smp&&smp.collected>smp.published
       ? '<b class="delta down" style="font-size:.95em">⚠ Sampled payload: '+fmtInt(smp.published)
         +' of '+fmtInt(smp.collected)+' collected runs are published.</b> '
       : "")
     +(state.proj&&D.projection
       ? '<b class="delta up" style="font-size:.95em">🔮 Projected: '
-        +esc(D.projection.label)+'.</b> Every DPS figure is that parse\'s own '
-        +'ability breakdown re-scored under the announced changes, so the '
-        +'projection tracks whatever filters are set. Badges show the change '
-        +'against the recorded number. '
+        +esc(D.projection.label)+'.</b> '
       : "")
-    +(hasTune&&state.postTune?"<b>Post-tuning runs only.</b> ":"")
-    +(state.timedOnly?"<b>⏱ Timed runs only.</b> ":"")
-    +dnNote(rows)
-    +(state.elite?"<b>⚔ Archon replica:</b> per spec, the top decile of key "
-        +"levels, then p85 DPS within — the moving elite frontier their table "
-        +"tracks. Key/"+(ILVL.has?"item-level/":"")+"period/min-character controls are bypassed while active"
-        +(eliteHidden?"; "+eliteHidden+" spec"+(eliteHidden>1?"s":"")
-          +" hidden for having under "+50+" qualifying parses":"")+". ":"")
+    +dnNote(rows)+" "
     +(state.compare
-    ? "Period <b>A</b>: "+describePeriod(state.weeksA)+" (solid, class colors) &nbsp;·&nbsp; "
-      +"Period <b>B</b>: "+describePeriod(state.weeksB)+" (grey ghost bars) — KPIs show period A. "
-      +(B?fmtInt(B.parses)+" parses in B.":"")
-    : "Period: "+describePeriod(state.weeksA))
-    +(skill?". <b>Skill lens compare:</b> solid = p"+state.pctl+", grey ghost = p"
-      +state.pctlB+" of the same parses (distribution metrics: percentile DPS and deaths).":"")
-    +(gear?(()=>{const gc=gearCensus(), aHigh=state.ilo>state.ihib, aLow=state.ihi<state.ilob;
-      return ". <b>Gear compare:</b> solid = item level A ("+ilvlSpan(state.ilo,state.ihi)+"), grey ghost = item level B ("
-      +ilvlSpan(state.ilob,state.ihib)+") — the same period and filters aggregated once per cohort; KPIs show A"
-      +(B?"; "+fmtInt(B.parses)+" parses in B":"")+"."+gearOverlapNote()+gearSharedCharsNote(A,B)
+      ? "B: "+describePeriod(state.weeksB)+(B?" · "+fmtInt(B.parses)+" parses":"")
+      : "")
+    +(gear?(()=>{const gc=gearCensus();
+      return "B: "+ilvlBText()+(B?" · "+fmtInt(B.parses)+" parses":"")+"."+gearOverlapNote()+gearSharedCharsNote(A,B)
       +(gc.gap?" <b>"+fmtInt(gc.gap)+" parses at ilvl "+gc.gapLo+(gc.gapHi>gc.gapLo?"–"+gc.gapHi:"")
-          +" fall between the two ranges and sit in neither cohort.</b>":"")
-      +(gc.unk?" In this selection "+fmtInt(gc.unk)+" parses with no item level sit in neither cohort.":"")
+          +" in neither cohort.</b>":"")
+      +(gc.unk?" "+fmtInt(gc.unk)+" parses have no item level.":"")
       +(isFinite(gc.ilA)&&isFinite(gc.ilB)
           ?" <b>Median item level "+gc.ilA+" in A vs "+gc.ilB+" in B · median key +"+gc.kA+" in A vs +"+gc.kB+" in B.</b>"
             +(isFinite(gc.dA)&&isFinite(gc.dB)&&gc.dB>0&&gc.ilA!==gc.ilB
-              ? " Across the whole selection A's "+dpsLabel().toLowerCase()+" is "
-                +((gc.dA-gc.dB)/gc.dB*100).toFixed(1)+"% above B's over "+Math.abs(gc.ilA-gc.ilB)
-                +" item level"+(Math.abs(gc.ilA-gc.ilB)===1?"":"s")+" of median gap — <b>"
+              ? " A median DPS "+(gc.dA>=gc.dB?"+":"")+((gc.dA-gc.dB)/gc.dB*100).toFixed(1)+"% vs B over "+Math.abs(gc.ilA-gc.ilB)
+                +" item level"+(Math.abs(gc.ilA-gc.ilB)===1?"":"s")+" · <b>"
                 +((gc.dA/gc.dB-1)*100/Math.abs(gc.ilA-gc.ilB)).toFixed(1)+"% per item level</b>"
-                +(gc.kA!==gc.kB?", the key gap included":"")+"."
               : "")
-          :"")
-      +" Item level climbs with key level, so keep the key range narrow to read gear alone"
-      +(isFinite(gc.kA)&&gc.kA!==gc.kB?" — the key gap above is inside every badge; <b>⚑ Hold key</b> pins both cohorts to one key level so the rest is gear":"")
-      +(state.keyHeld?" (held at +"+state.klo+" now)":"")
-      +" — the two item-level ranges stay put when other filters move (⚡ Median split re-splits the current selection); "
-      +(aHigh?"sort by Gained most to rank specs by what they gain from gear."
-        :aLow?"A sits below B, so a positive badge means less gear did better — ⇄ Swap A and B reads gains from gear as positive, or sort by Lost most."
-        :"A and B overlap, so the badge is not a clean gear read — separate the two ranges to rank specs by what they gain from gear.");})():"")
+          :"");})():"")
     +labNoteBadges()
     +gapsNote(A.dmin,A.dmax)
-    +resetNote();
+    +resetNote()
+    +" "+retentionWarnHTML()).replace(/ {2,}/g," ").trim();
 
   renderArchonCard();
   renderComps(A);          // also publishes the qualifying-comp presence set
@@ -8081,15 +7650,11 @@ function render(){
   chart.innerHTML="";
   if(!view.length){
     // an empty period is not a gate problem, and saying so sent readers to the
-    // wrong control every week (a region between its reset and the next)
-    const hole=A.parses===0?resetHoleText(state.reg.size?state.reg:null):"";
+    // wrong control every week
     chart.innerHTML='<div class="caption" style="padding:1.4rem 0">'
       +(A.parses===0
-        ? esc("No parses at all in this period under the current filters"
-            +(hole?" — "+hole+", so its runs are in last reset":
-              "; try another period or widen the filters")+".")
-        : 'No groups match the current filters — widen the filters or lower the '
-          +'minimum-characters threshold (≥ '+effMinA+' here).')
+        ? 'No parses match the current filters.'
+        : 'No group passes the gate (≥ '+effMinA+' characters here).')
       +'</div>';
   }
   for(const r of view){
@@ -8162,36 +7727,14 @@ function render(){
     bar.onclick=()=>openFrame(r.key); lspan.onclick=()=>openFrame(r.key);
     chart.appendChild(row);
   }
-  let cap=tab.cap.replaceAll("{med}",dpsLabel().toLowerCase());
-  if(tab.rating) cap+=" "+ratingCoverage();
-  if(state.compare) cap="Solid bar: period A · grey ghost: period B · % badge: change vs B. "+cap;
-  else if(gear) cap="Solid bar: item level A ("+ilvlSpan(state.ilo,state.ihi)+") · grey ghost: item level B ("
-    +ilvlSpan(state.ilob,state.ihib)+") · % badge: A's change vs B. "+cap;
-  else if(skill){
-    // honest per-tab captions: ghost only where a per-parse distribution exists
-    if(tab.id==="med")
-      cap="Solid: p"+state.pctl+" DPS · ghost: p"+state.pctlB
-        +" DPS · badge: change vs p"+state.pctlB+" — ranks stay anchored to the lens. "+cap;
-    else if(tab.id==="adeaths")
-      cap="Solid: deaths at the p"+state.pctl+"-th parse of each spec's deaths "
-        +"distribution · grey ghost: the p"+state.pctlB+"-th — lower is better. "
-        +"Deaths are whole numbers, so percentile reads step. "+cap;
-    else if(tab.id==="deathless")
-      cap+=" Deathless % is a share of runs, not a per-parse distribution — "
-        +"the skill compare does not apply here.";
-    else
-      cap+=" The skill compare applies to distribution metrics "
-        +"(percentile DPS, deaths) — this tab shows its plain value.";
-  }
-  if(ranked.length>CHART_MAX)
-    cap+=" Showing "+CHART_CUT+" of "+ranked.length+" groups that pass the gate"
-      +(state.sort==="name"?", in name order":"")
-      +"; the Data Table lists every one.";
-  $("chart-caption").textContent=cap;
+  let cap=tab.rating?ratingCoverage():"";
+  if(ranked.length>CHART_MAX)   // closes whatever precedes it, if that did not end its own sentence
+    cap+=(/[^.\s]$/.test(cap)?".":"")+" Showing "+CHART_CUT+" of "+ranked.length+" groups.";
+  $("chart-caption").textContent=cap.trim();
 
   // generated scope lines — the single source of section evidence sentences
-  $("overview-sub").innerHTML=scopeLine("overview","click any bar for its Spec Frame — comps and stats in one place");
-  $("trend-sub").innerHTML=scopeLine("trajectory",retPhrase()+", ignores the period selection");
+  $("overview-sub").innerHTML=scopeLine("overview");
+  $("trend-sub").innerHTML=scopeLine("trajectory");
 
   renderPulse(rows);
   renderTrend();
@@ -8232,9 +7775,9 @@ function renderScopeChips(){
     scopeChip(box,"role: "+(state.role.size?lst(state.role):"all"),"f-role");
   if(state.melee!==state.ranged) scopeChip(box,state.melee?"melee only":"ranged only","melee");
   if(DEF&&!state.elite&&(state.klo!==DEF.klo||state.khi!==DEF.khi))
-    scopeChip(box,"keys +"+state.klo+"–+"+state.khi+(state.keyHeld?" (held for the gear read)":""),"klo");
+    scopeChip(box,"keys +"+state.klo+"–+"+state.khi+(state.keyHeld?" (held)":""),"klo");
   if(!state.elite&&ilvlNarrowed())
-    scopeChip(box,ilvlText()+(ILVL.unknown?" (the "+fmtInt(ILVL.unknown)+" parses in this build with no item level cannot match)":""),"ilo");
+    scopeChip(box,ilvlText(),"ilo");
   if(SCOPE_DEF&&!state.elite&&!setsEqual(state.weeksA,SCOPE_DEF.weeksA))
     scopeChip(box,"period: "+describePeriod(state.weeksA),"presetA");
   if(state.timedOnly!==hasTimed)
@@ -8259,46 +7802,19 @@ $("showncount").onclick=()=>{
   state.trustPrev=state.minchars;
   state.minchars=1;
   $("minchars").value=1; $("minchars-v").textContent=1;
-  setNotice("Trust gate lowered for this session — every group shows regardless of sample size.");
+  setNotice("");
   render();
 };
 $("trust-undo").onclick=e=>{e.stopPropagation();
-  clearTrustOverride(true); setNotice("Trust gate restored."); render();};
+  clearTrustOverride(true); setNotice(""); render();};
 
-/* -------- Archon generated scope card (single-sourced from the recipe) -------- */
-// the earliest dated row the page holds: the recipe says 14 days, the retention says two resets
-let ELITE_D0=null;
-function eliteDay0(){
-  if(ELITE_D0&&ELITE_D0.n===N&&ELITE_D0.b===D.built) return ELITE_D0.d;
-  let d=1e9; for(let i=0;i<N;i++){const v=R.day[i]; if(v>=0&&v<d&&R.rbucket[i]!==OUTW) d=v}
-  ELITE_D0={n:N, b:D.built, d:d===1e9?-1:d};
-  return ELITE_D0.d;
-}
+/* -------- Archon card: the specs the replica hides, shown only when there are any -------- */
 function renderArchonCard(){
   const c=$("archon-card");
-  if(!state.elite){c.hidden=true; return}
+  if(!state.elite||!eliteHidden){c.hidden=true; c.innerHTML=""; return}
   c.hidden=false;
-  const maxDay=curMaxDay>=0?curMaxDay:0;
-  const em=$("minchars-eff").textContent;
-  c.innerHTML='<div class="ac-head">⚔ Archon replica — generated scope</div>'
-   +'Per spec, the top decile of key levels over the last '+ELITE_DAYS+' days ('
-   +fmtDay(maxDay-(ELITE_DAYS-1))+' – '+fmtDay(maxDay)+'), then <b>p85 DPS</b> within — '
-   +'the moving elite frontier their table tracks. A spec needs '+ELITE_MIN
-   +'+ qualifying parses to show'
-   +(eliteHidden?'; <b>'+eliteHidden+' spec'+(eliteHidden>1?'s':'')
-     +'</b> hidden for having under '+ELITE_MIN+' qualifying parses':'')+'. '
-   // the window is 14 days by the recipe and whatever the site keeps in fact: say both
-   +(eliteDay0()>maxDay-(ELITE_DAYS-1)?'The site keeps two resets: it holds nothing before '+fmtDay(eliteDay0())+', whatever the 14 days say. ':'')
-   +(DNI&&DNI.on?(state.dnorm
-     ?'<b>⚖ on:</b> dungeon-adjusted (rule in the note above); a spec that is played evenly reads what the pooled recipe '
-      +'gave. That recipe was checked against archon.gg’s High Keys table early in the season (no dated record, not re-checked '
-      +'since); this form of it has not been. Untick ⚖ for it. '
-     :'<b>⚖ off:</b> the pooled recipe, as logged — a spec played mostly in one dungeon is read on that dungeon’s numbers. ')
-     +'Each spec’s key floor, and the share of its parses the floor keeps, are in its tooltip and the Data Table: a higher floor reads higher. ':'')
-   +'<div class="byp">Bypassed while active: <s>key range</s> · '+(ILVL.has?'<s>item-level range</s> · ':'')+'<s>period selection</s> · '
-   +'<s>timed filter</s> · <s>minimum characters'
-   +(em?' ('+esc(em)+')':'')+'</s> — parked at full range so a mid-range setting '
-   +'cannot misleadingly suggest it applies; moving any of them exits the mode.</div>';
+  c.innerHTML='⚔ <b>'+eliteHidden+' spec'+(eliteHidden>1?'s':'')
+    +'</b> hidden (under '+ELITE_MIN+' qualifying parses)';
 }
 
 /* -------- ⚡ Pulse — is the meta shifting? own fixed windows, printed inline -------- */
@@ -8313,7 +7829,7 @@ function pulseVerdict(e){
   if(e.delta!=null) parts.push((e.delta>=0?"+":"")+e.delta.toFixed(1)+"% vs last reset");
   parts.push((e.rp!=null?"#"+e.rp:"#–")+"→#"+e.rn);
   if(window.__compPresence&&__compPresence.den)
-    parts.push("in "+e.pres+" of "+__compPresence.den+" comps"+(COMPS_NO_CLOCK?" (clock-scored runs)":""));
+    parts.push("in "+e.pres+" of "+__compPresence.den+" comps");
   return parts.join(" · ");
 }
 function renderPulse(rowsGated){
@@ -8324,7 +7840,7 @@ function renderPulse(rowsGated){
     // E15 rule: grey the board, never fake movement the replica cannot have
     bodyEl.classList.add("na-block");
     host.innerHTML=""; capEl.textContent="";
-    note.textContent="movement unavailable in the Archon replica — its elite frontier has no weekly baseline. Leave the mode to see resets move.";
+    note.textContent="not available in the Archon replica";
     sub.textContent="—";
     return;
   }
@@ -8380,14 +7896,8 @@ function renderPulse(rowsGated){
     +(prevB!==undefined?" vs last reset ("+wtxt(pMin,pMax,nPrev)+")"
                        :" — no earlier reset yet")
     +(DNI&&DNI.on?" · "+(dnOn()?"⚖ adjusted DPS":"DPS as logged"):"")+labStamp("pulse");
-  // inline confound banners
-  const notes=[];
-  if(prevB===undefined) notes.push("single reset of data — Δ and rank-change have no baseline yet");
-  if(prevB!==undefined&&pMax>=0&&nMin<1e9&&pMax>=nMin)
-    notes.push("the two windows overlap by "+(pMax-nMin+1)+" day(s) — regions reset on different days");
-  if(hasTune&&state.postTune) notes.push("post-tuning filter truncates both windows");
-  if(gearOn()) notes.push("item-level cohort A only ("+ilvlAText()+") in both windows — B is not on this board");
-  note.textContent=notes.join(" · ");
+  // the board's one cohort stamp: its header does not go through scopeLine
+  note.textContent=gearOn()?ilvlAText()+" (cohort A)":"";
   if(!entries.length){
     host.innerHTML="";
     capEl.textContent="No groups in the current reset under these filters.";
@@ -8449,16 +7959,8 @@ function renderPulse(rowsGated){
   for(const [key,g] of G)
     if(g.prev.length>=PULSE_THIN&&!g.now.length)
       left.push(D.specs[g.spec]+" "+D.classes[g.cls]);
-  capEl.textContent="Sorted by DPS at the current lens by default — the top-now "
-    +"read; every column sorts both ways, dashes always last. "
-    +"Δ compares this reset's p"+state.pctl+" DPS against last reset's at the same "
-    +"lens; thin baselines (under "+PULSE_THIN+" parses) are greyed, never hidden. "
-    +"Comp presence counts the qualifying comps (≥"+state.compMin+" runs under the "
-    +"current filters) that include the spec — the denominator is that comp count, "
-    +"stated in the cell; click a Comps cell to open Top Comps filtered to that "
-    +"spec. The board holds "+retPhrase()+"; older resets are not kept."
-    +(entries.length>PULSE_MAX?" Showing top "+PULSE_MAX+" of "+entries.length+" specs.":"")
-    +(left.length?" Left the sample since last reset: "+left.join(", ")+".":"");
+  capEl.textContent=((entries.length>PULSE_MAX?" Showing top "+PULSE_MAX+" of "+entries.length+" specs.":"")
+    +(left.length?" Left the sample since last reset: "+left.join(", ")+".":"")).trim();
 }
 
 // Trajectory extras: DPS|Rank|Share normalization (E17) and Metric|Slope sort
@@ -8490,7 +7992,7 @@ function compsClockNote(){
   return ' <span class="na" title="A run is margin-scored only when its keystone clock is known (kdur); '
     +fmtInt(COMPS_NO_CLOCK)+' runs in these filters have none and are counted in the KPIs but not here.">'
     +'· scored over '+fmtInt(COMPS_CLOCKED)+' of '+fmtInt(COMPS_CLOCKED+COMPS_NO_CLOCK)
-    +' runs in these filters ('+fmtInt(COMPS_NO_CLOCK)+' have no keystone clock)</span>';
+    +' runs</span>';
 }
 function renderComps(A){
   // Strength answers "how well did this comp play, for the difficulty it
@@ -8596,7 +8098,6 @@ function renderComps(A){
     :D.specs[csKey%100]+" "+D.classes[Math.floor(csKey/100)];
   const specColor=csKey==null?""
     :(CLASS_COLORS[D.classes[Math.floor(csKey/100)]]||"#999");
-  const heroNote=!state.merge?" · comps are class+spec — hero talents share them":"";
   const perANote=state.compare?" · period A":gearOn()?" · item-level cohort A":"";
   let view=rows, subgate=false;
   if(inSpec){
@@ -8606,7 +8107,7 @@ function renderComps(A){
     if(!inSpec.length){
       t.innerHTML="";
       $("comps-sub").innerHTML='<b style="color:'+specColor+'">'+esc(specName)
-        +'</b>: '+esc("no comps under the current filters field it"+perANote+heroNote)
+        +'</b>: '+esc("no comps under the current filters field it"+perANote)
         +labStamp("comps")+compsClockNote();
       $("comps-caption").textContent="";
       return;
@@ -8651,9 +8152,8 @@ function renderComps(A){
     $("comps-sub").innerHTML=esc(fmtInt(rows.length)
       +(rows.length===1?" comp with ":" comps with ")
       +state.compMin+"+ run"+(state.compMin>1?"s":"")+" of "+fmtInt(all.length)
-      +" distinct — ranked by strength, click a column to sort"+perANote
-      +(rows.length>COMPS_MAX?" · showing the top "+COMPS_MAX+" on this sort;"
-        +" sort another column or pick a spec to reach the rest":""))
+      +" distinct"+perANote
+      +(rows.length>COMPS_MAX?" · top "+COMPS_MAX+" shown":""))
       +labStamp("comps")+compsClockNote();
   }else{
     // K here === __compPresence.map.get(csKey), Q === rows.length — the same
@@ -8661,27 +8161,15 @@ function renderComps(A){
     const lead='<b style="color:'+specColor+'">'+esc(specName)+'</b>: ';
     $("comps-sub").innerHTML=lead+(subgate
       ? esc("in 0 of "+fmtInt(rows.length)+(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin
-        +"+ runs) — "+fmtInt(inSpec.length)+" distinct field it, all below the "
-        +"gate; top "+sorted.length+" shown muted, lower Min runs to see more"
-        +perANote+heroNote)
+        +"+ runs) · "+fmtInt(inSpec.length)+" distinct field it, top "+sorted.length+" shown"
+        +perANote)
       : esc("in "+fmtInt(view.length)+" of "+fmtInt(rows.length)
         +(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin+"+ runs) · "+fmtInt(inSpec.length)
-        +" distinct field it — most-run first, click a column to sort"
-        +perANote+heroNote))
+        +" distinct field it"
+        +perANote))
       +labStamp("comps")+compsClockNote();
   }
-  $("comps-caption").textContent="Strength scores each run against what is "
-    +"typical at its key level, then credits higher keys: margin under the "
-    +"timer drops about "+W.toFixed(2)+" points per key level in this "
-    +"selection, so that is the rate each level above +"+refKey.toFixed(1)
-    +" is rewarded at. 0 is a typical run at a typical key; +5 is five points "
-    +"of margin better than par for its difficulty. Comps with few runs are "
-    +"pulled toward 0 so one lucky pull cannot top the table. Best and Median "
-    +"are the raw margins under the timer, unadjusted."
-    +(DNI&&DNI.on?" The ⚖ dungeon adjustment is for DPS only: Strength, the margins and deaths are pooled across dungeons, so a comp run mostly in one dungeon is scored on that dungeon’s timer.":"")
-    +(csKey==null?"":" Ranks and strength are computed over all "
-      +fmtInt(rows.length)+(rows.length===1?" qualifying comp (":" qualifying comps (")+state.compMin
-      +"+ runs); × in the header clears the filter and shows the full table.");
+  $("comps-caption").textContent="";
 }
 
 /* ---------------- Trajectory (peer section; the Trend tab's relocated target) ---------------- */
@@ -8717,6 +8205,7 @@ function renderTrend(){
   const weeksSeen=new Set(), daysSeen=new Set(), keysSeen=new Set(), ilsSeen=new Set();
   const ilKeys=new Map();   // key levels seen at each item level, for the confound line
   const charsAll=new Set();
+  let ilNoLvl=0;            // declared ahead of the walk that counts it
   for(let i=0;i<N;i++){
     if(!rowPass(i,m)) continue;
     if(projSkip(i)) continue;   // same projection contract as aggregate()
@@ -8769,7 +8258,7 @@ function renderTrend(){
   // Buckets are decided BEFORE the top-N pass so the slope sort measures the
   // same points the chart draws, on whichever axis is selected.
   let daily=false, buckets, store, MINP, bLabel, bTip;
-  let ilClipped=0, ilClipLo=0, ilClipHi=0, ilBelow=0, ilAbove=0, ilNoLvl=0;
+  let ilClipped=0, ilBelow=0, ilAbove=0;
   if(ilAxis){
     // the domain is where the players are: a level must hold TREND_ILVL_SHARE
     // of this selection to be drawn, and the thin tail is counted, never
@@ -8784,8 +8273,8 @@ function renderTrend(){
     else { buckets=[]; for(let v=fat[0];v<=fat[fat.length-1];v++) if(ilsSeen.has(v)) buckets.push(v); }
     const bLo=buckets[0], bHi=buckets[buckets.length-1];
     for(const v of all){
-      if(v<bLo){ ilClipped+=ilTot.get(v); ilBelow+=ilTot.get(v); if(!ilClipLo||v<ilClipLo) ilClipLo=v; }
-      else if(v>bHi){ ilClipped+=ilTot.get(v); ilAbove+=ilTot.get(v); if(v>ilClipHi) ilClipHi=v; }
+      if(v<bLo){ ilClipped+=ilTot.get(v); ilBelow+=ilTot.get(v); }
+      else if(v>bHi){ ilClipped+=ilTot.get(v); ilAbove+=ilTot.get(v); }
     }
     store=byIl; MINP=TREND_ILVL_MINP;
     bLabel=b=>String(b); bTip=b=>"ilvl "+b;
@@ -8805,10 +8294,11 @@ function renderTrend(){
   if(!buckets.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
       +(ilAxis?'No parse with an item level matches the current filters.'
-        :keyAxis?'No runs between +'+Math.max(state.klo,TREND_KEY_FLOOR)+' and +'
-               +state.khi+(ilvlNarrowed()?' at '+ilvlText():'')+' match the current filters.'
+        :keyAxis?(state.khi<TREND_KEY_FLOOR?'No runs match the current filters.'   // slider wholly below the floor: no span to name
+               :'No runs between +'+Math.max(state.klo,TREND_KEY_FLOOR)+' and +'
+               +state.khi+(ilvlNarrowed()?' at '+ilvlText():'')+' match the current filters.')
                :'No dated runs match the current filters.')+'</div>';
-    $("trend-caption").textContent=trendCap(mt,"",state.trendAxis); return;
+    $("trend-caption").textContent=""; return;
   }
   // top groups by the selected metric itself ("best" respects its direction),
   // or — Sort: Slope — by the season's least-squares fit at the current lens
@@ -8878,7 +8368,7 @@ function renderTrend(){
   if(!top.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">No groups pass the '
       +'minimum-runs threshold under the current filters.</div>';
-    $("trend-caption").textContent=trendCap(mt,"",state.trendAxis); return;
+    $("trend-caption").textContent=""; return;
   }
   const weeks=buckets;   // x positions are indices into buckets
   const W=Math.max(box.clientWidth||900,480), H=380;
@@ -8907,10 +8397,9 @@ function renderTrend(){
   if(!series.length){
     box.innerHTML='<div class="caption" style="padding:1.4rem 0">'
       +(norm==="ret"
-        ?'No group has a reading at '+esc(bLabel(buckets[0]))+' to index against, '
-         +'so there is nothing to measure retention from.'
+        ?'No group has a reading at '+esc(bLabel(buckets[0]))+' to index against.'
         :'No group clears the '+MINP+'-parse floor at enough points to draw a line here.')+'</div>';
-    $("trend-caption").textContent=trendCap(mt,"",state.trendAxis); return;
+    $("trend-caption").textContent=""; return;
   }
   const vfmt=norm==="rank"?(v=>"#"+Math.round(v))
     :norm==="share"?(v=>v.toFixed(1)+"%")
@@ -8935,18 +8424,8 @@ function renderTrend(){
     :useChars?String(Math.round(v))
     :Math.round(v/1000)+"k";
   let extraCap="";
-  if(norm==="rank") extraCap=" Rank view: each point is the group's rank that week among every qualifying group (1 = best, top of the chart).";
-  if(norm==="share") extraCap=" Share view: each point is the group's share of all qualifying parses in that bucket.";
-  if(norm==="ret") extraCap=" Retention is measured inside the leaderboard"
-    +" sample, which is deepest where a key level is busiest, so the true"
-    +" drop-off is steeper than these lines: read them against each other,"
-    +" not as a population count."
-    +" Every line starts at 100% at "
-    +bLabel(buckets[0])+" and is read as a share of its own reading there, so "
-    +"the lines can be compared as rates of drop-off rather than as sizes."
-    +(retDropped?" "+retDropped+" group"+(retDropped===1?"":"s")+" had no reading at "
-      +bLabel(buckets[0])+" to index against and "+(retDropped===1?"is":"are")
-      +" not shown.":"");
+  if(retDropped) extraCap=" "+retDropped+" group"+(retDropped===1?"":"s")+" with no reading at "
+    +bLabel(buckets[0])+" not shown.";
   if(ilAxis){
     const mk=b=>{const a=(ilKeys.get(b)||[]).slice().sort((x,y)=>x-y);
                  return a.length?a[Math.floor((a.length-1)/2)]:NaN;};
@@ -8956,51 +8435,29 @@ function renderTrend(){
     let kLo=Infinity, kHi=-Infinity;
     for(const b of buckets){ const k=mk(b); if(isFinite(k)){ if(k<kLo)kLo=k; if(k>kHi)kHi=k; } }
     const flat=isFinite(kLo)&&kLo===kHi;
-    extraCap+=" Item-level axis: one point per item level, "+b0+" to "+b1
-      +" — the levels holding enough of this selection to read"
-      +(ilClipped?", and "+[ilBelow?fmtInt(ilBelow)+" parse"+(ilBelow===1?"":"s")+" below it (down to ilvl "+ilClipLo+")":"",
-                            ilAbove?fmtInt(ilAbove)+" parse"+(ilAbove===1?"":"s")+" above it (up to ilvl "+ilClipHi+")":""]
-        .filter(Boolean).join(" and ")+" are not drawn":"")+"."
-      +(ilNoLvl?" A further "+fmtInt(ilNoLvl)+" parse"+(ilNoLvl===1?" carries":"s carry")
-        +" no item level and cannot sit on this axis at all.":"")
+    extraCap+=(ilClipped?" Not drawn: "
+        +(ilBelow?fmtInt(ilBelow)+" parse"+(ilBelow===1?"":"s")+" below ilvl "+b0:"")
+        +(ilBelow&&ilAbove?", ":"")
+        +(ilAbove?fmtInt(ilAbove)+(ilBelow?"":" parse"+(ilAbove===1?"":"s"))+" above ilvl "+b1:"")+".":"")
+      +(ilNoLvl?" "+fmtInt(ilNoLvl)+" parse"+(ilNoLvl===1?" has":"s have")+" no item level.":"")
       +(isFinite(k0)&&isFinite(k1)
         ?(k0!==k1
-          ?" Median key rises from +"+k0+" at ilvl "+b0+" to +"+k1+" at ilvl "+b1
-            +", so part of every rise here is key level, not gear — narrow the key"
-            +" range to read gear alone."
-          :flat?" Median key is +"+k0+" at every point drawn, so the rise is gear, not key level."
-             :" Median key is +"+k0+" at both ends but ranges +"+kLo+" to +"+kHi+" in between, so part of the shape is key level, not gear.")
-        :"")
-      // the axis IS item level, so anything narrowing item level clips the curve itself
-      +(gearOn()?" The Gear compare axis is on, so this curve is item-level cohort A only ("
-          +ilvlAText()+") — the ghost side is not drawn here."
-        :ilvlNarrowed()?" The item-level range limits the band drawn ("+ilvlText()+")." : "");
+          ?" Median key +"+k0+" at ilvl "+b0+", +"+k1+" at ilvl "+b1+"."
+          :flat?" Median key +"+k0+" at every ilvl."
+             :" Median key +"+k0+" at both ends, +"+kLo+"–+"+kHi+" between.")
+        :"");
   }
-  if(keyAxis) extraCap+=" Key-level axis: the chart spans the keys the slider"
-    +" selects, so narrowing it zooms into the top of the ladder and every line"
-    +" is re-indexed from the new low key; widening it shows the whole ramp."
-    +(state.klo<TREND_KEY_FLOOR?" It stops at +"+TREND_KEY_FLOOR+" whatever the"
-      +" slider says: the leaderboards below that are swept ~5x shallower, so a"
-      +" character count there cannot sit on the same curve.":"");
-  if(state.trajSort==="slope") extraCap+=" Sorted by slope — least-squares over the"
-    +" plotted points, "+(ilAxis?"so the specs that gain most per item level come first"
-      :keyAxis?"so the specs that hold up best as keys rise come"
-      +" first and the fastest drop-offs last":"steepest riser first")+".";
-  if(hasTune&&state.postTune) extraCap+=" Range truncated by the post-tuning filter.";
+  if(keyAxis&&state.klo<TREND_KEY_FLOOR) extraCap+=" Keys from +"+TREND_KEY_FLOOR+" only.";
   if(!keyAxis&&!ilAxis&&buckets.length){
     // the chart's own day span, never every outage ever recorded
     const dlo=daily?buckets[0]:Math.min(...buckets.map(bucketLo));
     const dhi=daily?buckets[buckets.length-1]:Math.max(...buckets.map(bucketHi));
-    const g=gapsIn(dlo,dhi); if(g.length) extraCap+=" Collection was down "+g.map(gapText).join("; ")
-      +" — those buckets are under-counted.";
+    const g=gapsIn(dlo,dhi); if(g.length) extraCap+=" Collection was down "+g.map(gapText).join("; ")+".";
   }
   if(state.trendView==="grid"){
     renderTrendGrid(box,series,buckets,ymin,ymax,mt,vfmt,inv,
                     (keyAxis||ilAxis)?(pt=>"at "+bLabel(pt.b)):(()=>"latest"));
-    $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,state.trendAxis),state.trendAxis,top.length,cand.length)
-      +extraCap
-      +" Each card is one group, ranked best-first; all cards share one y-scale, "
-      +(ilAxis?"item level rising left → right.":keyAxis?"key level rising left → right.":"time running left → right.");
+    $("trend-caption").textContent=(trendCap(top.length,cand.length)+extraCap).trim();
     return;
   }
   let svg=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
@@ -9070,35 +8527,12 @@ function renderTrend(){
     el.addEventListener("mouseleave",()=>{hover=null; apply();});
   }
   apply();
-  $("trend-caption").textContent=trendCap(mt,trendSpan(daily,buckets.length,MINP,state.trendAxis),state.trendAxis,top.length,cand.length)
-    +extraCap
-    +" Dash patterns distinguish specs of the same class. Hover a line or its "
-    +"label to spotlight it.";
+  $("trend-caption").textContent=(trendCap(top.length,cand.length)+extraCap).trim();
 }
-function trendCap(mt,span,axis,shown,ofN){
-  return (axis==="ilvl"?TREND_CAP_ILVL:axis==="key"?TREND_CAP_KEY:TREND_CAP)
-    .replace("{metric}",mt.label.toLowerCase()).replace("{window}",retPhrase())
-    +(mt.betterUp?"":" The best (lowest) groups are shown.")
-    +(span?" "+span:"")
-    // the group cap, stated like the Overview's (2026-09-09): 3 of 19 gated
-    // groups went undrawn under the default filters with nothing saying so
-    +(ofN>shown?" Showing "+shown+" of "+ofN+" groups that pass the gate.":"")
-    // inside the replica the bars read the every-dungeon pool; this chart reads each parse at the average dungeon
-    +(state.elite&&dnOn()?" ⚖ Each parse is read at the average dungeon here, not in the replica’s every-dungeon pool, so a point is not the bar’s figure.":"");
-}
-function trendSpan(daily,n,minp,axis){
-  if(axis==="ilvl")
-    return "Showing "+n+" item level"+(n===1?"":"s")+" with data under the current "
-      +"filters; one point per item level, and a point needs at least "+minp
-      +" parses.";
-  if(axis==="key")
-    return "Showing "+n+" key level"+(n===1?"":"s")+" with data under the current "
-      +"filters; one point per key level, and a point needs at least "+minp
-      +" parses.";
-  return "Showing "+n+(daily?" day":" week")+(n===1?"":"s")
-    +" with data under the current filters; "
-    +(daily?"points are daily":"points are weekly")
-    +", and a point needs at least "+minp+" parses.";
+function trendCap(shown,ofN){
+  // the group cap, stated like the Overview's (2026-09-09): 3 of 19 gated
+  // groups went undrawn under the default filters with nothing saying so
+  return ofN>shown?"Showing "+shown+" of "+ofN+" groups.":"";
 }
 function renderTrendGrid(box,series,weeks,ymin,ymax,mt,vfmt,inv,lastLbl){
   const w=230,h=84,padX=6,padY=7;
@@ -9154,15 +8588,14 @@ function renderTable(rows,tab){
       ["adeaths","Avg Deaths"],
       ["deathless","Deathless %"],
       // punishment proxy: fixed p30–p85 by design, immune to the pctl slider
-      // ⚖ on, standard view: p30 and p85 are both read in the average dungeon, so the header says what that does
-      ["spread","p-spread (fixed p30–p85)",,dnOn()&&!state.elite?"(p85 − p30) ÷ p85. With ⚖ on both ends of an adjusted spec are read in the average dungeon, so the spread between dungeons is not inside it and it usually reads narrower than as logged. Untick ⚖ for the logged spread.":undefined],
+      ["spread","p-spread (fixed p30–p85)"],
       // behind the columns the screen already showed: a concentrated spec is named in its Spec cell,
       // this column is the whole table of it, and it sorts
       // KEY LEVEL IS NOT ADJUSTED, so where a spec's parses sit on the ladder is printed beside its figure
       state.elite
-        ?["floorK","Key floor","kf","The replica keeps each spec’s top decile of key levels: this is the level that decile starts at, and the share of the spec’s parses at or above it (whole key levels, so rarely exactly a tenth). A spec with a higher floor is read at higher keys, where every figure is higher."]
+        ?["floorK","Key floor","kf"]
         :["akey","Avg key",,dnAkeyTitle()],
-      ["dmix","Dungeon mix","txt","The dungeon that holds the largest share of this spec’s parses under these filters, and that share"+(DNI&&DNI.on?" — "+(DNI.S.length+DNI.thin.length)+" dungeons played evenly read "+Math.round(100/(DNI.S.length+DNI.thin.length))+"% each. Hover a cell for the whole mix; a spec with "+Math.round(100*dnHotAt())+"% or more in one dungeon is highlighted here and named under its Spec.":". "+(DNI?dnOneTxt():"One dungeon in view")+": nothing is highlighted.")]);
+      ["dmix","Dungeon mix","txt"]);
     if(hasRating) cols.push(["arating","Avg Player Rating (season)"],["mrating","Med Player Rating (season)"]);
   }
   // comp presence "in K of Q" — read from renderComps' published set (one
@@ -9241,18 +8674,7 @@ function renderTable(rows,tab){
   $("tbl").querySelectorAll(".complink").forEach(el=>{
     el.onclick=e=>{e.stopPropagation(); jumpToComps(+el.dataset.ck)};
   });
-  $("tbl-sub").innerHTML=scopeLine("breakdown",esc("every "
-    +(state.merge?"Class / Spec":"Class / Spec / Hero Talent")
-    +" group with ≥ "+lastEffMin+" distinct characters under these filters"
-    +(compare
-      ?(skill?(metricCol==="adeaths"
-            ?" — deaths at the p"+state.pctl+"-th vs p"+state.pctlB
-              +"-th parse of each spec's deaths distribution (lower is better); click a column to sort"
-            :" — p"+state.pctl+" vs p"+state.pctlB+" of the same parses; click a column to sort")
-             :gearOn()?" — "+metricLabel+" at item level A ("+ilvlSpan(state.ilo,state.ihi)+") vs B ("
-               +ilvlSpan(state.ilob,state.ihib)+"), the same period; click a column to sort"
-             :" — "+metricLabel+" for periods A and B; click a column to sort")
-      :" — click a column to sort")));
+  $("tbl-sub").innerHTML=scopeLine("breakdown");
 }
 </script>
 <script>
