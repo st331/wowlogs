@@ -789,10 +789,13 @@
     paragraphs were mine. The counts stay, the paragraphs are gone, and what they described is
     in `build_health.txt`.
     (d) Before any new sentence goes on the page it must pass (b). `test_site_contract.py`
-    pins one phrase from each removed block as absent (43 phrases, not every removed
-    sentence) and holds the static note elements to a label's length. A paragraph that was
-    removed fails the suite if it returns; a NEW sentence built in script does not, so it has
-    to be judged against (b) by whoever writes it.
+    holds what was removed in three ways: 43 named blocks pinned absent; a list of every prose
+    fragment the cleanup took out of a string or out of the static markup
+    (`scripts/fixtures/removed_prose.json`, 365 phrases); and a limit on every static text
+    node (60 characters) and static hover title (120). Measured: putting back any one of the
+    removed texts fails the suite for 151 of the 152 that can be tested that way. A NEW
+    sentence built in script is not caught by anything, so it has to be judged against (b) by
+    whoever writes it.
     (e) Hover titles (`title=""`): the ones that carried a recipe or a method were removed or
     cut to their numbers with the rest (the ⚔ Archon chip's recipe; the Data Table headers
     p-spread, Key floor and Dungeon mix; the ⚖ chip and the ⚖ mark in section heads; the Avg
@@ -803,4 +806,4 @@
     its figure, the label beside the figure comes from the code that names that statistic
     (`dpsLabel()` for a figure read at the lens), never retyped. The first cut typed "median
     DPS" over the gear compare's per-item-level figure, which is the lens read: at p85 it
-    printed 11.5% under "median" where the median gap was 13.7%.
+    printed 11.5% under "median" where the median gap was 13.7% (the build of 08:37 UTC).

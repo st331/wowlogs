@@ -8,7 +8,9 @@ trinket Lab's test; that feature is gone (owner: "remove the lightspire trinket
 labs feature and stop any data collection for it") and the pins moved here.
 Run: python3 scripts/test_site_contract.py
 """
+import json
 import pathlib
+import re as _re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -166,7 +168,7 @@ print("client      : Trajectory item-level axis: one point per item level; domai
 # of the key ladder so the rest of the badge is gear — released explicitly, and on leaving the axis.
 assert "dA:q(dpsA), dB:q(dpsB), kAll:med(kAll)" in html and "const q=a=>{ if(!a.length) return NaN;" in html, "the census carries each cohort's pooled read and the selection's median key"
 assert 'state.keyHeld?"↺ Release key":"⚑ Hold key"' in html and "state.keyHeld={klo:state.klo, khi:state.khi};" in html and "state.klo=state.khi=gc.kAll;" in html, "Hold key pins the ladder and remembers what to give back"
-assert 'if(held){   // the hold belongs to the gear read' in html and '(state.keyHeld?" (held)":"")' in html and "if(held) buildControls();   // the key slider and the Hold chip are drawn from the range just given back" in html, "a held key range is labelled in its chip, never outlives the axis, and the key slider is redrawn when the axis gives it back"
+assert "  const held=state.keyHeld;\n  if(held){" in html and '(state.keyHeld?" (held)":"")' in html and "  gearPrevA=null;\n  if(held) buildControls();" in html, "a held key range is labelled in its chip, never outlives the axis, and the key slider is redrawn when the axis gives it back"
 assert "function ilvlSpan(lo,hi)" in html and 'atHi?"≥ "+lo:atLo?"≤ "+hi:lo+"–"+hi' in html, "a floor is printed as a floor, not as a range against the payload's end"
 print("client      : gear read: % per item level in the note; ⚑ Hold key pins both cohorts to one key level and says what it costs; floors print as ≥/≤")
 
@@ -288,7 +290,6 @@ for _gone, _what in (
         ("Timed runs only.", "the period note restating the timed switch"),
         ("controls are bypassed while active", "the Archon recipe in the period note and its card"),
         ("grey ghost", "the solid/ghost legends in the sidebar, the period note and the captions"),
-        ("Item Level A (solid)", "the last solid/ghost legend in the sidebar"),
         ('+" (ghost)"', "the last solid/ghost legend in the Spec Frame scope"),
         ("median = the middle DPS", "the Talents footnote that defines a median"),
         ("Rank view: each point is", "the Trajectory rank caption"),
@@ -301,7 +302,7 @@ for _gone, _what in (
         ("dungeon adjustment is for DPS only", "the Top Comps caption on what ⚖ covers"),
         ("Deaths are whole numbers, so percentile reads step", "the deaths footnote on percentiles"),
         ("so the badge is not a clean gear read", "the gear overlap paragraph"),
-        ("D.specstats.cohort", "the builder's method paragraph under the Spec Frame's fixed stats"),
+        ("(solid)", "a solid/ghost legend, in any spelling"),
         ("Brighter bar = higher", "chart footnotes that explain the bar's shade"),
         ("Solid bar: period A", "compare legends under the chart"),
         ("Strength scores each run against", "the Top Comps method caption"),
@@ -323,25 +324,45 @@ assert "function retentionWarnHTML(){" in html and '+" "+retentionWarnHTML()).re
 assert "⚠ Sampled payload: " in html and "⚠ Collection was down " in html, "a sampled payload and a collection outage inside the window are still said"
 assert 'p.push(sec==="trajectory"?"all resets":describePeriod(state.weeksA));' in html and '$("overview-sub").innerHTML=scopeLine("overview");' in html and '$("trend-sub").innerHTML=scopeLine("trajectory");' in html, "section heads keep the state they reflect (lens, period, keys, timed, ⚖) and nothing after it; Trajectory reads all resets"
 assert '?["floorK","Key floor","kf"]' in html and '["dmix","Dungeon mix","txt"]);' in html, "the Data Table keeps its Dungeon mix and Key floor columns"
-assert "let __noticeHold=false;" in html and "  __noticeHold=!!t;\n  if(t) setTimeout(()=>{ __noticeHold=false; },0);" in html and '  if(!__noticeHold){ const n=$("notice"); if(n&&n.textContent) n.textContent=""; }' in html, "a notice lives until the reader's next action: render clears it, except inside the action that set it, whatever order that handler sets and renders in"
-assert "__renderGen" not in html and 'setNotice("")' not in html, "no handler has to clear the slot by hand; the 2026-11-26 generation counter kept a notice set after its own render through the action that undid it (Hold key, then Release key)"
+assert "let __noticeHold=false;" in html and 'function setNotice(t){ const n=$("notice"); if(n) n.textContent=t; __noticeHold=!!t; }' in html and 'for(const ev of ["pointerdown","keydown","click","input","change"]) window.addEventListener(ev,()=>{ __noticeHold=false; },true);' in html and '  if(!__noticeHold){ const n=$("notice"); if(n&&n.textContent) n.textContent=""; }' in html, "a notice lives until the reader's next action: render clears it unless it is held, and the next press, key, click or input releases the hold before its own handler runs"
+assert "__renderGen" not in html and not _re.search(r"""setNotice\(\s*(""|\'\')\s*\)""", html) and not _re.search(r"setTimeout\([^)]*__noticeHold", html), "no handler clears the slot by hand and no timer releases it: the render counter of 2026-11-26 kept a notice through the action that undid it (Hold key, then Release key), and the zero timer that replaced it lost to a second click queued behind a slow handler and let a resize wipe a notice nobody had acted on"
 assert 'function syncTimedHint(){ const el=$("timed-hint"); if(el) el.innerHTML=state.timedOnly?"":TIMED_HINT; }' in html, "the key levels with no untimed run are named only while All completed is selected, which is what they qualify"
 print("text        : the page explains nothing; it prints a sentence only beside a number it qualifies or for something abnormal")
 
 # 2026-11-26, the independent review of the cleanup (four reviewers, each finding put to a skeptic). What it found
 # in the page and what now holds it:
 import re as _re
-_static = html[:html.index("<script")]
-_notes = [(_m.group(2), _re.sub(r"<[^>]+>", "", _m.group(3)).strip()) for _m in _re.finditer(
-    r'<(div|span|p)\b[^>]*class="[^"]*\b(hint|caption|kpi-note|cs-foot|fnote|foot)\b[^"]*"[^>]*>(.*?)</\1>', _static, _re.S)]
-assert _notes and max(len(_t) for _c, _t in _notes) <= 60, "a static note element holds a label or stays empty for the page to fill, never a paragraph: " + repr(max(_notes, key=lambda x: len(x[1])))
+from html.parser import HTMLParser as _HTMLParser
+# THE STATIC PAGE HOLDS LABELS: every text node of the markup the page ships (everything before the script) is at
+# most 60 characters and every title attribute at most 120. Before the cleanup nine text nodes were longer (the
+# longest 473) and two titles. The first form of this check read three note classes only and missed a paragraph in
+# a class-less <p>, in the footer, in a nested div and in a title.
+class _Static(_HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True); self.texts, self.titles = [], []
+    def handle_starttag(self, tag, attrs):
+        t = dict(attrs).get("title")
+        if t: self.titles.append(t)
+    def handle_data(self, data):
+        t = _re.sub(r"\s+", " ", data).strip()
+        if t: self.texts.append(t)
+_sp = _Static(); _sp.feed(html[html.index("<body"):html.index("<script")])
+assert len(_sp.texts) > 80 and max(map(len, _sp.texts)) <= 60, "static text is a label, never a paragraph: " + repr(max(_sp.texts, key=len))
+assert _sp.titles and max(map(len, _sp.titles)) <= 120, "a static hover title stays short: " + repr(max(_sp.titles, key=len))
+# EVERYTHING THAT WAS REMOVED STAYS REMOVED: the fixture lists each prose fragment that sat in a string or a text node
+# before the cleanup and is nowhere in the page now. The 43 hand-written pins above name the blocks; this holds the rest.
+_removed = json.loads((ROOT / "scripts" / "fixtures" / "removed_prose.json").read_text(encoding="utf-8"))["phrases"]
+assert len(_removed) > 300, "the removed-prose fixture is truncated"
+_flat = _re.sub(r"\s+", " ", html)   # line breaks collapsed: a paragraph may be wrapped in the source
+_back = [_p for _p in _removed if _p in _flat]
+assert not _back, "text the owner had removed is back on the page (or quoted in a comment of it): " + repr(_back[:3])
 # the gear compare's per-item-level figure is read at the lens, so it carries the lens's own label: the cut typed
-# "median DPS" over a figure that was the p85 read at p85 (11.5% printed under "median" where the median gap was 13.7%)
+# "median DPS" over a figure that was the p85 read at p85 (11.5% printed under "median" where the median gap was 13.7%, on the build of 08:37 UTC)
 assert '? " A "+dpsLabel().replace(/^M/,"m")+" "+(gc.dA>=gc.dB?"+":"")' in html and '" A median DPS "' not in html, "the gear note names the statistic it prints: the lens's own label"
 # one reset boundary per run, as the builder cuts: a row filed under no region took the default boundary and was
 # hidden past a window its four group mates were inside (1 row on the 2026-11-26 payload)
 assert 'const unkRi=D.regions.indexOf("Unknown"), runReg=new Int16Array(runCount).fill(-1);' in html and "const rr=runReg[R.run[i]], rg=rr>=0?rr:R.reg[i];" in html and "b0=boundsH[rg];" in html and "const b0=boundsD[rg];" in html and "boundsH[R.reg[i]]" not in html, "a row is bucketed by its run's region, the rule build_site_data.py _run_regions cuts on"
-assert "' parses past the kept resets, not shown.</b>'" in html and "if(outWindowRows>0) h+=" in html and 'console.warn("parses past' not in html, "parses the payload carries past the window are counted on the page while there are any, not in the console"
+assert "' parse'+(outWindowRows===1?'':'s')+' past the kept resets, not shown.</b>'" in html and "if(outWindowRows>0) h+=" in html and 'console.warn("parses past' not in html, "parses the payload carries past the window are counted on the page while there are any, not in the console"
 assert 'h+=\'<div class="foot">\'+esc((D.specstats.keyMin?"timed +"+D.specstats.keyMin+" and higher · ":"")+"n="+fmtInt(S.n))+\'</div>\';' in html, "the Spec Frame's fixed stats print their key floor and their n, not the builder's method paragraph"
 assert 'note.textContent="";\n    sub.textContent="not available in the Archon replica";' in html, "Pulse under Archon says so in its head, not as a lone dash over a one-line body"
 assert 'if(k==="a_runs"||k==="a_n"||k==="chars") return fmtInt(v);' in html, "Runs takes the thousands separator Parses and Characters have"
@@ -365,5 +386,14 @@ for _kept, _what in (
         ('<span id="frame-dead" class="fs" hidden>Character screen unavailable — builds data missing</span>', "a missing builds sidecar is said where the button was")):
     assert _kept in html, "this count or abnormal-state text is still owed to the reader: " + _what
 print("review      : gear note carries the lens label; notices clear on the next action; rows bucket with their run; kept counts pinned as they read")
+
+# the skeptics' round on the fixes above (three readers told to break them)
+assert not _re.search(r"specstats\W{1,6}cohort", html), "the builder's method paragraph under the Spec Frame's fixed stats stays off the page, however it is reached"
+assert "keyHeld:state.keyHeld," in html and 'state.keyHeld=("keyHeld" in st)?st.keyHeld:null;' in html, "a held key range travels with the Archon snapshot: the Archon route skips gearOff(), and a hold it left behind made a later Gear, Off hand back the wrong key range"
+assert "runReg[r]=best;" in html and "const ri=R.reg[i]; if(ri===unkRi) continue;" in html and "if(w>=KEEP_BUCKETS){R.rbucket[i]=OUTW; outWindowRows++; continue}" in html and "R.rreg[i]=rg;" in html, "the run's region is assigned, a row with no region casts no vote, rows past the window are counted (test_reset_buckets.py runs the function against the builder)"
+assert "const c=cutMs[D.regions[R.rreg?R.rreg[i]:R.reg[i]]];" in html and "const ri=R.rreg[i];" in html, "the sidecar note and the reset-hole notice judge a row by the region it was bucketed by: the row the fix un-hid was at once reported as 'older than ... and carry none' though it carried everything"
+assert "if(R.day[i]<dayLo||R.rbucket[i]===OUTW) return false;" in html and "if(R.day[i]<dayLo||R.key[i]<fk||R.rbucket[i]===OUTW) continue;" in html, "rows past the window are in no view: the Archon replica read them through its own 14-day window while the note said 'not shown'"
+assert "const b=availWeeks.find(w=>w<999&&!state.weeksA.has(w));" in html and '"Compare needs one reset in A — with everything kept there is no other reset for B."' in html and "setNotice(availWeeks.filter(w=>w<999).length<2" in html, "Compare: Time with no B takes the reset A does not hold; it refuses only when there is none, and gives the reason that applies (it said 'only one reset has data' with two)"
+print("skeptics    : notice hold released by input; key hold parked with Archon; one region per run everywhere; removed prose held by fixture (%d phrases)" % len(_removed))
 
 print("\nPASS")

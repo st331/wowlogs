@@ -113,12 +113,20 @@ jobs:
               print("  run %s (#%s): %d artifact(s), %d live" % (r["id"], r.get("run_number"), len(arts), len(live)), file=sys.stderr)
               if live:
                   print(live[0]["archive_download_url"]); break' || true)
-          if [ -n "$url" ]; then
-            curl -sfL -H "Authorization: Bearer $GH_TOKEN" -o /tmp/pages.zip "$url"
-            unzip -q /tmp/pages.zip -d /tmp/live
-            tar -xf /tmp/live/artifact.tar -C /tmp/out
+          if [ -n "$url" ] \
+             && curl -sfL -H "Authorization: Bearer $GH_TOKEN" -o /tmp/pages.zip "$url" \
+             && unzip -q /tmp/pages.zip -d /tmp/live \
+             && tar -xf /tmp/live/artifact.tar -C /tmp/out; then
             echo "seeded from refresh pipeline artifact: $(du -sh /tmp/out | cut -f1)"
           else
+            # 2026-11-26: the same fallback when the artifact was found but
+            # its download or unpacking failed, which used to abort the step
+            # right here. Whatever a failed unpack left behind is cleared
+            # first, so the seed starts from an empty folder.
+            if [ -n "$url" ]; then
+              echo "::warning::the refresh artifact could not be downloaded or unpacked"
+              rm -rf /tmp/out /tmp/live /tmp/pages.zip; mkdir -p /tmp/live /tmp/out
+            fi
             # 2026-09-30: the artifact lookup came back empty although the
             # refresh runs' artifacts existed (run 36675572880), and the `ls`
             # guard below then failed the deploy rather than publish a site

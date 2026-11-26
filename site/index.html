@@ -2134,7 +2134,7 @@ function retentionWarnHTML(){
   let h="";
   if(r&&r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than '+r.max_age_days+' days.</b>';
   if(r&&typeof r.lag_h==="number"&&r.lag_h>3) h+=' <b class="delta down">Newest run '+r.lag_h.toFixed(1)+' h before this build.</b>';
-  if(outWindowRows>0) h+=' <b class="delta down">⚠ '+fmtInt(outWindowRows)+' parses past the kept resets, not shown.</b>';
+  if(outWindowRows>0) h+=' <b class="delta down">⚠ '+fmtInt(outWindowRows)+' parse'+(outWindowRows===1?'':'s')+' past the kept resets, not shown.</b>';
   return h;
 }
 function initData(d,cfg){
@@ -2416,7 +2416,10 @@ function computeResetBuckets(){
   // _run_regions): the region most of the run's rows carry; a tie goes to the
   // earlier boundary, then the name. A row filed under no region follows its
   // run. Bucketed by its own "Unknown" it took the default boundary and could
-  // land past a window its four group mates were inside.
+  // land past a window its four group mates were inside. R.rreg keeps the
+  // region each row was bucketed by, for the reset-hole notice below and for
+  // windowNote(). (No collected run carries two known regions; the builder
+  // breaks such a tie on its cut, which the age floor can make equal.)
   const unkRi=D.regions.indexOf("Unknown"), runReg=new Int16Array(runCount).fill(-1);
   { const tally=new Array(runCount);
     for(let i=0;i<N;i++){
@@ -2433,11 +2436,13 @@ function computeResetBuckets(){
     }
   }
   R.rbucket=new Int16Array(N);
+  R.rreg=new Int16Array(N);
   outWindowRows=0;
   for(let i=0;i<N;i++){
     const d0=R.day[i];
-    if(d0<0){R.rbucket[i]=999; continue}
     const rr=runReg[R.run[i]], rg=rr>=0?rr:R.reg[i];
+    R.rreg[i]=rg;
+    if(d0<0){R.rbucket[i]=999; continue}
     let w;
     if(HR&&HR[i]>=0){
       const h0=d0*24+HR[i], b0=boundsH[rg];
@@ -2466,7 +2471,7 @@ function computeResetBuckets(){
       if(!sp) bucketSpan.set(w,{lo:d0,hi:d0});
       else { if(d0<sp.lo) sp.lo=d0; if(d0>sp.hi) sp.hi=d0; }
     }
-    const ri=R.reg[i];
+    const ri=R.rreg[i];   // the region the row was bucketed by, so a hole is read off the same boundary
     regAll.set(ri,(regAll.get(ri)||0)+1);
     if(w===0) reg0.set(ri,(reg0.get(ri)||0)+1);
   }
@@ -2975,6 +2980,7 @@ function buildControls(){
     state.skill=("skill" in st)?!!st.skill:false;   // Skill axis counts as compare
     state.gear=("gear" in st)?!!st.gear:false;      // so does the Gear axis
     gearPrevA=("gearPrev" in st)?st.gearPrev:null;  // its restore memory travels with it: parked on entry, back on restore, never stale
+    state.keyHeld=("keyHeld" in st)?st.keyHeld:null; // and so does a held key range: this route skips gearOff(), and a hold left behind gave a later Gear, Off the wrong range to hand back
     if("ilob" in st){state.ilob=st.ilob; state.ihib=st.ihib;}
     state.role=new Set(st.role); state.weeksA=new Set(st.weeksA);
     $("merge").checked=state.merge; $("cmp").checked=state.compare;
@@ -2995,6 +3001,7 @@ function buildControls(){
   };
   const snap=()=>({pctl:state.pctl, elite:state.elite, klo:state.klo, khi:state.khi,
     ilo:state.ilo, ihi:state.ihi, gear:state.gear, ilob:state.ilob, ihib:state.ihib, gearPrev:gearPrevA,
+    keyHeld:state.keyHeld,
     timedOnly:state.timedOnly, merge:state.merge, compare:state.compare,
     tab:state.tab, trendMetric:state.trendMetric, skill:state.skill,
     role:[...state.role], weeksA:[...state.weeksA]});
@@ -3096,12 +3103,19 @@ function syncAxisUI(){
   $("cmpseg").classList.toggle("dis",state.elite);
 }
 function setCompare(on){
+  if(on&&!state.weeksB.size&&state.weeksA.size===1){
+    // B is empty (it never had a default, or was put on "everything kept" and the axis then switched off, which
+    // hides the B chips): take the reset A does not hold. It used to refuse here for good, with a false reason
+    const b=availWeeks.find(w=>w<999&&!state.weeksA.has(w));
+    if(b!==undefined) state.weeksB.add(b);
+  }
   if(on&&!state.weeksB.size){
-    // no legal baseline inside the window (bucket 1 empty, or A is already
-    // on it): refuse, say why, and leave the box unchecked -- never compare
-    // a period against itself or against "everything"
+    // no legal baseline inside the window: refuse, say why, and leave the box unchecked -- never compare a
+    // period against itself or against "everything"
     state.compare=false; $("cmp").checked=false;
-    setNotice("Compare needs two resets — only one reset has data inside the window right now.");
+    setNotice(availWeeks.filter(w=>w<999).length<2
+      ? "Compare needs two resets — only one reset has data inside the window right now."
+      : "Compare needs one reset in A — with everything kept there is no other reset for B.");
     refreshPeriodUIs(); syncAxisUI(); return;
   }
   state.compare=on;
@@ -3389,14 +3403,13 @@ $("lens-clear").onclick=()=>{
 
 /* -------- programmatic-change notice slot (context strip) -------- */
 // A notice says why a control refused, or what a click cost. It lives until the reader's next action: render()
-// clears it, except inside the action that set it. The hold lapses once that action's handlers have returned,
-// so a handler may set its notice before its render, after it, or without rendering at all.
+// clears it unless it is held, and the hold is released by the next press, key, click or input event, before
+// that action's own handler runs. So a handler may set its notice before its render, after it, or without one,
+// and a render no input started (a resize, a late load) leaves the notice alone. A zero timer released the hold
+// for a few hours on 2026-11-26: a second click queued behind a slow handler overtook it.
 let __noticeHold=false;
-function setNotice(t){
-  const n=$("notice"); if(n) n.textContent=t;
-  __noticeHold=!!t;
-  if(t) setTimeout(()=>{ __noticeHold=false; },0);
-}
+function setNotice(t){ const n=$("notice"); if(n) n.textContent=t; __noticeHold=!!t; }
+for(const ev of ["pointerdown","keydown","click","input","change"]) window.addEventListener(ev,()=>{ __noticeHold=false; },true);
 
 /* -------- Archon exit toast: auto-uncheck kept your changes; offer restore -------- */
 function showArchonToast(){ $("archon-toast").hidden=false; }
@@ -3655,7 +3668,7 @@ function aggregateElite(){
   if(maxDay<0){maxDay=-1; for(let i=0;i<R.day.length;i++) if(R.day[i]>maxDay) maxDay=R.day[i];}
   const dayLo=maxDay-(ELITE_DAYS-1);
   const pass=i=>{
-    if(R.day[i]<dayLo) return false;
+    if(R.day[i]<dayLo||R.rbucket[i]===OUTW) return false;
     if(projSkip(i)) return false;
     if(m.cls&&!m.cls.has(R.cls[i])) return false;
     if(m.spec&&!m.spec.has(R.spec[i])) return false;
@@ -4120,7 +4133,7 @@ function liveIdxMulti(keys){
     for(let i=0;i<N;i++){
       const k=groupKey(i), fk=floor.get(k);
       if(fk===undefined) continue;
-      if(R.day[i]<dayLo||R.key[i]<fk) continue;
+      if(R.day[i]<dayLo||R.key[i]<fk||R.rbucket[i]===OUTW) continue;
       if(projSkip(i)) continue;
       if(m.dun&&!m.dun.has(R.dun[i])) continue;
       if(m.role&&!m.role.has(R.role[i])) continue;
@@ -5195,7 +5208,8 @@ function windowNote(win,idx){
   if(!win||!win.resets||!win.cut) return "";
   const cutMs={}; for(const r in win.cut){ const t=Date.parse(win.cut[r]); if(!isNaN(t)) cutMs[r]=t; }
   const ep=Date.parse(D.epoch+"T00:00:00Z"); let older=0;
-  if(idx) for(const i of idx){ const c=cutMs[D.regions[R.reg[i]]]; if(c==null||R.day[i]<0) continue;
+  // against the cut of the row's RUN, which is what the sidecar builder cuts on (the same _window_mask)
+  if(idx) for(const i of idx){ const c=cutMs[D.regions[R.rreg?R.rreg[i]:R.reg[i]]]; if(c==null||R.day[i]<0) continue;
     if(ep+R.day[i]*86400000+Math.max(0,R.hr[i])*3600000<c) older++; }
   if(!older) return "";
   const fmt=t=>new Date(t).toLocaleDateString("en-GB",{day:"numeric",month:"short",timeZone:"UTC"});
