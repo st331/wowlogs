@@ -83,10 +83,9 @@ TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 # window in this file BINDS to them and none can claim a wider span. The
 # mechanism is apply_retention(), further down.
 # --------------------------------------------------------------------------
-# "don't keep data for longer than 2 weeks. only data in the last two weeks is
-# ever relevant, beyond that is useless. remove any features that allow
-# looking at data older than 2 weeks. Just to give it a grace period and
-# mitigate boundary conditions, it is fine to keep a day or two extra of data."
+# Owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
+# resets)". Until then, from 2026-09-14: "don't keep data for longer than 2
+# weeks ... it is fine to keep a day or two extra of data."
 from retention import RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS  # noqa: E402
 import talent_string  # noqa: E402  (the game's loadout import string)
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
@@ -418,8 +417,8 @@ GEAR_EXPORT = ROOT / "data" / "gear.jsonl.gz"
 # cut to RETENTION_RESETS resets by apply_retention() inside build(), so inside
 # a build this clause excludes nothing. It stays because the block is also
 # built on un-retained frames (tests, standalone calls) and an all-stale frame
-# must still yield its newest cohort. One day wider than two resets can ever
-# reach, so it can never trim a retained row.
+# must still yield its newest cohort. One day wider than the kept resets can
+# ever reach, so it can never trim a retained row.
 SPECSTATS_WINDOW_DAYS = 7 * RETENTION_RESETS + 1
 SPECSTATS_MIN_KEY = 12
 SPECSTATS_MIN_CHARS = 10        # a spec below this is omitted, never guessed
@@ -694,16 +693,16 @@ def _sidecar_json(names, enc, n, vals, idx=None, scale=1,
 # --------------------------------------------------------------------------
 # RETENTION — the dashboard holds the newest RETENTION_RESETS weekly resets
 # --------------------------------------------------------------------------
-# Owner, 2026-09-14: "don't keep data for longer than 2 weeks. only data in
-# the last two weeks is ever relevant, beyond that is useless ... it is fine
-# to keep a day or two extra of data."
+# Owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
+# resets)". (2026-09-14 to 2026-11-28 it was two weeks and a day of grace.)
 #
-# WHAT THE WINDOW IS. Two weekly resets per region: bucket 0 ("this reset")
-# and bucket 1 ("last reset"), the unit the page already buckets by, so the
-# window never cuts a reset in half or leaves a ragged third chip. In wall
-# clock that is 7.00 to just under 14.00 days per region, depending where the
-# region sits in its own week -- NOT a flat fourteen days, and the page prints
-# the span it actually holds (days_kept) rather than the round number.
+# WHAT THE WINDOW IS. RETENTION_RESETS weekly resets per region, three since
+# 2026-11-28: bucket 0 ("this reset"), bucket 1 ("last reset") and bucket 2
+# (the one before), the unit the page already buckets by, so the window never
+# cuts a reset in half or leaves a ragged extra chip. In wall clock that is
+# 14.00 to just under 21.00 days per region, depending where the region sits
+# in its own week -- NOT a flat twenty-one days; build_health.txt carries the
+# span actually cut on (days_kept).
 # RETENTION_MAX_AGE_DAYS is the ceiling on top: the reset cut is anchored to
 # the DATA (below), so a long stall would drag it backwards; the floor is the
 # policy, the reset alignment only the shape.
@@ -727,7 +726,7 @@ def _sidecar_json(names, enc, n, vals, idx=None, scale=1,
 # ANCHORED TO THE DATA, not the wall clock, like the sidecar windows: when
 # collection stalls -- and it did, for 21 hours on 2026-09-13 -- a now-anchored
 # window would slide past every row there is and blank the page instead of
-# showing the newest two resets it actually has. The anchor and the wall clock
+# showing the newest resets it actually has. The anchor and the wall clock
 # are BOTH shipped, so the page can bucket on the same instants the build cut
 # on and say how far behind the newest run is.
 #
@@ -3566,7 +3565,7 @@ def build(name: str, cfg: dict) -> None:
                     "runs": int((post == 1).sum()),
                     # rows BEFORE the patch inside the window: the control
                     # group the "since tuning" split compares against. Under
-                    # retention it goes to 0 about two weeks after a patch,
+                    # retention it goes to 0 once a patch is older than the window,
                     # and the page must say so rather than compare to nothing
                     "pre_runs": int((post == 0).sum())} if patch else None),
         "classes": classes, "specs": specs, "heroes": heroes,

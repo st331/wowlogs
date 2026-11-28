@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Prune the collection journals to the retention window (owner, 2026-09-14).
+"""Prune the collection journals to the retention window.
 
-    "don't keep data for longer than 2 weeks ... it is fine to keep a day or
-    two extra of data."
+    Owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
+    resets)." Before that, from 2026-09-14: two weeks and a day or two.
 
 WHAT IT KEEPS. Every run whose players row is DATED on or after the cut, plus
 every run that cannot be dated (undated / implausible start, torn line, no
@@ -10,9 +10,10 @@ players row at all). The cut is RETENTION_DISK_DAYS back from the NEWEST
 PLAUSIBLE ROW IN players.jsonl -- the same data anchor the builder and the
 fetch window use -- never from the wall clock: a stalled collector freezes
 this prune instead of eating rows the page still publishes, and because the
-builder's ceiling is measured from the wall clock (15 d) while this is
-measured from the newest row (16 d, newest <= now), disk is strictly wider
-than the page in every case.
+builder's ceiling is measured from the wall clock (RETENTION_MAX_AGE_DAYS)
+while this is measured from the newest row (RETENTION_DISK_DAYS, one day
+more, and newest <= now), disk is strictly wider than the page in every case.
+The numbers are in scripts/retention.py.
 
 WHAT IT TOUCHES, BY NAME (never data/processed/* by glob):
   players.jsonl      the ONLY dated journal -> the date oracle; rewritten LAST

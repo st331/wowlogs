@@ -52,11 +52,20 @@ assert '"caps": {"items": item_cap' in _b and '"stats_all": list(SIDECAR_STATS)'
 assert '"retention": dict(RETENTION_INFO)' in _b and "SIDECAR_WINDOW_RESETS = RETENTION_RESETS" in _b and "BUILDS_WINDOW_RESETS = RETENTION_RESETS" in _b, "retention facts ship; sidecar windows bind to retention"
 assert '"coverage": coverage' in (ROOT / "scripts" / "build_site_data.py").read_text() and 'persist_sweep_stats({"sweep.public_runs"' in (ROOT / "scripts" / "fetch_data.py").read_text(), "coverage facts flow fetch -> build; the payload carries them and the page prints none of it"
 # 2026-09-14 retention (owner): the page buckets on the builder's anchor and has no control that reaches
-# past the newest two resets. (It no longer STATES the window in a paragraph: owner, 2026-11-26.)
+# past the resets the policy keeps (two until 2026-11-28, three since). (It no longer STATES the window in a
+# paragraph: owner, 2026-11-26.)
 assert "D.retention" in html, "the page reads the payload's retention block"
-assert '["Everything kept", ()=>[]]' in html and '["This reset", ()=>[0]]' in html and '["Last reset", ()=>[1]]' in html, "the three period presets"
+assert '["Everything kept", ()=>[]]' in html and '["This reset", ()=>[0]]' in html and '["Last reset", ()=>[1]]' in html and '["2 resets ago", ()=>[2]]' in html, "the period presets: no filter, and one per kept reset"
+# 2026-11-28 (owner: "start keeping 3 weeks of data (+3 days to accomodate resets)"): every reset the policy keeps
+# can be selected on its own. A three-reset payload on the two-chip page held 47% of its rows in a reset that could
+# only be read blended into "Everything kept".
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "scripts"))
+import retention as _ret
+for _w in range(_ret.RETENTION_RESETS):
+    assert ", ()=>[%d]],\n" % _w in html[html.index("const PRESETS=["):html.index("function presetWeeks")], f"the policy keeps {_ret.RETENTION_RESETS} resets and the page has no period chip for reset {_w}"
 for gone in ('"All season"', '"Last month"', '"Prev month"', '"Last 2 months"', "Custom weeks", 'id="f-weeksA"', "whole season", "pulseSpark(", "wkBag", "Last vs prev month"):
-    assert gone not in html, f"{gone!r} must not survive the two-week window"
+    assert gone not in html, f"{gone!r} must not survive the retention window"
 assert "if(w===OUTW) return false;" in html and "KEEP_BUCKETS=(Number.isFinite(+r)&&+r>0)?+r:2" in html, "rows past the window never pass, and the clamp fails closed on an old payload"
 assert "const now=(aD&&!isNaN(+aD))?aD:wallNow;" in html and "Math.floor((wallNow-epoch)/36e5)" in html, "buckets on the builder's anchor (NaN-guarded); reset-age on the wall clock"
 assert "function retPhrase()" in html, "the window is read from the payload"
@@ -173,7 +182,7 @@ assert "function ilvlSpan(lo,hi)" in html and 'atHi?"≥ "+lo:atLo?"≤ "+hi:lo+
 print("client      : gear read: % per item level in the note; ⚑ Hold key pins both cohorts to one key level and says what it costs; floors print as ≥/≤")
 
 print("client      : Gear compare axis: Off|Time|Skill|Gear XOR; B = period A over the B item-level cohort; median split / complement / swap; period note, chip, tooltip, table, frame; Archon park+restore; hidden without rows.ilvl")
-print("client      : presets Everything kept / This reset / Last reset; anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
+print("client      : presets Everything kept / This reset / Last reset / 2 resets ago (one per kept reset); anchor-bucketed; no month presets, custom weeks, season sparkline or 'whole season' text")
 
 # 2026-11-13: the page's DPS is the collector's damage / fight clock, the figure Warcraft Logs
 # ranks (scripts/diag_rogue_dps.py: 175 of 175 players). The keystone clock carries 15 s per party
@@ -395,5 +404,12 @@ assert "const c=cutMs[D.regions[R.rreg?R.rreg[i]:R.reg[i]]];" in html and "const
 assert "if(R.day[i]<dayLo||R.rbucket[i]===OUTW) return false;" in html and "if(R.day[i]<dayLo||R.key[i]<fk||R.rbucket[i]===OUTW) continue;" in html, "rows past the window are in no view: the Archon replica read them through its own 14-day window while the note said 'not shown'"
 assert "const b=availWeeks.find(w=>w<999&&!state.weeksA.has(w));" in html and '"Compare needs one reset in A — with everything kept there is no other reset for B."' in html and "setNotice(availWeeks.filter(w=>w<999).length<2" in html, "Compare: Time with no B takes the reset A does not hold; it refuses only when there is none, and gives the reason that applies (it said 'only one reset has data' with two)"
 print("skeptics    : notice hold released by input; key hold parked with Archon; one region per run everywhere; removed prose held by fixture (%d phrases)" % len(_removed))
+
+# 2026-11-28, three weeks of data. While the journals are younger than the window (they had been pruned to 16 days
+# and grow a day a day), the oldest reset is part-filled for the regions whose cut is earlier than the oldest row
+# held. The page says so, with the hours, only while the selection reads that reset and never under Archon.
+assert "function retentionShort(r){" in html and "const h=(t0-Date.parse(r.cut[reg]))/36e5;" in html and "if(h>=1&&h<168) parts.push(reg+\" \"+Math.round(h)+\" h\");" in html, "a region is short by the hours between its cut and the oldest row held; a week or more is an empty reset, not a part-filled one"
+assert "const old=KEEP_BUCKETS-1, reads=w=>!w.size||w.has(old);" in html and "const sh=(!state.elite&&weekCounts.has(old)&&(reads(state.weeksA)||(state.compare&&reads(state.weeksB))))?retentionShort(r):null;" in html and "⚠ Oldest reset held from '+sh.from+': short by '+sh.parts.join(\" · \")+'.</b>'" in html, "the part-filled oldest reset is said while period A or B reads it, with the hours short per region"
+print("retention   : %d resets kept, each with its own period chip; a part-filled oldest reset is said with its hours" % _ret.RETENTION_RESETS)
 
 print("\nPASS")

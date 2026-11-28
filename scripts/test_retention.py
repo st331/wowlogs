@@ -62,18 +62,18 @@ def frame(rows):
 ANCHOR = "2026-09-09T12:00:00Z"          # Wednesday
 # US reset Tue 15:00 -> newest US reset is 2026-09-08 15:00; two resets back
 # starts 2026-09-01 15:00.
-US_CUT = pd.Timestamp("2026-09-01T15:00:00Z")
+US_CUT = pd.Timestamp("2026-08-25T15:00:00Z")
 # EU reset Wed 04:00 -> newest EU reset is 2026-09-09 04:00 (04:00 < 12:00);
 # two resets back starts 2026-09-02 04:00.
-EU_CUT = pd.Timestamp("2026-09-02T04:00:00Z")
+EU_CUT = pd.Timestamp("2026-08-26T04:00:00Z")
 
 rows = [
     ("US", ms(ANCHOR)),                          # the anchor itself
-    ("US", ms("2026-09-01T15:00:01Z")),          # one second inside the US cut
-    ("US", ms("2026-09-01T14:59:59Z")),          # one second outside it
+    ("US", ms("2026-08-25T15:00:01Z")),          # one second inside the US cut
+    ("US", ms("2026-08-25T14:59:59Z")),          # one second outside it
     ("US", ms("2026-08-20T00:00:00Z")),          # far outside
-    ("EU", ms("2026-09-02T04:00:01Z")),          # inside the EU cut
-    ("EU", ms("2026-09-02T03:59:59Z")),          # outside it
+    ("EU", ms("2026-08-26T04:00:01Z")),          # inside the EU cut
+    ("EU", ms("2026-08-26T03:59:59Z")),          # outside it
     ("EU", ms("2026-09-05T00:00:00Z")),          # comfortably inside
     ("KR", ms("2026-09-08T00:00:00Z")),          # a region with no explicit rule
     ("US", None),                                # undated
@@ -128,13 +128,18 @@ res = B.apply_retention(na_reg.copy(), "test")
 check(len(res) == 1 and res.iloc[0]["report_code"] == "R0",
       f"an NA region is windowed, not crashed on: {len(res)} row(s)")
 
-# ---- the constant is the policy: two resets, never more; every other window binds to it
-check(B.RETENTION_RESETS == 2, f"RETENTION_RESETS is 2 (got {B.RETENTION_RESETS})")
-check(B.RETENTION_MAX_AGE_DAYS == 15, f"the ceiling is 15 days = 14 + one day of grace (got {B.RETENTION_MAX_AGE_DAYS})")
+# ---- the constants are the policy (owner, 2026-11-28: three weeks, three days of grace); every other window binds to them
+check(B.RETENTION_RESETS == 3, f"RETENTION_RESETS is 3 (got {B.RETENTION_RESETS})")
+check(B.RETENTION_MAX_AGE_DAYS == 23, f"the ceiling is 23 days: one inside the 24 the owner asked to keep (got {B.RETENTION_MAX_AGE_DAYS})")
 check(B.SIDECAR_WINDOW_RESETS == B.RETENTION_RESETS and B.BUILDS_WINDOW_RESETS == B.RETENTION_RESETS,
       f"no sidecar window claims a span other than retention's (stats {B.SIDECAR_WINDOW_RESETS}, builds {B.BUILDS_WINDOW_RESETS})")
 check(B.SPECSTATS_WINDOW_DAYS == 7 * B.RETENTION_RESETS + 1,
-      f"the specstats rail is one day wider than two resets can reach ({B.SPECSTATS_WINDOW_DAYS})")
+      f"the specstats rail is one day wider than the kept resets can reach ({B.SPECSTATS_WINDOW_DAYS})")
+import retention as _R
+check(_R.RETENTION_DISK_DAYS == 7 * _R.RETENTION_RESETS + _R.RETENTION_GRACE_DAYS == 24 and _R.RETENTION_GRACE_DAYS == 3,
+      f"what is kept is the owner's sum: 3 weeks + 3 days = 24 days on disk (got {_R.RETENTION_DISK_DAYS})")
+check(_R.RETENTION_MAX_AGE_DAYS == _R.RETENTION_DISK_DAYS - 1 == 23,
+      f"the page's ceiling sits one day inside disk: 23 (got {_R.RETENTION_MAX_AGE_DAYS})")
 
 # ---- anchor, wall clock and the span held are SHIPPED, so the page can bucket on the
 # same instants the build cut on and say how far behind the newest run is
@@ -144,14 +149,14 @@ check(info["days_kept"]["US"] == round((pd.Timestamp(ANCHOR) - US_CUT).total_sec
       and info["days_kept"]["EU"] == round((pd.Timestamp(ANCHOR) - EU_CUT).total_seconds() / 86400, 2),
       f"days actually held per region are shipped: {info['days_kept']}")
 check(info["runs_in"] == 9 and info["runs_out"] == 6, f"run counters in/out: {info['runs_in']}/{info['runs_out']}")
-check(info["note"].startswith("the newest 2 weekly resets per region, nothing older than 15 days"),
+check(info["note"].startswith("the newest 3 weekly resets per region, nothing older than 23 days"),
       "the printed sentence LEADS with the policy: " + info["note"][:80])
 check("set aside 3 older parses (3 runs)" in info["note"], "…and carries this build's counts as a trailing clause")
 check(isinstance(info["exceptions"], list) and {e["key"] for e in info["exceptions"]} == {"rating", "talents"},
       "the two measurements not limited to the window are named for the page")
 
 # ---- the hard ceiling: an injected wall clock far past the anchor
-NOW_LATE = "2026-09-20T12:00:00Z"          # 11 days after the anchor -> floor = 09-05 12:00
+NOW_LATE = "2026-09-28T12:00:00Z"          # 19 days after the anchor -> floor = 09-05 12:00
 out_f = B.apply_retention(df.copy(), "floor", now=NOW_LATE)
 info_f = copy.deepcopy(B.RETENTION_INFO)
 check(info_f["cut"]["US"] == "2026-09-05T12:00:00Z" and info_f["cut"]["EU"] == "2026-09-05T12:00:00Z",
@@ -185,8 +190,8 @@ def run_frame(rows):
     })
 # 4 US rows + 1 region-less row, started 2 days BEFORE the US cut but inside EU's:
 # the run is US (4 votes), so all 5 leave -- the orphan must not be published alone
-t_between = ms("2026-08-30T00:00:00Z")            # inside neither US (09-01) nor EU (09-02) -> gone
-t_us_only = ms("2026-09-01T20:00:00Z")            # after the US cut, before the EU cut
+t_between = ms("2026-08-23T00:00:00Z")            # inside neither US (09-01) nor EU (09-02) -> gone
+t_us_only = ms("2026-08-25T20:00:00Z")            # after the US cut, before the EU cut
 mixed = run_frame([("A", "US", t_us_only), ("A", "US", t_us_only), ("A", "US", t_us_only),
                    ("A", "US", t_us_only), ("A", None, t_us_only),
                    ("B", "EU", t_us_only), ("B", "EU", t_us_only), ("B", "US", t_us_only),   # EU-majority run
@@ -212,15 +217,15 @@ check(len(B.apply_retention(nr.copy(), "noreg")) == 2, "a run with no known regi
 # from both ends.
 before = [("US", ms("2026-09-08T14:59:59Z")),      # newest row, 1 s BEFORE the US reset
           ("US", ms("2026-09-02T00:00:00Z")),      # inside A's window, not B's
-          ("US", ms("2026-08-26T00:00:00Z")),      # inside A's window (cut 08-25 15:00)
-          ("US", ms("2026-08-20T00:00:00Z")),      # outside both
+          ("US", ms("2026-08-19T00:00:00Z")),      # inside A's window (cut 08-18 15:00)
+          ("US", ms("2026-08-13T00:00:00Z")),      # outside both
           ("EU", ms("2026-09-06T00:00:00Z"))]      # a region the US row must not move
 outA = B.apply_retention(frame(before).copy(), "boundary-A", now="2026-09-09T00:00:00Z")
 infoA, keptA = copy.deepcopy(B.RETENTION_INFO), set(outA["report_code"])
 after = before + [("US", ms("2026-09-08T15:00:00Z"))]          # the first row of the new reset
 outB = B.apply_retention(frame(after).copy(), "boundary-B", now="2026-09-09T00:00:00Z")
 infoB, keptB = copy.deepcopy(B.RETENTION_INFO), set(outB["report_code"])
-check(infoA["cut"]["US"] == "2026-08-25T15:00:00Z" and infoB["cut"]["US"] == "2026-09-01T15:00:00Z",
+check(infoA["cut"]["US"] == "2026-08-18T15:00:00Z" and infoB["cut"]["US"] == "2026-08-25T15:00:00Z",
       f"the US cut jumps exactly one week when the first row of the new reset lands: {infoA['cut']['US']} -> {infoB['cut']['US']}")
 check(infoA["cut"]["EU"] == infoB["cut"]["EU"], "…and the EU cut does not move")
 check(keptA == {"R0", "R1", "R2", "R4"} and keptB == {"R0", "R1", "R4", "R5"},
@@ -228,23 +233,23 @@ check(keptA == {"R0", "R1", "R2", "R4"} and keptB == {"R0", "R1", "R4", "R5"},
 check(infoB["dropped"] == infoA["dropped"] + 1, "the row that left is in the counter")
 
 # ---- the sidecar window is the SAME rule (it used to drop undated rows silently)
-mask = B._sidecar_window(df, 2, now="2026-09-09T12:00:00Z")
+mask = B._sidecar_window(df, B.RETENTION_RESETS, now="2026-09-09T12:00:00Z")
 check(mask is not None and bool(mask[8]) and not bool(mask[2]),
       "the sidecar mask keeps the undated row and drops the one before the cut, like apply_retention")
-check(B._sidecar_window(na_reg, 2) is not None, "the sidecar mask survives an NA region")
-hdr = B._retention_header(df, 2)
-check(hdr and hdr["resets"] == 2 and hdr["cut"] and hdr["max_age_days"] == 15, f"sidecar header carries retention's window: {hdr}")
+check(B._sidecar_window(na_reg, B.RETENTION_RESETS) is not None, "the sidecar mask survives an NA region")
+hdr = B._retention_header(df, B.RETENTION_RESETS)
+check(hdr and hdr["resets"] == 3 and hdr["cut"] and hdr["max_age_days"] == 23, f"sidecar header carries retention's window: {hdr}")
 check(B._window_cuts(df, 0) is None and B._sidecar_window(df, 0) is None, "resets=0 switches the window off")
 
 # ---- outage annotations: filtered to the window at the payload boundary, fail open
 # cuts: US 09-01 15:00, EU 09-02 04:00, and 08-26 for the regions on the default rule (KR, Unknown), which is
 # the floor the filter reads. The clock is pinned so the stale-anchor rule cannot move those cuts.
 B.apply_retention(df.copy(), "gaps", now="2026-09-09T12:00:00Z")
-gaps = [{"from": "2026-08-18T00:00:00Z", "to": "2026-08-25T00:00:00Z", "note": "old"},
+gaps = [{"from": "2026-08-11T00:00:00Z", "to": "2026-08-18T00:00:00Z", "note": "old"},
         # ends after the EARLIEST cut (08-26) and before the US one (09-01): kept only because the filter reads
         # the earliest cut. This is the gap the case used to call "old"; it was rightly kept all along.
-        {"from": "2026-08-20T00:00:00Z", "to": "2026-08-28T00:00:00Z", "note": "after the default-rule cut, before the US cut"},
-        {"from": "2026-08-30T00:00:00Z", "to": "2026-09-01T16:00:00Z", "note": "straddles the US cut"},
+        {"from": "2026-08-13T00:00:00Z", "to": "2026-08-21T00:00:00Z", "note": "after the default-rule cut, before the US cut"},
+        {"from": "2026-08-23T00:00:00Z", "to": "2026-08-25T16:00:00Z", "note": "straddles the US cut"},
         {"from": "2026-09-05T00:00:00Z", "to": None, "note": "open-ended"},
         {"from": "2026-09-05T00:00:00Z", "to": "not a date", "note": "unparseable end"}]
 pub, sup = B._gaps_in_window(gaps)

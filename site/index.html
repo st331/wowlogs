@@ -2127,11 +2127,33 @@ function renderTimedHint(){
   syncTimedHint();
 }
 function syncTimedHint(){ const el=$("timed-hint"); if(el) el.innerHTML=state.timedOnly?"":TIMED_HINT; }
+/* The oldest kept reset is part-filled: the window reaches back before the oldest row on disk. That is the state
+   after the policy was widened on 2026-11-28 (the journals had been pruned to 16 days and grow into the window a
+   day a day), and it ends for a region at that region's next reset. Per region, the hours between its cut and the
+   oldest row held. Under a week only: a longer gap is a reset that holds nothing at all, which draws no chip. */
+function retentionShort(r){
+  if(!r||!r.oldest_seen||!r.cut) return null;
+  const t0=Date.parse(r.oldest_seen); if(isNaN(t0)) return null;
+  const parts=[];
+  for(const reg of Object.keys(r.cut).sort()){
+    if(reg==="Unknown"||D.regions.indexOf(reg)<0) continue;
+    const h=(t0-Date.parse(r.cut[reg]))/36e5;
+    if(h>=1&&h<168) parts.push(reg+" "+Math.round(h)+" h");
+  }
+  if(!parts.length) return null;
+  const d=new Date(t0), p2=n=>String(n).padStart(2,"0");
+  return {from:d.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"})+" "+p2(d.getUTCHours())+":"+p2(d.getUTCMinutes())+" UTC", parts};
+}
 /* Retention warnings, as HTML for the period note: the stale flag, a newest run that lags the build by more
-   than 3 h, and the count of parses the payload carries past the window. "" when none applies. */
+   than 3 h, the count of parses the payload carries past the window, and a part-filled oldest reset while the
+   selection reads it. "" when none applies. */
 function retentionWarnHTML(){
   const r=retInfo();
   let h="";
+  { const old=KEEP_BUCKETS-1, reads=w=>!w.size||w.has(old);
+    // (the Archon replica reads its own newest 14 days, which the part-filled days are never among)
+    const sh=(!state.elite&&weekCounts.has(old)&&(reads(state.weeksA)||(state.compare&&reads(state.weeksB))))?retentionShort(r):null;
+    if(sh) h+=' <b class="delta down">⚠ Oldest reset held from '+sh.from+': short by '+sh.parts.join(" · ")+'.</b>'; }
   if(r&&r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than '+r.max_age_days+' days.</b>';
   if(r&&typeof r.lag_h==="number"&&r.lag_h>3) h+=' <b class="delta down">Newest run '+r.lag_h.toFixed(1)+' h before this build.</b>';
   if(outWindowRows>0) h+=' <b class="delta down">⚠ '+fmtInt(outWindowRows)+' parse'+(outWindowRows===1?'':'s')+' past the kept resets, not shown.</b>';
@@ -2207,8 +2229,8 @@ function initData(d,cfg){
   else if(weekCounts.has(1)) state.weeksA.add(1);
   else if(availWeeks.length) state.weeksA.add(availWeeks[0]);
   state.weeksB.clear();
-  // Compare default: A = this reset, B = the one before it -- the only two
-  // buckets the payload is allowed to hold. When A has itself fallen back to
+  // Compare default: A = this reset, B = the one before it (an older reset is
+  // a click away on the B chips). When A has itself fallen back to
   // last reset (bucket 0 still empty after a rollover) there is no legal
   // baseline inside the window: leave B empty and let setCompare refuse
   // rather than compare a period against itself.
@@ -2578,15 +2600,18 @@ function resetNote(){
   return ' <b class="delta down" style="font-size:.95em">⚠ '+esc(t)
     +' — no runs there in this reset yet.</b>';
 }
-// Retention (owner, 2026-09-14): the build keeps the newest two resets, so
-// the whole dataset IS ~two weeks and there is no month to name. The EMPTY
-// target means "no week filter" and is the ONLY selection that reaches rows
-// whose start time would not parse (rbucket 999, kept by the builder on
-// purpose) -- so it stays, named for what it is.
+// Retention: the build keeps the newest RETENTION_RESETS resets (three since
+// 2026-11-28, two before), so there is one chip per reset and no month to
+// name. A chip whose reset holds no parse is not drawn, so a two-reset payload
+// shows the first three. The EMPTY target means "no week filter" and is the
+// ONLY selection that reaches rows whose start time would not parse (rbucket
+// 999, kept by the builder on purpose) -- so it stays, named for what it is.
+// scripts/test_site_contract.py requires a chip for every reset the policy keeps.
 const PRESETS=[
   ["Everything kept", ()=>[]],
   ["This reset", ()=>[0]],
   ["Last reset", ()=>[1]],
+  ["2 resets ago", ()=>[2]],
 ];
 function presetWeeks(make){return make().filter(w=>weekCounts.has(w))}
 function setsEqual(a,b){if(a.size!==b.size)return false; for(const x of a) if(!b.has(x))return false; return true}

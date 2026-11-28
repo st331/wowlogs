@@ -68,10 +68,13 @@ per point:
 
 ## Scope and caveats
 
-**Retention (owner policy, 2026-09-14): the site holds the newest two weekly resets per
-region and nothing older than 15 days; disk keeps 16 days measured from the newest row.**
-The numbers live in `scripts/retention.py`; the page prints the span it actually holds on
-every build (`payload.retention`); the collector refuses older runs at discovery, the
+**Retention (owner policy, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
+resets)"): the site holds the newest three weekly resets per region, which is 14 to 21 days
+depending on the day of the week, and nothing older than 23 days; disk keeps 24 days
+measured from the newest row.** (From 2026-09-14 to 2026-11-28 it was two resets, 15 days
+and 16 days.) The numbers live in `scripts/retention.py`; `payload.retention` and
+`build_health.txt` carry the span actually held on every build, and the page has one period
+chip per kept reset; the collector refuses older runs at discovery, the
 committed seed is windowed by `export()`, and `scripts/prune_journals.py` prunes the
 journals (dry run first, then at most every 20 h). Nothing older exists anywhere on the
 site; git history keeps the daily seeds up to 2026-09-14 only.
@@ -451,8 +454,9 @@ Not in the loop, because it needs a browser (Playwright with Chromium): the figu
 PRINTS. `node scripts/check_dn_oracle.js <site URL> dump.json` walks 19 views of the published
 page and writes down what it computed for every spec; `python3 scripts/check_dn_oracle.py
 data.json.gz dump.json` recomputes all of it from the payload that site serves (download
-`<site URL>/data.json.gz`, or `<site URL>/data.json` in the first days of a reset: the builder
-ships the payload plain under 8 MB and the check reads either) and the rule (9,887 values on 2026-11-13, 0 mismatches). `PAGE=site/index.html` checks the working tree's page against the
+`<site URL>/data.json.gz`, or `<site URL>/data.json` when the site serves that instead: the
+builder ships the payload plain under 8 MB, which at three resets needs a very quiet week, and
+the check reads either) and the rule (9,887 values on 2026-11-13, 0 mismatches). `PAGE=site/index.html` checks the working tree's page against the
 live data before a push. Run it after any change to `aggregate`, `aggregateElite` or `dnFields`:
 `test_dn_math.py` covers the factors, not what reads them.
 

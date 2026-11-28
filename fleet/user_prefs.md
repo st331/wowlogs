@@ -623,6 +623,14 @@
       is missing, or when the anchor is > 30 days behind the clock; its first invocation is
       a dry run; the watchdog alerts on a row floor, a reset count other than 2, or STALE.
 
+    **THE NUMBERS ARE SUPERSEDED BY THE OWNER (2026-11-28) — see #46: three weeks and three
+    days.** Everything else in this entry stands as written: the quote, the reading that a
+    reset is the unit, the dating rule, the per-run cut, the one-way deletion, the pruner's
+    refusals, and the features removed under it (none of which #46 brings back). Two things
+    in the text above are no longer true for other reasons: the page stopped printing the
+    retention paragraph on 2026-11-26 (#45; the facts are in `payload.retention` and
+    `build_health.txt`), and the watchdog's row floor is 50,000, not 200,000 (#46).
+
 37. **Data refreshes are PAUSED (owner, 2026-09-28: "pause data refreshes till I tell you to start
     again.")** — until the owner says to start again, no collection runs: `refresh.yml` and
     `watchdog.yml` have their crons commented out AND `if: false` on their only job, so even a
@@ -807,3 +815,52 @@
     (`dpsLabel()` for a figure read at the lens), never retyped. The first cut typed "median
     DPS" over the gear compare's per-item-level figure, which is the lens read: at p85 it
     printed 11.5% under "median" where the median gap was 13.7% (the build of 08:37 UTC).
+
+46. **THREE WEEKS OF DATA (owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to
+    accomodate resets)").** This replaces the two weeks of #36 in its numbers and nothing else.
+
+    MY READING, not the owner's words — if it is wrong, this paragraph is what to change; the
+    quote stands either way. It follows #36's reading step for step. "Three weeks" on the
+    PAGE is the newest THREE WEEKLY RESETS per region (`RETENTION_RESETS = 3`): this reset,
+    last reset and the one before it. That is 14.00 to just under 21.00 days of wall clock
+    depending where a region sits in its week: about 15 days on a Thursday, 21 only in the
+    last hours before a reset. "+3 days" is what is KEPT: disk holds 21 + 3 = 24 days
+    (`RETENTION_DISK_DAYS`) measured back from the newest row, the same place #36 put the
+    owner's "day or two extra" (14 + 2). The page's wall-clock ceiling sits one day inside
+    disk, 23 (`RETENTION_MAX_AGE_DAYS`), and binds only after collection has stalled for more
+    than two days. THE OTHER READING, which I did not take and which the owner may have
+    meant: at least 21 days on the page at all times. That is four resets (21 to 28 days) and
+    is one constant away; the owner was told this in the report of 2026-11-28.
+
+    What follows from it:
+    - EVERY KEPT RESET HAS A PERIOD CHIP. The page gained "2 resets ago" beside "This reset"
+      and "Last reset", for A and for B, so two complete resets can be compared for the
+      first time. `test_site_contract.py` fails if the policy keeps a reset the page cannot
+      select. This is a preset in the existing list, NOT the Custom weeks chips of #36,
+      which stay retired with the month presets, the season sparkline and the "whole season"
+      captions: three weeks makes none of them meaningful and the owner asked for none.
+    - "START KEEPING" MEANS FROM NOW. The days the 16-day prune had already removed are not
+      bought back: `summaries_done.txt` remembers every run ever fetched, so widening the
+      window costs no quota for them, and the 70% cap (#40, #42) was not touched. The disk
+      number went first (06e0c74, 04:21 UTC) so that the prune due that afternoon could not
+      cut a further 20 hours. On the day, the oldest reset was whole for CN and KR and short
+      by 29 hours for US and 16 for EU; it is whole for each at its next reset (1 and 2
+      December) and disk reaches its full 24 days on 5 December.
+    - WHILE THE OLDEST RESET IS PART-FILLED THE PAGE SAYS SO, with the hours per region, only
+      while period A or B reads that reset and never under Archon. This is an abnormal state
+      with a number, which #45(b) keeps; it prints nothing once the journals have grown in.
+    - SEPARATE 14-DAY NUMBERS THAT DID NOT MOVE, because each is its own decision: the Archon
+      replica's window (`ELITE_DAYS`, the recipe the owner compares with archon.gg, #43(b));
+      the bundle quota gate and the bundle backfill (`execution.QUOTA_DAYS`,
+      `backfill.WINDOW_DAYS`). One consequence the owner was told: the replica used to read
+      everything the page held, because two resets were never more than 14 days; it now
+      reads the newest 14 of up to 21, so its figures shifted on the day with no change to
+      its recipe.
+    - THE WATCHDOG'S FLOORS WERE STALE AND ARE RECALIBRATED. `MIN_ROWS` and the seed's
+      `SEED_FLOOR` were 200,000, set when the window held about 800k rows. Play fell off and
+      the healthy two-reset page held 100k to 236k, so issue #28 "Refresh stalled" stood open
+      from 2026-11-18 to 2026-11-28 with 107 comments and nothing wrong. Both are 50,000 now:
+      a floor for an emptied journal, not a gauge of volume. `EXPECT_RESETS` is 3 and
+      `test_watchdog_probe.py` ties it to `scripts/retention.py`, which nothing did before.
+    - The payload is gzipped at this size (above 8 MB), so the site serves `data.json.gz`
+      again; nothing reads the plain form's absence as a fault.

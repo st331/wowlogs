@@ -82,7 +82,8 @@ env:
                              # healthy page from 2026-11-18 (100k-236k rows at two resets, as play fell off late in
                              # the season) and kept issue #28 open for ten days with nothing wrong. 50000 is about
                              # four days of rows at the 2026-11-28 rate; scripts/test_watchdog_probe.py pins it.
-  EXPECT_RESETS: 2           # policy: the build ships the newest two resets (scripts/retention.py)
+  EXPECT_RESETS: 3           # policy: the resets the build ships (scripts/retention.py RETENTION_RESETS;
+                             # scripts/test_watchdog_probe.py fails when the two differ)
   BRANCH: claude/wow-mythic-dashboard-jv235l
   SITE_HEALTH: https://st331.github.io/wowlogs/build_health.txt
 

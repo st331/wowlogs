@@ -1,33 +1,53 @@
-"""Retention policy -- the ONE place the numbers live (owner, 2026-09-14).
+"""Retention policy -- the ONE place the numbers live.
 
-    "don't keep data for longer than 2 weeks. only data in the last two weeks
-    is ever relevant, beyond that is useless. remove any features that allow
-    looking at data older than 2 weeks. Just to give it a grace period and
-    mitigate boundary conditions, it is fine to keep a day or two extra of
-    data."
+Owner, 2026-11-28:
+
+    "start keeping 3 weeks of data (+3 days to accomodate resets)."
+
+That replaces the two weeks of 2026-09-14 ("don't keep data for longer than 2
+weeks ... it is fine to keep a day or two extra of data", which became two
+resets, a 15-day ceiling and 16 days on disk). The shape is unchanged: the
+window is cut on each region's weekly reset, a ceiling in days sits on top,
+and disk is strictly wider than both.
 
 Three numbers, imported by every consumer and never retyped:
 
-  RETENTION_RESETS        what the PAGE shows: the newest two weekly resets per
-                          region (build_site_data.apply_retention). Two resets
-                          is 7.00 to just under 14.00 days of wall clock,
-                          depending where a region sits in its own week.
-  RETENTION_MAX_AGE_DAYS  the ceiling on any published row, measured from the
-                          wall clock: 14 + one day of grace. The reset cut is
-                          anchored to the data, so a long stall would drag it
-                          backwards; this is the policy, the reset alignment
-                          only the shape.
-  RETENTION_DISK_DAYS     what DISK keeps (the journals, the committed seed,
-                          the keystone map, the Raider.IO journal): a flat
-                          window measured back from the NEWEST ROW ON DISK,
-                          never from the wall clock. It is strictly wider than
-                          anything the builder can want in every case:
-                            normal   builder wants >= now - 15 d; disk keeps
-                                     >= newest - 16 d, newest <= now
+  RETENTION_RESETS        what the PAGE shows: the newest three weekly resets
+                          per region (build_site_data.apply_retention): this
+                          reset, last reset and the one before it. Three
+                          resets is 14.00 to just under 21.00 days of wall
+                          clock, depending where a region sits in its own week.
+  RETENTION_DISK_DAYS     what is KEPT, the owner's own sum: 21 + 3 = 24 days
+                          on disk (the journals, the committed seed, the
+                          keystone map, the Raider.IO journal), a flat window
+                          measured back from the NEWEST ROW ON DISK, never
+                          from the wall clock. In September the owner's "day
+                          or two extra" was likewise the DISK number (14 + 2).
+                          Regions reset up to 31 hours apart (US Tue 15:00
+                          UTC, the rest Wed 22:00); three days cover that
+                          twice over. Disk is strictly wider than anything
+                          the builder can want in every case:
+                            normal   builder wants >= now - 23 d; disk keeps
+                                     >= newest - 24 d, newest <= now
                             stalled  builder falls back to the reset cut,
-                                     >= anchor - 14 d; disk keeps >= anchor - 16 d
+                                     >= anchor - 21 d; disk keeps >= anchor - 24 d
+  RETENTION_MAX_AGE_DAYS  the ceiling on any published row, measured from the
+                          wall clock: one day inside disk, 23. The reset cut
+                          is anchored to the data, so a long stall would drag
+                          it backwards; this is the policy, the reset
+                          alignment only the shape. It binds only after
+                          collection has stalled for more than two days.
                           so the build's oldest day is never half-present, and a
                           stall freezes the prune instead of eating the window.
+
+THE WIDENING. Until 2026-12-05 the journals are younger than the window: they
+were pruned to 16 days up to 2026-11-27 and grow a day a day from there. The
+oldest reset is part-filled for a region until that region's next reset (US
+and EU until 2026-12-01 and 02; the others were whole on the day), and
+build_site_data says so through retention.window_before_data. What the 16-day
+prune removed is not bought back: summaries_done.txt remembers every run ever
+fetched, so widening the window spends no quota on the days already let go.
+scripts/test_widening.py holds all of this against the real functions.
 
 Dating rule, shared by every side: a run is DATED when it carries a plausible
 start (0 < t <= now + a day of clock skew), UNDATED when it carries none, and
@@ -43,17 +63,14 @@ from __future__ import annotations
 
 import time
 
-RETENTION_RESETS = 2
-RETENTION_MAX_AGE_DAYS = 15
-# Owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
-# resets)". The disk window is widened FIRST and on its own, so the pruner due
-# that afternoon does not cut the journals back to 16 days again (what it
-# removes cannot be fetched back: the done-set remembers every run). The page
-# numbers above follow in the next change; until then this file's prose still
-# describes 15 and 16.
-RETENTION_DISK_DAYS = 25
+RETENTION_RESETS = 3
+RETENTION_GRACE_DAYS = 3        # the owner's "+3 days"
+RETENTION_DISK_DAYS = 7 * RETENTION_RESETS + RETENTION_GRACE_DAYS       # 24: what is KEPT, the owner's own sum
+RETENTION_MAX_AGE_DAYS = RETENTION_DISK_DAYS - 1                        # 23: the page stays a day inside disk
 
-assert RETENTION_MAX_AGE_DAYS >= 7 * RETENTION_RESETS + 1, "the ceiling must clear two resets"
+assert (RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS) == (3, 23, 24), \
+    "three weeks and three days kept, the page a day inside that: change the owner's words above with these"
+assert RETENTION_MAX_AGE_DAYS >= 7 * RETENTION_RESETS + 1, "the ceiling must clear the resets the page shows"
 assert RETENTION_DISK_DAYS > RETENTION_MAX_AGE_DAYS, "disk must be strictly wider than the page"
 
 DAY_MS = 86_400_000

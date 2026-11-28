@@ -62,8 +62,10 @@ jobs:
           # THE PAYLOAD HAS TWO FORMS. build_site_data.py ships it gzipped
           # (data.json.gz) above 8 MB and plain (data.json) below, deleting
           # the other; the page asks for the .gz first. Under the two-reset
-          # retention it is plain in the first days of every reset (6.4 MB on
-          # 2026-11-26). This workflow knew only the .gz: its last check
+          # retention of 2026-09-14 to 2026-11-28 it was plain in the first days
+          # of every reset (6.4 MB on 2026-11-26); at three resets it is gzipped
+          # at today's volume, and plain again whenever play thins out enough.
+          # This workflow knew only the .gz: its last check
           # failed on a plain payload, so a UI push did not deploy until the
           # next refresh, and nothing guarded the build stamps. Both forms are
           # handled everywhere below, and only ONE may be published -- a stale

@@ -218,7 +218,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check(set(doc) >= {"built", "season", "window", "population", "lists_version", "quantiles", "measures",
                        "levels", "cells", "priority", "dispellable"}
           and doc["quantiles"] == [5, 10, 25, 50, 75, 90, 95] and doc["levels"] == {"min": 10, "max": 30, "band": 2}
-          and doc["window"]["resets"] == 2 and doc["window"]["to"] == "2026-09-27" and doc["built"] == "2026-09-27T06:00:00Z"
+          and doc["window"]["resets"] == bb.RETENTION_RESETS == 3 and doc["window"]["to"] == "2026-09-27" and doc["built"] == "2026-09-27T06:00:00Z"
           and doc["measures"]["deaths_30m"] == {"unit": "per_30m", "better": "low"}
           and doc["measures"]["stops_min"] == {"unit": "per_min", "better": "high"} and "stops_min" in doc["notes"],
           "baselines.json.gz: the contract's keys, quantiles, levels, window, measures (stops_min per_min, better high)")
