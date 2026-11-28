@@ -410,6 +410,11 @@ print("skeptics    : notice hold released by input; key hold parked with Archon;
 # held. The page says so, with the hours, only while the selection reads that reset and never under Archon.
 assert "function retentionShort(r){" in html and "const h=(t0-Date.parse(r.cut[reg]))/36e5;" in html and "if(h>=1&&h<168) parts.push(reg+\" \"+Math.round(h)+\" h\");" in html, "a region is short by the hours between its cut and the oldest row held; a week or more is an empty reset, not a part-filled one"
 assert "const old=KEEP_BUCKETS-1, reads=w=>!w.size||w.has(old);" in html and "const sh=(!state.elite&&weekCounts.has(old)&&(reads(state.weeksA)||(state.compare&&reads(state.weeksB))))?retentionShort(r):null;" in html and "⚠ Oldest reset held from '+sh.from+': short by '+sh.parts.join(\" · \")+'.</b>'" in html, "the part-filled oldest reset is said while period A or B reads it, with the hours short per region"
+# The trust gate is a share of the players in view, measured against a reference pool. That pool was "every kept
+# row", which was two resets until the policy changed; left alone it would have grown by two thirds and the same
+# slider value would have asked this reset's view for 47 characters where it asked for 77 (11 groups on the default
+# Overview instead of 7, with not one row changed). The reference stays the newest two resets.
+assert "const TRUST_REF_RESETS=2;" in html and "{ const w=R.rbucket[i]; if(w>=TRUST_REF_RESETS&&w<999) continue; }" in html, "how much history is kept does not move the trust gate: its reference is the newest two resets"
 print("retention   : %d resets kept, each with its own period chip; a part-filled oldest reset is said with its hours" % _ret.RETENTION_RESETS)
 
 print("\nPASS")

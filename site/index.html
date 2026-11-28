@@ -3622,6 +3622,16 @@ function groupKey(i){
 // same entities, so the threshold scales down with the sample and roughly the
 // same rows stay on screen. Unmerging needs no special case: it regroups rows
 // without removing any, so it moves neither pool.
+//
+// The reference is the newest TRUST_REF_RESETS resets, which is everything the
+// page held from 2026-09-14 to 2026-11-28. When the policy went to three
+// resets the pool would have grown by two thirds (7,992 to 13,109 characters
+// on that day's data) and the same slider value would have asked this reset's
+// view for 47 characters where it had asked for 77: four more groups on the
+// default Overview with not one row changed. The gate is a share of the
+// players in view; how much history is kept must not move it. A wider view
+// (2 resets ago, everything kept) is scaled UP against the same reference.
+const TRUST_REF_RESETS=2;
 function refChars(){
   if(!DEF) return 0;
   const key=[...state.role].sort().join(",")+"|"+state.melee+"|"+state.ranged;
@@ -3631,6 +3641,7 @@ function refChars(){
   const atk=state.melee!==state.ranged?(state.melee?1:2):0;
   const seen=new Set();
   for(let i=0;i<N;i++){
+    { const w=R.rbucket[i]; if(w>=TRUST_REF_RESETS&&w<999) continue; }   // an older kept reset is outside the reference
     if(DEF.postTune&&R.post[i]!==1) continue;
     if(DEF.timedOnly&&R.timed[i]!==1) continue;
     if(R.key[i]<DEF.klo||R.key[i]>DEF.khi) continue;
@@ -3646,8 +3657,8 @@ function refChars(){
   return seen.size;
 }
 // How many distinct characters a group needs, given the size of the pool the
-// current selection leaves behind. Equals the slider exactly on a default
-// load, because there the pool IS the reference.
+// current selection leaves behind. Equals the slider exactly where the pool
+// IS the reference: the default filters over the newest two resets.
 function effMinFor(pool){
   const ref=refChars();
   return ref>0 ? Math.max(1,Math.round(state.minchars*pool/ref))
