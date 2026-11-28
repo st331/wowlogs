@@ -86,7 +86,7 @@ TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 # Owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
 # resets)". Until then, from 2026-09-14: "don't keep data for longer than 2
 # weeks ... it is fine to keep a day or two extra of data."
-from retention import RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS  # noqa: E402
+from retention import RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS, HELD_FROM  # noqa: E402
 import talent_string  # noqa: E402  (the game's loadout import string)
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -746,7 +746,7 @@ def _retention_defaults() -> dict:
         "runs_region_mixed": 0, "rows_region_overridden": 0,
         "cut": None, "days_kept": None, "oldest_kept": None, "oldest_seen": None,
         "anchor": None, "now": None, "lag_h": None,
-        "floored": 0, "stale": False, "window_before_data": False,
+        "floored": 0, "stale": False, "window_before_data": False, "held_from": None,
         "note": "",
         # measurements on the page that are NOT limited to the window, named
         # so the page can say so beside them (owner: nothing hidden)
@@ -924,6 +924,11 @@ def apply_retention(df: pd.DataFrame, name: str, now=None) -> pd.DataFrame:
         # a young season, or a pruner that ate rows this build wanted. Only
         # detectable here, before the rows are gone.
         window_before_data=bool(len(seen_dates) and seen_dates.min() > earliest_cut),
+        # where the journals begin, while any region's cut is earlier than
+        # that (retention.HELD_FROM): the oldest reset is part-filled there.
+        # NOT oldest_seen: the collector buys the few never-fetched runs of
+        # the pruned days, so the oldest row sits before the data begins.
+        held_from=(HELD_FROM if HELD_FROM and pd.Timestamp(HELD_FROM) > earliest_cut else None),
     )
     RETENTION_INFO["note"] = _retention_note()
     span = ", ".join(f"{r} {t[5:10]}" for r, t in RETENTION_INFO["cut"].items())
@@ -3399,6 +3404,7 @@ def build(name: str, cfg: dict) -> None:
     health(f"retention.oldest_kept={ri['oldest_kept'] or 'none'}")
     health(f"retention.oldest_seen={ri['oldest_seen'] or 'none'}")
     health(f"retention.window_before_data={int(bool(ri['window_before_data']))}")
+    health(f"retention.held_from={ri.get('held_from') or 'none'}")
     health(f"runs_collected={SAMPLE_INFO['collected']}")
     health(f"runs_published={SAMPLE_INFO['published']}")
     health(f"newest_row={newest.strftime('%Y-%m-%dT%H:%M:%SZ') if pd.notna(newest) else 'none'}")

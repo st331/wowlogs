@@ -849,6 +849,12 @@
     - WHILE THE OLDEST RESET IS PART-FILLED THE PAGE SAYS SO, with the hours per region, only
       while period A or B reads that reset and never under Archon. This is an abnormal state
       with a number, which #45(b) keeps; it prints nothing once the journals have grown in.
+      It is measured from the instant the journals begin (`retention.HELD_FROM`), not from
+      the oldest row held: the collector buys the few runs of the pruned days it had never
+      fetched, and those sit a week before the data starts.
+    - THE TRUST GATE DID NOT MOVE. Its reference pool was "every kept row", which a third
+      week would have grown by two thirds, loosening the gate on every view (11 groups on
+      the default Overview instead of 7). The reference is fixed at the newest two resets.
     - SEPARATE 14-DAY NUMBERS THAT DID NOT MOVE, because each is its own decision: the Archon
       replica's window (`ELITE_DAYS`, the recipe the owner compares with archon.gg, #43(b));
       the bundle quota gate and the bundle backfill (`execution.QUOTA_DAYS`,

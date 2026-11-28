@@ -2127,13 +2127,15 @@ function renderTimedHint(){
   syncTimedHint();
 }
 function syncTimedHint(){ const el=$("timed-hint"); if(el) el.innerHTML=state.timedOnly?"":TIMED_HINT; }
-/* The oldest kept reset is part-filled: the window reaches back before the oldest row on disk. That is the state
+/* The oldest kept reset is part-filled: the window reaches back before the journals begin. That is the state
    after the policy was widened on 2026-11-28 (the journals had been pruned to 16 days and grow into the window a
-   day a day), and it ends for a region at that region's next reset. Per region, the hours between its cut and the
-   oldest row held. Under a week only: a longer gap is a reset that holds nothing at all, which draws no chip. */
+   day a day), and it ends for a region at that region's next reset. Per region, the hours between its cut and
+   payload.retention.held_from, the instant the builder says the journals begin. Not the oldest row held: the
+   collector buys the few never-fetched runs of the pruned days, so that row sits a week before the data starts.
+   Under a week only: a longer gap is a reset that holds next to nothing, which is not this state. */
 function retentionShort(r){
-  if(!r||!r.oldest_seen||!r.cut) return null;
-  const t0=Date.parse(r.oldest_seen); if(isNaN(t0)) return null;
+  if(!r||!r.held_from||!r.cut) return null;
+  const t0=Date.parse(r.held_from); if(isNaN(t0)) return null;
   const parts=[];
   for(const reg of Object.keys(r.cut).sort()){
     if(reg==="Unknown"||D.regions.indexOf(reg)<0) continue;
@@ -2217,8 +2219,8 @@ function initData(d,cfg){
   prune(state.cls,D.classes); prune(state.spec,D.specs); prune(state.hero,D.heroes);
   prune(state.dun,D.dungeons); prune(state.reg,D.regions);
   // per-source defaults: period = the CURRENT reset, keys, min-runs baseline.
-  // The reset now in progress is what the page opens on -- the last two weeks
-  // are what matter and older weeks mix tuning states into the averages. The
+  // The reset now in progress is what the page opens on -- the newest play is
+  // what matters and older resets mix tuning states into the averages. The
   // character threshold scales with the narrowed sample (see effMinFor), so
   // this does not empty the default view. Right after a reset rolls over,
   // bucket 0 can be empty for a while; fall back to the newest bucket that

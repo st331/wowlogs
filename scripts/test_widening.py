@@ -60,6 +60,21 @@ check(set(out["report_code"]) == want, f"every row the old journals still hold i
 check(info["window_before_data"] is (edge > min(cut.values())),
       f"window_before_data says the window reaches before the oldest row held: {info['window_before_data']} "
       f"(oldest {info['oldest_seen']}, earliest cut {min(info['cut'].values())})")
+# the edge the page reads is the instant the journals begin, not the oldest row: a run first listed after its day was
+# pruned is bought and sits BEFORE the edge (141 such runs on the first widened run, the oldest a week earlier)
+held = pd.Timestamp(R.HELD_FROM)
+df_s = pd.concat([df, pd.DataFrame({"region": ["US"], "started_at": [ms(held - pd.Timedelta(days=6))], "report_code": ["STRAGGLER"], "fight_id": [1]})], ignore_index=True)
+B.apply_retention(df_s.copy(), "widen", now=ANCHOR + pd.Timedelta(minutes=5))
+info_s = copy.deepcopy(B.RETENTION_INFO)
+short = any(held > c for c in cut.values())
+check(info_s["held_from"] == (R.HELD_FROM if short else None) and pd.Timestamp(info_s["oldest_seen"]) < held,
+      f"with a straggler a week before it, the builder still ships where the journals begin: held_from {info_s['held_from']}, oldest row {info_s['oldest_seen']}")
+# a week on, the data anchor (the newest row, not the clock) has moved every region's cut past that instant
+df_l = pd.concat([df, pd.DataFrame({"region": ["US", "EU", "KR"], "started_at": [ms("2026-12-03T11:00:00Z")] * 3, "report_code": ["L1", "L2", "L3"], "fight_id": [1, 1, 1]})], ignore_index=True)
+B.apply_retention(df_l.copy(), "later", now=pd.Timestamp("2026-12-03T12:00:00Z"))
+late = copy.deepcopy(B.RETENTION_INFO)
+check(late["held_from"] is (R.HELD_FROM if any(held > pd.Timestamp(c) for c in late["cut"].values()) else None) and (late["held_from"] is None or R.RETENTION_RESETS > 3),
+      f"once every region's cut has passed that instant nothing is shipped: {late['held_from']} (cuts {late['cut']})")
 gap = {r: round((edge - c).total_seconds() / 86400, 2) for r, c in cut.items()}
 print(f"     days of each region's oldest reset with no rows behind them: {gap} (negative = the cut is inside the journals)")
 

@@ -44,9 +44,15 @@ THE WIDENING. Until 2026-12-05 the journals are younger than the window: they
 were pruned to 16 days up to 2026-11-27 and grow a day a day from there. The
 oldest reset is part-filled for a region until that region's next reset (US
 and EU until 2026-12-01 and 02; the others were whole on the day), and
-build_site_data says so through retention.window_before_data. What the 16-day
-prune removed is not bought back: summaries_done.txt remembers every run ever
-fetched, so widening the window spends no quota on the days already let go.
+build_site_data ships the instant the journals begin (HELD_FROM below) while
+a region's cut is earlier than it, and the page prints the hours short. What
+the 16-day prune removed is not bought back: summaries_done.txt remembers
+every run ever fetched, so widening the window spends no quota on the days
+already let go. The collector does buy the few runs of those days that it had
+never fetched (141 on the first widened run), so the oldest ROW held is not
+where the data begins: the first three-reset build reported its oldest row at
+2026-11-04 while the journals start a week later. That is why the edge is
+written down here and not read off the frame.
 scripts/test_widening.py holds all of this against the real functions.
 
 Dating rule, shared by every side: a run is DATED when it carries a plausible
@@ -72,6 +78,13 @@ assert (RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS) == (3, 23
     "three weeks and three days kept, the page a day inside that: change the owner's words above with these"
 assert RETENTION_MAX_AGE_DAYS >= 7 * RETENTION_RESETS + 1, "the ceiling must clear the resets the page shows"
 assert RETENTION_DISK_DAYS > RETENTION_MAX_AGE_DAYS, "disk must be strictly wider than the page"
+
+# Where the journals begin after the widening of 2026-11-28: the cut of the last prune under the 16-day rule
+# (prune_state.json, applied 2026-11-27T19:55:05Z). Nothing before it is held except runs first listed after
+# their day had been pruned. A region whose cut is earlier than this has a part-filled oldest reset. Inert once
+# every region's cut has passed it (after the resets of 1 and 2 December 2026); delete it then, or set it again
+# if the window is ever widened again.
+HELD_FROM = "2026-11-11T19:35:01Z"
 
 DAY_MS = 86_400_000
 SKEW_MS = DAY_MS            # an uploader's PC clock may run ahead; one day is skew, more is a bug
