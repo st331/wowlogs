@@ -9,7 +9,8 @@ features that allow looking at data older than 2 weeks." This function is the
 only code in the pipeline that deletes rows from the published frame, so it is
 pinned here:
 
-  * rows inside the newest two resets survive, older rows do not;
+  * rows inside the newest RETENTION_RESETS resets (three since 2026-11-28)
+    survive, older rows do not;
   * the cut is PER REGION (US Tue 15:00 UTC, EU Wed 04:00 UTC) — a flat cut
     would take an extra half-day off one region and leave it on another;
   * UNDATED rows are KEPT, because a row whose started_at will not parse
@@ -20,8 +21,9 @@ pinned here:
     published an empty page);
   * it is IDEMPOTENT: building twice does not shrink the frame again;
   * RETENTION_INFO's counters equal what was actually dropped, because the
-    page prints them and the owner's standing rule is that nothing the
-    reader does not see may go unsaid.
+    payload and build_health.txt carry them (the page printed them until
+    2026-11-26) and the owner's standing rule is that nothing the reader
+    does not see may go unsaid.
 """
 import copy
 import pathlib
@@ -60,11 +62,11 @@ def frame(rows):
 # The anchor is the newest plausible row. Pin it at a Wednesday so US and EU
 # sit in different places in their weeks — the case a flat cut gets wrong.
 ANCHOR = "2026-09-09T12:00:00Z"          # Wednesday
-# US reset Tue 15:00 -> newest US reset is 2026-09-08 15:00; two resets back
-# starts 2026-09-01 15:00.
+# US reset Tue 15:00 -> newest US reset is 2026-09-08 15:00; the oldest of
+# three kept resets starts 2026-08-25 15:00.
 US_CUT = pd.Timestamp("2026-08-25T15:00:00Z")
 # EU reset Wed 04:00 -> newest EU reset is 2026-09-09 04:00 (04:00 < 12:00);
-# two resets back starts 2026-09-02 04:00.
+# the oldest of three kept resets starts 2026-08-26 04:00.
 EU_CUT = pd.Timestamp("2026-08-26T04:00:00Z")
 
 rows = [
@@ -110,11 +112,11 @@ check(len(again) == len(out) and set(again["report_code"]) == kept,
 # ---- anchored to the DATA, not the wall clock. Every row here is months old;
 # a now-anchored window would keep nothing at all.
 old = frame([("US", ms("2026-05-06T12:00:00Z")),     # Wednesday
-             ("US", ms("2026-05-05T15:00:01Z")),     # inside two resets of it
+             ("US", ms("2026-05-05T15:00:01Z")),     # inside the kept resets of it
              ("US", ms("2026-03-01T00:00:00Z"))])    # far older
 out_old = B.apply_retention(old.copy(), "test")
 check(len(out_old) == 2,
-      f"a stalled pipeline still publishes its newest two resets: {len(out_old)} rows")
+      f"a stalled pipeline still publishes its newest {B.RETENTION_RESETS} resets: {len(out_old)} rows")
 
 # ---- degenerate inputs must not raise
 check(len(B.apply_retention(frame([]), "test")) == 0, "an empty frame is handled")
@@ -160,7 +162,7 @@ NOW_LATE = "2026-09-28T12:00:00Z"          # 19 days after the anchor -> floor =
 out_f = B.apply_retention(df.copy(), "floor", now=NOW_LATE)
 info_f = copy.deepcopy(B.RETENTION_INFO)
 check(info_f["cut"]["US"] == "2026-09-05T12:00:00Z" and info_f["cut"]["EU"] == "2026-09-05T12:00:00Z",
-      f"the 15-day floor binds on every region when the reset cut is older: {info_f['cut']}")
+      f"the {B.RETENTION_MAX_AGE_DAYS}-day floor binds on every region when the reset cut is older: {info_f['cut']}")
 check(info_f["floored"] >= 2 and not info_f["stale"], f"floored regions counted ({info_f['floored']}), not stale")
 check(set(out_f["report_code"]) == {"R0", "R7", "R8"},
       f"only rows inside the floor survive (R6 at 05 Sep 00:00 is 12 h before it): {sorted(out_f['report_code'])}")
@@ -190,7 +192,7 @@ def run_frame(rows):
     })
 # 4 US rows + 1 region-less row, started 2 days BEFORE the US cut but inside EU's:
 # the run is US (4 votes), so all 5 leave -- the orphan must not be published alone
-t_between = ms("2026-08-23T00:00:00Z")            # inside neither US (09-01) nor EU (09-02) -> gone
+t_between = ms("2026-08-23T00:00:00Z")            # inside neither US (from 08-25 15:00) nor EU (from 08-26 04:00) -> gone
 t_us_only = ms("2026-08-25T20:00:00Z")            # after the US cut, before the EU cut
 mixed = run_frame([("A", "US", t_us_only), ("A", "US", t_us_only), ("A", "US", t_us_only),
                    ("A", "US", t_us_only), ("A", None, t_us_only),
@@ -242,11 +244,11 @@ check(hdr and hdr["resets"] == 3 and hdr["cut"] and hdr["max_age_days"] == 23, f
 check(B._window_cuts(df, 0) is None and B._sidecar_window(df, 0) is None, "resets=0 switches the window off")
 
 # ---- outage annotations: filtered to the window at the payload boundary, fail open
-# cuts: US 09-01 15:00, EU 09-02 04:00, and 08-26 for the regions on the default rule (KR, Unknown), which is
+# cuts: US 08-25 15:00, EU 08-26 04:00, and 08-19 22:00 for the regions on the default rule (KR, Unknown), which is
 # the floor the filter reads. The clock is pinned so the stale-anchor rule cannot move those cuts.
 B.apply_retention(df.copy(), "gaps", now="2026-09-09T12:00:00Z")
 gaps = [{"from": "2026-08-11T00:00:00Z", "to": "2026-08-18T00:00:00Z", "note": "old"},
-        # ends after the EARLIEST cut (08-26) and before the US one (09-01): kept only because the filter reads
+        # ends after the EARLIEST cut (08-19 22:00) and before the US one (08-25): kept only because the filter reads
         # the earliest cut. This is the gap the case used to call "old"; it was rightly kept all along.
         {"from": "2026-08-13T00:00:00Z", "to": "2026-08-21T00:00:00Z", "note": "after the default-rule cut, before the US cut"},
         {"from": "2026-08-23T00:00:00Z", "to": "2026-08-25T16:00:00Z", "note": "straddles the US cut"},

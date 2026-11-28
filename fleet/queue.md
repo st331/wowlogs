@@ -357,11 +357,23 @@ readable without the Actions log API (which returns only tails).
   payload format, is the answer: the page holds the newest two resets (`apply_retention`,
   8.2 MB gz vs 16.3 MB; build 340-400 s vs 1023 s), the collector refuses runs older than
   16 days at discovery, the committed seed and the journals are pruned to the same window
-  (`scripts/prune_journals.py`). The partitioned-payload blueprint is superseded in part
+  (`scripts/prune_journals.py`). SINCE 2026-11-28 THE NUMBERS ARE THREE RESETS AND 24 DAYS
+  (user_prefs #46, checklist §AN: payload 2.5 MB gz, build 74 s on the first such build);
+  the mechanism is the one described here. The partitioned-payload blueprint is superseded in part
   (see its header). RESIDUE, still open: the builder still loads the WHOLE CSV before it
   windows (`pd.read_csv` then `apply_retention`) — bounded now by the windowed seed, but the
   peak is the seed's size, not the window's; and the first live prune's counters are not
   yet on record (checklist 203).
+- **Raider.IO journal retirement has locked itself off (found by review 2026-11-28; NOT
+  changed).** `fetch_rio` refuses to retire anything while the population is under 50% of
+  the journal, and judges that before the grace filter. On the committed data of
+  2026-11-27 it is 117,237 of 239,733 keys, 48.9%, down from 65.5% on 2026-11-16 as the
+  late-season population shrank, so the refusal now fires every time and the share can
+  only fall. No rating is lost or wrong: a key in the population is always kept; the
+  journal only keeps absent characters it would otherwise let go. The grace follows
+  `RETENTION_DISK_DAYS` (24 since 2026-11-28, a retyped 16 before), which holds absent keys
+  8 days longer once it retires again. The fix when wanted: apply the grace first and
+  judge the share on what would remain.
 - **Off-leaderboard loss from the outage.** Runs from Aug 27–31 that dropped off their
   (dungeon, key) leaderboard before the fix cannot be re-swept; Aug 28 is the worst day.
   Recovering them would need a resurrect-by-report-code stage (the FAILED keys are known).

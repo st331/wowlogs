@@ -2132,15 +2132,17 @@ function syncTimedHint(){ const el=$("timed-hint"); if(el) el.innerHTML=state.ti
    day a day), and it ends for a region at that region's next reset. Per region, the hours between its cut and
    payload.retention.held_from, the instant the builder says the journals begin. Not the oldest row held: the
    collector buys the few never-fetched runs of the pruned days, so that row sits a week before the data starts.
-   Under a week only: a longer gap is a reset that holds next to nothing, which is not this state. */
-function retentionShort(r){
+   Under a week only: a longer gap is a reset that holds next to nothing, which is not this state. `only` is the
+   Region filter (a set of names, or null): a view of regions whose oldest reset is whole is not warned. */
+function retentionShort(r,only){
   if(!r||!r.held_from||!r.cut) return null;
   const t0=Date.parse(r.held_from); if(isNaN(t0)) return null;
   const parts=[];
   for(const reg of Object.keys(r.cut).sort()){
     if(reg==="Unknown"||D.regions.indexOf(reg)<0) continue;
+    if(only&&!only.has(reg)) continue;
     const h=(t0-Date.parse(r.cut[reg]))/36e5;
-    if(h>=1&&h<168) parts.push(reg+" "+Math.round(h)+" h");
+    if(h>=1&&h<168) parts.push(reg+" "+Math.min(167,Math.round(h))+" h");
   }
   if(!parts.length) return null;
   const d=new Date(t0), p2=n=>String(n).padStart(2,"0");
@@ -2154,7 +2156,7 @@ function retentionWarnHTML(){
   let h="";
   { const old=KEEP_BUCKETS-1, reads=w=>!w.size||w.has(old);
     // (the Archon replica reads its own newest 14 days, which the part-filled days are never among)
-    const sh=(!state.elite&&weekCounts.has(old)&&(reads(state.weeksA)||(state.compare&&reads(state.weeksB))))?retentionShort(r):null;
+    const sh=(!state.elite&&weekCounts.has(old)&&(reads(state.weeksA)||(state.compare&&reads(state.weeksB))))?retentionShort(r,state.reg.size?state.reg:null):null;
     if(sh) h+=' <b class="delta down">⚠ Oldest reset held from '+sh.from+': short by '+sh.parts.join(" · ")+'.</b>'; }
   if(r&&r.stale) h+=' <b class="delta down">⚠ Stale: the newest run held is older than '+r.max_age_days+' days.</b>';
   if(r&&typeof r.lag_h==="number"&&r.lag_h>3) h+=' <b class="delta down">Newest run '+r.lag_h.toFixed(1)+' h before this build.</b>';
@@ -2233,9 +2235,9 @@ function initData(d,cfg){
   state.weeksB.clear();
   // Compare default: A = this reset, B = the one before it (an older reset is
   // a click away on the B chips). When A has itself fallen back to
-  // last reset (bucket 0 still empty after a rollover) there is no legal
-  // baseline inside the window: leave B empty and let setCompare refuse
-  // rather than compare a period against itself.
+  // last reset (bucket 0 still empty after a rollover) B stays empty here:
+  // setCompare takes the reset before A when one is kept and refuses when
+  // none is, rather than compare a period against itself.
   const wa=[...state.weeksA][0];
   if(wa===0&&weekCounts.has(1)) state.weeksB.add(1);
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
@@ -3130,10 +3132,15 @@ function syncAxisUI(){
   $("cmpseg").classList.toggle("dis",state.elite);
 }
 function setCompare(on){
-  if(on&&!state.weeksB.size&&state.weeksA.size===1){
+  if(on&&state.weeksA.size===1&&(!state.weeksB.size||setsEqual(state.weeksA,state.weeksB))){
     // B is empty (it never had a default, or was put on "everything kept" and the axis then switched off, which
-    // hides the B chips): take the reset A does not hold. It used to refuse here for good, with a false reason
-    const b=availWeeks.find(w=>w<999&&!state.weeksA.has(w));
+    // hides the B chips), or B is A itself (A was moved onto the reset B already held: every badge then read
+    // +0.0%). Take the reset before A, which three kept resets make possible for "last reset" too; when A is the
+    // oldest, the newest other one. It used to refuse an empty B for good, with a false reason
+    const a=[...state.weeksA][0];
+    let b=availWeeks.find(w=>w<999&&w>a);
+    if(b===undefined) b=availWeeks.find(w=>w<999&&w!==a);
+    state.weeksB.clear();
     if(b!==undefined) state.weeksB.add(b);
   }
   if(on&&!state.weeksB.size){

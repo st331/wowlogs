@@ -21,12 +21,15 @@ Three numbers, imported by every consumer and never retyped:
                           on disk (the journals, the committed seed, the
                           keystone map, the Raider.IO journal), a flat window
                           measured back from the NEWEST ROW ON DISK, never
-                          from the wall clock. In September the owner's "day
-                          or two extra" was likewise the DISK number (14 + 2).
-                          Regions reset up to 31 hours apart (US Tue 15:00
-                          UTC, the rest Wed 22:00); three days cover that
-                          twice over. Disk is strictly wider than anything
-                          the builder can want in every case:
+                          from the wall clock, so the build's oldest day is
+                          never half-present and a stall freezes the prune
+                          instead of eating the window. In September the
+                          owner's "day or two extra" was likewise the DISK
+                          number (14 + 2). Regions reset up to 31 hours apart
+                          (US Tue 15:00 UTC, EU Wed 04:00, the rest Wed
+                          22:00); three days cover that twice over. Disk is
+                          strictly wider than anything the builder can want
+                          in every case:
                             normal   builder wants >= now - 23 d; disk keeps
                                      >= newest - 24 d, newest <= now
                             stalled  builder falls back to the reset cut,
@@ -37,8 +40,6 @@ Three numbers, imported by every consumer and never retyped:
                           it backwards; this is the policy, the reset
                           alignment only the shape. It binds only after
                           collection has stalled for more than two days.
-                          so the build's oldest day is never half-present, and a
-                          stall freezes the prune instead of eating the window.
 
 THE WIDENING. Until 2026-12-05 the journals are younger than the window: they
 were pruned to 16 days up to 2026-11-27 and grow a day a day from there. The
@@ -48,12 +49,18 @@ build_site_data ships the instant the journals begin (HELD_FROM below) while
 a region's cut is earlier than it, and the page prints the hours short. What
 the 16-day prune removed is not bought back: summaries_done.txt remembers
 every run ever fetched, so widening the window spends no quota on the days
-already let go. The collector does buy the few runs of those days that it had
-never fetched (141 on the first widened run), so the oldest ROW held is not
+already let go. The collector does buy the listed runs of those days that
+carry no marker (141 keys on the first widened run; a re-upload of a fetched
+run under another report code is one of these), so the oldest ROW held is not
 where the data begins: the first three-reset build reported its oldest row at
 2026-11-04 while the journals start a week later. That is why the edge is
 written down here and not read off the frame.
-scripts/test_widening.py holds all of this against the real functions.
+scripts/test_widening.py runs the builder, the pruner at both widths and the
+collector's admission and backlog against this; scripts/test_retention_warn.py
+runs the page's sentence. The collector's window, the order of its pending
+list, the quota cap and the pruner's rules are held where they always were:
+test_retention_fetch.py, test_gear_parse.py, test_quota_ceiling.py and
+test_prune_journals.py.
 
 Dating rule, shared by every side: a run is DATED when it carries a plausible
 start (0 < t <= now + a day of clock skew), UNDATED when it carries none, and

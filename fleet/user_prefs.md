@@ -841,13 +841,18 @@
       captions: three weeks makes none of them meaningful and the owner asked for none.
     - "START KEEPING" MEANS FROM NOW. The days the 16-day prune had already removed are not
       bought back: `summaries_done.txt` remembers every run ever fetched, so widening the
-      window costs no quota for them, and the 70% cap (#40, #42) was not touched. The disk
+      window costs no quota for them, and the 70% cap (#40, #42) was not touched. What IS
+      bought, once: listed runs of those days that were never fetched (141 keys on the first
+      widened run, some of them older than the page's cuts and so never shown; checklist
+      282). The disk
       number went first (06e0c74, 04:21 UTC) so that the prune due that afternoon could not
       cut a further 20 hours. On the day, the oldest reset was whole for CN and KR and short
       by 29 hours for US and 16 for EU; it is whole for each at its next reset (1 and 2
       December) and disk reaches its full 24 days on 5 December.
-    - WHILE THE OLDEST RESET IS PART-FILLED THE PAGE SAYS SO, with the hours per region, only
-      while period A or B reads that reset and never under Archon. This is an abnormal state
+    - WHILE THE OLDEST RESET IS PART-FILLED THE PAGE SAYS SO, in the period note of the main
+      page, with the hours per region: only while period A or B reads that reset, only for
+      regions the Region filter holds, and never under Archon. The Character screen reads
+      period A and does not repeat it. This is an abnormal state
       with a number, which #45(b) keeps; it prints nothing once the journals have grown in.
       It is measured from the instant the journals begin (`retention.HELD_FROM`), not from
       the oldest row held: the collector buys the few runs of the pruned days it had never
@@ -855,6 +860,15 @@
     - THE TRUST GATE DID NOT MOVE. Its reference pool was "every kept row", which a third
       week would have grown by two thirds, loosening the gate on every view (11 groups on
       the default Overview instead of 7). The reference is fixed at the newest two resets.
+    - THE ⚖ ADJUSTED FIGURES MOVED A LITTLE, AND THAT IS LEFT. The dungeon par table uses
+      every kept row, so the third reset changed default adjusted figures by up to about 0.3%
+      on the day with no row of the selection changed (two specs swapped ranks 4 and 5 on
+      Last reset). More rows make a better par, and a par is not a threshold like the trust
+      gate. As-logged figures did not move. The owner was told.
+    - COMPARE: TIME OPENS ON THE RESET BEFORE A. Period B used to default to last reset
+      whatever A was, so from A = Last reset it compared that reset with itself. With three
+      resets there is a reset before it, and Compare takes that one; a B the owner picked
+      stands.
     - SEPARATE 14-DAY NUMBERS THAT DID NOT MOVE, because each is its own decision: the Archon
       replica's window (`ELITE_DAYS`, the recipe the owner compares with archon.gg, #43(b));
       the bundle quota gate and the bundle backfill (`execution.QUOTA_DAYS`,
@@ -864,7 +878,7 @@
       its recipe.
     - THE WATCHDOG'S FLOORS WERE STALE AND ARE RECALIBRATED. `MIN_ROWS` and the seed's
       `SEED_FLOOR` were 200,000, set when the window held about 800k rows. Play fell off and
-      the healthy two-reset page held 100k to 236k, so issue #28 "Refresh stalled" stood open
+      the healthy two-reset page held about 95k to 236k, so issue #28 "Refresh stalled" stood open
       from 2026-11-18 to 2026-11-28 with 107 comments and nothing wrong. Both are 50,000 now:
       a floor for an emptied journal, not a gauge of volume. `EXPECT_RESETS` is 3 and
       `test_watchdog_probe.py` ties it to `scripts/retention.py`, which nothing did before.

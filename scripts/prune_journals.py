@@ -50,9 +50,10 @@ REFUSALS (print, write the state, delete nothing, exit 0):
 CADENCE. State in data/processed/prune_state.json. The first ever invocation
 is a DRY RUN (counts only); the next invocation applies; after that it applies
 at most every MIN_INTERVAL_H hours (--force overrides). The state file is what
-the builder folds into payload.retention.disk and the health channel, so the
-page can say what disk holds; retention.txt beside it is the same for humans
-and for the journal guard's log line.
+the builder folds into payload.retention.disk and the health channel (the
+page printed what disk holds until 2026-11-26; build_health.txt still does);
+retention.txt beside it is the same for humans and for the journal guard's
+log line.
 """
 from __future__ import annotations
 

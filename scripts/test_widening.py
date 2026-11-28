@@ -5,14 +5,18 @@ Owner: "start keeping 3 weeks of data (+3 days to accomodate resets)". The windo
 before. Three things have to hold when it is widened, and each is run here against the real function:
 
   A. builder    apply_retention() on a frame whose oldest row is the old disk edge publishes every row it still
-                holds inside the new cut, and says through window_before_data when the window reaches back
-                before the data (the oldest reset is then part-filled until the journals have grown into it);
+                holds inside the new cut, and ships where the journals begin (retention.held_from, which the
+                page reads) while a region's cut is earlier than that: the oldest reset is then part-filled
+                until the journals have grown into it. window_before_data is the cruder flag of the same
+                state; one run bought from the pruned days defeats it, which is why the page does not read it;
   B. pruner     prune() at the new width drops nothing and rewrites nothing: the rows between the old and the
                 new edge do not come back, and nothing more is lost;
   C. collector  load_fights() admits a listed run between the old and the new disk cut again, and the backlog
                 counts it only if it was never fetched. A run fetched once and pruned since keeps its marker in
                 summaries_done.txt (exempt from the prune), so it is NOT bought again: widening the window costs
-                no quota for the days already let go, and those days stay absent.
+                no quota for the days already let go, and those days stay absent. A listed run of those days
+                with no marker IS bought (141 keys on the first widened run). Not held here: a re-upload of a
+                fetched run under another report code has no marker either and can be bought once more.
 """
 import copy
 import json
@@ -63,6 +67,8 @@ check(info["window_before_data"] is (edge > min(cut.values())),
 # the edge the page reads is the instant the journals begin, not the oldest row: a run first listed after its day was
 # pruned is bought and sits BEFORE the edge (141 such runs on the first widened run, the oldest a week earlier)
 held = pd.Timestamp(R.HELD_FROM)
+check(abs(held - edge) <= pd.Timedelta(minutes=1),
+      f"retention.HELD_FROM ({R.HELD_FROM}) is the edge of the 16-day journals this frame is built on ({edge:%Y-%m-%dT%H:%M:%SZ})")
 df_s = pd.concat([df, pd.DataFrame({"region": ["US"], "started_at": [ms(held - pd.Timedelta(days=6))], "report_code": ["STRAGGLER"], "fight_id": [1]})], ignore_index=True)
 B.apply_retention(df_s.copy(), "widen", now=ANCHOR + pd.Timedelta(minutes=5))
 info_s = copy.deepcopy(B.RETENTION_INFO)
@@ -75,6 +81,7 @@ B.apply_retention(df_l.copy(), "later", now=pd.Timestamp("2026-12-03T12:00:00Z")
 late = copy.deepcopy(B.RETENTION_INFO)
 check(late["held_from"] is (R.HELD_FROM if any(held > pd.Timestamp(c) for c in late["cut"].values()) else None) and (late["held_from"] is None or R.RETENTION_RESETS > 3),
       f"once every region's cut has passed that instant nothing is shipped: {late['held_from']} (cuts {late['cut']})")
+check(late["window_before_data"] is False, f"and the window no longer reaches before the data: {late['window_before_data']} (oldest row {late['oldest_seen']})")
 gap = {r: round((edge - c).total_seconds() / 86400, 2) for r, c in cut.items()}
 print(f"     days of each region's oldest reset with no rows behind them: {gap} (negative = the cut is inside the journals)")
 

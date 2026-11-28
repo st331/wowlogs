@@ -749,7 +749,8 @@ def _retention_defaults() -> dict:
         "floored": 0, "stale": False, "window_before_data": False, "held_from": None,
         "note": "",
         # measurements on the page that are NOT limited to the window, named
-        # so the page can say so beside them (owner: nothing hidden)
+        # for whoever reads the payload (the page printed them with its
+        # retention paragraph until 2026-11-26, user_prefs #45)
         "exceptions": [
             {"key": "rating", "what": "Player rating",
              "scope": "a Raider.IO season total (best run in each of the 8 "
@@ -872,7 +873,8 @@ def _retention_header(df, resets: int) -> dict | None:
 
 
 def _retention_note() -> str:
-    """The sentence the page prints. Policy FIRST, then this build's
+    """The sentence payload.retention.note carries (the page printed it until
+    2026-11-26, user_prefs #45). Policy FIRST, then this build's
     counts as a trailing clause omitted when zero: once the collector prunes,
     'dropped' is 0 in steady state and a dropped-led sentence would read as
     'nothing was removed' at the exact moment removal became permanent."""
