@@ -184,7 +184,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # ---- the invariants the whole design rests on
     check(R.RETENTION_DISK_DAYS > R.RETENTION_MAX_AGE_DAYS >= 7 * R.RETENTION_RESETS + 1,
-          f"disk ({R.RETENTION_DISK_DAYS}) > page ceiling ({R.RETENTION_MAX_AGE_DAYS}) >= two resets + 1")
+          f"disk ({R.RETENTION_DISK_DAYS}) > page ceiling ({R.RETENTION_MAX_AGE_DAYS}) >= {R.RETENTION_RESETS} resets + 1")
 
 print("FAILED" if fails else "PASS", f"({fails} failures)")
 sys.exit(1 if fails else 0)

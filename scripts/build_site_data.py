@@ -882,7 +882,7 @@ def _retention_note() -> str:
             f"than {i['max_age_days']} days")
     if i.get("stale"):
         note += (" -- STALE: the newest run held is older than that ceiling, so "
-                 "the newest two resets on file are shown instead")
+                 f"the newest {i['resets']} resets on file are shown instead")
     if i.get("dropped"):
         note += (f"; this build set aside {i['dropped']:,} older parses "
                  f"({i['runs_dropped']:,} runs)")

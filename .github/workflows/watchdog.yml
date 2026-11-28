@@ -77,7 +77,11 @@ env:
   ALERT_SUCCESS_MIN: 300     # four periods + 1 h without a success -> also open the issue
   STALE_DATA_MIN: 600        # newest collected run older than this (10 periods) -> issue
   STUCK_QUEUE_MIN: 45        # queued/pending this long with NOTHING running -> cancel it
-  MIN_ROWS: 200000           # published rows below this -> issue (retention steady state ~800k)
+  MIN_ROWS: 50000            # published rows below this -> issue. A catastrophe floor (emptied journals or CSV),
+                             # not a volume gauge: set at 200000 when the window held ~800k rows, it sat ABOVE the
+                             # healthy page from 2026-11-18 (100k-236k rows at two resets, as play fell off late in
+                             # the season) and kept issue #28 open for ten days with nothing wrong. 50000 is about
+                             # four days of rows at the 2026-11-28 rate; scripts/test_watchdog_probe.py pins it.
   EXPECT_RESETS: 2           # policy: the build ships the newest two resets (scripts/retention.py)
   BRANCH: claude/wow-mythic-dashboard-jv235l
   SITE_HEALTH: https://st331.github.io/wowlogs/build_health.txt
@@ -350,7 +354,7 @@ jobs:
           # the policy's, or a page flagged STALE (newest run held older than the ceiling)
           [ "${ROWS_N:--1}" -ge 0 ] 2>/dev/null && [ "${ROWS_N:-0}" -lt "$MIN_ROWS" ] 2>/dev/null && REASONS="${REASONS}${NL}- the build published **${ROWS_N} rows** (floor ${MIN_ROWS}) -- the journals or the CSV have been emptied; check the prune (data/processed/prune_state.json) before the daily seed overwrites \`data/mythic_runs.csv.gz\`"
           [ -n "${RESETS:-}" ] && [ "$RESETS" != "$EXPECT_RESETS" ] && REASONS="${REASONS}${NL}- the build ships **${RESETS} resets**, policy is ${EXPECT_RESETS} (scripts/retention.py)"
-          [ "${STALE_WIN:-0}" = "1" ] && REASONS="${REASONS}${NL}- the page is **STALE**: the newest run held is older than the retention ceiling; it shows the newest two resets on file and says so"
+          [ "${STALE_WIN:-0}" = "1" ] && REASONS="${REASONS}${NL}- the page is **STALE**: the newest run held is older than the retention ceiling; it shows the newest resets on file and says so"
 
           OPEN=$(api "https://api.github.com/repos/$REPO/issues?state=open&labels=watchdog&per_page=5" | jq -r '[.[] | select(.title=="'"$TITLE"'")] | first | .number // empty')
 

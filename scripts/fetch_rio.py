@@ -32,6 +32,8 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from retention import RETENTION_DISK_DAYS
+
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +75,7 @@ MISS_DAYS = 30
 # this morning keeps its rating a while, and a short CSV cannot empty the
 # journal). Refused outright when the population is implausibly small next
 # to the journal -- a truncated export must not read as "everyone left".
-RIO_GRACE_DAYS = 16
+RIO_GRACE_DAYS = RETENTION_DISK_DAYS   # the disk window (scripts/retention.py); it was a retyped 16 until 2026-11-28
 RIO_MIN_POP_SHARE = 0.5
 MISS = -1            # journalled score meaning "asked, no answer"
 DAY = 86400

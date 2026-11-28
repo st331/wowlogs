@@ -193,6 +193,7 @@ print("release_failed: 2 poisoned markers dropped, OK and genuine failures kept,
 # this for the right reason instead of on 1970 arithmetic.
 import time as _time
 from fetch_data import order_pending
+from retention import RETENTION_DISK_DAYS as _DISK   # 'edge' sits on the disk window, 'stale' past it
 _DAY, _NOW = 86_400_000, int(_time.time() * 1000)
 pend = [
     {"code": "old-tagged",   "fid": 1, "region": "US", "start_time": _NOW - 9 * _DAY},
@@ -200,8 +201,8 @@ pend = [
     {"code": "mid-untagged", "fid": 3, "region": "",   "start_time": _NOW - 5 * _DAY},
     {"code": "new-tagged",   "fid": 4, "region": "EU", "start_time": _NOW - 1 * _DAY},
     {"code": "no-time",      "fid": 5, "region": "US", "start_time": None},
-    {"code": "stale",        "fid": 6, "region": "US", "start_time": _NOW - 20 * _DAY},
-    {"code": "edge",         "fid": 7, "region": "US", "start_time": _NOW - 16 * _DAY},
+    {"code": "stale",        "fid": 6, "region": "US", "start_time": _NOW - (_DISK + 4) * _DAY},
+    {"code": "edge",         "fid": 7, "region": "US", "start_time": _NOW - _DISK * _DAY},
 ]
 got = [f["code"] for f in order_pending(pend)]
 assert got == ["new-tagged", "new-untagged", "mid-untagged", "old-tagged", "edge", "stale", "no-time"], got

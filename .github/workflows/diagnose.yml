@@ -6,7 +6,7 @@ name: Diagnose (read-only journal scan)
 # concurrency group, so it can never queue behind or cancel a refresh run.
 #
 # RETENTION (2026-09-14): the journals restored here hold ONLY the retention
-# window (16 days from the newest row; scripts/prune_journals.py, state in
+# window (RETENTION_DISK_DAYS from the newest row, scripts/retention.py; pruned by scripts/prune_journals.py, state in
 # data/processed/prune_state.json and retention.txt). A diagnostic asking a
 # whole-SEASON question gets a windowed answer and says nothing about it;
 # data/mythic_runs.csv.gz in the checkout is windowed too. Read the span the

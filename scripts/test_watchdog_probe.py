@@ -24,6 +24,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 import cadence  # noqa: E402
+import retention  # noqa: E402
 
 # the period in force, which the probe itself reads from data/cadence.json through
 # scripts/cadence.py: the slot arithmetic below follows the file, not a pinned 4 h
@@ -49,7 +50,19 @@ STALE_RUNS = ('{"workflow_runs":[{"status":"completed","conclusion":"failure","c
               '"updated_at":"2026-09-19T23:50:00Z","run_started_at":"2026-09-19T23:00:00Z"},'
               '{"status":"completed","conclusion":"success","created_at":"2026-09-19T22:00:00Z",'
               '"updated_at":"2026-09-19T22:45:51Z","run_started_at":"2026-09-19T22:00:00Z"}]}')
-HEALTH = "built=2026-09-30T13:05:06Z\nrows=520014\nnewest_row=2026-09-30T12:43:07Z\nretention.resets=2\nretention.stale=0\n"
+HEALTH = f"built=2026-09-30T13:05:06Z\nrows=520014\nnewest_row=2026-09-30T12:43:07Z\nretention.resets={retention.RETENTION_RESETS}\nretention.stale=0\n"
+
+# The watchdog compares the published reset count with EXPECT_RESETS and opens "Refresh stalled" when they differ.
+# Nothing tied that number to scripts/retention.py: a change of policy would have raised the alarm every hour.
+check(int(ENV_BASE["EXPECT_RESETS"]) == retention.RETENTION_RESETS,
+      f"watchdog.yml EXPECT_RESETS ({ENV_BASE['EXPECT_RESETS']}) is the policy's reset count ({retention.RETENTION_RESETS})")
+# The row floor is for an emptied journal, not for a quiet week: at 200000 it was above the healthy page for ten
+# days (issue #28, 2026-11-18 to 2026-11-28, 107 comments, nothing wrong). The smallest healthy page is the
+# policy's resets less the partial one, at the lowest daily volume seen (about 11,000 rows a day, 2026-11-26).
+check(int(ENV_BASE["MIN_ROWS"]) == 50000 and int(ENV_BASE["MIN_ROWS"]) < 7 * 11000,
+      f"watchdog.yml MIN_ROWS ({ENV_BASE['MIN_ROWS']}) sits under one quiet week of rows, so only an emptied journal trips it")
+_refresh = (ROOT / ".github" / "workflows" / "refresh.yml").read_text()
+check("SEED_FLOOR=50000\n" in _refresh, "refresh.yml SEED_FLOOR is the same catastrophe floor, so a healthy export always reaches the seed")
 
 
 def run_probe(runs_json, timers_json='{"workflow_runs":[{"status":"in_progress"}]}', health=HEALTH, now="2026-09-30T14:57:00Z"):

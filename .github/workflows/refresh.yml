@@ -575,9 +575,9 @@ jobs:
             [ "$RC" = "0" ] || echo "::warning::background collector $n ended with '$RC'; building with the existing journal"
           done
 
-      # RETENTION (owner, 2026-09-14): disk keeps RETENTION_DISK_DAYS (16)
-      # measured from the newest row on disk -- strictly wider than the page's
-      # window (2 resets, 15-day ceiling), see scripts/retention.py. Runs HERE,
+      # RETENTION: disk keeps RETENTION_DISK_DAYS measured from the newest row
+      # on disk -- strictly wider than the page's window. The numbers live in
+      # scripts/retention.py and nowhere else. Runs HERE,
       # after the background collectors have joined and after this run's build
       # already read its CSV, so nothing holds a journal open and a prune can
       # never starve the build that publishes in the same run. Gated on 'ok'
@@ -668,10 +668,13 @@ jobs:
             git add data/checkpoints/summaries_done.txt.gz
           fi
           # Seed floor: never overwrite the committed seed with a CSV that is
-          # implausibly small (a torn journal, a prune gone wrong). The window
-          # holds ~800k rows today; a seed under the floor is skipped and said.
+          # implausibly small (a torn journal, a prune gone wrong). A catastrophe
+          # floor, not a volume gauge: 200000 was set when the window held ~800k
+          # rows and was within 10% of the healthy 16-day export by 2026-11-28
+          # (220k rows and falling), where it would have frozen the seed with
+          # nothing wrong. A seed under the floor is skipped and said.
           ROWS=$(grep '^export.rows=' data/processed/fetch_health.txt 2>/dev/null | tail -1 | cut -d= -f2)
-          SEED_FLOOR=200000
+          SEED_FLOOR=50000
           # GitHub rejects any file over 100 MB at push, and a rejected push
           # fails this step and the run. Nothing over 95 MB is ever staged;
           # a skipped file is a loud warning, not a red run. The gear journal
