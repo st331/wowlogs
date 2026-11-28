@@ -45,7 +45,13 @@ import time
 
 RETENTION_RESETS = 2
 RETENTION_MAX_AGE_DAYS = 15
-RETENTION_DISK_DAYS = 16
+# Owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
+# resets)". The disk window is widened FIRST and on its own, so the pruner due
+# that afternoon does not cut the journals back to 16 days again (what it
+# removes cannot be fetched back: the done-set remembers every run). The page
+# numbers above follow in the next change; until then this file's prose still
+# describes 15 and 16.
+RETENTION_DISK_DAYS = 25
 
 assert RETENTION_MAX_AGE_DAYS >= 7 * RETENTION_RESETS + 1, "the ceiling must clear two resets"
 assert RETENTION_DISK_DAYS > RETENTION_MAX_AGE_DAYS, "disk must be strictly wider than the page"
