@@ -1269,8 +1269,9 @@ def fetch_summaries(regions: set[str] | None, limit: int | None = None,
           flush=True)
     write_outputs(**{"sweep.ledger_pending": ledger_pending,
                      "summaries.pending": pending_total})
-    # RETENTION facts for the page (build folds fetch_health into
-    # build_health and the payload's retention.disk): what the window refused
+    # RETENTION facts for build_health.txt (the build folds fetch_health into
+    # it and into the payload's retention.disk; the page printed them until
+    # 2026-11-26): what the window refused
     # this run and where it sits. Anchored to the data like the builder.
     print(f"[retention] fetch window: {RETENTION_DISK_DAYS} days back from "
           f"{_iso(load_fights.anchor_ms)} -> cut {_iso(load_fights.cut_ms)}; "

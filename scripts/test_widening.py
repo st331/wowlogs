@@ -65,23 +65,40 @@ check(info["window_before_data"] is (edge > min(cut.values())),
       f"window_before_data says the window reaches before the oldest row held: {info['window_before_data']} "
       f"(oldest {info['oldest_seen']}, earliest cut {min(info['cut'].values())})")
 # the edge the page reads is the instant the journals begin, not the oldest row: a run first listed after its day was
-# pruned is bought and sits BEFORE the edge (141 such runs on the first widened run, the oldest a week earlier)
-held = pd.Timestamp(R.HELD_FROM)
-check(abs(held - edge) <= pd.Timedelta(minutes=1),
-      f"retention.HELD_FROM ({R.HELD_FROM}) is the edge of the 16-day journals this frame is built on ({edge:%Y-%m-%dT%H:%M:%SZ})")
-df_s = pd.concat([df, pd.DataFrame({"region": ["US"], "started_at": [ms(held - pd.Timedelta(days=6))], "report_code": ["STRAGGLER"], "fight_id": [1]})], ignore_index=True)
-B.apply_retention(df_s.copy(), "widen", now=ANCHOR + pd.Timedelta(minutes=5))
-info_s = copy.deepcopy(B.RETENTION_INFO)
-short = any(held > c for c in cut.values())
-check(info_s["held_from"] == (R.HELD_FROM if short else None) and pd.Timestamp(info_s["oldest_seen"]) < held,
-      f"with a straggler a week before it, the builder still ships where the journals begin: held_from {info_s['held_from']}, oldest row {info_s['oldest_seen']}")
+# pruned is bought and sits BEFORE the edge (about 63 such runs on the first widened run, the oldest a week earlier)
 # a week on, the data anchor (the newest row, not the clock) has moved every region's cut past that instant
 df_l = pd.concat([df, pd.DataFrame({"region": ["US", "EU", "KR"], "started_at": [ms("2026-12-03T11:00:00Z")] * 3, "report_code": ["L1", "L2", "L3"], "fight_id": [1, 1, 1]})], ignore_index=True)
-B.apply_retention(df_l.copy(), "later", now=pd.Timestamp("2026-12-03T12:00:00Z"))
-late = copy.deepcopy(B.RETENTION_INFO)
-check(late["held_from"] is (R.HELD_FROM if any(held > pd.Timestamp(c) for c in late["cut"].values()) else None) and (late["held_from"] is None or R.RETENTION_RESETS > 3),
-      f"once every region's cut has passed that instant nothing is shipped: {late['held_from']} (cuts {late['cut']})")
-check(late["window_before_data"] is False, f"and the window no longer reaches before the data: {late['window_before_data']} (oldest row {late['oldest_seen']})")
+HELD_RAW = getattr(R, "HELD_FROM", None)
+if HELD_RAW:
+    held = pd.Timestamp(HELD_RAW)
+    check(abs(held - edge) <= pd.Timedelta(minutes=1),
+          f"retention.HELD_FROM ({HELD_RAW}) is the edge of the 16-day journals this frame is built on ({edge:%Y-%m-%dT%H:%M:%SZ})")
+    df_s = pd.concat([df, pd.DataFrame({"region": ["US"], "started_at": [ms(held - pd.Timedelta(days=6))], "report_code": ["STRAGGLER"], "fight_id": [1]})], ignore_index=True)
+    B.apply_retention(df_s.copy(), "widen", now=ANCHOR + pd.Timedelta(minutes=5))
+    info_s = copy.deepcopy(B.RETENTION_INFO)
+    short = any(held > c for c in cut.values())
+    check(info_s["held_from"] == (HELD_RAW if short else None) and pd.Timestamp(info_s["oldest_seen"]) < held,
+          f"with a straggler a week before it, the builder still ships where the journals begin: held_from {info_s['held_from']}, oldest row {info_s['oldest_seen']}")
+    B.apply_retention(df_l.copy(), "later", now=pd.Timestamp("2026-12-03T12:00:00Z"))
+    late = copy.deepcopy(B.RETENTION_INFO)
+    check(late["held_from"] is (HELD_RAW if any(held > pd.Timestamp(c) for c in late["cut"].values()) else None) and (late["held_from"] is None or R.RETENTION_RESETS > 3),
+          f"once every region's cut has passed that instant nothing is shipped: {late['held_from']} (cuts {late['cut']})")
+    check(late["window_before_data"] is False, f"and the window no longer reaches before the data: {late['window_before_data']} (oldest row {late['oldest_seen']})")
+else:
+    print("note retention.HELD_FROM is unset: the journals' edge is no longer shipped, and the checks on it are skipped")
+# retention.py says to set HELD_FROM to None once the journals have grown in. The builder must take that, and the
+# name being removed outright, without a word: until 2026-11-28 it imported the name and would have stopped the
+# hourly build on the day someone tidied up. Run in a fresh interpreter, on the widened frame itself.
+import subprocess
+for how, prep in (("set to None", "R.HELD_FROM = None"), ("removed", "delattr(R, 'HELD_FROM') if hasattr(R, 'HELD_FROM') else None")):
+    code = (f"import sys; sys.path.insert(0, {str(pathlib.Path(__file__).resolve().parent)!r}); import pandas as pd; import retention as R; {prep}; "
+            f"import build_site_data as B; "
+            f"df = pd.DataFrame({{'region': ['US', 'EU', 'US'], 'started_at': [{ms(ANCHOR)}, {ms(ANCHOR)}, {ms(edge)}], 'report_code': ['a', 'b', 'c'], 'fight_id': 1}}); "
+            f"out = B.apply_retention(df, 'unset', now=pd.Timestamp('{(ANCHOR + pd.Timedelta(minutes=5)).isoformat()}')); "
+            f"print('ROWS', len(out), 'HELD', B.RETENTION_INFO['held_from'], 'WBD', B.RETENTION_INFO['window_before_data'])")
+    r = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True, text=True, timeout=120)
+    check(r.returncode == 0 and "ROWS 3 HELD None" in r.stdout,
+          f"with retention.HELD_FROM {how} the builder imports, keeps its rows and ships no held_from ({(r.stdout.strip().splitlines() or [''])[-1][:80]!r}{' ' + r.stderr.strip()[-160:] if r.returncode else ''})")
 gap = {r: round((edge - c).total_seconds() / 86400, 2) for r, c in cut.items()}
 print(f"     days of each region's oldest reset with no rows behind them: {gap} (negative = the cut is inside the journals)")
 

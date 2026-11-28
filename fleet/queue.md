@@ -364,16 +364,27 @@ readable without the Actions log API (which returns only tails).
   windows (`pd.read_csv` then `apply_retention`) — bounded now by the windowed seed, but the
   peak is the seed's size, not the window's; and the first live prune's counters are not
   yet on record (checklist 203).
-- **Raider.IO journal retirement has locked itself off (found by review 2026-11-28; NOT
-  changed).** `fetch_rio` refuses to retire anything while the population is under 50% of
-  the journal, and judges that before the grace filter. On the committed data of
-  2026-11-27 it is 117,237 of 239,733 keys, 48.9%, down from 65.5% on 2026-11-16 as the
-  late-season population shrank, so the refusal now fires every time and the share can
-  only fall. No rating is lost or wrong: a key in the population is always kept; the
-  journal only keeps absent characters it would otherwise let go. The grace follows
-  `RETENTION_DISK_DAYS` (24 since 2026-11-28, a retyped 16 before), which holds absent keys
-  8 days longer once it retires again. The fix when wanted: apply the grace first and
-  judge the share on what would remain.
+- **Raider.IO journal retirement refused on the export of 2026-11-27 (found by review
+  2026-11-28; NOT changed).** `fetch_rio.retire()` retires nothing while the population is
+  under 50% of the journal, and judges that before it applies the grace. On the committed
+  data of 27 November it was 117,237 of 239,733 keys, 48.9% (65.5% on the 16th, 51.3% on
+  the export of the 26th, so retirement ran through the 26th). No rating is lost or wrong
+  at any time: a key in the population is always kept; the refusal only keeps absent
+  characters longer. It should clear by itself: since the widening nothing leaves disk
+  before 5 December, so the population only grows and the share rises (the published page
+  held 118,639 characters at 05:57 UTC on the 28th against 117,204 on the seed). After
+  that, nothing retires until an absent key passes the new 24-day grace (`RIO_GRACE_DAYS`
+  follows `RETENTION_DISK_DAYS`, a retyped 16 before). THE WEAKNESS that remains: with the
+  grace equal to the window, the share sits near 50% in steady state, so a quiet week can
+  trip the refusal again. The fix when wanted: apply the grace first and judge the share
+  on what would remain. (This entry first said the refusal "fires every time" and the
+  share "can only fall"; both were wrong.)
+- **After 2 December 2026: set `retention.HELD_FROM = None`** (scripts/retention.py). The
+  part-filled warning is inert from the EU reset of that day; the constant, the builder's
+  `held_from` and the page's `retentionShort()` then do nothing. Setting it to None is
+  safe (the builder reads it with getattr; `test_widening.py` runs that). Removing the
+  page's sentence and `test_retention_warn.py`'s first half can follow, or stay for the
+  next widening.
 - **Off-leaderboard loss from the outage.** Runs from Aug 27–31 that dropped off their
   (dungeon, key) leaderboard before the fix cannot be re-swept; Aug 28 is the worst day.
   Recovering them would need a resurrect-by-report-code stage (the FAILED keys are known).

@@ -79,8 +79,9 @@ env:
   STUCK_QUEUE_MIN: 45        # queued/pending this long with NOTHING running -> cancel it
   MIN_ROWS: 50000            # published rows below this -> issue. A catastrophe floor (emptied journals or CSV),
                              # not a volume gauge: set at 200000 when the window held ~800k rows, it sat ABOVE the
-                             # healthy page from 2026-11-18 (about 95k-236k rows at two resets, as play fell off late in
-                             # the season) and kept issue #28 open for ten days with nothing wrong. 50000 is about
+                             # healthy page from 2026-11-18 (95,755 to 196,119 rows published, as play fell off late in
+                             # the season) and put a false reason into all 107 comments of issue #28. For six of those
+                             # ten days the same comments carried a true one, failed Pages deploys, unread. 50000 is about
                              # four days of rows at the 2026-11-28 rate; scripts/test_watchdog_probe.py pins it.
   EXPECT_RESETS: 3           # policy: the resets the build ships (scripts/retention.py RETENTION_RESETS;
                              # scripts/test_watchdog_probe.py fails when the two differ)

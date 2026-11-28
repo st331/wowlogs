@@ -1706,7 +1706,7 @@ function ilvlOneSays(){return state.ihi>=ILVL.max
   &&(!gearOn()||(state.ilob<=ILVL.min&&state.ihib===state.ilo-1))}
 let state = {cls:new Set(), spec:new Set(), hero:new Set(), dun:new Set(),
              role:new Set(["DPS"]), reg:new Set(), merge:true, melee:false, ranged:false,
-             klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), compare:false,
+             klo:18, khi:22, weeksA:new Set(), weeksB:new Set([1]), bPicked:false, compare:false,
              ilo:0, ihi:0,   // item-level range (owner, 2026-09-17); full range = no filter
              dayCut:0,   // 0 = whole reset; N = most recent N days of it
              compMin:20,
@@ -2232,12 +2232,13 @@ function initData(d,cfg){
   if(weekCounts.has(0)) state.weeksA.add(0);
   else if(weekCounts.has(1)) state.weeksA.add(1);
   else if(availWeeks.length) state.weeksA.add(availWeeks[0]);
-  state.weeksB.clear();
+  state.weeksB.clear(); state.bPicked=false;
   // Compare default: A = this reset, B = the one before it (an older reset is
   // a click away on the B chips). When A has itself fallen back to
   // last reset (bucket 0 still empty after a rollover) B stays empty here:
-  // setCompare takes the reset before A when one is kept and refuses when
-  // none is, rather than compare a period against itself.
+  // settleB() puts it on the reset next to A when Compare is switched on, and
+  // Compare refuses when there is none, rather than compare a period against
+  // itself.
   const wa=[...state.weeksA][0];
   if(wa===0&&weekCounts.has(1)) state.weeksB.add(1);
   const keys=[...new Set(R.key)].sort((a,b)=>a-b);
@@ -2636,11 +2637,30 @@ function buildPeriodUI(prefix, sel, ghosted){
         c.title=(ws.length===1?weekTitle(ws[0]):fmtDay(bucketLo(Math.max(...ws)))+" → "
           +(ws.includes(0)?"now":fmtDay(bucketHi(Math.min(...ws)))));
       } else c.title="no week filter: "+retPhrase()+" — the only selection that also shows parses with no readable start time";
-      c.onclick=()=>{sel.clear(); target.forEach(w=>sel.add(w)); refreshPeriodUIs(); render();};
+      c.onclick=()=>periodChipClick(prefix, sel, target);
       pbox.appendChild(c);
     }
   };
   return paint;
+}
+/* A click on a period chip. While Compare: Time is on, A and B stay two different periods whatever is clicked:
+   a B chip that names the period A already shows is refused and says so; an A chip leaves a B the owner picked
+   alone unless A has landed on it, and then (as for a B nobody picked) B goes to the reset next to the new A.
+   When no second period is left, Compare switches off and says so. Until 2026-11-28 the chips wrote the set and
+   nothing looked: Compare on, then A onto "Last reset", read +0.0% on every row. */
+function periodChipClick(prefix, sel, target){
+  if(prefix==="B"){
+    if(state.compare&&setsEqual(state.weeksA,target)){ setNotice("B is the period A already shows."); return; }
+    sel.clear(); target.forEach(w=>sel.add(w)); state.bPicked=true;
+  } else {
+    sel.clear(); target.forEach(w=>sel.add(w));
+    if(state.compare&&!settleB()){
+      state.compare=false; $("cmp").checked=false;
+      setNotice("Compare off — A and B are both everything kept.");
+      refreshPeriodUIs(); syncAxisUI(); render(); return;
+    }
+  }
+  refreshPeriodUIs(); render();
 }
 let paintA=null, paintB=null, paintIlvl=null;
 function refreshPeriodUIs(){paintA&&paintA(); paintB&&paintB(); paintDays(); syncCounts();}
@@ -2935,7 +2955,7 @@ function buildControls(){
     c.className="chip"; c.textContent="⚡ "+name;
     c.title="one click: sets both periods and turns compare on";
     c.onclick=()=>{
-      state.weeksA=new Set(av); state.weeksB=new Set(bv);
+      state.weeksA=new Set(av); state.weeksB=new Set(bv); state.bPicked=true;
       paintA=buildPeriodUI("A",state.weeksA,false);
       paintB=buildPeriodUI("B",state.weeksB,true);
       $("cmp").checked=true;
@@ -3131,25 +3151,36 @@ function syncAxisUI(){
   }
   $("cmpseg").classList.toggle("dis",state.elite);
 }
+/* The reset next to A: the one before it, or the one after it when A is the oldest that holds data. Nothing when
+   A is not exactly one reset, or no other reset holds data. */
+function nextToA(){
+  if(state.weeksA.size!==1) return undefined;
+  const a=[...state.weeksA][0], real=availWeeks.filter(w=>w<999);
+  const older=real.find(w=>w>a);
+  if(older!==undefined) return older;
+  const newer=real.filter(w=>w<a);
+  return newer.length?newer[newer.length-1]:undefined;
+}
+/* What period B is, for Compare: Time. A B the owner picked (a B chip, the quick chip: state.bPicked) stands
+   while it is not the period A shows. Any other B is the reset next to A, so the default follows A: from "Last
+   reset" it is "2 resets ago", which three kept resets made possible on 2026-11-28 (B had been fixed on last
+   reset, and from there Compare compared the reset with itself). Returns false when no second period exists:
+   one reset holds data, or A and B are both everything kept. */
+function settleB(){
+  if(availWeeks.filter(w=>w<999).length<2) return false;   // one reset holds data: "everything kept" is that reset
+  const same=()=>setsEqual(state.weeksA,state.weeksB);
+  if(state.bPicked&&!same()) return true;
+  const b=nextToA();
+  if(b!==undefined){ state.weeksB.clear(); state.weeksB.add(b); state.bPicked=false; return true; }
+  return state.weeksB.size>0&&!same();
+}
 function setCompare(on){
-  if(on&&state.weeksA.size===1&&(!state.weeksB.size||setsEqual(state.weeksA,state.weeksB))){
-    // B is empty (it never had a default, or was put on "everything kept" and the axis then switched off, which
-    // hides the B chips), or B is A itself (A was moved onto the reset B already held: every badge then read
-    // +0.0%). Take the reset before A, which three kept resets make possible for "last reset" too; when A is the
-    // oldest, the newest other one. It used to refuse an empty B for good, with a false reason
-    const a=[...state.weeksA][0];
-    let b=availWeeks.find(w=>w<999&&w>a);
-    if(b===undefined) b=availWeeks.find(w=>w<999&&w!==a);
-    state.weeksB.clear();
-    if(b!==undefined) state.weeksB.add(b);
-  }
-  if(on&&!state.weeksB.size){
-    // no legal baseline inside the window: refuse, say why, and leave the box unchecked -- never compare a
-    // period against itself or against "everything"
+  if(on&&!settleB()){
+    // no second period: refuse, say why, and leave the box unchecked -- never compare a period against itself
     state.compare=false; $("cmp").checked=false;
     setNotice(availWeeks.filter(w=>w<999).length<2
       ? "Compare needs two resets — only one reset has data inside the window right now."
-      : "Compare needs one reset in A — with everything kept there is no other reset for B.");
+      : "Compare needs a reset in A or B — both are on everything kept.");
     refreshPeriodUIs(); syncAxisUI(); return;
   }
   state.compare=on;

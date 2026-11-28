@@ -50,8 +50,10 @@ a region's cut is earlier than it, and the page prints the hours short. What
 the 16-day prune removed is not bought back: summaries_done.txt remembers
 every run ever fetched, so widening the window spends no quota on the days
 already let go. The collector does buy the listed runs of those days that
-carry no marker (141 keys on the first widened run; a re-upload of a fetched
-run under another report code is one of these), so the oldest ROW held is not
+carry no marker: about 63 on the first widened run, whose pending list of 141
+also held that hour's new runs. (A re-upload of a fetched run under another
+report code would be one more: reproduced offline, not seen live.) So the
+oldest ROW held is not
 where the data begins: the first three-reset build reported its oldest row at
 2026-11-04 while the journals start a week later. That is why the edge is
 written down here and not read off the frame.
@@ -89,8 +91,9 @@ assert RETENTION_DISK_DAYS > RETENTION_MAX_AGE_DAYS, "disk must be strictly wide
 # Where the journals begin after the widening of 2026-11-28: the cut of the last prune under the 16-day rule
 # (prune_state.json, applied 2026-11-27T19:55:05Z). Nothing before it is held except runs first listed after
 # their day had been pruned. A region whose cut is earlier than this has a part-filled oldest reset. Inert once
-# every region's cut has passed it (after the resets of 1 and 2 December 2026); delete it then, or set it again
-# if the window is ever widened again.
+# every region's cut has passed it (after the resets of 1 and 2 December 2026). Then set it to None. The builder
+# reads it with getattr, so removing the name is safe as well; part A of test_widening.py and the builder half of
+# test_retention_warn.py skip themselves with a note. Set it again if the window is ever widened again.
 HELD_FROM = "2026-11-11T19:35:01Z"
 
 DAY_MS = 86_400_000

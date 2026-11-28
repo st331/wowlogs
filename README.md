@@ -435,12 +435,14 @@ resolves, the Chain step's decision, the cron and the watchdog threshold pinned 
 `test_dps_clock.py` (the real builder run in a temporary copy on the export: the published DPS is
 the collector's own column, on the fight clock), `test_dn_math.py` (the page's dungeon-adjustment
 functions cut out of `site/index.html` and executed under node against a reference written from
-the rule), `test_talent_string.py` (the game's talent import string: the bit layout by hand, and
+the rule), `test_retention_warn.py` (the page's part-filled-reset sentence and its Compare: Time
+rule, cut out of `site/index.html` and executed under node: the sentence in four time zones,
+Compare over every sequence of up to four clicks), `test_talent_string.py` (the game's talent import string: the bit layout by hand, and
 160 strings the game itself exported, four per spec, reproduced character for character from the
 logged talents alone), `test_talent_trees.py` (a spec's talent panes hold what the game shows
 that spec, and every listed build carries its import string). The workflow tests need PyYAML, the
 builder's need pandas and numpy.
-`test_dn_math.py` needs node and `test_dps_clock.py` the export: without them they print SKIP and
+`test_dn_math.py` and `test_retention_warn.py` need node and `test_dps_clock.py` the export: without them they print SKIP and
 exit with status 3, which the loop above reports as SKIP, not ok.
 
 The 160 strings in `scripts/fixtures/talent_strings.json` stand on the talent trees of the game

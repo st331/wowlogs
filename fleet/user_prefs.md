@@ -842,8 +842,8 @@
     - "START KEEPING" MEANS FROM NOW. The days the 16-day prune had already removed are not
       bought back: `summaries_done.txt` remembers every run ever fetched, so widening the
       window costs no quota for them, and the 70% cap (#40, #42) was not touched. What IS
-      bought, once: listed runs of those days that were never fetched (141 keys on the first
-      widened run, some of them older than the page's cuts and so never shown; checklist
+      bought, once: listed runs of those days that were never fetched (about 63 on the first
+      widened run, all but one older than the page's cuts and so never shown; checklist
       282). The disk
       number went first (06e0c74, 04:21 UTC) so that the prune due that afternoon could not
       cut a further 20 hours. On the day, the oldest reset was whole for CN and KR and short
@@ -862,13 +862,17 @@
       the default Overview instead of 7). The reference is fixed at the newest two resets.
     - THE ⚖ ADJUSTED FIGURES MOVED A LITTLE, AND THAT IS LEFT. The dungeon par table uses
       every kept row, so the third reset changed default adjusted figures by up to about 0.3%
-      on the day with no row of the selection changed (two specs swapped ranks 4 and 5 on
-      Last reset). More rows make a better par, and a par is not a threshold like the trust
+      with no row of the selection changed (two specs swapped ranks 4 and 5 on Last reset;
+      measured on a two-reset and a three-reset build of the 27 November seed). More rows make a better par, and a par is not a threshold like the trust
       gate. As-logged figures did not move. The owner was told.
-    - COMPARE: TIME OPENS ON THE RESET BEFORE A. Period B used to default to last reset
-      whatever A was, so from A = Last reset it compared that reset with itself. With three
-      resets there is a reset before it, and Compare takes that one; a B the owner picked
-      stands.
+    - COMPARE: TIME NEVER SHOWS A PERIOD AGAINST ITSELF. Period B used to default to last
+      reset whatever A was, and the period chips wrote A and B with nothing looking, so one
+      click could put both on the same reset and every badge read +0.0%. The rule: a B the
+      owner picks (a B chip, the quick chip) stands while it is not A's period; any other B
+      is the reset next to A, the one before it or, for the oldest, the one after it; a B
+      chip naming A's period is refused and says so; with one reset holding data Compare
+      does not switch on. `test_retention_warn.py` walks every sequence of up to four
+      clicks (checklist 289, 290).
     - SEPARATE 14-DAY NUMBERS THAT DID NOT MOVE, because each is its own decision: the Archon
       replica's window (`ELITE_DAYS`, the recipe the owner compares with archon.gg, #43(b));
       the bundle quota gate and the bundle backfill (`execution.QUOTA_DAYS`,
@@ -878,8 +882,10 @@
       its recipe.
     - THE WATCHDOG'S FLOORS WERE STALE AND ARE RECALIBRATED. `MIN_ROWS` and the seed's
       `SEED_FLOOR` were 200,000, set when the window held about 800k rows. Play fell off and
-      the healthy two-reset page held about 95k to 236k, so issue #28 "Refresh stalled" stood open
-      from 2026-11-18 to 2026-11-28 with 107 comments and nothing wrong. Both are 50,000 now:
+      the healthy two-reset page published 95,755 to 196,119 rows, so issue #28 "Refresh stalled" stood open
+      from 2026-11-18 to 2026-11-28 and the false reason was in all 107 of its comments. 37 of them
+      also carried a true one, failed Pages deploys from 21 to 26 November, which went unread
+      for the noise (checklist 276, 281; this entry first said "nothing wrong"). Both are 50,000 now:
       a floor for an emptied journal, not a gauge of volume. `EXPECT_RESETS` is 3 and
       `test_watchdog_probe.py` ties it to `scripts/retention.py`, which nothing did before.
     - The payload is gzipped at this size (above 8 MB), so the site serves `data.json.gz`

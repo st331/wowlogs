@@ -152,10 +152,10 @@ check(info["days_kept"]["US"] == round((pd.Timestamp(ANCHOR) - US_CUT).total_sec
       f"days actually held per region are shipped: {info['days_kept']}")
 check(info["runs_in"] == 9 and info["runs_out"] == 6, f"run counters in/out: {info['runs_in']}/{info['runs_out']}")
 check(info["note"].startswith("the newest 3 weekly resets per region, nothing older than 23 days"),
-      "the printed sentence LEADS with the policy: " + info["note"][:80])
+      "the note LEADS with the policy: " + info["note"][:80])
 check("set aside 3 older parses (3 runs)" in info["note"], "…and carries this build's counts as a trailing clause")
 check(isinstance(info["exceptions"], list) and {e["key"] for e in info["exceptions"]} == {"rating", "talents"},
-      "the two measurements not limited to the window are named for the page")
+      "the two measurements not limited to the window are named in the payload")
 
 # ---- the hard ceiling: an injected wall clock far past the anchor
 NOW_LATE = "2026-09-28T12:00:00Z"          # 19 days after the anchor -> floor = 09-05 12:00

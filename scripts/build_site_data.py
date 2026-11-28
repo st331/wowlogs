@@ -86,7 +86,11 @@ TUNING_FILE = ROOT / "data" / "tuning_patches.json"
 # Owner, 2026-11-28: "start keeping 3 weeks of data (+3 days to accomodate
 # resets)". Until then, from 2026-09-14: "don't keep data for longer than 2
 # weeks ... it is fine to keep a day or two extra of data."
-from retention import RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS, HELD_FROM  # noqa: E402
+from retention import RETENTION_RESETS, RETENTION_MAX_AGE_DAYS, RETENTION_DISK_DAYS  # noqa: E402
+import retention as _retention  # noqa: E402
+# HELD_FROM is temporary (retention.py says when it goes). It is read, not imported by name, so that setting it
+# to None or removing it there cannot stop the hourly build at this line; test_widening.py runs exactly that.
+HELD_FROM = getattr(_retention, "HELD_FROM", None)
 import talent_string  # noqa: E402  (the game's loadout import string)
 ISO_Z = "%Y-%m-%dT%H:%M:%SZ"
 
